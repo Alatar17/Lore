@@ -32,6 +32,7 @@ interface HeaderTabsProps {
   activeCatId: string | null;
   activeSub: string | null;
   viewMode: 'grid' | 'tier';
+  totalFilteredCount: number;
   searchQuery: string;
   isSearchOpen: boolean;
   isFilterOpen: boolean;
@@ -59,6 +60,7 @@ export const HeaderTabs: React.FC<HeaderTabsProps> = ({
   activeCatId,
   activeSub,
   viewMode,
+  totalFilteredCount,
   searchQuery,
   isSearchOpen,
   isFilterOpen,
@@ -80,8 +82,9 @@ export const HeaderTabs: React.FC<HeaderTabsProps> = ({
 }) => {
   const searchInputRef = useRef<HTMLInputElement>(null);
   const [openDropdown, setOpenDropdown] = useState<'media' | 'game' | null>(null);
-  const [expandedCatId, setExpandedCatId] = useState<string | null>(null);
+  const [hoveredCat, setHoveredCat] = useState<Category | null>(null);
   const hoverTimeoutRef = useRef<any>(null);
+  const subMenuTimeoutRef = useRef<any>(null);
 
   const currentCategoryList = mainTab === 'media' ? categories.media : categories.game;
   const activeCategory =
@@ -101,6 +104,7 @@ export const HeaderTabs: React.FC<HeaderTabsProps> = ({
       const target = e.target as HTMLElement;
       if (!target.closest('#category-dropdown-container')) {
         setOpenDropdown(null);
+        setHoveredCat(null);
       }
     };
     window.addEventListener('click', handleClickOutside);
@@ -113,9 +117,12 @@ export const HeaderTabs: React.FC<HeaderTabsProps> = ({
     (filters.followingOnly ? 1 : 0) +
     (filters.ankiFilter !== 'all' ? 1 : 0);
 
-  // Pure Hover handlers: Only opens/closes the dropdown menu preview, DOES NOT change the active page/tab!
+  // Pure Hover handlers for Main Dropdown buttons
   const handleMouseEnter = (tab: 'media' | 'game') => {
     if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
+    if (openDropdown !== tab) {
+      setHoveredCat(null);
+    }
     setOpenDropdown(tab);
   };
 
@@ -123,7 +130,14 @@ export const HeaderTabs: React.FC<HeaderTabsProps> = ({
     if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
     hoverTimeoutRef.current = setTimeout(() => {
       setOpenDropdown(null);
+      setHoveredCat(null);
     }, 250);
+  };
+
+  // Hover handlers for Category items to show subcategory flyout instantly
+  const handleCatMouseEnter = (cat: Category) => {
+    if (subMenuTimeoutRef.current) clearTimeout(subMenuTimeoutRef.current);
+    setHoveredCat(cat);
   };
 
   // Clicking the main button switches the tab and toggles dropdown
@@ -149,84 +163,69 @@ export const HeaderTabs: React.FC<HeaderTabsProps> = ({
     onCategorySelect(catId);
     onSubgroupSelect(sub);
     setOpenDropdown(null);
+    setHoveredCat(null);
   };
 
   return (
     <header className="relative z-30 flex flex-col gap-3 py-2 border-b border-white/10">
-      {/* 3-Column Navigation Bar: Left: Breadcrumb | Center: Tabs | Right: Tools */}
+      {/* 3-Column Navigation Bar: Left: Breadcrumb + Count | Center: Tabs | Right: Tools */}
       <div className="grid grid-cols-1 md:grid-cols-3 items-center gap-3 sm:gap-4">
-        {/* 1. LEFT SIDE: Breadcrumb Path & Tier Switcher */}
-        <div className="flex items-center gap-2 min-w-0 justify-start order-2 md:order-1 flex-wrap">
-          {activeCatId !== null || activeSub !== null ? (
-            <div
-              id="active-breadcrumb-pill"
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/5 border border-blue-500/30 text-xs text-slate-200 animate-in fade-in"
+        {/* 1. LEFT SIDE: Clickable Breadcrumb & Item Count Badge */}
+        <div className="flex items-center gap-2.5 min-w-0 justify-start order-2 md:order-1 flex-wrap">
+          {/* Breadcrumb Navigation Pill */}
+          <div
+            id="active-breadcrumb-pill"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/5 border border-white/10 text-xs text-slate-200"
+          >
+            {/* Main Tab (Medya / Oyun) - Clickable! */}
+            <button
+              onClick={() => {
+                onCategorySelect(null);
+                onSubgroupSelect(null);
+              }}
+              title="Tüm listeyi göster"
+              className="text-slate-300 hover:text-white font-medium hover:underline cursor-pointer transition-colors"
             >
-              <span className="text-slate-400 font-medium">
-                {mainTab === 'media' ? 'Medya' : 'Oyun'}
-              </span>
-              <span className="text-slate-500">›</span>
-              <span className="font-semibold text-blue-300">
-                {activeCatId === TRACKED_TAB_ID
-                  ? '★ İzlenen / Takip'
-                  : activeCategory?.name || 'Seçili Kategori'}
-              </span>
-              {activeSub && (
-                <>
-                  <span className="text-slate-500">›</span>
-                  <span className="text-slate-100 font-semibold">{activeSub}</span>
-                </>
-              )}
-              <button
-                onClick={() => {
-                  onCategorySelect(null);
-                  onSubgroupSelect(null);
-                }}
-                title="Filtreyi Temizle"
-                className="ml-1 p-0.5 rounded-md hover:bg-white/10 text-slate-400 hover:text-white transition-colors cursor-pointer"
-              >
-                <X className="w-3.5 h-3.5" />
-              </button>
-            </div>
-          ) : (
-            <div
-              id="root-breadcrumb-indicator"
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/5 border border-white/10 text-xs text-slate-400"
-            >
-              <span className="w-1.5 h-1.5 rounded-full bg-blue-500" />
-              <span className="font-medium text-slate-300">
-                {mainTab === 'media' ? 'Tüm Medya Arşivi' : 'Tüm Oyun Arşivi'}
-              </span>
-            </div>
-          )}
+              {mainTab === 'media' ? 'Medya' : 'Oyun'}
+            </button>
 
-          {/* Tier List / Grid View Switcher */}
-          {activeCategory && activeCategory.tierEnabled && (
-            <div className="flex items-center gap-1 p-1 bg-black/40 rounded-xl border border-white/10">
-              <button
-                id="viewmode-grid-btn"
-                onClick={() => onViewModeChange('grid')}
-                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium transition-all cursor-pointer ${
-                  viewMode === 'grid'
-                    ? 'bg-blue-600 text-white shadow font-semibold'
-                    : 'text-slate-400 hover:text-white'
-                }`}
-              >
-                <LayoutGrid className="w-3 h-3" /> Izgara
-              </button>
-              <button
-                id="viewmode-tier-btn"
-                onClick={() => onViewModeChange('tier')}
-                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium transition-all cursor-pointer ${
-                  viewMode === 'tier'
-                    ? 'bg-amber-600 text-white shadow font-semibold'
-                    : 'text-slate-400 hover:text-white'
-                }`}
-              >
-                <ListOrdered className="w-3 h-3" /> Tier List
-              </button>
-            </div>
-          )}
+            {/* Category Level - Clickable! */}
+            {activeCatId !== null && (
+              <>
+                <span className="text-slate-500">›</span>
+                <button
+                  onClick={() => onSubgroupSelect(null)}
+                  title={activeSub ? `${activeCategory?.name || 'Kategori'} geneline dön` : ''}
+                  className={`font-semibold cursor-pointer transition-colors ${
+                    activeSub
+                      ? 'text-blue-300 hover:text-white hover:underline'
+                      : 'text-blue-400'
+                  }`}
+                >
+                  {activeCatId === TRACKED_TAB_ID
+                    ? '★ İzlenen / Takip'
+                    : activeCategory?.name || 'Seçili Kategori'}
+                </button>
+              </>
+            )}
+
+            {/* Subgroup Level */}
+            {activeSub && (
+              <>
+                <span className="text-slate-500">›</span>
+                <span className="text-slate-100 font-semibold">{activeSub}</span>
+              </>
+            )}
+          </div>
+
+          {/* Simple Clean Count Badge (Only Number) */}
+          <span
+            id="item-count-badge"
+            title={`${totalFilteredCount} yapım listeleniyor`}
+            className="px-2.5 py-1 rounded-xl bg-blue-600/15 border border-blue-500/30 text-blue-300 font-bold text-xs shadow-xs"
+          >
+            {totalFilteredCount}
+          </span>
         </div>
 
         {/* 2. CENTER: Medya & Oyun Navigation Dropdown Buttons */}
@@ -258,116 +257,125 @@ export const HeaderTabs: React.FC<HeaderTabsProps> = ({
               />
             </button>
 
-            {/* Medya Dropdown Menu */}
+            {/* Medya Dropdown Menu with Hover Flyout Submenu */}
             {openDropdown === 'media' && (
               <div
                 id="dropdown-media-menu"
-                className="absolute top-full left-1/2 -translate-x-1/2 mt-1.5 z-50 w-64 p-2 bg-[#101624]/95 backdrop-blur-xl border border-blue-500/30 rounded-2xl shadow-2xl animate-in fade-in zoom-in-95 duration-150 space-y-1"
+                className="absolute top-full left-1/2 -translate-x-1/2 mt-1.5 z-50"
                 onClick={(e) => e.stopPropagation()}
                 onMouseEnter={() => {
                   if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
                 }}
               >
-                <div className="px-3 py-1.5 text-[10px] font-semibold text-slate-400 uppercase tracking-wider flex items-center justify-between">
-                  <span>Medya Kategorileri</span>
+                {/* Main Category Menu List (Fixed Width & Stable) */}
+                <div className="w-60 p-2 bg-[#0e131f]/95 backdrop-blur-xl border border-blue-500/30 rounded-2xl shadow-2xl space-y-1 relative">
+                  <div className="px-3 py-1.5 text-[10px] font-semibold text-slate-400 uppercase tracking-wider flex items-center justify-between">
+                    <span>Medya Kategorileri</span>
+                    <button
+                      onClick={() => handleSelectCategoryFromMenu('media', null)}
+                      className="text-blue-400 hover:underline capitalize cursor-pointer"
+                    >
+                      Tümünü Gör
+                    </button>
+                  </div>
+
+                  {/* İzlenen / Takip Quick Item */}
                   <button
-                    onClick={() => handleSelectCategoryFromMenu('media', null)}
-                    className="text-blue-400 hover:underline capitalize cursor-pointer"
+                    onClick={() => handleSelectCategoryFromMenu('media', TRACKED_TAB_ID)}
+                    className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-medium transition-colors text-left cursor-pointer ${
+                      mainTab === 'media' && activeCatId === TRACKED_TAB_ID
+                        ? 'bg-amber-500/25 text-amber-300 border border-amber-500/40'
+                        : 'text-amber-400/90 hover:bg-amber-500/10'
+                    }`}
                   >
-                    Tümünü Gör
+                    <span className="flex items-center gap-2">
+                      <span className="text-amber-400">★</span> İzlenen & Takip
+                    </span>
+                    <span className="text-[10px] text-amber-500/70">Özel Vitrin</span>
                   </button>
-                </div>
 
-                {/* İzlenen / Takip Quick Item */}
-                <button
-                  onClick={() => handleSelectCategoryFromMenu('media', TRACKED_TAB_ID)}
-                  className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-medium transition-colors text-left cursor-pointer ${
-                    mainTab === 'media' && activeCatId === TRACKED_TAB_ID
-                      ? 'bg-amber-500/25 text-amber-300 border border-amber-500/40'
-                      : 'text-amber-400/90 hover:bg-amber-500/10'
-                  }`}
-                >
-                  <span className="flex items-center gap-2">
-                    <span className="text-amber-400">★</span> İzlenen & Takip
-                  </span>
-                  <span className="text-[10px] text-amber-500/70">Özel Vitrin</span>
-                </button>
+                  <div className="my-1 border-t border-white/10" />
 
-                <div className="my-1 border-t border-white/10" />
+                  {/* Categories */}
+                  <div className="max-h-72 overflow-y-auto space-y-0.5 custom-scrollbar">
+                    {categories.media.map((cat) => {
+                      const isCatActive = mainTab === 'media' && activeCatId === cat.id;
+                      const hasSubs = cat.subgroups && cat.subgroups.length > 0;
+                      const isHovered = hoveredCat?.id === cat.id;
 
-                {/* Categories */}
-                <div className="max-h-72 overflow-y-auto space-y-0.5 custom-scrollbar">
-                  {categories.media.map((cat) => {
-                    const isCatActive = mainTab === 'media' && activeCatId === cat.id;
-                    const hasSubs = cat.subgroups && cat.subgroups.length > 0;
-                    const isExpanded = expandedCatId === cat.id;
-
-                    return (
-                      <div key={cat.id} className="rounded-xl overflow-hidden">
+                      return (
                         <div
+                          key={cat.id}
+                          onMouseEnter={() => handleCatMouseEnter(cat)}
+                          onClick={() => handleSelectCategoryFromMenu('media', cat.id, null)}
                           className={`flex items-center justify-between px-3 py-2 rounded-xl text-xs font-medium transition-colors cursor-pointer ${
                             isCatActive
-                              ? 'bg-blue-600 text-white'
+                              ? 'bg-blue-600 text-white shadow'
+                              : isHovered
+                              ? 'bg-blue-500/15 text-blue-300'
                               : 'text-slate-300 hover:bg-white/10 hover:text-white'
                           }`}
                         >
-                          <div
-                            onClick={() => handleSelectCategoryFromMenu('media', cat.id, null)}
-                            className="flex-1 truncate"
-                          >
-                            {cat.name}
-                          </div>
+                          <span className="truncate">{cat.name}</span>
                           {hasSubs && (
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setExpandedCatId(isExpanded ? null : cat.id);
-                              }}
-                              className={`p-1 rounded hover:bg-white/10 ${
-                                isExpanded ? 'text-blue-300' : 'text-slate-400'
+                            <ChevronRight
+                              className={`w-3.5 h-3.5 transition-colors ${
+                                isCatActive || isHovered ? 'text-blue-300' : 'text-slate-500'
                               }`}
-                              title="Alt kategoriler"
-                            >
-                              <ChevronRight
-                                className={`w-3.5 h-3.5 transition-transform ${
-                                  isExpanded ? 'rotate-90' : ''
-                                }`}
-                              />
-                            </button>
+                            />
                           )}
                         </div>
+                      );
+                    })}
+                  </div>
 
-                        {/* Nested Subgroups */}
-                        {hasSubs && isExpanded && (
-                          <div className="ml-4 pl-2 my-1 border-l border-blue-500/30 space-y-0.5 animate-in fade-in">
+                  {/* Absolute Positioned Right Flyout Submenu - Leaves Main Menu Untouched */}
+                  {hoveredCat && hoveredCat.subgroups && hoveredCat.subgroups.length > 0 && (
+                    <div
+                      id="flyout-subgroups-menu"
+                      className="absolute top-0 left-full ml-1 w-52 p-2 bg-[#0e131f]/95 backdrop-blur-xl border border-blue-500/30 rounded-2xl shadow-2xl space-y-1 animate-in fade-in zoom-in-95 duration-100 z-50"
+                      onMouseEnter={() => {
+                        if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
+                      }}
+                    >
+                      <div className="px-3 py-1.5 text-[10px] font-semibold text-blue-400 uppercase tracking-wider flex items-center justify-between">
+                        <span>{hoveredCat.name} Alt Grupları</span>
+                      </div>
+
+                      <button
+                        onClick={() => handleSelectCategoryFromMenu('media', hoveredCat.id, null)}
+                        className={`w-full text-left px-3 py-2 rounded-xl text-xs font-medium transition-colors cursor-pointer ${
+                          mainTab === 'media' && activeCatId === hoveredCat.id && activeSub === null
+                            ? 'bg-blue-600 text-white'
+                            : 'text-slate-300 hover:bg-white/10 hover:text-white'
+                        }`}
+                      >
+                        Tümü ({hoveredCat.name})
+                      </button>
+
+                      <div className="my-1 border-t border-white/10" />
+
+                      <div className="max-h-60 overflow-y-auto space-y-0.5 custom-scrollbar">
+                        {hoveredCat.subgroups.map((sub) => {
+                          const isSubActive =
+                            mainTab === 'media' && activeCatId === hoveredCat.id && activeSub === sub;
+                          return (
                             <button
-                              onClick={() => handleSelectCategoryFromMenu('media', cat.id, null)}
-                              className={`w-full text-left px-2.5 py-1.5 rounded-lg text-[11px] transition-colors cursor-pointer ${
-                                isCatActive && activeSub === null
-                                  ? 'bg-blue-500/20 text-blue-300 font-semibold'
-                                  : 'text-slate-400 hover:text-white hover:bg-white/5'
+                              key={sub}
+                              onClick={() => handleSelectCategoryFromMenu('media', hoveredCat.id, sub)}
+                              className={`w-full text-left px-3 py-2 rounded-xl text-xs font-medium transition-colors truncate cursor-pointer ${
+                                isSubActive
+                                  ? 'bg-blue-600 text-white font-semibold'
+                                  : 'text-slate-300 hover:bg-white/10 hover:text-white'
                               }`}
                             >
-                              • Tümü ({cat.name})
+                              {sub}
                             </button>
-                            {cat.subgroups.map((sub) => (
-                              <button
-                                key={sub}
-                                onClick={() => handleSelectCategoryFromMenu('media', cat.id, sub)}
-                                className={`w-full text-left px-2.5 py-1.5 rounded-lg text-[11px] transition-colors truncate cursor-pointer ${
-                                  isCatActive && activeSub === sub
-                                    ? 'bg-blue-500/20 text-blue-300 font-semibold'
-                                    : 'text-slate-400 hover:text-white hover:bg-white/5'
-                                }`}
-                              >
-                                • {sub}
-                              </button>
-                            ))}
-                          </div>
-                        )}
+                          );
+                        })}
                       </div>
-                    );
-                  })}
+                    </div>
+                  )}
                 </div>
               </div>
             )}
@@ -396,115 +404,155 @@ export const HeaderTabs: React.FC<HeaderTabsProps> = ({
               />
             </button>
 
-            {/* Oyun Dropdown Menu */}
+            {/* Oyun Dropdown Menu with Hover Flyout Submenu */}
             {openDropdown === 'game' && (
               <div
                 id="dropdown-game-menu"
-                className="absolute top-full left-1/2 -translate-x-1/2 mt-1.5 z-50 w-64 p-2 bg-[#101624]/95 backdrop-blur-xl border border-emerald-500/30 rounded-2xl shadow-2xl animate-in fade-in zoom-in-95 duration-150 space-y-1"
+                className="absolute top-full left-1/2 -translate-x-1/2 mt-1.5 z-50"
                 onClick={(e) => e.stopPropagation()}
                 onMouseEnter={() => {
                   if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
                 }}
               >
-                <div className="px-3 py-1.5 text-[10px] font-semibold text-slate-400 uppercase tracking-wider flex items-center justify-between">
-                  <span>Oyun Kategorileri</span>
-                  <button
-                    onClick={() => handleSelectCategoryFromMenu('game', null)}
-                    className="text-emerald-400 hover:underline capitalize cursor-pointer"
-                  >
-                    Tümünü Gör
-                  </button>
-                </div>
+                {/* Main Category Menu List (Fixed Width & Stable) */}
+                <div className="w-60 p-2 bg-[#091512]/95 backdrop-blur-xl border border-emerald-500/30 rounded-2xl shadow-2xl space-y-1 relative">
+                  <div className="px-3 py-1.5 text-[10px] font-semibold text-slate-400 uppercase tracking-wider flex items-center justify-between">
+                    <span>Oyun Kategorileri</span>
+                    <button
+                      onClick={() => handleSelectCategoryFromMenu('game', null)}
+                      className="text-emerald-400 hover:underline capitalize cursor-pointer"
+                    >
+                      Tümünü Gör
+                    </button>
+                  </div>
 
-                <div className="my-1 border-t border-white/10" />
+                  <div className="my-1 border-t border-white/10" />
 
-                {/* Categories */}
-                <div className="max-h-72 overflow-y-auto space-y-0.5 custom-scrollbar">
-                  {categories.game.map((cat) => {
-                    const isCatActive = mainTab === 'game' && activeCatId === cat.id;
-                    const hasSubs = cat.subgroups && cat.subgroups.length > 0;
-                    const isExpanded = expandedCatId === cat.id;
+                  {/* Categories */}
+                  <div className="max-h-72 overflow-y-auto space-y-0.5 custom-scrollbar">
+                    {categories.game.map((cat) => {
+                      const isCatActive = mainTab === 'game' && activeCatId === cat.id;
+                      const hasSubs = cat.subgroups && cat.subgroups.length > 0;
+                      const isHovered = hoveredCat?.id === cat.id;
 
-                    return (
-                      <div key={cat.id} className="rounded-xl overflow-hidden">
+                      return (
                         <div
+                          key={cat.id}
+                          onMouseEnter={() => handleCatMouseEnter(cat)}
+                          onClick={() => handleSelectCategoryFromMenu('game', cat.id, null)}
                           className={`flex items-center justify-between px-3 py-2 rounded-xl text-xs font-medium transition-colors cursor-pointer ${
                             isCatActive
-                              ? 'bg-emerald-600 text-white'
+                              ? 'bg-emerald-600 text-white shadow'
+                              : isHovered
+                              ? 'bg-emerald-500/15 text-emerald-300'
                               : 'text-slate-300 hover:bg-white/10 hover:text-white'
                           }`}
                         >
-                          <div
-                            onClick={() => handleSelectCategoryFromMenu('game', cat.id, null)}
-                            className="flex-1 truncate"
-                          >
-                            {cat.name}
-                          </div>
+                          <span className="truncate">{cat.name}</span>
                           {hasSubs && (
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setExpandedCatId(isExpanded ? null : cat.id);
-                              }}
-                              className={`p-1 rounded hover:bg-white/10 ${
-                                isExpanded ? 'text-emerald-300' : 'text-slate-400'
+                            <ChevronRight
+                              className={`w-3.5 h-3.5 transition-colors ${
+                                isCatActive || isHovered ? 'text-emerald-300' : 'text-slate-500'
                               }`}
-                              title="Alt kategoriler"
-                            >
-                              <ChevronRight
-                                className={`w-3.5 h-3.5 transition-transform ${
-                                  isExpanded ? 'rotate-90' : ''
-                                }`}
-                              />
-                            </button>
+                            />
                           )}
                         </div>
+                      );
+                    })}
+                  </div>
 
-                        {/* Nested Subgroups */}
-                        {hasSubs && isExpanded && (
-                          <div className="ml-4 pl-2 my-1 border-l border-emerald-500/30 space-y-0.5 animate-in fade-in">
+                  {/* Absolute Positioned Right Flyout Submenu */}
+                  {hoveredCat && hoveredCat.subgroups && hoveredCat.subgroups.length > 0 && (
+                    <div
+                      id="flyout-game-subgroups-menu"
+                      className="absolute top-0 left-full ml-1 w-52 p-2 bg-[#091512]/95 backdrop-blur-xl border border-emerald-500/30 rounded-2xl shadow-2xl space-y-1 animate-in fade-in zoom-in-95 duration-100 z-50"
+                      onMouseEnter={() => {
+                        if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
+                      }}
+                    >
+                      <div className="px-3 py-1.5 text-[10px] font-semibold text-emerald-400 uppercase tracking-wider flex items-center justify-between">
+                        <span>{hoveredCat.name} Alt Grupları</span>
+                      </div>
+
+                      <button
+                        onClick={() => handleSelectCategoryFromMenu('game', hoveredCat.id, null)}
+                        className={`w-full text-left px-3 py-2 rounded-xl text-xs font-medium transition-colors cursor-pointer ${
+                          mainTab === 'game' && activeCatId === hoveredCat.id && activeSub === null
+                            ? 'bg-emerald-600 text-white'
+                            : 'text-slate-300 hover:bg-white/10 hover:text-white'
+                        }`}
+                      >
+                        Tümü ({hoveredCat.name})
+                      </button>
+
+                      <div className="my-1 border-t border-white/10" />
+
+                      <div className="max-h-60 overflow-y-auto space-y-0.5 custom-scrollbar">
+                        {hoveredCat.subgroups.map((sub) => {
+                          const isSubActive =
+                            mainTab === 'game' && activeCatId === hoveredCat.id && activeSub === sub;
+                          return (
                             <button
-                              onClick={() => handleSelectCategoryFromMenu('game', cat.id, null)}
-                              className={`w-full text-left px-2.5 py-1.5 rounded-lg text-[11px] transition-colors cursor-pointer ${
-                                isCatActive && activeSub === null
-                                  ? 'bg-emerald-500/20 text-emerald-300 font-semibold'
-                                  : 'text-slate-400 hover:text-white hover:bg-white/5'
+                              key={sub}
+                              onClick={() => handleSelectCategoryFromMenu('game', hoveredCat.id, sub)}
+                              className={`w-full text-left px-3 py-2 rounded-xl text-xs font-medium transition-colors truncate cursor-pointer ${
+                                isSubActive
+                                  ? 'bg-emerald-600 text-white font-semibold'
+                                  : 'text-slate-300 hover:bg-white/10 hover:text-white'
                               }`}
                             >
-                              • Tümü ({cat.name})
+                              {sub}
                             </button>
-                            {cat.subgroups.map((sub) => (
-                              <button
-                                key={sub}
-                                onClick={() => handleSelectCategoryFromMenu('game', cat.id, sub)}
-                                className={`w-full text-left px-2.5 py-1.5 rounded-lg text-[11px] transition-colors truncate cursor-pointer ${
-                                  isCatActive && activeSub === sub
-                                    ? 'bg-emerald-500/20 text-emerald-300 font-semibold'
-                                    : 'text-slate-400 hover:text-white hover:bg-white/5'
-                                }`}
-                              >
-                                • {sub}
-                              </button>
-                            ))}
-                          </div>
-                        )}
+                          );
+                        })}
                       </div>
-                    );
-                  })}
+                    </div>
+                  )}
                 </div>
               </div>
             )}
           </div>
         </div>
 
-        {/* 3. RIGHT SIDE: Toolbar Icons (Search, Filter, View, Settings) */}
+        {/* 3. RIGHT SIDE: Izgara/Tier List + Divider + Search + Filter + View + Divider + Settings */}
         <div
-          className="flex items-center justify-end gap-2 relative order-3"
+          className="flex items-center justify-end gap-2 relative order-3 flex-wrap"
           onClick={(e) => e.stopPropagation()}
         >
+          {/* Izgara / Tier List Switcher (Moved to right toolbar!) */}
+          {activeCategory && activeCategory.tierEnabled && (
+            <div className="flex items-center gap-1 p-0.5 bg-black/40 rounded-xl border border-white/10">
+              <button
+                id="viewmode-grid-btn"
+                onClick={() => onViewModeChange('grid')}
+                className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer ${
+                  viewMode === 'grid'
+                    ? 'bg-blue-600 text-white shadow font-semibold'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                <LayoutGrid className="w-3.5 h-3.5" /> Izgara
+              </button>
+              <button
+                id="viewmode-tier-btn"
+                onClick={() => onViewModeChange('tier')}
+                className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer ${
+                  viewMode === 'tier'
+                    ? 'bg-amber-600 text-white shadow font-semibold'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                <ListOrdered className="w-3.5 h-3.5" /> Tier List
+              </button>
+            </div>
+          )}
+
+          {/* Divider before Search */}
+          <div className="h-5 w-[1px] bg-white/20 mx-0.5" aria-hidden="true" />
+
           {/* Search Box / Toggle */}
           {isSearchOpen ? (
-            <div className="flex items-center bg-black/40 border border-white/15 rounded-xl px-3 py-1.5 w-48 sm:w-64 animate-in fade-in">
+            <div className="flex items-center bg-black/40 border border-white/15 rounded-xl px-3 py-1.5 w-48 sm:w-60 animate-in fade-in">
               <Search className="w-3.5 h-3.5 text-slate-400 shrink-0 mr-2" />
               <input
                 ref={searchInputRef}
@@ -595,6 +643,9 @@ export const HeaderTabs: React.FC<HeaderTabsProps> = ({
               />
             )}
           </div>
+
+          {/* Divider before Settings */}
+          <div className="h-5 w-[1px] bg-white/20 mx-0.5" aria-hidden="true" />
 
           {/* Settings Modal Trigger (Far Right) */}
           <button

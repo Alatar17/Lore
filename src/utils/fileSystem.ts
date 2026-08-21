@@ -1,7 +1,7 @@
 import { AppData, ArchiveItem } from '../types';
 import { INITIAL_DATA } from '../data/initialData';
 
-const LOCAL_STORAGE_KEY = 'yapim_arsivim_app_data_v1';
+const LOCAL_STORAGE_KEY = 'yapim_arsivim_app_data_v2';
 const DB_NAME = 'YapimArsivimDB';
 const DB_STORE = 'fs_handles';
 const APP_DATA_STORE = 'app_data_store';

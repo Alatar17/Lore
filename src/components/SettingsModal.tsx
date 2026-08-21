@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { AppData, Category, MainTabType, AppTheme, ViewSettings } from '../types';
-import { createDefaultTierRows } from '../data/initialData';
+import { createDefaultTierRows, INITIAL_DATA } from '../data/initialData';
 import {
   downloadJsonFile,
   parseUploadedJson,
@@ -22,6 +22,7 @@ import {
   Palette,
   Keyboard,
   Check,
+  RotateCcw,
 } from 'lucide-react';
 
 interface SettingsModalProps {
@@ -49,49 +50,31 @@ interface ThemeOption {
 
 const THEMES: ThemeOption[] = [
   {
-    id: 'deep-slate',
-    name: 'Derin Lacivert (Varsayılan)',
-    desc: 'Sinematik ve dengeli koyu lacivert tonlar, yumuşak mavi vurgular',
-    bgPreview: 'bg-[#090d16]',
-    cardPreview: 'bg-[#121826]',
-    accentPreview: 'bg-blue-500',
-    borderPreview: 'border-blue-500/40',
-  },
-  {
-    id: 'midnight-blue',
-    name: 'Gece Mavisi (Neon)',
-    desc: 'Derin okyanus mavisi zemin, canlı elektrik mavisi ve mor parıltılar',
-    bgPreview: 'bg-[#060913]',
-    cardPreview: 'bg-[#0d1527]',
-    accentPreview: 'bg-cyan-500',
-    borderPreview: 'border-cyan-500/40',
-  },
-  {
-    id: 'cyber-emerald',
-    name: 'Zümrüt & Matrix',
-    desc: 'Koyu füme zemin, zarif ve göz yormayan zümrüt yeşili vurgular',
-    bgPreview: 'bg-[#080e0c]',
-    cardPreview: 'bg-[#101b17]',
-    accentPreview: 'bg-emerald-500',
-    borderPreview: 'border-emerald-500/40',
-  },
-  {
-    id: 'warm-amber',
-    name: 'Sıcak Amber & Karamel',
-    desc: 'Sinematik sıcak tonlar, altın ve kehribar sarısı yumuşak detaylar',
-    bgPreview: 'bg-[#120f0d]',
-    cardPreview: 'bg-[#1e1713]',
-    accentPreview: 'bg-amber-500',
-    borderPreview: 'border-amber-500/40',
-  },
-  {
     id: 'pure-dark',
     name: 'Saf Siyah (OLED)',
-    desc: 'Maksimum kontrast, zifiri siyah zemin ve nötr metalik çizgiler',
+    desc: 'Maksimum kontrast, zifiri siyah zemin (#000000) ve sade metalik çizgiler',
     bgPreview: 'bg-[#000000]',
-    cardPreview: 'bg-[#101012]',
-    accentPreview: 'bg-slate-200',
+    cardPreview: 'bg-[#0c0c0e]',
+    accentPreview: 'bg-white',
     borderPreview: 'border-white/20',
+  },
+  {
+    id: 'charcoal-gray',
+    name: 'Koyu Gri (Dark Slate / Charcoal)',
+    desc: 'Çok koyu, şık ve mat antrasit/gri zemin (#0f1115)',
+    bgPreview: 'bg-[#0f1115]',
+    cardPreview: 'bg-[#181b22]',
+    accentPreview: 'bg-slate-300',
+    borderPreview: 'border-slate-500/30',
+  },
+  {
+    id: 'dark-slate',
+    name: 'Grimsi Gri (Medium Slate)',
+    desc: 'Biraz daha açık, dengeli ve derin grimsi zemin (#1a1d24)',
+    bgPreview: 'bg-[#1a1d24]',
+    cardPreview: 'bg-[#242832]',
+    accentPreview: 'bg-blue-400',
+    borderPreview: 'border-blue-500/30',
   },
 ];
 
@@ -112,7 +95,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   const [connecting, setConnecting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const currentTheme = viewSettings.theme || 'deep-slate';
+  const currentTheme = viewSettings.theme || 'pure-dark';
   const cats = appData.categories[settingsMainTab] || [];
 
   // Close with Escape key
@@ -657,6 +640,29 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     <Upload className="w-3.5 h-3.5 text-emerald-400" /> JSON Yükle
                   </button>
                 </div>
+              </div>
+
+              {/* Sample Data Reset / Reload */}
+              <div className="p-4 rounded-xl bg-white/5 border border-white/10 space-y-3">
+                <h4 className="text-sm font-semibold text-slate-100 flex items-center gap-2">
+                  <RotateCcw className="w-4 h-4 text-amber-400" />
+                  Örnek / Zengin Test Verilerini Yeniden Yükle
+                </h4>
+                <p className="text-xs text-slate-300 leading-relaxed">
+                  25+ Medya (Anime, Dizi, Film, Belgesel) ve 20+ Oyun içeren güncel zengin test arşivini yükler.
+                </p>
+                <button
+                  id="reset-sample-data-btn"
+                  onClick={() => {
+                    if (window.confirm('Tüm yapımlar güncel zengin test verileriyle sıfırlanacak. Onaylıyor musunuz?')) {
+                      onReplaceAllData(INITIAL_DATA);
+                    }
+                  }}
+                  className="py-2 px-4 rounded-xl bg-amber-600/20 hover:bg-amber-600/30 text-amber-300 border border-amber-500/40 text-xs font-semibold flex items-center gap-2 transition-all cursor-pointer"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  Örnek Zengin Arşivi Yükle
+                </button>
               </div>
             </div>
           )}

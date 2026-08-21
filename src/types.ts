@@ -63,7 +63,7 @@ export interface FilterState {
   ankiFilter: 'all' | 'yes' | 'no';
 }
 
-export type AppTheme = 'deep-slate' | 'midnight-blue' | 'cyber-emerald' | 'warm-amber' | 'pure-dark';
+export type AppTheme = 'pure-dark' | 'charcoal-gray' | 'dark-slate';
 
 export interface ViewSettings {
   showTitleOnPoster: boolean;

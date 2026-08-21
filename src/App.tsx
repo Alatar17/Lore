@@ -140,7 +140,14 @@ export default function App() {
     setIsViewOpen(false);
   }, []);
 
-  // --- 3. Global Keyboard Shortcuts ('W' for add, 'Escape' for close) ---
+  // Current category list for active main tab
+  const currentCategories = appData.categories[mainTab] || [];
+  const activeCategory =
+    activeCatId && activeCatId !== TRACKED_TAB_ID
+      ? currentCategories.find((c) => c.id === activeCatId)
+      : null;
+
+  // --- 3. Global Keyboard Shortcuts ('W' for add, 'Escape' for close, 'Tab' for grid/tier) ---
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       // 'Escape' key -> ALWAYS close modals/popovers even if inside input/textarea
@@ -168,12 +175,21 @@ export default function App() {
         e.preventDefault();
         closeAllPanels();
         setIsAddModalOpen(true);
+        return;
+      }
+
+      // 'Tab' key -> Toggle between Grid and Tier List view if tier list is enabled for active category
+      if (e.key === 'Tab') {
+        if (activeCategory && activeCategory.tierEnabled) {
+          e.preventDefault();
+          setViewMode((prev) => (prev === 'grid' ? 'tier' : 'grid'));
+        }
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [closeAllPanels, selectedItem, isAddModalOpen, isSettingsOpen]);
+  }, [closeAllPanels, selectedItem, isAddModalOpen, isSettingsOpen, activeCategory]);
 
   // Directory Connection Handlers
   const handleConnectFolder = async () => {
@@ -298,13 +314,6 @@ export default function App() {
     setActiveSub(null);
   };
 
-  // Current category list for active main tab
-  const currentCategories = appData.categories[mainTab] || [];
-  const activeCategory =
-    activeCatId && activeCatId !== TRACKED_TAB_ID
-      ? currentCategories.find((c) => c.id === activeCatId)
-      : null;
-
   // --- Filter and Search Logic ---
   const filteredItems = useMemo(() => {
     return appData.items.filter((item) => {
@@ -367,33 +376,23 @@ export default function App() {
 
   // Theme style classes helper
   const themeClasses = useMemo(() => {
-    const theme = viewSettings.theme || 'deep-slate';
+    const theme = viewSettings.theme || 'pure-dark';
     switch (theme) {
-      case 'midnight-blue':
+      case 'charcoal-gray':
         return {
-          bg: 'bg-[#030712]',
-          ambient: 'bg-[radial-gradient(ellipse_90%_70%_at_50%_-20%,rgba(6,182,212,0.22),transparent)]',
+          bg: 'bg-[#0f1115]',
+          ambient: 'bg-[radial-gradient(ellipse_90%_70%_at_50%_-20%,rgba(100,116,139,0.14),transparent)]',
         };
-      case 'cyber-emerald':
+      case 'dark-slate':
         return {
-          bg: 'bg-[#030c08]',
-          ambient: 'bg-[radial-gradient(ellipse_90%_70%_at_50%_-20%,rgba(16,185,129,0.2),transparent)]',
-        };
-      case 'warm-amber':
-        return {
-          bg: 'bg-[#120b06]',
-          ambient: 'bg-[radial-gradient(ellipse_90%_70%_at_50%_-20%,rgba(245,158,11,0.2),transparent)]',
+          bg: 'bg-[#181b22]',
+          ambient: 'bg-[radial-gradient(ellipse_90%_70%_at_50%_-20%,rgba(96,165,250,0.14),transparent)]',
         };
       case 'pure-dark':
+      default:
         return {
           bg: 'bg-[#000000]',
           ambient: 'bg-transparent',
-        };
-      case 'deep-slate':
-      default:
-        return {
-          bg: 'bg-[#090d16]',
-          ambient: 'bg-[radial-gradient(ellipse_90%_70%_at_50%_-20%,rgba(37,99,235,0.16),transparent)]',
         };
     }
   }, [viewSettings.theme]);
@@ -401,7 +400,7 @@ export default function App() {
   return (
     <div
       id="app-root"
-      data-theme={viewSettings.theme || 'deep-slate'}
+      data-theme={viewSettings.theme || 'pure-dark'}
       onClick={closeAllPanels}
       className={`min-h-screen ${themeClasses.bg} text-slate-100 flex flex-col selection:bg-blue-600 selection:text-white relative overflow-x-hidden transition-colors duration-300`}
     >
@@ -416,6 +415,7 @@ export default function App() {
           activeCatId={activeCatId}
           activeSub={activeSub}
           viewMode={viewMode}
+          totalFilteredCount={filteredItems.length}
           searchQuery={searchQuery}
           isSearchOpen={isSearchOpen}
           isFilterOpen={isFilterOpen}
@@ -476,14 +476,14 @@ export default function App() {
               onItemClick={(item) => setSelectedItem(item)}
             />
           ) : (
-            /* C: Fluid & Dynamic Poster Grid */
+            /* C: Fluid & Dynamic Poster Grid - 3 cards per row on mobile, auto-fill on tablet/desktop */
             <div id="items-grid-section">
               {filteredItems.length > 0 ? (
                 <div
                   id="items-grid"
-                  className="grid gap-3 sm:gap-4.5 transition-all duration-300"
+                  className="grid grid-cols-3 sm:grid-cols-auto-fill gap-2 sm:gap-4.5 transition-all duration-300"
                   style={{
-                    gridTemplateColumns: `repeat(auto-fill, minmax(${cardMinWidth}px, 1fr))`,
+                    gridTemplateColumns: window.innerWidth < 640 ? 'repeat(3, minmax(0, 1fr))' : `repeat(auto-fill, minmax(${cardMinWidth}px, 1fr))`,
                   }}
                 >
                   {filteredItems.map((item) => (

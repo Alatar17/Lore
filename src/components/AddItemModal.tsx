@@ -12,6 +12,11 @@ import {
   Trophy,
   ClipboardPaste,
   Check,
+  Tv,
+  Bookmark,
+  Sparkles,
+  HelpCircle,
+  ImageIcon,
 } from 'lucide-react';
 
 interface AddItemModalProps {
@@ -86,7 +91,7 @@ export const AddItemModal: React.FC<AddItemModalProps> = ({
   const handlePasteFromClipboard = async () => {
     try {
       if (!navigator.clipboard || !navigator.clipboard.read) {
-        window.alert('Lütfen Ctrl+V tuşlarına basarak doğrudan yapıştırın.');
+        window.alert('Lütfen doğrudan Ctrl+V tuşlarına basarak yapıştırın.');
         return;
       }
       const items = await navigator.clipboard.read();
@@ -185,23 +190,23 @@ export const AddItemModal: React.FC<AddItemModalProps> = ({
   return (
     <div
       id="add-item-modal-overlay"
-      className="fixed inset-0 z-50 bg-black/75 backdrop-blur-xs flex items-center justify-center p-3 sm:p-5 overflow-y-auto"
+      className="fixed inset-0 z-50 bg-black/80 backdrop-blur-xs flex items-center justify-center p-3 sm:p-5 overflow-y-auto"
       onClick={onClose}
     >
       <div
         id="add-item-modal-box"
-        className="relative w-full max-w-xl bg-[#1e2027] border border-[#373d4d] rounded-2xl shadow-2xl overflow-hidden my-auto"
+        className="relative w-full max-w-xl bg-[#131722] border border-white/15 rounded-2xl shadow-2xl overflow-hidden my-auto"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-3.5 border-b border-[#2d3240] bg-[#181a20]">
-          <h3 className="font-semibold text-sm text-gray-100 flex items-center gap-2">
+        <div className="flex items-center justify-between px-5 py-3.5 border-b border-white/10 bg-black/40">
+          <h3 className="font-semibold text-sm text-slate-100 flex items-center gap-2">
             <Plus className="w-4 h-4 text-blue-400" />
             {isGame ? 'Yeni Oyun Ekle' : 'Yeni Medya Ekle'}
           </h3>
           <button
             onClick={onClose}
-            className="p-1 rounded-lg text-gray-400 hover:text-white hover:bg-white/10 transition-colors"
+            className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
           >
             <X className="w-4 h-4" />
           </button>
@@ -211,7 +216,7 @@ export const AddItemModal: React.FC<AddItemModalProps> = ({
         <form onSubmit={handleSubmit} className="p-5 space-y-4 max-h-[80vh] overflow-y-auto custom-scrollbar">
           {/* Title */}
           <div>
-            <label className="block text-xs font-semibold text-gray-300 mb-1">
+            <label className="block text-xs font-semibold text-slate-300 mb-1">
               Başlık *
             </label>
             <input
@@ -221,15 +226,15 @@ export const AddItemModal: React.FC<AddItemModalProps> = ({
               placeholder={isGame ? 'Örn: Elden Ring' : 'Örn: Attack on Titan'}
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              className="w-full bg-[#14151a] text-gray-100 border border-[#353a47] rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500"
+              className="w-full bg-black/30 text-slate-100 border border-white/10 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-blue-500"
               autoFocus
             />
           </div>
 
           {/* Category & Subgroup */}
-          <div className="grid grid-cols-2 gap-3">
+          <div className={`grid gap-3 ${selectedCatObj?.subgroups.length ? 'grid-cols-2' : 'grid-cols-1'}`}>
             <div>
-              <label className="block text-xs font-semibold text-gray-300 mb-1">
+              <label className="block text-xs font-semibold text-slate-300 mb-1">
                 Kategori
               </label>
               <select
@@ -239,51 +244,53 @@ export const AddItemModal: React.FC<AddItemModalProps> = ({
                   setCat(e.target.value);
                   setSub(null);
                 }}
-                className="w-full bg-[#14151a] text-gray-200 border border-[#353a47] rounded-lg px-2.5 py-1.5 text-xs focus:outline-none focus:border-blue-500"
+                className="w-full bg-black/30 text-slate-200 border border-white/10 rounded-xl px-2.5 py-1.5 text-xs focus:outline-none focus:border-blue-500 cursor-pointer"
               >
                 {categories.map((c) => (
-                  <option key={c.id} value={c.id}>
+                  <option key={c.id} value={c.id} className="bg-slate-900 text-white">
                     {c.name}
                   </option>
                 ))}
               </select>
             </div>
 
-            <div>
-              <label className="block text-xs font-semibold text-gray-300 mb-1">
-                Alt-Grup
-              </label>
-              <select
-                id="add-subgroup-select"
-                value={sub || ''}
-                disabled={!selectedCatObj?.subgroups.length}
-                onChange={(e) => setSub(e.target.value || null)}
-                className="w-full bg-[#14151a] text-gray-200 border border-[#353a47] rounded-lg px-2.5 py-1.5 text-xs disabled:opacity-40 focus:outline-none focus:border-blue-500"
-              >
-                <option value="">Yok / Genel</option>
-                {selectedCatObj?.subgroups.map((s) => (
-                  <option key={s} value={s}>
-                    {s}
-                  </option>
-                ))}
-              </select>
-            </div>
+            {/* Subgroup Selector - ONLY visible if category has subgroups */}
+            {selectedCatObj && selectedCatObj.subgroups.length > 0 && (
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-1">
+                  Alt-Grup
+                </label>
+                <select
+                  id="add-subgroup-select"
+                  value={sub || ''}
+                  onChange={(e) => setSub(e.target.value || null)}
+                  className="w-full bg-black/30 text-slate-200 border border-white/10 rounded-xl px-2.5 py-1.5 text-xs focus:outline-none focus:border-blue-500 cursor-pointer"
+                >
+                  <option value="" className="bg-slate-900 text-white">Yok / Genel</option>
+                  {selectedCatObj.subgroups.map((s) => (
+                    <option key={s} value={s} className="bg-slate-900 text-white">
+                      {s}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
           </div>
 
           {/* Rating & Date */}
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-semibold text-gray-300 mb-1 flex items-center gap-1">
+              <label className="block text-xs font-semibold text-slate-300 mb-1 flex items-center gap-1">
                 <Star className="w-3 h-3 text-amber-400 fill-amber-400" /> Puan (1-10)
               </label>
               <select
                 id="add-rating-select"
                 value={rating}
                 onChange={(e) => setRating(Number(e.target.value))}
-                className="w-full bg-[#14151a] text-amber-300 font-bold border border-[#353a47] rounded-lg px-2.5 py-1.5 text-xs focus:outline-none focus:border-blue-500"
+                className="w-full bg-black/30 text-amber-300 font-bold border border-white/10 rounded-xl px-2.5 py-1.5 text-xs focus:outline-none focus:border-blue-500 cursor-pointer"
               >
                 {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((num) => (
-                  <option key={num} value={num}>
+                  <option key={num} value={num} className="bg-slate-900 text-amber-300">
                     ★ {num} / 10
                   </option>
                 ))}
@@ -291,23 +298,51 @@ export const AddItemModal: React.FC<AddItemModalProps> = ({
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-gray-300 mb-1 flex items-center gap-1">
-                <Calendar className="w-3 h-3 text-blue-400" /> Tarih
-              </label>
-              <input
-                id="add-date-input"
-                type="date"
-                value={date}
-                onChange={(e) => setDate(e.target.value)}
-                className="w-full bg-[#14151a] text-gray-200 border border-[#353a47] rounded-lg px-2.5 py-1.5 text-xs focus:outline-none focus:border-blue-500"
-              />
+              <div className="flex items-center justify-between mb-1">
+                <label className="block text-xs font-semibold text-slate-300 flex items-center gap-1">
+                  <Calendar className="w-3 h-3 text-blue-400" /> Tarih
+                </label>
+                <button
+                  type="button"
+                  id="add-toggle-unknown-date-btn"
+                  onClick={() => {
+                    if (date === '??.??' || date === '') {
+                      setDate(new Date().toISOString().split('T')[0]);
+                    } else {
+                      setDate('??.??');
+                    }
+                  }}
+                  title="Ne zaman izlediğimi / oynadığımı hatırlamıyorum (Tarih Bilinmiyor: ??.??)"
+                  className={`p-1 rounded-md border text-[11px] transition-all flex items-center justify-center cursor-pointer ${
+                    date === '??.??'
+                      ? 'bg-amber-500/20 text-amber-300 border-amber-500/40 shadow-xs'
+                      : 'bg-white/5 text-slate-400 border-white/10 hover:text-white hover:bg-white/10'
+                  }`}
+                >
+                  <HelpCircle className="w-3.5 h-3.5" />
+                </button>
+              </div>
+
+              {date === '??.??' ? (
+                <div className="w-full bg-amber-500/10 text-amber-300 border border-amber-500/30 rounded-xl px-2.5 py-1.5 text-xs font-semibold flex items-center justify-between">
+                  <span>Tarih Bilinmiyor (??.??)</span>
+                </div>
+              ) : (
+                <input
+                  id="add-date-input"
+                  type="date"
+                  value={date}
+                  onChange={(e) => setDate(e.target.value)}
+                  className="w-full bg-black/30 text-slate-200 border border-white/10 rounded-xl px-2.5 py-1.5 text-xs focus:outline-none focus:border-blue-500"
+                />
+              )}
             </div>
           </div>
 
-          {/* Image Upload */}
+          {/* Thumbnail */}
           <div>
-            <label className="block text-xs font-semibold text-gray-300 mb-1">
-              Thumbnail / Afiş (Opsiyonel)
+            <label className="block text-xs font-semibold text-slate-300 mb-1">
+              Thumbnail
             </label>
             <input
               type="file"
@@ -321,28 +356,28 @@ export const AddItemModal: React.FC<AddItemModalProps> = ({
                 type="button"
                 id="add-thumb-btn"
                 onClick={() => fileInputRef.current?.click()}
-                className="px-3 py-1.5 rounded-lg bg-[#282c37] hover:bg-[#323746] border border-[#3e4556] text-xs font-medium text-gray-200 flex items-center gap-1.5 transition-colors"
+                className="px-3 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-xs font-medium text-slate-200 flex items-center gap-1.5 transition-colors cursor-pointer"
               >
                 <Upload className="w-3.5 h-3.5 text-blue-400" />
-                <span>{thumbnail ? 'Dosya Değiştir' : 'Bilgisayardan Dosya Seç'}</span>
+                <span>{thumbnail ? 'Değiştir' : 'Dosya Seç'}</span>
               </button>
 
               <button
                 type="button"
                 id="add-paste-btn"
                 onClick={handlePasteFromClipboard}
-                className="px-3 py-1.5 rounded-lg bg-blue-600/20 hover:bg-blue-600/30 border border-blue-500/40 text-xs font-medium text-blue-300 flex items-center gap-1.5 transition-colors"
-                title="Panoya kopyalanmış resmi yapıştır (veya doğrudan Ctrl+V yapın)"
+                className="px-3 py-1.5 rounded-xl bg-blue-600/20 hover:bg-blue-600/30 border border-blue-500/40 text-xs font-medium text-blue-300 flex items-center gap-1.5 transition-colors cursor-pointer"
+                title="Panoya kopyalanmış resmi yapıştır"
               >
                 <ClipboardPaste className="w-3.5 h-3.5 text-blue-400" />
-                <span>Panodan Yapıştır (Ctrl+V)</span>
+                <span>Panodan Yapıştır</span>
               </button>
 
               {thumbnail && (
                 <button
                   type="button"
                   onClick={() => setThumbnail(undefined)}
-                  className="text-xs text-red-400 hover:underline px-1"
+                  className="text-xs text-red-400 hover:underline px-1 cursor-pointer"
                 >
                   Kaldır
                 </button>
@@ -355,52 +390,66 @@ export const AddItemModal: React.FC<AddItemModalProps> = ({
               </p>
             )}
 
-            {thumbnail && (
-              <div className="mt-2 flex items-center gap-2">
-                <div className="w-12 h-16 rounded border border-gray-700 overflow-hidden shrink-0">
+            {/* Thumbnail Preview or Visual Placeholder */}
+            <div className="mt-2.5 flex items-center gap-3">
+              {thumbnail ? (
+                <div className="w-14 h-20 rounded-xl border border-blue-500/40 overflow-hidden shadow-md shrink-0 bg-slate-900">
                   <img src={thumbnail} alt="Önizleme" className="w-full h-full object-cover" />
                 </div>
-                <span className="text-[11px] text-gray-400">Resim seçildi / yapıştırıldı</span>
-              </div>
-            )}
+              ) : (
+                <div
+                  onClick={() => fileInputRef.current?.click()}
+                  className="w-14 h-20 rounded-xl border border-dashed border-white/20 hover:border-blue-400/50 bg-white/5 flex flex-col items-center justify-center p-1 cursor-pointer transition-colors shrink-0 group"
+                  title="Resim seçmek için tıklayın"
+                >
+                  <ImageIcon className="w-5 h-5 text-slate-500 group-hover:text-blue-400 transition-colors" />
+                  <span className="text-[9px] text-slate-500 group-hover:text-slate-300 mt-1">Görsel</span>
+                </div>
+              )}
+              <span className="text-[11px] text-slate-400 leading-tight">
+                {thumbnail
+                  ? 'Görsel eklendi. Kart üzerinde afiş olarak görünecek.'
+                  : 'Görsel eklenmezse kategori renk temalı afiş gösterilir.'}
+              </span>
+            </div>
           </div>
 
           {/* Media Specific Checkboxes */}
           {!isGame && (
-            <div className="pt-2 border-t border-[#2d3240] space-y-2">
-              <label className="flex items-center gap-2 text-xs text-gray-200 cursor-pointer select-none hover:text-white">
+            <div className="pt-2 border-t border-white/10 space-y-2">
+              <label className="flex items-center gap-2 text-xs text-slate-300 cursor-pointer select-none hover:text-white">
                 <input
                   id="add-watching-cb"
                   type="checkbox"
                   checked={watching}
                   onChange={(e) => setWatching(e.target.checked)}
-                  className="w-4 h-4 rounded border-gray-600 bg-gray-800 text-blue-500 focus:ring-0"
+                  className="w-4 h-4 rounded border-slate-600 bg-slate-800 text-blue-500 focus:ring-0 cursor-pointer"
                 />
-                <span className="text-cyan-400">▶</span>
+                <Tv className="w-3.5 h-3.5 text-cyan-400" />
                 <span>İzlenen listesinde (Aktif izleniyor)</span>
               </label>
 
-              <label className="flex items-center gap-2 text-xs text-gray-200 cursor-pointer select-none hover:text-white">
+              <label className="flex items-center gap-2 text-xs text-slate-300 cursor-pointer select-none hover:text-white">
                 <input
                   id="add-following-cb"
                   type="checkbox"
                   checked={following}
                   onChange={(e) => setFollowing(e.target.checked)}
-                  className="w-4 h-4 rounded border-gray-600 bg-gray-800 text-amber-500 focus:ring-0"
+                  className="w-4 h-4 rounded border-slate-600 bg-slate-800 text-amber-500 focus:ring-0 cursor-pointer"
                 />
-                <span className="text-amber-400">★</span>
+                <Bookmark className="w-3.5 h-3.5 text-amber-400" />
                 <span>Takip listesinde (Yeni sezon/bölüm bekleniyor)</span>
               </label>
 
-              <label className="flex items-center gap-2 text-xs text-gray-200 cursor-pointer select-none hover:text-white">
+              <label className="flex items-center gap-2 text-xs text-slate-300 cursor-pointer select-none hover:text-white">
                 <input
                   id="add-anki-cb"
                   type="checkbox"
                   checked={anki}
                   onChange={(e) => setAnki(e.target.checked)}
-                  className="w-4 h-4 rounded border-gray-600 bg-gray-800 text-emerald-500 focus:ring-0"
+                  className="w-4 h-4 rounded border-slate-600 bg-slate-800 text-emerald-500 focus:ring-0 cursor-pointer"
                 />
-                <span className="text-emerald-400">🃏</span>
+                <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
                 <span>Anki'ye işlendi</span>
               </label>
             </div>
@@ -408,56 +457,55 @@ export const AddItemModal: React.FC<AddItemModalProps> = ({
 
           {/* Game Specific Fields */}
           {isGame && (
-            <div className="pt-2 border-t border-[#2d3240] space-y-3">
+            <div className="pt-2 border-t border-white/10 space-y-3">
               <div>
-                <label className="block text-xs font-semibold text-gray-300 mb-1">
+                <label className="block text-xs font-semibold text-slate-300 mb-1">
                   Durum
                 </label>
                 <select
                   id="add-game-status-select"
                   value={status}
                   onChange={(e) => setStatus(e.target.value as GameStatus)}
-                  className="w-full bg-[#14151a] text-gray-200 border border-[#353a47] rounded-lg px-2.5 py-1.5 text-xs focus:outline-none focus:border-blue-500"
+                  className="w-full bg-black/30 text-slate-200 border border-white/10 rounded-xl px-2.5 py-1.5 text-xs focus:outline-none focus:border-blue-500 cursor-pointer"
                 >
-                  <option value="Oynanıyor">🎮 Oynanıyor</option>
-                  <option value="Tamamlandı">✅ Tamamlandı</option>
-                  <option value="Yarım Bırakıldı">⏸ Yarım Bırakıldı</option>
+                  <option value="Oynanıyor" className="bg-slate-900 text-white">🎮 Oynanıyor</option>
+                  <option value="Tamamlandı" className="bg-slate-900 text-white">✅ Tamamlandı</option>
+                  <option value="Yarım Bırakıldı" className="bg-slate-900 text-white">⏸ Yarım Bırakıldı</option>
                 </select>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-semibold text-gray-300 mb-1 flex items-center gap-1">
-                    <Trophy className="w-3 h-3 text-emerald-400" /> Başarım % / Limit
+                  <label className="block text-xs font-semibold text-slate-300 mb-1 flex items-center gap-1">
+                    <Trophy className="w-3 h-3 text-amber-400" /> Başarım (%)
                   </label>
-                  <div className="flex items-center gap-1.5">
+                  <div className="flex items-center gap-1">
                     <input
-                      id="add-achpercent-input"
+                      id="add-ach-input"
                       type="number"
                       min="0"
-                      placeholder="--"
+                      max={achMax}
+                      placeholder="0"
                       value={achPercent ?? ''}
                       onChange={(e) =>
-                        setAchPercent(
-                          e.target.value === '' ? null : Number(e.target.value)
-                        )
+                        setAchPercent(e.target.value ? Number(e.target.value) : null)
                       }
-                      className="w-16 bg-[#14151a] text-emerald-300 font-semibold border border-[#353a47] rounded-lg px-2 py-1 text-xs text-center focus:outline-none focus:border-blue-500"
+                      className="w-full bg-black/30 text-amber-300 font-semibold border border-white/10 rounded-xl px-2.5 py-1.5 text-xs focus:outline-none focus:border-blue-500"
                     />
-                    <span className="text-gray-400">/</span>
+                    <span className="text-slate-400 text-xs">/</span>
                     <input
-                      id="add-achmax-input"
                       type="number"
                       min="1"
+                      title="Üst limit"
                       value={achMax}
                       onChange={(e) => setAchMax(Number(e.target.value) || 100)}
-                      className="w-16 bg-[#14151a] text-gray-300 border border-[#353a47] rounded-lg px-2 py-1 text-xs text-center focus:outline-none focus:border-blue-500"
+                      className="w-16 bg-black/30 text-slate-300 border border-white/10 rounded-xl px-2 py-1.5 text-xs text-center focus:outline-none focus:border-blue-500"
                     />
                   </div>
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-gray-300 mb-1 flex items-center gap-1">
+                  <label className="block text-xs font-semibold text-slate-300 mb-1 flex items-center gap-1">
                     <Clock className="w-3 h-3 text-sky-400" /> Oynanma (Saat)
                   </label>
                   <input
@@ -466,55 +514,56 @@ export const AddItemModal: React.FC<AddItemModalProps> = ({
                     min="0"
                     value={hours}
                     onChange={(e) => setHours(Number(e.target.value) || 0)}
-                    className="w-full bg-[#14151a] text-sky-300 font-semibold border border-[#353a47] rounded-lg px-2.5 py-1 text-xs focus:outline-none focus:border-blue-500"
+                    className="w-full bg-black/30 text-sky-300 font-semibold border border-white/10 rounded-xl px-2.5 py-1.5 text-xs focus:outline-none focus:border-blue-500"
                   />
                 </div>
               </div>
 
-              <label className="flex items-center gap-2 text-xs text-gray-200 cursor-pointer select-none hover:text-white">
+              {/* Anki for game */}
+              <label className="flex items-center gap-2 text-xs text-slate-300 cursor-pointer select-none hover:text-white">
                 <input
                   id="add-anki-game-cb"
                   type="checkbox"
                   checked={anki}
                   onChange={(e) => setAnki(e.target.checked)}
-                  className="w-4 h-4 rounded border-gray-600 bg-gray-800 text-emerald-500 focus:ring-0"
+                  className="w-4 h-4 rounded border-slate-600 bg-slate-800 text-emerald-500 focus:ring-0 cursor-pointer"
                 />
-                <span className="text-emerald-400">🃏</span>
+                <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
                 <span>Anki'ye işlendi</span>
               </label>
             </div>
           )}
 
           {/* Description */}
-          <div>
-            <label className="block text-xs font-semibold text-gray-300 mb-1">
-              Açıklama / Not
+          <div className="pt-2 border-t border-white/10">
+            <label className="block text-xs font-semibold text-slate-300 mb-1">
+              Açıklama / Notlar
             </label>
             <textarea
               id="add-desc-textarea"
               rows={3}
               value={desc}
               onChange={(e) => setDesc(e.target.value)}
-              placeholder="Yıllar sonra hatırlamak için notlar..."
-              className="w-full bg-[#14151a] text-gray-200 border border-[#353a47] rounded-lg p-2.5 text-xs focus:outline-none focus:border-blue-500"
+              placeholder="Yıllar sonra hatırlamak için notlar, hisler, önemli detaylar..."
+              className="w-full bg-black/30 text-slate-200 border border-white/10 rounded-xl p-2.5 text-xs focus:outline-none focus:border-blue-500 resize-none"
             />
           </div>
 
-          {/* Footer Buttons */}
-          <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-[#2d3240]">
+          {/* Submit Buttons */}
+          <div className="flex items-center justify-end gap-2 pt-2 border-t border-white/10">
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 rounded-lg bg-[#282c37] hover:bg-[#323746] text-gray-300 text-xs font-medium transition-colors"
+              className="px-4 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 text-xs font-medium transition-colors cursor-pointer"
             >
               İptal
             </button>
             <button
+              id="submit-add-item-btn"
               type="submit"
-              id="submit-add-btn"
-              className="px-5 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold shadow transition-colors flex items-center gap-1.5"
+              className="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-semibold text-xs transition-all shadow-lg shadow-blue-600/30 cursor-pointer"
             >
-              <Plus className="w-4 h-4" /> Ekle
+              Ekle
             </button>
           </div>
         </form>

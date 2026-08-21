@@ -17,6 +17,22 @@ export const ItemCard: React.FC<ItemCardProps> = ({
   const palette = isGame ? GAME_COLORS : MEDIA_COLORS;
   const baseColor = palette[item.cat] || '#3b82f6';
 
+  // Format date as MM.YYYY (or ??.?? if unknown/empty)
+  const formattedDate = (() => {
+    if (!item.date || item.date === '??.??' || item.date === 'unknown' || item.date.startsWith('0000')) {
+      return '??.??';
+    }
+    const parts = item.date.split('-');
+    if (parts.length >= 2) {
+      const year = parts[0];
+      const month = parts[1];
+      if (year && month) {
+        return `${month}.${year}`;
+      }
+    }
+    return '??.??';
+  })();
+
   return (
     <div
       id={`card-${item.id}`}
@@ -69,6 +85,28 @@ export const ItemCard: React.FC<ItemCardProps> = ({
           >
             <span className="text-[10px]">★</span>
             <span>{item.rating}</span>
+          </div>
+        )}
+
+        {/* Game Date Badge: Top Left */}
+        {isGame && (
+          <div
+            id={`badge-date-${item.id}`}
+            title={`Oynanma Tarihi: ${formattedDate}`}
+            className="absolute top-1.5 left-1.5 px-1.5 py-0.5 rounded-md bg-black/85 backdrop-blur-md border border-white/20 text-[10px] font-semibold text-slate-200 shadow-md z-20 tracking-tight"
+          >
+            {formattedDate}
+          </div>
+        )}
+
+        {/* Media Date Badge: Bottom Center */}
+        {!isGame && (
+          <div
+            id={`badge-date-${item.id}`}
+            title={`İzlenme/Bitirme Tarihi: ${formattedDate}`}
+            className="absolute bottom-1.5 left-1/2 -translate-x-1/2 px-1.5 py-0.5 rounded-md bg-black/85 backdrop-blur-md border border-white/20 text-[10px] font-semibold text-slate-200 shadow-md z-20 whitespace-nowrap tracking-tight pointer-events-none"
+          >
+            {formattedDate}
           </div>
         )}
 
