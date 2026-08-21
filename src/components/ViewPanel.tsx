@@ -1,60 +1,152 @@
 import React from 'react';
-import { ViewSettings } from '../types';
-import { Eye, ZoomIn, ZoomOut } from 'lucide-react';
+import { ViewSettings, MainTabType } from '../types';
+import { SlidersHorizontal, ZoomIn, ZoomOut, Tv, Bookmark, Star, Calendar, Brain, Gamepad2, Type } from 'lucide-react';
 
 interface ViewPanelProps {
   settings: ViewSettings;
+  mainTab: MainTabType;
   onChange: (newSettings: Partial<ViewSettings>) => void;
   onClose: () => void;
 }
 
-export const ViewPanel: React.FC<ViewPanelProps> = ({ settings, onChange }) => {
+export const ViewPanel: React.FC<ViewPanelProps> = ({ settings, mainTab, onChange }) => {
   const cardSize = settings.cardSize || 3;
 
   return (
     <div
       id="view-panel"
-      className="absolute top-12 right-0 z-40 w-64 p-4 bg-[#141b28]/95 backdrop-blur-md border border-[#273248] rounded-xl shadow-2xl text-sm animate-in fade-in zoom-in-95 duration-150"
+      className="absolute top-12 right-0 z-50 w-72 p-4 bg-[#181818]/95 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl text-sm animate-in fade-in zoom-in-95 duration-150 text-neutral-200"
       onClick={(e) => e.stopPropagation()}
     >
-      <div className="flex items-center gap-2 pb-2.5 mb-3 border-b border-[#222c40]">
-        <Eye className="w-4 h-4 text-blue-400" />
-        <span className="font-semibold text-xs text-gray-300 uppercase tracking-wider">
+      <div className="flex items-center gap-2 pb-2.5 mb-3 border-b border-white/10">
+        <SlidersHorizontal className="w-4 h-4 text-white" />
+        <span className="font-semibold text-xs text-neutral-200 uppercase tracking-wider">
           Görünüm Seçenekleri
         </span>
       </div>
 
-      <div className="space-y-3">
-        {/* Checkboxes matching mockup */}
-        <label className="flex items-center gap-2.5 text-xs text-gray-200 cursor-pointer select-none hover:text-white transition-colors">
+      <div className="space-y-2.5">
+        {/* Common: Title */}
+        <label className="flex items-center justify-between text-xs text-neutral-300 hover:text-white cursor-pointer select-none py-1 px-1 rounded-lg hover:bg-white/5 transition-colors">
+          <div className="flex items-center gap-2">
+            <Type className="w-3.5 h-3.5 text-neutral-400" />
+            <span>Kart Başlıklarını Göster</span>
+          </div>
           <input
-            id="toggle-title-poster"
+            id="toggle-show-title"
             type="checkbox"
-            checked={settings.showTitleOnPoster}
-            onChange={(e) => onChange({ showTitleOnPoster: e.target.checked })}
-            className="w-4 h-4 rounded border-gray-600 bg-gray-800/80 text-blue-500 focus:ring-0 cursor-pointer accent-blue-500"
+            checked={settings.showTitle !== false}
+            onChange={(e) => onChange({ showTitle: e.target.checked })}
+            className="w-4 h-4 rounded border-neutral-600 bg-neutral-800 text-white focus:ring-0 cursor-pointer accent-white"
           />
-          <span>Başlığı posterde göster</span>
         </label>
 
-        <label className="flex items-center gap-2.5 text-xs text-gray-200 cursor-pointer select-none hover:text-white transition-colors">
+        {/* Common: Rating */}
+        <label className="flex items-center justify-between text-xs text-neutral-300 hover:text-white cursor-pointer select-none py-1 px-1 rounded-lg hover:bg-white/5 transition-colors">
+          <div className="flex items-center gap-2">
+            <Star className="w-3.5 h-3.5 text-amber-400" />
+            <span>Puan Rozetini Göster</span>
+          </div>
           <input
             id="toggle-show-rating"
             type="checkbox"
-            checked={settings.showRating}
+            checked={settings.showRating !== false}
             onChange={(e) => onChange({ showRating: e.target.checked })}
-            className="w-4 h-4 rounded border-gray-600 bg-gray-800/80 text-blue-500 focus:ring-0 cursor-pointer accent-blue-500"
+            className="w-4 h-4 rounded border-neutral-600 bg-neutral-800 text-white focus:ring-0 cursor-pointer accent-white"
           />
-          <span>Puanı göster</span>
         </label>
 
+        {/* Common: Year */}
+        <label className="flex items-center justify-between text-xs text-neutral-300 hover:text-white cursor-pointer select-none py-1 px-1 rounded-lg hover:bg-white/5 transition-colors">
+          <div className="flex items-center gap-2">
+            <Calendar className="w-3.5 h-3.5 text-neutral-400" />
+            <span>Yıl Bilgisini Göster</span>
+          </div>
+          <input
+            id="toggle-show-year"
+            type="checkbox"
+            checked={settings.showYear !== false}
+            onChange={(e) => onChange({ showYear: e.target.checked })}
+            className="w-4 h-4 rounded border-neutral-600 bg-neutral-800 text-white focus:ring-0 cursor-pointer accent-white"
+          />
+        </label>
+
+        {/* Common: Anki */}
+        <label className="flex items-center justify-between text-xs text-neutral-300 hover:text-white cursor-pointer select-none py-1 px-1 rounded-lg hover:bg-white/5 transition-colors">
+          <div className="flex items-center gap-2">
+            <Brain className="w-3.5 h-3.5 text-emerald-400" />
+            <span>Anki Rozetini Göster</span>
+          </div>
+          <input
+            id="toggle-show-anki"
+            type="checkbox"
+            checked={Boolean(settings.showAnki)}
+            onChange={(e) => onChange({ showAnki: e.target.checked })}
+            className="w-4 h-4 rounded border-neutral-600 bg-neutral-800 text-white focus:ring-0 cursor-pointer accent-white"
+          />
+        </label>
+
+        {/* Media Specific Controls */}
+        {mainTab === 'media' && (
+          <div className="pt-2 border-t border-white/10 space-y-2">
+            <span className="text-[10px] uppercase font-semibold text-neutral-500 tracking-wider">Medya Rozetleri</span>
+            
+            <label className="flex items-center justify-between text-xs text-neutral-300 hover:text-white cursor-pointer select-none py-1 px-1 rounded-lg hover:bg-white/5 transition-colors">
+              <div className="flex items-center gap-2">
+                <Tv className="w-3.5 h-3.5 text-blue-400" />
+                <span>İzleniyor (TV) Rozeti</span>
+              </div>
+              <input
+                id="toggle-show-watching"
+                type="checkbox"
+                checked={settings.showWatching !== false}
+                onChange={(e) => onChange({ showWatching: e.target.checked })}
+                className="w-4 h-4 rounded border-neutral-600 bg-neutral-800 text-white focus:ring-0 cursor-pointer accent-white"
+              />
+            </label>
+
+            <label className="flex items-center justify-between text-xs text-neutral-300 hover:text-white cursor-pointer select-none py-1 px-1 rounded-lg hover:bg-white/5 transition-colors">
+              <div className="flex items-center gap-2">
+                <Bookmark className="w-3.5 h-3.5 text-amber-400" />
+                <span>Takip Listesi Rozeti</span>
+              </div>
+              <input
+                id="toggle-show-following"
+                type="checkbox"
+                checked={settings.showFollowing !== false}
+                onChange={(e) => onChange({ showFollowing: e.target.checked })}
+                className="w-4 h-4 rounded border-neutral-600 bg-neutral-800 text-white focus:ring-0 cursor-pointer accent-white"
+              />
+            </label>
+          </div>
+        )}
+
+        {/* Game Specific Controls */}
+        {mainTab === 'game' && (
+          <div className="pt-2 border-t border-white/10 space-y-2">
+            <span className="text-[10px] uppercase font-semibold text-neutral-500 tracking-wider">Oyun Rozetleri</span>
+            
+            <label className="flex items-center justify-between text-xs text-neutral-300 hover:text-white cursor-pointer select-none py-1 px-1 rounded-lg hover:bg-white/5 transition-colors">
+              <div className="flex items-center gap-2">
+                <Gamepad2 className="w-3.5 h-3.5 text-emerald-400" />
+                <span>Oyun Durumu / Başarım</span>
+              </div>
+              <input
+                id="toggle-show-game-status"
+                type="checkbox"
+                checked={settings.showGameStatus !== false}
+                onChange={(e) => onChange({ showGameStatus: e.target.checked })}
+                className="w-4 h-4 rounded border-neutral-600 bg-neutral-800 text-white focus:ring-0 cursor-pointer accent-white"
+              />
+            </label>
+          </div>
+        )}
+
         {/* Poster Boyutu Slider */}
-        <div className="pt-3 border-t border-[#222c40]">
-          <div className="flex items-center justify-between text-xs text-gray-300 mb-1.5">
-            <span className="font-medium flex items-center gap-1.5">
-              <span>Kart Boyutu</span>
-            </span>
-            <span className="text-[11px] font-semibold text-blue-400 bg-blue-500/10 px-1.5 py-0.5 rounded border border-blue-500/20">
+        <div className="pt-3 border-t border-white/10">
+          <div className="flex items-center justify-between text-xs text-neutral-300 mb-1.5">
+            <span className="font-medium">Kart Boyutu</span>
+            <span className="text-[11px] font-semibold text-neutral-300 bg-white/10 px-2 py-0.5 rounded border border-white/10">
               {cardSize === 1
                 ? 'Mini'
                 : cardSize === 2
@@ -68,7 +160,7 @@ export const ViewPanel: React.FC<ViewPanelProps> = ({ settings, onChange }) => {
           </div>
 
           <div className="flex items-center gap-2 mt-2">
-            <ZoomOut className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+            <ZoomOut className="w-3.5 h-3.5 text-neutral-500 shrink-0" />
             <input
               id="slider-card-size"
               type="range"
@@ -77,11 +169,11 @@ export const ViewPanel: React.FC<ViewPanelProps> = ({ settings, onChange }) => {
               step={1}
               value={cardSize}
               onChange={(e) => onChange({ cardSize: Number(e.target.value) })}
-              className="w-full h-1.5 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-blue-500"
+              className="w-full h-1.5 bg-neutral-700 rounded-lg appearance-none cursor-pointer accent-white"
             />
-            <ZoomIn className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+            <ZoomIn className="w-3.5 h-3.5 text-neutral-500 shrink-0" />
           </div>
-          <div className="flex justify-between text-[10px] text-gray-500 mt-1 px-1">
+          <div className="flex justify-between text-[10px] text-neutral-500 mt-1 px-1">
             <span>Kompakt</span>
             <span>Geniş</span>
           </div>
@@ -90,4 +182,5 @@ export const ViewPanel: React.FC<ViewPanelProps> = ({ settings, onChange }) => {
     </div>
   );
 };
+
 

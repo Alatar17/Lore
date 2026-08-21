@@ -66,14 +66,31 @@ export default function App() {
     const saved = localStorage.getItem('yapim_view_settings');
     if (saved) {
       try {
-        return JSON.parse(saved);
+        const parsed = JSON.parse(saved);
+        return {
+          showTitle: true,
+          showRating: true,
+          showYear: true,
+          showAnki: false,
+          showWatching: true,
+          showFollowing: true,
+          showGameStatus: true,
+          cardSize: 3,
+          theme: 'pure-dark',
+          ...parsed,
+        };
       } catch {}
     }
     return {
-      showTitleOnPoster: false,
+      showTitle: true,
       showRating: true,
+      showYear: true,
+      showAnki: false,
+      showWatching: true,
+      showFollowing: true,
+      showGameStatus: true,
       cardSize: 3,
-      theme: 'deep-slate',
+      theme: 'pure-dark',
     };
   });
 
@@ -333,21 +350,25 @@ export default function App() {
       // 4. Search query
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase();
-        const matchesName = item.name.toLowerCase().includes(q);
-        const matchesAlt = item.altName?.toLowerCase().includes(q);
-        const matchesCast = item.cast?.toLowerCase().includes(q);
-        const matchesTags = item.tags?.some((t) => t.toLowerCase().includes(q));
-        if (!matchesName && !matchesAlt && !matchesCast && !matchesTags) {
+        const itemTitle = (item.title || (item as any).name || '').toLowerCase();
+        const matchesDesc = (item.desc || '').toLowerCase().includes(q);
+        const matchesTitle = itemTitle.includes(q);
+        if (!matchesTitle && !matchesDesc) {
           return false;
         }
       }
 
       // 5. Rating & Watch status filters
       if (filters.minRating > 0 && item.rating < filters.minRating) return false;
-      if (filters.watchingOnly && !item.isWatching) return false;
-      if (filters.followingOnly && !item.isFollowing) return false;
+      if (filters.watchingOnly && !item.watching && !(item as any).isWatching) return false;
+      if (filters.followingOnly && !item.following && !(item as any).isFollowing) return false;
 
-      // 6. Anki filter
+      // 6. Game status filter
+      if (item.mainTab === 'game' && filters.gameStatus && filters.gameStatus !== 'all') {
+        if (item.status !== filters.gameStatus) return false;
+      }
+
+      // 7. Anki filter
       if (filters.ankiFilter === 'yes' && !item.anki) return false;
       if (filters.ankiFilter === 'no' && item.anki) return false;
 
@@ -516,19 +537,21 @@ export default function App() {
         </main>
       </div>
 
-      {/* Floating Action Button (FAB) for Adding Items - Sönük & Minimalist Stil */}
-      <button
-        id="fab-add-item-btn"
-        onClick={(e) => {
-          e.stopPropagation();
-          closeAllPanels();
-          setIsAddModalOpen(true);
-        }}
-        title={`Yeni Ekle (Kısayol: W)`}
-        className="fixed bottom-6 right-6 z-40 w-11 h-11 rounded-full bg-slate-800/80 hover:bg-blue-600 text-slate-300 hover:text-white shadow-lg shadow-black/40 hover:shadow-blue-600/30 flex items-center justify-center transition-all duration-200 hover:scale-105 active:scale-95 border border-white/10 hover:border-blue-400/40 backdrop-blur-md cursor-pointer group"
-      >
-        <Plus className="w-5 h-5 transition-transform duration-200 group-hover:rotate-90" />
-      </button>
+      {/* Floating Action Button (FAB) for Adding Items - Sadece Izgara Modunda Görünür */}
+      {viewMode === 'grid' && (
+        <button
+          id="fab-add-item-btn"
+          onClick={(e) => {
+            e.stopPropagation();
+            closeAllPanels();
+            setIsAddModalOpen(true);
+          }}
+          title={`Yeni Ekle (Kısayol: W)`}
+          className="fixed bottom-6 right-6 z-40 w-11 h-11 rounded-full bg-slate-800/80 hover:bg-blue-600 text-slate-300 hover:text-white shadow-lg shadow-black/40 hover:shadow-blue-600/30 flex items-center justify-center transition-all duration-200 hover:scale-105 active:scale-95 border border-white/10 hover:border-blue-400/40 backdrop-blur-md cursor-pointer group"
+        >
+          <Plus className="w-5 h-5 transition-transform duration-200 group-hover:rotate-90" />
+        </button>
+      )}
 
       {/* --- Modals --- */}
 

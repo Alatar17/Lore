@@ -61,13 +61,19 @@ export interface FilterState {
   watchingOnly: boolean;
   followingOnly: boolean;
   ankiFilter: 'all' | 'yes' | 'no';
+  gameStatus?: GameStatus | 'all';
 }
 
 export type AppTheme = 'pure-dark' | 'charcoal-gray' | 'dark-slate';
 
 export interface ViewSettings {
-  showTitleOnPoster: boolean;
+  showTitle: boolean;
   showRating: boolean;
+  showYear: boolean;
+  showAnki: boolean;
+  showWatching: boolean;
+  showFollowing: boolean;
+  showGameStatus: boolean;
   cardSize: number; // 1 to 5
   theme?: AppTheme;
 }

@@ -14,7 +14,7 @@ import {
   Check,
   Tv,
   Bookmark,
-  Sparkles,
+  Brain,
   HelpCircle,
   ImageIcon,
 } from 'lucide-react';
@@ -38,7 +38,8 @@ export const AddItemModal: React.FC<AddItemModalProps> = ({
 }) => {
   const isGame = mainTab === 'game';
   const defaultCat =
-    categories.find((c) => c.id === activeCatId) || categories[0] || { id: 'genel', name: 'Genel', subgroups: [] };
+    categories.find((c) => c.id === activeCatId) ||
+    categories[0] || { id: 'genel', name: 'Genel', subgroups: [] };
 
   const [title, setTitle] = useState('');
   const [cat, setCat] = useState(defaultCat.id);
@@ -51,11 +52,11 @@ export const AddItemModal: React.FC<AddItemModalProps> = ({
   const [thumbnail, setThumbnail] = useState<string | undefined>(undefined);
   const [pasteNotice, setPasteNotice] = useState<string | null>(null);
 
-  // Media
+  // Media Specific
   const [watching, setWatching] = useState(false);
   const [following, setFollowing] = useState(false);
 
-  // Game
+  // Game Specific
   const [status, setStatus] = useState<GameStatus>('Oynanıyor');
   const [achPercent, setAchPercent] = useState<number | null>(null);
   const [achMax, setAchMax] = useState<number>(100);
@@ -118,6 +119,7 @@ export const AddItemModal: React.FC<AddItemModalProps> = ({
     }
   };
 
+  // Global Ctrl+V Paste Listener
   useEffect(() => {
     const handleGlobalPaste = (e: ClipboardEvent) => {
       const items = e.clipboardData?.items;
@@ -195,375 +197,385 @@ export const AddItemModal: React.FC<AddItemModalProps> = ({
     >
       <div
         id="add-item-modal-box"
-        className="relative w-full max-w-xl bg-[#131722] border border-white/15 rounded-2xl shadow-2xl overflow-hidden my-auto"
+        className="relative w-full max-w-2xl bg-[#131722] border border-white/15 rounded-2xl shadow-2xl overflow-hidden my-auto flex flex-col max-h-[90vh]"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Header */}
+        {/* Header Bar */}
         <div className="flex items-center justify-between px-5 py-3.5 border-b border-white/10 bg-black/40">
-          <h3 className="font-semibold text-sm text-slate-100 flex items-center gap-2">
-            <Plus className="w-4 h-4 text-blue-400" />
-            {isGame ? 'Yeni Oyun Ekle' : 'Yeni Medya Ekle'}
-          </h3>
+          <div className="flex items-center gap-2 text-xs text-slate-400 font-medium">
+            <span className="text-slate-300 font-semibold">{isGame ? '🎮 Yeni Oyun Ekle' : '🎬 Yeni Medya Ekle'}</span>
+            <span>/</span>
+            <span className="text-blue-300 font-semibold">{selectedCatObj?.name || cat}</span>
+            {sub && (
+              <>
+                <span>/</span>
+                <span className="text-slate-200">{sub}</span>
+              </>
+            )}
+          </div>
+
           <button
+            id="close-add-modal-btn"
             onClick={onClose}
-            className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+            className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
           >
             <X className="w-4 h-4" />
           </button>
         </div>
 
-        {/* Form */}
-        <form onSubmit={handleSubmit} className="p-5 space-y-4 max-h-[80vh] overflow-y-auto custom-scrollbar">
-          {/* Title */}
-          <div>
-            <label className="block text-xs font-semibold text-slate-300 mb-1">
-              Başlık *
-            </label>
-            <input
-              id="add-title-input"
-              type="text"
-              required
-              placeholder={isGame ? 'Örn: Elden Ring' : 'Örn: Attack on Titan'}
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              className="w-full bg-black/30 text-slate-100 border border-white/10 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-blue-500"
-              autoFocus
-            />
-          </div>
-
-          {/* Category & Subgroup */}
-          <div className={`grid gap-3 ${selectedCatObj?.subgroups.length ? 'grid-cols-2' : 'grid-cols-1'}`}>
-            <div>
-              <label className="block text-xs font-semibold text-slate-300 mb-1">
-                Kategori
-              </label>
-              <select
-                id="add-category-select"
-                value={cat}
-                onChange={(e) => {
-                  setCat(e.target.value);
-                  setSub(null);
+        {/* Modal Body: 2 Columns like ItemDetailModal */}
+        <form onSubmit={handleSubmit} className="p-5 sm:p-6 space-y-5 overflow-y-auto flex-1 custom-scrollbar">
+          {/* Top Section: Poster + Main Info */}
+          <div className="flex flex-col sm:flex-row gap-5">
+            {/* Poster column */}
+            <div className="w-36 sm:w-44 shrink-0 mx-auto sm:mx-0 flex flex-col items-center gap-2">
+              <div
+                className="relative w-full aspect-[2/3] rounded-xl overflow-hidden border border-white/15 shadow-md flex items-center justify-center text-center p-3"
+                style={{
+                  backgroundColor: thumbnail ? '#0b0e14' : `${baseColor}22`,
+                  borderColor: thumbnail ? 'rgba(255,255,255,0.15)' : `${baseColor}60`,
                 }}
-                className="w-full bg-black/30 text-slate-200 border border-white/10 rounded-xl px-2.5 py-1.5 text-xs focus:outline-none focus:border-blue-500 cursor-pointer"
               >
-                {categories.map((c) => (
-                  <option key={c.id} value={c.id} className="bg-slate-900 text-white">
-                    {c.name}
-                  </option>
-                ))}
-              </select>
+                {thumbnail ? (
+                  <img
+                    src={thumbnail}
+                    alt="Afiş Önizleme"
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <div className="flex flex-col items-center justify-center gap-2 text-neutral-400 p-2">
+                    <ImageIcon className="w-8 h-8 opacity-40" />
+                    <span className="text-[11px] font-medium leading-tight">
+                      {title ? title : 'Afiş Önizleme'}
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              {/* Upload / Change thumbnail buttons */}
+              <input
+                type="file"
+                ref={fileInputRef}
+                onChange={handleImageUpload}
+                accept="image/*"
+                className="hidden"
+              />
+              <div className="flex flex-col gap-1.5 w-full">
+                <div className="flex items-center gap-1.5 w-full">
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="flex-1 px-2.5 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-[11px] font-medium text-slate-200 flex items-center justify-center gap-1 transition-colors cursor-pointer"
+                  >
+                    <Upload className="w-3 h-3 text-blue-400" />
+                    <span>{thumbnail ? 'Değiştir' : 'Afiş Yükle'}</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handlePasteFromClipboard}
+                    className="px-2.5 py-1.5 rounded-lg bg-blue-600/20 hover:bg-blue-600/30 border border-blue-500/40 text-[11px] font-medium text-blue-300 flex items-center justify-center gap-1 transition-colors cursor-pointer"
+                    title="Panodaki resmi yapıştır (Ctrl+V)"
+                  >
+                    <ClipboardPaste className="w-3 h-3" />
+                  </button>
+                </div>
+
+                {thumbnail && (
+                  <button
+                    type="button"
+                    onClick={() => setThumbnail(undefined)}
+                    className="text-[11px] text-red-400 hover:underline text-center py-0.5 cursor-pointer"
+                  >
+                    Resmi Kaldır
+                  </button>
+                )}
+
+                {pasteNotice && (
+                  <p className="text-[10px] text-emerald-400 text-center flex items-center justify-center gap-1">
+                    <Check className="w-3 h-3" /> {pasteNotice}
+                  </p>
+                )}
+              </div>
             </div>
 
-            {/* Subgroup Selector - ONLY visible if category has subgroups */}
-            {selectedCatObj && selectedCatObj.subgroups.length > 0 && (
+            {/* Main Form Fields */}
+            <div className="flex-1 space-y-3.5">
+              {/* Title */}
               <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1">
-                  Alt-Grup
+                <label className="block text-[11px] uppercase tracking-wider text-slate-400 font-semibold mb-1">
+                  Başlık *
                 </label>
-                <select
-                  id="add-subgroup-select"
-                  value={sub || ''}
-                  onChange={(e) => setSub(e.target.value || null)}
-                  className="w-full bg-black/30 text-slate-200 border border-white/10 rounded-xl px-2.5 py-1.5 text-xs focus:outline-none focus:border-blue-500 cursor-pointer"
-                >
-                  <option value="" className="bg-slate-900 text-white">Yok / Genel</option>
-                  {selectedCatObj.subgroups.map((s) => (
-                    <option key={s} value={s} className="bg-slate-900 text-white">
-                      {s}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            )}
-          </div>
-
-          {/* Rating & Date */}
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs font-semibold text-slate-300 mb-1 flex items-center gap-1">
-                <Star className="w-3 h-3 text-amber-400 fill-amber-400" /> Puan (1-10)
-              </label>
-              <select
-                id="add-rating-select"
-                value={rating}
-                onChange={(e) => setRating(Number(e.target.value))}
-                className="w-full bg-black/30 text-amber-300 font-bold border border-white/10 rounded-xl px-2.5 py-1.5 text-xs focus:outline-none focus:border-blue-500 cursor-pointer"
-              >
-                {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((num) => (
-                  <option key={num} value={num} className="bg-slate-900 text-amber-300">
-                    ★ {num} / 10
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <div className="flex items-center justify-between mb-1">
-                <label className="block text-xs font-semibold text-slate-300 flex items-center gap-1">
-                  <Calendar className="w-3 h-3 text-blue-400" /> Tarih
-                </label>
-                <button
-                  type="button"
-                  id="add-toggle-unknown-date-btn"
-                  onClick={() => {
-                    if (date === '??.??' || date === '') {
-                      setDate(new Date().toISOString().split('T')[0]);
-                    } else {
-                      setDate('??.??');
-                    }
-                  }}
-                  title="Ne zaman izlediğimi / oynadığımı hatırlamıyorum (Tarih Bilinmiyor: ??.??)"
-                  className={`p-1 rounded-md border text-[11px] transition-all flex items-center justify-center cursor-pointer ${
-                    date === '??.??'
-                      ? 'bg-amber-500/20 text-amber-300 border-amber-500/40 shadow-xs'
-                      : 'bg-white/5 text-slate-400 border-white/10 hover:text-white hover:bg-white/10'
-                  }`}
-                >
-                  <HelpCircle className="w-3.5 h-3.5" />
-                </button>
+                <input
+                  id="add-title-input"
+                  type="text"
+                  required
+                  placeholder={isGame ? 'Örn: Elden Ring' : 'Örn: Attack on Titan'}
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  className="w-full bg-black/30 text-white font-semibold border border-white/10 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-blue-500 transition-colors"
+                  autoFocus
+                />
               </div>
 
-              {date === '??.??' ? (
-                <div className="w-full bg-amber-500/10 text-amber-300 border border-amber-500/30 rounded-xl px-2.5 py-1.5 text-xs font-semibold flex items-center justify-between">
-                  <span>Tarih Bilinmiyor (??.??)</span>
-                </div>
-              ) : (
-                <input
-                  id="add-date-input"
-                  type="date"
-                  value={date}
-                  onChange={(e) => setDate(e.target.value)}
-                  className="w-full bg-black/30 text-slate-200 border border-white/10 rounded-xl px-2.5 py-1.5 text-xs focus:outline-none focus:border-blue-500"
-                />
-              )}
-            </div>
-          </div>
-
-          {/* Thumbnail */}
-          <div>
-            <label className="block text-xs font-semibold text-slate-300 mb-1">
-              Thumbnail
-            </label>
-            <input
-              type="file"
-              ref={fileInputRef}
-              onChange={handleImageUpload}
-              accept="image/*"
-              className="hidden"
-            />
-            <div className="flex flex-wrap items-center gap-2">
-              <button
-                type="button"
-                id="add-thumb-btn"
-                onClick={() => fileInputRef.current?.click()}
-                className="px-3 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-xs font-medium text-slate-200 flex items-center gap-1.5 transition-colors cursor-pointer"
-              >
-                <Upload className="w-3.5 h-3.5 text-blue-400" />
-                <span>{thumbnail ? 'Değiştir' : 'Dosya Seç'}</span>
-              </button>
-
-              <button
-                type="button"
-                id="add-paste-btn"
-                onClick={handlePasteFromClipboard}
-                className="px-3 py-1.5 rounded-xl bg-blue-600/20 hover:bg-blue-600/30 border border-blue-500/40 text-xs font-medium text-blue-300 flex items-center gap-1.5 transition-colors cursor-pointer"
-                title="Panoya kopyalanmış resmi yapıştır"
-              >
-                <ClipboardPaste className="w-3.5 h-3.5 text-blue-400" />
-                <span>Panodan Yapıştır</span>
-              </button>
-
-              {thumbnail && (
-                <button
-                  type="button"
-                  onClick={() => setThumbnail(undefined)}
-                  className="text-xs text-red-400 hover:underline px-1 cursor-pointer"
-                >
-                  Kaldır
-                </button>
-              )}
-            </div>
-
-            {pasteNotice && (
-              <p className="mt-1.5 text-xs text-emerald-400 flex items-center gap-1">
-                <Check className="w-3 h-3" /> {pasteNotice}
-              </p>
-            )}
-
-            {/* Thumbnail Preview or Visual Placeholder */}
-            <div className="mt-2.5 flex items-center gap-3">
-              {thumbnail ? (
-                <div className="w-14 h-20 rounded-xl border border-blue-500/40 overflow-hidden shadow-md shrink-0 bg-slate-900">
-                  <img src={thumbnail} alt="Önizleme" className="w-full h-full object-cover" />
-                </div>
-              ) : (
-                <div
-                  onClick={() => fileInputRef.current?.click()}
-                  className="w-14 h-20 rounded-xl border border-dashed border-white/20 hover:border-blue-400/50 bg-white/5 flex flex-col items-center justify-center p-1 cursor-pointer transition-colors shrink-0 group"
-                  title="Resim seçmek için tıklayın"
-                >
-                  <ImageIcon className="w-5 h-5 text-slate-500 group-hover:text-blue-400 transition-colors" />
-                  <span className="text-[9px] text-slate-500 group-hover:text-slate-300 mt-1">Görsel</span>
-                </div>
-              )}
-              <span className="text-[11px] text-slate-400 leading-tight">
-                {thumbnail
-                  ? 'Görsel eklendi. Kart üzerinde afiş olarak görünecek.'
-                  : 'Görsel eklenmezse kategori renk temalı afiş gösterilir.'}
-              </span>
-            </div>
-          </div>
-
-          {/* Media Specific Checkboxes */}
-          {!isGame && (
-            <div className="pt-2 border-t border-white/10 space-y-2">
-              <label className="flex items-center gap-2 text-xs text-slate-300 cursor-pointer select-none hover:text-white">
-                <input
-                  id="add-watching-cb"
-                  type="checkbox"
-                  checked={watching}
-                  onChange={(e) => setWatching(e.target.checked)}
-                  className="w-4 h-4 rounded border-slate-600 bg-slate-800 text-blue-500 focus:ring-0 cursor-pointer"
-                />
-                <Tv className="w-3.5 h-3.5 text-cyan-400" />
-                <span>İzlenen listesinde (Aktif izleniyor)</span>
-              </label>
-
-              <label className="flex items-center gap-2 text-xs text-slate-300 cursor-pointer select-none hover:text-white">
-                <input
-                  id="add-following-cb"
-                  type="checkbox"
-                  checked={following}
-                  onChange={(e) => setFollowing(e.target.checked)}
-                  className="w-4 h-4 rounded border-slate-600 bg-slate-800 text-amber-500 focus:ring-0 cursor-pointer"
-                />
-                <Bookmark className="w-3.5 h-3.5 text-amber-400" />
-                <span>Takip listesinde (Yeni sezon/bölüm bekleniyor)</span>
-              </label>
-
-              <label className="flex items-center gap-2 text-xs text-slate-300 cursor-pointer select-none hover:text-white">
-                <input
-                  id="add-anki-cb"
-                  type="checkbox"
-                  checked={anki}
-                  onChange={(e) => setAnki(e.target.checked)}
-                  className="w-4 h-4 rounded border-slate-600 bg-slate-800 text-emerald-500 focus:ring-0 cursor-pointer"
-                />
-                <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
-                <span>Anki'ye işlendi</span>
-              </label>
-            </div>
-          )}
-
-          {/* Game Specific Fields */}
-          {isGame && (
-            <div className="pt-2 border-t border-white/10 space-y-3">
-              <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1">
-                  Durum
-                </label>
-                <select
-                  id="add-game-status-select"
-                  value={status}
-                  onChange={(e) => setStatus(e.target.value as GameStatus)}
-                  className="w-full bg-black/30 text-slate-200 border border-white/10 rounded-xl px-2.5 py-1.5 text-xs focus:outline-none focus:border-blue-500 cursor-pointer"
-                >
-                  <option value="Oynanıyor" className="bg-slate-900 text-white">🎮 Oynanıyor</option>
-                  <option value="Tamamlandı" className="bg-slate-900 text-white">✅ Tamamlandı</option>
-                  <option value="Yarım Bırakıldı" className="bg-slate-900 text-white">⏸ Yarım Bırakıldı</option>
-                </select>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
+              {/* Category & Subgroup Selectors */}
+              <div className={`grid gap-2.5 ${selectedCatObj?.subgroups.length ? 'grid-cols-2' : 'grid-cols-1'}`}>
                 <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1 flex items-center gap-1">
-                    <Trophy className="w-3 h-3 text-amber-400" /> Başarım (%)
+                  <label className="block text-[11px] uppercase tracking-wider text-slate-400 font-semibold mb-1">
+                    Kategori
                   </label>
-                  <div className="flex items-center gap-1">
-                    <input
-                      id="add-ach-input"
-                      type="number"
-                      min="0"
-                      max={achMax}
-                      placeholder="0"
-                      value={achPercent ?? ''}
-                      onChange={(e) =>
-                        setAchPercent(e.target.value ? Number(e.target.value) : null)
-                      }
-                      className="w-full bg-black/30 text-amber-300 font-semibold border border-white/10 rounded-xl px-2.5 py-1.5 text-xs focus:outline-none focus:border-blue-500"
-                    />
-                    <span className="text-slate-400 text-xs">/</span>
-                    <input
-                      type="number"
-                      min="1"
-                      title="Üst limit"
-                      value={achMax}
-                      onChange={(e) => setAchMax(Number(e.target.value) || 100)}
-                      className="w-16 bg-black/30 text-slate-300 border border-white/10 rounded-xl px-2 py-1.5 text-xs text-center focus:outline-none focus:border-blue-500"
-                    />
+                  <select
+                    id="add-category-select"
+                    value={cat}
+                    onChange={(e) => {
+                      setCat(e.target.value);
+                      setSub(null);
+                    }}
+                    className="w-full bg-black/30 text-slate-200 border border-white/10 rounded-xl px-2.5 py-2 text-xs focus:outline-none focus:border-blue-500 cursor-pointer"
+                  >
+                    {categories.map((c) => (
+                      <option key={c.id} value={c.id} className="bg-slate-900 text-white">
+                        {c.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Subgroup Selector */}
+                {selectedCatObj && selectedCatObj.subgroups.length > 0 && (
+                  <div>
+                    <label className="block text-[11px] uppercase tracking-wider text-slate-400 font-semibold mb-1">
+                      Alt-Grup
+                    </label>
+                    <select
+                      id="add-subgroup-select"
+                      value={sub || ''}
+                      onChange={(e) => setSub(e.target.value || null)}
+                      className="w-full bg-black/30 text-slate-200 border border-white/10 rounded-xl px-2.5 py-2 text-xs focus:outline-none focus:border-blue-500 cursor-pointer"
+                    >
+                      <option value="" className="bg-slate-900 text-white">Yok / Genel</option>
+                      {selectedCatObj.subgroups.map((s) => (
+                        <option key={s} value={s} className="bg-slate-900 text-white">
+                          {s}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+              </div>
+
+              {/* Rating & Date */}
+              <div className="grid grid-cols-2 gap-2.5">
+                <div>
+                  <label className="block text-[11px] uppercase tracking-wider text-slate-400 font-semibold mb-1 flex items-center gap-1">
+                    <Star className="w-3 h-3 text-amber-400 fill-amber-400" /> Puan (1-10)
+                  </label>
+                  <select
+                    id="add-rating-select"
+                    value={rating}
+                    onChange={(e) => setRating(Number(e.target.value))}
+                    className="w-full bg-black/30 text-amber-300 font-bold border border-white/10 rounded-xl px-2.5 py-2 text-xs focus:outline-none focus:border-blue-500 cursor-pointer"
+                  >
+                    {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((num) => (
+                      <option key={num} value={num} className="bg-slate-900 text-amber-300">
+                        ★ {num} / 10
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-[11px] uppercase tracking-wider text-slate-400 font-semibold mb-1 flex items-center gap-1">
+                    <Calendar className="w-3 h-3 text-neutral-400" /> Tarih
+                  </label>
+                  <div className="flex items-center gap-1.5">
+                    {date === '??' || date === '??.??' ? (
+                      <div className="flex-1 bg-amber-500/10 text-amber-300 border border-amber-500/30 rounded-xl px-2.5 py-2 text-xs font-semibold flex items-center justify-between">
+                        <span>Tarih Bilinmiyor (??)</span>
+                      </div>
+                    ) : (
+                      <input
+                        id="add-date-input"
+                        type="date"
+                        value={date}
+                        onChange={(e) => setDate(e.target.value)}
+                        className="flex-1 bg-black/40 text-neutral-200 border border-white/10 rounded-xl px-2.5 py-2 text-xs focus:outline-none focus:border-neutral-400"
+                      />
+                    )}
+                    <button
+                      type="button"
+                      id="toggle-add-unknown-date-btn"
+                      onClick={() => {
+                        if (date === '??' || date === '??.??' || date === '') {
+                          setDate(new Date().toISOString().split('T')[0]);
+                        } else {
+                          setDate('??');
+                        }
+                      }}
+                      title="Ne zaman izlediğimi / oynadığımı hatırlamıyorum (Tarih Bilinmiyor: ??)"
+                      className={`h-[34px] px-2.5 rounded-xl border text-xs font-semibold transition-all flex items-center justify-center cursor-pointer shrink-0 ${
+                        date === '??' || date === '??.??'
+                          ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+                          : 'bg-white/5 text-neutral-400 border-white/10 hover:text-white hover:bg-white/10'
+                      }`}
+                    >
+                      <HelpCircle className="w-4 h-4" />
+                    </button>
                   </div>
                 </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1 flex items-center gap-1">
-                    <Clock className="w-3 h-3 text-sky-400" /> Oynanma (Saat)
-                  </label>
-                  <input
-                    id="add-hours-input"
-                    type="number"
-                    min="0"
-                    value={hours}
-                    onChange={(e) => setHours(Number(e.target.value) || 0)}
-                    className="w-full bg-black/30 text-sky-300 font-semibold border border-white/10 rounded-xl px-2.5 py-1.5 text-xs focus:outline-none focus:border-blue-500"
-                  />
-                </div>
               </div>
 
-              {/* Anki for game */}
-              <label className="flex items-center gap-2 text-xs text-slate-300 cursor-pointer select-none hover:text-white">
-                <input
-                  id="add-anki-game-cb"
-                  type="checkbox"
-                  checked={anki}
-                  onChange={(e) => setAnki(e.target.checked)}
-                  className="w-4 h-4 rounded border-slate-600 bg-slate-800 text-emerald-500 focus:ring-0 cursor-pointer"
-                />
-                <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
-                <span>Anki'ye işlendi</span>
-              </label>
-            </div>
-          )}
+              {/* Media Options */}
+              {!isGame && (
+                <div className="pt-2 border-t border-white/10 space-y-2">
+                  <label className="flex items-center gap-2 text-xs text-slate-300 cursor-pointer select-none hover:text-white">
+                    <input
+                      id="add-watching-cb"
+                      type="checkbox"
+                      checked={watching}
+                      onChange={(e) => setWatching(e.target.checked)}
+                      className="w-4 h-4 rounded border-slate-600 bg-slate-800 text-blue-500 focus:ring-0 cursor-pointer"
+                    />
+                    <Tv className="w-3.5 h-3.5 text-cyan-400" />
+                    <span>İzlenen listesinde (Aktif izleniyor)</span>
+                  </label>
 
-          {/* Description */}
+                  <label className="flex items-center gap-2 text-xs text-slate-300 cursor-pointer select-none hover:text-white">
+                    <input
+                      id="add-following-cb"
+                      type="checkbox"
+                      checked={following}
+                      onChange={(e) => setFollowing(e.target.checked)}
+                      className="w-4 h-4 rounded border-slate-600 bg-slate-800 text-amber-500 focus:ring-0 cursor-pointer"
+                    />
+                    <Bookmark className="w-3.5 h-3.5 text-amber-400" />
+                    <span>Takip listesinde (Yeni sezon/bölüm bekleniyor)</span>
+                  </label>
+
+                  <label className="flex items-center gap-2 text-xs text-slate-300 cursor-pointer select-none hover:text-white">
+                    <input
+                      id="add-anki-cb"
+                      type="checkbox"
+                      checked={anki}
+                      onChange={(e) => setAnki(e.target.checked)}
+                      className="w-4 h-4 rounded border-slate-600 bg-slate-800 text-emerald-500 focus:ring-0 cursor-pointer"
+                    />
+                    <Brain className="w-3.5 h-3.5 text-emerald-400" />
+                    <span>Anki Destesine Eklendi</span>
+                  </label>
+                </div>
+              )}
+
+              {/* Game Options */}
+              {isGame && (
+                <div className="pt-2 border-t border-white/10 space-y-3">
+                  <div>
+                    <label className="block text-[11px] uppercase tracking-wider text-slate-400 font-semibold mb-1">
+                      Oyun Durumu
+                    </label>
+                    <select
+                      id="add-game-status-select"
+                      value={status}
+                      onChange={(e) => setStatus(e.target.value as GameStatus)}
+                      className="w-full bg-black/30 text-slate-200 border border-white/10 rounded-xl px-2.5 py-2 text-xs focus:outline-none focus:border-blue-500 cursor-pointer"
+                    >
+                      <option value="Oynanıyor">Oynanıyor</option>
+                      <option value="Tamamlandı">Tamamlandı</option>
+                      <option value="%100 Başarım">%100 Başarım</option>
+                      <option value="Yarım Bırakıldı">Yarım Bırakıldı</option>
+                      <option value="Oynanacak">Oynanacak</option>
+                    </select>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2.5">
+                    <div>
+                      <label className="block text-[11px] uppercase tracking-wider text-slate-400 font-semibold mb-1 flex items-center gap-1">
+                        <Clock className="w-3 h-3 text-slate-400" /> Saat
+                      </label>
+                      <input
+                        id="add-hours-input"
+                        type="number"
+                        min="0"
+                        placeholder="Örn: 45"
+                        value={hours || ''}
+                        onChange={(e) => setHours(Number(e.target.value))}
+                        className="w-full bg-black/30 text-slate-200 border border-white/10 rounded-xl px-2.5 py-1.5 text-xs focus:outline-none focus:border-blue-500"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] uppercase tracking-wider text-slate-400 font-semibold mb-1 flex items-center gap-1">
+                        <Trophy className="w-3 h-3 text-amber-400" /> Başarım (%)
+                      </label>
+                      <div className="flex items-center gap-1.5">
+                        <input
+                          id="add-ach-input"
+                          type="number"
+                          min="0"
+                          max="100"
+                          placeholder="Örn: 85"
+                          value={achPercent ?? ''}
+                          onChange={(e) => setAchPercent(e.target.value ? Number(e.target.value) : null)}
+                          className="flex-1 bg-black/30 text-slate-200 border border-white/10 rounded-xl px-2.5 py-1.5 text-xs focus:outline-none focus:border-blue-500"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setAchPercent(100)}
+                          title="%100 Başarım yap"
+                          className="px-2 py-1.5 bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 text-[10px] font-bold rounded-lg border border-amber-500/30 cursor-pointer"
+                        >
+                          %100
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  <label className="flex items-center gap-2 text-xs text-slate-300 cursor-pointer select-none hover:text-white pt-1">
+                    <input
+                      id="add-game-anki-cb"
+                      type="checkbox"
+                      checked={anki}
+                      onChange={(e) => setAnki(e.target.checked)}
+                      className="w-4 h-4 rounded border-slate-600 bg-slate-800 text-emerald-500 focus:ring-0 cursor-pointer"
+                    />
+                    <Brain className="w-3.5 h-3.5 text-emerald-400" />
+                    <span>Anki Destesine Eklendi</span>
+                  </label>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Description / Notes */}
           <div className="pt-2 border-t border-white/10">
-            <label className="block text-xs font-semibold text-slate-300 mb-1">
-              Açıklama / Notlar
+            <label className="block text-[11px] uppercase tracking-wider text-slate-400 font-semibold mb-1">
+              Açıklama / Kişisel Notlar
             </label>
             <textarea
               id="add-desc-textarea"
               rows={3}
+              placeholder="Yapım hakkında notlarınız, incelemeniz veya hatırlatıcı detaylar..."
               value={desc}
               onChange={(e) => setDesc(e.target.value)}
-              placeholder="Yıllar sonra hatırlamak için notlar, hisler, önemli detaylar..."
-              className="w-full bg-black/30 text-slate-200 border border-white/10 rounded-xl p-2.5 text-xs focus:outline-none focus:border-blue-500 resize-none"
+              className="w-full bg-black/30 text-slate-200 border border-white/10 rounded-xl p-3 text-xs leading-relaxed focus:outline-none focus:border-blue-500 custom-scrollbar resize-none"
             />
           </div>
 
-          {/* Submit Buttons */}
-          <div className="flex items-center justify-end gap-2 pt-2 border-t border-white/10">
+          {/* Modal Footer / Actions */}
+          <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-white/10">
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 text-xs font-medium transition-colors cursor-pointer"
+              className="px-4 py-2 rounded-xl text-xs font-medium text-slate-300 hover:text-white hover:bg-white/5 transition-colors cursor-pointer"
             >
               İptal
             </button>
             <button
               id="submit-add-item-btn"
               type="submit"
-              className="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-semibold text-xs transition-all shadow-lg shadow-blue-600/30 cursor-pointer"
+              className="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold shadow-lg shadow-blue-600/30 flex items-center gap-1.5 transition-all cursor-pointer"
             >
-              Ekle
+              <Plus className="w-3.5 h-3.5" />
+              <span>Arşive Ekle</span>
             </button>
           </div>
         </form>

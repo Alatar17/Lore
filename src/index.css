@@ -2,17 +2,17 @@
 
 @layer base {
   :root {
-    --bg-primary: #090d16;
-    --bg-surface: #121826;
-    --bg-surface-elevated: #1a2336;
-    --border-subtle: #202c42;
-    --border-medium: #334466;
-    --accent-color: #3b82f6;
-    --accent-glow: rgba(59, 130, 246, 0.25);
-    --ambient-bg: radial-gradient(ellipse 80% 60% at 50% -20%, rgba(37, 99, 235, 0.14), transparent);
-    --text-main: #f1f5f9;
-    --text-muted: #94a3b8;
-    --text-dim: #64748b;
+    --bg-primary: #141414;
+    --bg-surface: #181818;
+    --bg-surface-elevated: #242424;
+    --border-subtle: #2f2f2f;
+    --border-medium: #3f3f3f;
+    --accent-color: #e50914;
+    --accent-glow: transparent;
+    --ambient-bg: none;
+    --text-main: #f5f5f5;
+    --text-muted: #a3a3a3;
+    --text-dim: #737373;
   }
 
   [data-theme="pure-dark"] {
@@ -21,31 +21,31 @@
     --bg-surface-elevated: #141418;
     --border-subtle: #222226;
     --border-medium: #33333a;
-    --accent-color: #f1f5f9;
-    --accent-glow: rgba(255, 255, 255, 0.12);
+    --accent-color: #f5f5f5;
+    --accent-glow: transparent;
     --ambient-bg: none;
   }
 
   [data-theme="charcoal-gray"] {
-    --bg-primary: #0f1115;
-    --bg-surface: #171a21;
-    --bg-surface-elevated: #212530;
-    --border-subtle: #2b303d;
-    --border-medium: #3d4455;
-    --accent-color: #cbd5e1;
-    --accent-glow: rgba(203, 213, 225, 0.15);
-    --ambient-bg: radial-gradient(ellipse 80% 60% at 50% -20%, rgba(100, 116, 139, 0.12), transparent);
+    --bg-primary: #141414;
+    --bg-surface: #181818;
+    --bg-surface-elevated: #262626;
+    --border-subtle: #303030;
+    --border-medium: #404040;
+    --accent-color: #d4d4d4;
+    --accent-glow: transparent;
+    --ambient-bg: none;
   }
 
   [data-theme="dark-slate"] {
-    --bg-primary: #181b22;
-    --bg-surface: #222631;
-    --bg-surface-elevated: #2d3342;
-    --border-subtle: #394154;
-    --border-medium: #4c5770;
-    --accent-color: #60a5fa;
-    --accent-glow: rgba(96, 165, 250, 0.18);
-    --ambient-bg: radial-gradient(ellipse 80% 60% at 50% -20%, rgba(96, 165, 250, 0.14), transparent);
+    --bg-primary: #1f1f23;
+    --bg-surface: #26262c;
+    --bg-surface-elevated: #32323a;
+    --border-subtle: #3d3d47;
+    --border-medium: #4e4e5b;
+    --accent-color: #e2e8f0;
+    --accent-glow: transparent;
+    --ambient-bg: none;
   }
 
   body {

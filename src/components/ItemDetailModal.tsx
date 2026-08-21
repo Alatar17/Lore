@@ -374,44 +374,43 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
                 </div>
 
                 <div>
-                  <div className="flex items-center justify-between mb-1">
-                    <label className="block text-[11px] uppercase tracking-wider text-slate-400 font-semibold flex items-center gap-1">
-                      <Calendar className="w-3 h-3 text-blue-400" /> Tarih
-                    </label>
+                  <label className="block text-[11px] uppercase tracking-wider text-slate-400 font-semibold mb-1 flex items-center gap-1">
+                    <Calendar className="w-3 h-3 text-neutral-400" /> Tarih
+                  </label>
+                  <div className="flex items-center gap-1.5">
+                    {formData.date === '??' || formData.date === '??.??' ? (
+                      <div className="flex-1 bg-amber-500/10 text-amber-300 border border-amber-500/30 rounded-xl px-2.5 py-2 text-xs font-semibold flex items-center justify-between">
+                        <span>Tarih Bilinmiyor (??)</span>
+                      </div>
+                    ) : (
+                      <input
+                        id="detail-date-input"
+                        type="date"
+                        value={formData.date}
+                        onChange={(e) => handleChange('date', e.target.value)}
+                        className="flex-1 bg-black/40 text-neutral-200 border border-white/10 rounded-xl px-2.5 py-2 text-xs focus:outline-none focus:border-neutral-400"
+                      />
+                    )}
                     <button
                       type="button"
                       id="toggle-unknown-date-btn"
                       onClick={() => {
-                        if (formData.date === '??.??' || formData.date === '') {
+                        if (formData.date === '??' || formData.date === '??.??' || formData.date === '') {
                           handleChange('date', new Date().toISOString().split('T')[0]);
                         } else {
-                          handleChange('date', '??.??');
+                          handleChange('date', '??');
                         }
                       }}
-                      title="Ne zaman izlediğimi / oynadığımı hatırlamıyorum (Tarih Bilinmiyor: ??.??)"
-                      className={`p-1 rounded-md border text-[11px] transition-all flex items-center justify-center cursor-pointer ${
-                        formData.date === '??.??'
-                          ? 'bg-amber-500/20 text-amber-300 border-amber-500/40 shadow-xs'
-                          : 'bg-white/5 text-slate-400 border-white/10 hover:text-white hover:bg-white/10'
+                      title="Ne zaman izlediğimi / oynadığımı hatırlamıyorum (Tarih Bilinmiyor: ??)"
+                      className={`h-[34px] px-2.5 rounded-xl border text-xs font-semibold transition-all flex items-center justify-center cursor-pointer shrink-0 ${
+                        formData.date === '??' || formData.date === '??.??'
+                          ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+                          : 'bg-white/5 text-neutral-400 border-white/10 hover:text-white hover:bg-white/10'
                       }`}
                     >
-                      <HelpCircle className="w-3.5 h-3.5" />
+                      <HelpCircle className="w-4 h-4" />
                     </button>
                   </div>
-
-                  {formData.date === '??.??' ? (
-                    <div className="w-full bg-amber-500/10 text-amber-300 border border-amber-500/30 rounded-xl px-2.5 py-1.5 text-xs font-semibold flex items-center justify-between">
-                      <span>Tarih Bilinmiyor (??.??)</span>
-                    </div>
-                  ) : (
-                    <input
-                      id="detail-date-input"
-                      type="date"
-                      value={formData.date}
-                      onChange={(e) => handleChange('date', e.target.value)}
-                      className="w-full bg-black/30 text-slate-200 border border-white/10 rounded-xl px-2.5 py-1.5 text-xs focus:outline-none focus:border-blue-500"
-                    />
-                  )}
                 </div>
               </div>
 

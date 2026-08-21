@@ -167,15 +167,15 @@ export const HeaderTabs: React.FC<HeaderTabsProps> = ({
   };
 
   return (
-    <header className="relative z-30 flex flex-col gap-3 py-2 border-b border-white/10">
+    <header className="relative z-30 flex flex-col gap-3 py-3 border-b border-white/10">
       {/* 3-Column Navigation Bar: Left: Breadcrumb + Count | Center: Tabs | Right: Tools */}
       <div className="grid grid-cols-1 md:grid-cols-3 items-center gap-3 sm:gap-4">
         {/* 1. LEFT SIDE: Clickable Breadcrumb & Item Count Badge */}
-        <div className="flex items-center gap-2.5 min-w-0 justify-start order-2 md:order-1 flex-wrap">
+        <div className="flex items-center gap-2 min-w-0 justify-start order-2 md:order-1 flex-wrap">
           {/* Breadcrumb Navigation Pill */}
           <div
             id="active-breadcrumb-pill"
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/5 border border-white/10 text-xs text-slate-200"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-neutral-900/90 border border-white/10 text-xs text-neutral-300"
           >
             {/* Main Tab (Medya / Oyun) - Clickable! */}
             <button
@@ -184,7 +184,7 @@ export const HeaderTabs: React.FC<HeaderTabsProps> = ({
                 onSubgroupSelect(null);
               }}
               title="Tüm listeyi göster"
-              className="text-slate-300 hover:text-white font-medium hover:underline cursor-pointer transition-colors"
+              className="text-neutral-300 hover:text-white font-medium hover:underline cursor-pointer transition-colors"
             >
               {mainTab === 'media' ? 'Medya' : 'Oyun'}
             </button>
@@ -192,14 +192,14 @@ export const HeaderTabs: React.FC<HeaderTabsProps> = ({
             {/* Category Level - Clickable! */}
             {activeCatId !== null && (
               <>
-                <span className="text-slate-500">›</span>
+                <span className="text-neutral-600">/</span>
                 <button
                   onClick={() => onSubgroupSelect(null)}
                   title={activeSub ? `${activeCategory?.name || 'Kategori'} geneline dön` : ''}
                   className={`font-semibold cursor-pointer transition-colors ${
                     activeSub
-                      ? 'text-blue-300 hover:text-white hover:underline'
-                      : 'text-blue-400'
+                      ? 'text-neutral-400 hover:text-white hover:underline'
+                      : 'text-white'
                   }`}
                 >
                   {activeCatId === TRACKED_TAB_ID
@@ -212,8 +212,8 @@ export const HeaderTabs: React.FC<HeaderTabsProps> = ({
             {/* Subgroup Level */}
             {activeSub && (
               <>
-                <span className="text-slate-500">›</span>
-                <span className="text-slate-100 font-semibold">{activeSub}</span>
+                <span className="text-neutral-600">/</span>
+                <span className="text-white font-semibold">{activeSub}</span>
               </>
             )}
           </div>
@@ -222,7 +222,7 @@ export const HeaderTabs: React.FC<HeaderTabsProps> = ({
           <span
             id="item-count-badge"
             title={`${totalFilteredCount} yapım listeleniyor`}
-            className="px-2.5 py-1 rounded-xl bg-blue-600/15 border border-blue-500/30 text-blue-300 font-bold text-xs shadow-xs"
+            className="px-2.5 py-1 rounded-lg bg-neutral-800 border border-white/10 text-neutral-200 font-bold text-xs"
           >
             {totalFilteredCount}
           </span>
@@ -230,7 +230,7 @@ export const HeaderTabs: React.FC<HeaderTabsProps> = ({
 
         {/* 2. CENTER: Medya & Oyun Navigation Dropdown Buttons */}
         <div
-          className="flex items-center justify-center gap-2 sm:gap-3 order-1 md:order-2"
+          className="flex items-center justify-center gap-1.5 sm:gap-2.5 order-1 md:order-2"
           id="category-dropdown-container"
           onMouseLeave={handleMouseLeave}
         >
@@ -242,17 +242,17 @@ export const HeaderTabs: React.FC<HeaderTabsProps> = ({
             <button
               id="dropdown-media-btn"
               onClick={(e) => handleTabButtonClick('media', e)}
-              className={`flex items-center gap-2 px-4 sm:px-5 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all duration-200 border cursor-pointer ${
+              className={`flex items-center gap-2 px-4 py-1.5 rounded-lg text-sm font-semibold transition-all duration-150 cursor-pointer ${
                 mainTab === 'media'
-                  ? 'bg-blue-600/25 text-blue-300 border-blue-500/60 shadow-lg shadow-blue-500/20'
-                  : 'bg-white/5 text-slate-400 border-white/10 hover:text-slate-200 hover:bg-white/10'
+                  ? 'bg-neutral-800 text-white shadow-sm border border-white/20'
+                  : 'text-neutral-400 hover:text-white hover:bg-neutral-900 border border-transparent'
               }`}
             >
-              <Film className="w-4 h-4 text-blue-400" />
+              <Film className="w-4 h-4 text-neutral-300" />
               <span>Medya</span>
               <ChevronDown
-                className={`w-3.5 h-3.5 text-slate-400 transition-transform duration-200 ${
-                  openDropdown === 'media' ? 'rotate-180 text-blue-400' : ''
+                className={`w-3.5 h-3.5 text-neutral-400 transition-transform duration-150 ${
+                  openDropdown === 'media' ? 'rotate-180 text-white' : ''
                 }`}
               />
             </button>
@@ -268,12 +268,12 @@ export const HeaderTabs: React.FC<HeaderTabsProps> = ({
                 }}
               >
                 {/* Main Category Menu List (Fixed Width & Stable) */}
-                <div className="w-60 p-2 bg-[#0e131f]/95 backdrop-blur-xl border border-blue-500/30 rounded-2xl shadow-2xl space-y-1 relative">
-                  <div className="px-3 py-1.5 text-[10px] font-semibold text-slate-400 uppercase tracking-wider flex items-center justify-between">
+                <div className="w-60 p-2 bg-[#181818]/95 backdrop-blur-xl border border-white/15 rounded-xl shadow-2xl space-y-1 relative">
+                  <div className="px-3 py-1.5 text-[10px] font-semibold text-neutral-400 uppercase tracking-wider flex items-center justify-between">
                     <span>Medya Kategorileri</span>
                     <button
                       onClick={() => handleSelectCategoryFromMenu('media', null)}
-                      className="text-blue-400 hover:underline capitalize cursor-pointer"
+                      className="text-neutral-300 hover:text-white hover:underline capitalize cursor-pointer"
                     >
                       Tümünü Gör
                     </button>
@@ -282,16 +282,16 @@ export const HeaderTabs: React.FC<HeaderTabsProps> = ({
                   {/* İzlenen / Takip Quick Item */}
                   <button
                     onClick={() => handleSelectCategoryFromMenu('media', TRACKED_TAB_ID)}
-                    className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-medium transition-colors text-left cursor-pointer ${
+                    className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium transition-colors text-left cursor-pointer ${
                       mainTab === 'media' && activeCatId === TRACKED_TAB_ID
-                        ? 'bg-amber-500/25 text-amber-300 border border-amber-500/40'
-                        : 'text-amber-400/90 hover:bg-amber-500/10'
+                        ? 'bg-neutral-800 text-white border border-white/20'
+                        : 'text-amber-400/90 hover:bg-white/5'
                     }`}
                   >
                     <span className="flex items-center gap-2">
                       <span className="text-amber-400">★</span> İzlenen & Takip
                     </span>
-                    <span className="text-[10px] text-amber-500/70">Özel Vitrin</span>
+                    <span className="text-[10px] text-neutral-500">Özel Vitrin</span>
                   </button>
 
                   <div className="my-1 border-t border-white/10" />
@@ -308,19 +308,19 @@ export const HeaderTabs: React.FC<HeaderTabsProps> = ({
                           key={cat.id}
                           onMouseEnter={() => handleCatMouseEnter(cat)}
                           onClick={() => handleSelectCategoryFromMenu('media', cat.id, null)}
-                          className={`flex items-center justify-between px-3 py-2 rounded-xl text-xs font-medium transition-colors cursor-pointer ${
+                          className={`flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium transition-colors cursor-pointer ${
                             isCatActive
-                              ? 'bg-blue-600 text-white shadow'
+                              ? 'bg-neutral-700 text-white shadow'
                               : isHovered
-                              ? 'bg-blue-500/15 text-blue-300'
-                              : 'text-slate-300 hover:bg-white/10 hover:text-white'
+                              ? 'bg-neutral-800 text-white'
+                              : 'text-neutral-300 hover:bg-neutral-800/60 hover:text-white'
                           }`}
                         >
                           <span className="truncate">{cat.name}</span>
                           {hasSubs && (
                             <ChevronRight
                               className={`w-3.5 h-3.5 transition-colors ${
-                                isCatActive || isHovered ? 'text-blue-300' : 'text-slate-500'
+                                isCatActive || isHovered ? 'text-white' : 'text-neutral-500'
                               }`}
                             />
                           )}
@@ -333,27 +333,14 @@ export const HeaderTabs: React.FC<HeaderTabsProps> = ({
                   {hoveredCat && hoveredCat.subgroups && hoveredCat.subgroups.length > 0 && (
                     <div
                       id="flyout-subgroups-menu"
-                      className="absolute top-0 left-full ml-1 w-52 p-2 bg-[#0e131f]/95 backdrop-blur-xl border border-blue-500/30 rounded-2xl shadow-2xl space-y-1 animate-in fade-in zoom-in-95 duration-100 z-50"
+                      className="absolute top-0 left-full ml-1 w-52 p-2 bg-[#181818]/95 backdrop-blur-xl border border-white/15 rounded-2xl shadow-2xl space-y-1 animate-in fade-in zoom-in-95 duration-100 z-50"
                       onMouseEnter={() => {
                         if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
                       }}
                     >
-                      <div className="px-3 py-1.5 text-[10px] font-semibold text-blue-400 uppercase tracking-wider flex items-center justify-between">
+                      <div className="px-3 py-1.5 text-[10px] font-semibold text-neutral-400 uppercase tracking-wider flex items-center justify-between border-b border-white/10 mb-1">
                         <span>{hoveredCat.name} Alt Grupları</span>
                       </div>
-
-                      <button
-                        onClick={() => handleSelectCategoryFromMenu('media', hoveredCat.id, null)}
-                        className={`w-full text-left px-3 py-2 rounded-xl text-xs font-medium transition-colors cursor-pointer ${
-                          mainTab === 'media' && activeCatId === hoveredCat.id && activeSub === null
-                            ? 'bg-blue-600 text-white'
-                            : 'text-slate-300 hover:bg-white/10 hover:text-white'
-                        }`}
-                      >
-                        Tümü ({hoveredCat.name})
-                      </button>
-
-                      <div className="my-1 border-t border-white/10" />
 
                       <div className="max-h-60 overflow-y-auto space-y-0.5 custom-scrollbar">
                         {hoveredCat.subgroups.map((sub) => {
@@ -365,8 +352,8 @@ export const HeaderTabs: React.FC<HeaderTabsProps> = ({
                               onClick={() => handleSelectCategoryFromMenu('media', hoveredCat.id, sub)}
                               className={`w-full text-left px-3 py-2 rounded-xl text-xs font-medium transition-colors truncate cursor-pointer ${
                                 isSubActive
-                                  ? 'bg-blue-600 text-white font-semibold'
-                                  : 'text-slate-300 hover:bg-white/10 hover:text-white'
+                                  ? 'bg-neutral-700 text-white font-semibold'
+                                  : 'text-neutral-300 hover:bg-neutral-800 hover:text-white'
                               }`}
                             >
                               {sub}
@@ -389,17 +376,17 @@ export const HeaderTabs: React.FC<HeaderTabsProps> = ({
             <button
               id="dropdown-game-btn"
               onClick={(e) => handleTabButtonClick('game', e)}
-              className={`flex items-center gap-2 px-4 sm:px-5 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all duration-200 border cursor-pointer ${
+              className={`flex items-center gap-2 px-4 py-1.5 rounded-lg text-sm font-semibold transition-all duration-150 cursor-pointer ${
                 mainTab === 'game'
-                  ? 'bg-emerald-600/25 text-emerald-300 border-emerald-500/60 shadow-lg shadow-emerald-500/20'
-                  : 'bg-white/5 text-slate-400 border-white/10 hover:text-slate-200 hover:bg-white/10'
+                  ? 'bg-neutral-800 text-white shadow-sm border border-white/20'
+                  : 'text-neutral-400 hover:text-white hover:bg-neutral-900 border border-transparent'
               }`}
             >
-              <Gamepad2 className="w-4 h-4 text-emerald-400" />
+              <Gamepad2 className="w-4 h-4 text-neutral-300" />
               <span>Oyun</span>
               <ChevronDown
-                className={`w-3.5 h-3.5 text-slate-400 transition-transform duration-200 ${
-                  openDropdown === 'game' ? 'rotate-180 text-emerald-400' : ''
+                className={`w-3.5 h-3.5 text-neutral-400 transition-transform duration-150 ${
+                  openDropdown === 'game' ? 'rotate-180 text-white' : ''
                 }`}
               />
             </button>
@@ -415,12 +402,12 @@ export const HeaderTabs: React.FC<HeaderTabsProps> = ({
                 }}
               >
                 {/* Main Category Menu List (Fixed Width & Stable) */}
-                <div className="w-60 p-2 bg-[#091512]/95 backdrop-blur-xl border border-emerald-500/30 rounded-2xl shadow-2xl space-y-1 relative">
-                  <div className="px-3 py-1.5 text-[10px] font-semibold text-slate-400 uppercase tracking-wider flex items-center justify-between">
+                <div className="w-60 p-2 bg-[#181818]/95 backdrop-blur-xl border border-white/15 rounded-xl shadow-2xl space-y-1 relative">
+                  <div className="px-3 py-1.5 text-[10px] font-semibold text-neutral-400 uppercase tracking-wider flex items-center justify-between">
                     <span>Oyun Kategorileri</span>
                     <button
                       onClick={() => handleSelectCategoryFromMenu('game', null)}
-                      className="text-emerald-400 hover:underline capitalize cursor-pointer"
+                      className="text-neutral-300 hover:text-white hover:underline capitalize cursor-pointer"
                     >
                       Tümünü Gör
                     </button>
@@ -440,19 +427,19 @@ export const HeaderTabs: React.FC<HeaderTabsProps> = ({
                           key={cat.id}
                           onMouseEnter={() => handleCatMouseEnter(cat)}
                           onClick={() => handleSelectCategoryFromMenu('game', cat.id, null)}
-                          className={`flex items-center justify-between px-3 py-2 rounded-xl text-xs font-medium transition-colors cursor-pointer ${
+                          className={`flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium transition-colors cursor-pointer ${
                             isCatActive
-                              ? 'bg-emerald-600 text-white shadow'
+                              ? 'bg-neutral-700 text-white shadow'
                               : isHovered
-                              ? 'bg-emerald-500/15 text-emerald-300'
-                              : 'text-slate-300 hover:bg-white/10 hover:text-white'
+                              ? 'bg-neutral-800 text-white'
+                              : 'text-neutral-300 hover:bg-neutral-800/60 hover:text-white'
                           }`}
                         >
                           <span className="truncate">{cat.name}</span>
                           {hasSubs && (
                             <ChevronRight
                               className={`w-3.5 h-3.5 transition-colors ${
-                                isCatActive || isHovered ? 'text-emerald-300' : 'text-slate-500'
+                                isCatActive || isHovered ? 'text-white' : 'text-neutral-500'
                               }`}
                             />
                           )}
@@ -465,27 +452,14 @@ export const HeaderTabs: React.FC<HeaderTabsProps> = ({
                   {hoveredCat && hoveredCat.subgroups && hoveredCat.subgroups.length > 0 && (
                     <div
                       id="flyout-game-subgroups-menu"
-                      className="absolute top-0 left-full ml-1 w-52 p-2 bg-[#091512]/95 backdrop-blur-xl border border-emerald-500/30 rounded-2xl shadow-2xl space-y-1 animate-in fade-in zoom-in-95 duration-100 z-50"
+                      className="absolute top-0 left-full ml-1 w-52 p-2 bg-[#181818]/95 backdrop-blur-xl border border-white/15 rounded-2xl shadow-2xl space-y-1 animate-in fade-in zoom-in-95 duration-100 z-50"
                       onMouseEnter={() => {
                         if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
                       }}
                     >
-                      <div className="px-3 py-1.5 text-[10px] font-semibold text-emerald-400 uppercase tracking-wider flex items-center justify-between">
+                      <div className="px-3 py-1.5 text-[10px] font-semibold text-neutral-400 uppercase tracking-wider flex items-center justify-between border-b border-white/10 mb-1">
                         <span>{hoveredCat.name} Alt Grupları</span>
                       </div>
-
-                      <button
-                        onClick={() => handleSelectCategoryFromMenu('game', hoveredCat.id, null)}
-                        className={`w-full text-left px-3 py-2 rounded-xl text-xs font-medium transition-colors cursor-pointer ${
-                          mainTab === 'game' && activeCatId === hoveredCat.id && activeSub === null
-                            ? 'bg-emerald-600 text-white'
-                            : 'text-slate-300 hover:bg-white/10 hover:text-white'
-                        }`}
-                      >
-                        Tümü ({hoveredCat.name})
-                      </button>
-
-                      <div className="my-1 border-t border-white/10" />
 
                       <div className="max-h-60 overflow-y-auto space-y-0.5 custom-scrollbar">
                         {hoveredCat.subgroups.map((sub) => {
@@ -495,10 +469,10 @@ export const HeaderTabs: React.FC<HeaderTabsProps> = ({
                             <button
                               key={sub}
                               onClick={() => handleSelectCategoryFromMenu('game', hoveredCat.id, sub)}
-                              className={`w-full text-left px-3 py-2 rounded-xl text-xs font-medium transition-colors truncate cursor-pointer ${
+                              className={`w-full text-left px-3 py-2 rounded-lg text-xs font-medium transition-colors truncate cursor-pointer ${
                                 isSubActive
-                                  ? 'bg-emerald-600 text-white font-semibold'
-                                  : 'text-slate-300 hover:bg-white/10 hover:text-white'
+                                  ? 'bg-neutral-700 text-white font-semibold'
+                                  : 'text-neutral-300 hover:bg-neutral-800 hover:text-white'
                               }`}
                             >
                               {sub}
@@ -516,44 +490,44 @@ export const HeaderTabs: React.FC<HeaderTabsProps> = ({
 
         {/* 3. RIGHT SIDE: Izgara/Tier List + Divider + Search + Filter + View + Divider + Settings */}
         <div
-          className="flex items-center justify-end gap-2 relative order-3 flex-wrap"
+          className="flex items-center justify-end gap-1.5 relative order-3 flex-wrap"
           onClick={(e) => e.stopPropagation()}
         >
           {/* Izgara / Tier List Switcher (Moved to right toolbar!) */}
           {activeCategory && activeCategory.tierEnabled && (
-            <div className="flex items-center gap-1 p-0.5 bg-black/40 rounded-xl border border-white/10">
-              <button
-                id="viewmode-grid-btn"
-                onClick={() => onViewModeChange('grid')}
-                className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer ${
-                  viewMode === 'grid'
-                    ? 'bg-blue-600 text-white shadow font-semibold'
-                    : 'text-slate-400 hover:text-white'
-                }`}
-              >
-                <LayoutGrid className="w-3.5 h-3.5" /> Izgara
-              </button>
-              <button
-                id="viewmode-tier-btn"
-                onClick={() => onViewModeChange('tier')}
-                className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer ${
-                  viewMode === 'tier'
-                    ? 'bg-amber-600 text-white shadow font-semibold'
-                    : 'text-slate-400 hover:text-white'
-                }`}
-              >
-                <ListOrdered className="w-3.5 h-3.5" /> Tier List
-              </button>
-            </div>
+            <>
+              <div className="flex items-center p-0.5 bg-neutral-900 rounded-lg border border-white/10">
+                <button
+                  id="viewmode-grid-btn"
+                  onClick={() => onViewModeChange('grid')}
+                  className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium transition-all cursor-pointer ${
+                    viewMode === 'grid'
+                      ? 'bg-neutral-700 text-white shadow font-semibold'
+                      : 'text-neutral-400 hover:text-white'
+                  }`}
+                >
+                  <LayoutGrid className="w-3.5 h-3.5" /> Izgara
+                </button>
+                <button
+                  id="viewmode-tier-btn"
+                  onClick={() => onViewModeChange('tier')}
+                  className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium transition-all cursor-pointer ${
+                    viewMode === 'tier'
+                      ? 'bg-neutral-700 text-white shadow font-semibold'
+                      : 'text-neutral-400 hover:text-white'
+                  }`}
+                >
+                  <ListOrdered className="w-3.5 h-3.5" /> Tier List
+                </button>
+              </div>
+              <div className="h-4 w-[1px] bg-white/15 mx-1" aria-hidden="true" />
+            </>
           )}
-
-          {/* Divider before Search */}
-          <div className="h-5 w-[1px] bg-white/20 mx-0.5" aria-hidden="true" />
 
           {/* Search Box / Toggle */}
           {isSearchOpen ? (
-            <div className="flex items-center bg-black/40 border border-white/15 rounded-xl px-3 py-1.5 w-48 sm:w-60 animate-in fade-in">
-              <Search className="w-3.5 h-3.5 text-slate-400 shrink-0 mr-2" />
+            <div className="flex items-center bg-neutral-900 border border-white/15 rounded-lg px-2.5 py-1.5 w-48 sm:w-56 animate-in fade-in">
+              <Search className="w-3.5 h-3.5 text-neutral-400 shrink-0 mr-2" />
               <input
                 ref={searchInputRef}
                 id="search-header-input"
@@ -561,14 +535,14 @@ export const HeaderTabs: React.FC<HeaderTabsProps> = ({
                 value={searchQuery}
                 onChange={(e) => onSearchChange(e.target.value)}
                 placeholder="Yapım ara..."
-                className="w-full bg-transparent text-xs text-slate-100 placeholder-slate-500 focus:outline-none"
+                className="w-full bg-transparent text-xs text-neutral-100 placeholder-neutral-500 focus:outline-none"
               />
               <button
                 onClick={() => {
                   onSearchChange('');
                   onToggleSearch();
                 }}
-                className="text-slate-400 hover:text-white text-xs ml-1.5 cursor-pointer"
+                className="text-neutral-400 hover:text-white text-xs ml-1.5 cursor-pointer"
               >
                 <X className="w-3.5 h-3.5" />
               </button>
@@ -578,7 +552,7 @@ export const HeaderTabs: React.FC<HeaderTabsProps> = ({
               id="search-toggle-btn"
               onClick={onToggleSearch}
               title="Arama (🔍)"
-              className="p-2.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-slate-300 hover:text-white transition-all cursor-pointer hover:border-blue-500/40"
+              className="p-2 rounded-lg bg-neutral-900/80 hover:bg-neutral-800 border border-white/10 text-neutral-300 hover:text-white transition-all cursor-pointer"
             >
               <Search className="w-4 h-4" />
             </button>
@@ -593,15 +567,15 @@ export const HeaderTabs: React.FC<HeaderTabsProps> = ({
                 onToggleFilter();
               }}
               title="Filtrele (🎚)"
-              className={`p-2.5 rounded-xl border transition-all relative cursor-pointer ${
+              className={`p-2 rounded-lg border transition-all relative cursor-pointer ${
                 isFilterOpen || activeFiltersCount > 0
-                  ? 'bg-blue-600/20 border-blue-500 text-blue-400 shadow-md shadow-blue-500/10'
-                  : 'bg-white/5 hover:bg-white/10 border-white/10 text-slate-300 hover:text-white hover:border-blue-500/40'
+                  ? 'bg-neutral-800 border-white/30 text-white shadow-sm'
+                  : 'bg-neutral-900/80 hover:bg-neutral-800 border-white/10 text-neutral-300 hover:text-white'
               }`}
             >
               <SlidersHorizontal className="w-4 h-4" />
               {activeFiltersCount > 0 && (
-                <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-blue-500 text-[10px] font-bold text-white flex items-center justify-center shadow">
+                <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-white text-neutral-950 text-[10px] font-bold flex items-center justify-center shadow">
                   {activeFiltersCount}
                 </span>
               )}
@@ -626,10 +600,10 @@ export const HeaderTabs: React.FC<HeaderTabsProps> = ({
                 onToggleView();
               }}
               title="Görünüm Ayarları (👁)"
-              className={`p-2.5 rounded-xl border transition-all cursor-pointer ${
+              className={`p-2 rounded-lg border transition-all cursor-pointer ${
                 isViewOpen
-                  ? 'bg-blue-600/20 border-blue-500 text-blue-400 shadow-md shadow-blue-500/10'
-                  : 'bg-white/5 hover:bg-white/10 border-white/10 text-slate-300 hover:text-white hover:border-blue-500/40'
+                  ? 'bg-neutral-800 border-white/30 text-white shadow-sm'
+                  : 'bg-neutral-900/80 hover:bg-neutral-800 border-white/10 text-neutral-300 hover:text-white'
               }`}
             >
               <Eye className="w-4 h-4" />
@@ -638,6 +612,7 @@ export const HeaderTabs: React.FC<HeaderTabsProps> = ({
             {isViewOpen && (
               <ViewPanel
                 settings={viewSettings}
+                mainTab={mainTab}
                 onChange={onViewSettingsChange}
                 onClose={onClosePanels}
               />
@@ -645,7 +620,7 @@ export const HeaderTabs: React.FC<HeaderTabsProps> = ({
           </div>
 
           {/* Divider before Settings */}
-          <div className="h-5 w-[1px] bg-white/20 mx-0.5" aria-hidden="true" />
+          <div className="h-4 w-[1px] bg-white/15 mx-0.5" aria-hidden="true" />
 
           {/* Settings Modal Trigger (Far Right) */}
           <button
@@ -655,7 +630,7 @@ export const HeaderTabs: React.FC<HeaderTabsProps> = ({
               onOpenSettings();
             }}
             title="Ayarlar (⚙)"
-            className="p-2.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-slate-300 hover:text-white transition-all cursor-pointer hover:border-blue-500/40"
+            className="p-2 rounded-lg bg-neutral-900/80 hover:bg-neutral-800 border border-white/10 text-neutral-300 hover:text-white transition-all cursor-pointer"
           >
             <Settings className="w-4 h-4" />
           </button>

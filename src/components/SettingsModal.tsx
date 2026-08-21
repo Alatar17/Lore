@@ -649,19 +649,19 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   Örnek / Zengin Test Verilerini Yeniden Yükle
                 </h4>
                 <p className="text-xs text-slate-300 leading-relaxed">
-                  25+ Medya (Anime, Dizi, Film, Belgesel) ve 20+ Oyun içeren güncel zengin test arşivini yükler.
+                  50 Medya (Anime, Dizi, Film, Belgesel) ve 50 Oyun (RPG, FPS, Metroidvania, Aksiyon, Strateji) içeren 100 yapımlık zengin arşivi yükler.
                 </p>
                 <button
                   id="reset-sample-data-btn"
                   onClick={() => {
-                    if (window.confirm('Tüm yapımlar güncel zengin test verileriyle sıfırlanacak. Onaylıyor musunuz?')) {
+                    if (window.confirm('Tüm yapımlar güncel 50 Medya ve 50 Oyun içeren 100 yapımlık zengin arşivle sıfırlanacak. Onaylıyor musunuz?')) {
                       onReplaceAllData(INITIAL_DATA);
                     }
                   }}
                   className="py-2 px-4 rounded-xl bg-amber-600/20 hover:bg-amber-600/30 text-amber-300 border border-amber-500/40 text-xs font-semibold flex items-center gap-2 transition-all cursor-pointer"
                 >
                   <RotateCcw className="w-3.5 h-3.5" />
-                  Örnek Zengin Arşivi Yükle
+                  50 Medya + 50 Oyun Arşivini Yükle
                 </button>
               </div>
             </div>
