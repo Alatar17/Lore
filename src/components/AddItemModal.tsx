@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { ArchiveItem, Category, GameStatus, MainTabType } from '../types';
 import { MEDIA_COLORS, GAME_COLORS } from '../data/initialData';
+import { optimizeImageFile } from '../utils/imageOptimizer';
 import {
   X,
   Upload,
@@ -63,20 +64,23 @@ export const AddItemModal: React.FC<AddItemModalProps> = ({
   const palette = isGame ? GAME_COLORS : MEDIA_COLORS;
   const baseColor = palette[cat] || '#3b82f6';
 
-  const applyImageBase64 = (base64: string) => {
-    setThumbnail(base64);
-    setPasteNotice('Resim yapıştırıldı!');
-    setTimeout(() => setPasteNotice(null), 2500);
+  const applyImageBase64 = async (rawInput: File | Blob | string) => {
+    try {
+      const optimized = await optimizeImageFile(rawInput, 800, 1200, 0.88);
+      setThumbnail(optimized);
+      setPasteNotice('Resim başarıyla eklendi!');
+      setTimeout(() => setPasteNotice(null), 2500);
+    } catch {
+      if (typeof rawInput === 'string') {
+        setThumbnail(rawInput);
+      }
+    }
   };
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      applyImageBase64(reader.result as string);
-    };
-    reader.readAsDataURL(file);
+    applyImageBase64(file);
   };
 
   const handlePasteFromClipboard = async () => {
@@ -91,11 +95,7 @@ export const AddItemModal: React.FC<AddItemModalProps> = ({
         for (const type of clipboardItem.types) {
           if (type.startsWith('image/')) {
             const blob = await clipboardItem.getType(type);
-            const reader = new FileReader();
-            reader.onload = () => {
-              applyImageBase64(reader.result as string);
-            };
-            reader.readAsDataURL(blob);
+            await applyImageBase64(blob);
             foundImage = true;
             break;
           }
@@ -124,11 +124,7 @@ export const AddItemModal: React.FC<AddItemModalProps> = ({
           e.preventDefault();
           const file = item.getAsFile();
           if (file) {
-            const reader = new FileReader();
-            reader.onload = () => {
-              applyImageBase64(reader.result as string);
-            };
-            reader.readAsDataURL(file);
+            applyImageBase64(file);
           }
           break;
         }

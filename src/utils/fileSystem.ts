@@ -4,17 +4,22 @@ import { INITIAL_DATA } from '../data/initialData';
 const LOCAL_STORAGE_KEY = 'yapim_arsivim_app_data_v1';
 const DB_NAME = 'YapimArsivimDB';
 const DB_STORE = 'fs_handles';
+const APP_DATA_STORE = 'app_data_store';
 const HANDLE_KEY = 'root_dir_handle';
+const APP_DATA_KEY = 'current_app_data';
 const DATA_FILE_NAME = 'yapim-arsivim-data.json';
 
-// --- IndexedDB Helper to Store Directory Handle ---
+// --- IndexedDB Helper ---
 function openDB(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
-    const request = indexedDB.open(DB_NAME, 1);
-    request.onupgradeneeded = () => {
+    const request = indexedDB.open(DB_NAME, 2);
+    request.onupgradeneeded = (e: IDBVersionChangeEvent) => {
       const db = request.result;
       if (!db.objectStoreNames.contains(DB_STORE)) {
         db.createObjectStore(DB_STORE);
+      }
+      if (!db.objectStoreNames.contains(APP_DATA_STORE)) {
+        db.createObjectStore(APP_DATA_STORE);
       }
     };
     request.onsuccess = () => resolve(request.result);
@@ -61,6 +66,44 @@ export async function clearStoredDirectoryHandle(): Promise<void> {
     store.delete(HANDLE_KEY);
   } catch (err) {
     console.warn('Could not clear directory handle:', err);
+  }
+}
+
+// --- IndexedDB Full App Data Storage (Gigabytes Capacity) ---
+export async function loadDataFromIndexedDB(): Promise<AppData | null> {
+  try {
+    const db = await openDB();
+    return new Promise((resolve) => {
+      const tx = db.transaction(APP_DATA_STORE, 'readonly');
+      const store = tx.objectStore(APP_DATA_STORE);
+      const req = store.get(APP_DATA_KEY);
+      req.onsuccess = () => {
+        if (req.result && req.result.categories && req.result.items) {
+          resolve(req.result as AppData);
+        } else {
+          resolve(null);
+        }
+      };
+      req.onerror = () => resolve(null);
+    });
+  } catch (err) {
+    console.warn('IndexedDB read error:', err);
+    return null;
+  }
+}
+
+export async function saveDataToIndexedDB(data: AppData): Promise<void> {
+  try {
+    const db = await openDB();
+    const tx = db.transaction(APP_DATA_STORE, 'readwrite');
+    const store = tx.objectStore(APP_DATA_STORE);
+    store.put(data, APP_DATA_KEY);
+    await new Promise((resolve, reject) => {
+      tx.oncomplete = resolve;
+      tx.onerror = reject;
+    });
+  } catch (err) {
+    console.warn('IndexedDB write error:', err);
   }
 }
 
@@ -140,7 +183,7 @@ export async function saveImageToFolder(
   }
 }
 
-// --- Local Storage Fallback ---
+// --- Local Storage Fallback & Migration ---
 
 export function loadDataFromLocalStorage(): AppData {
   try {
@@ -159,10 +202,14 @@ export function loadDataFromLocalStorage(): AppData {
 
 export function saveDataToLocalStorage(data: AppData): void {
   try {
+    // Attempt local storage save (small data)
     localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(data));
   } catch (err) {
-    console.warn('Failed to save to localStorage:', err);
+    // Quota exceeded, safe to ignore because IndexedDB holds full data
+    console.info('LocalStorage quota exceeded; safely handled by IndexedDB.');
   }
+  // Always persist in IndexedDB for unlimited custom images
+  saveDataToIndexedDB(data);
 }
 
 // --- Export / Import JSON File ---

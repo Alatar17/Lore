@@ -11,6 +11,7 @@ import {
 import { INITIAL_DATA } from './data/initialData';
 import {
   loadDataFromLocalStorage,
+  loadDataFromIndexedDB,
   saveDataToLocalStorage,
   getStoredDirectoryHandle,
   storeDirectoryHandle,
@@ -65,10 +66,16 @@ export default function App() {
     showRating: true,
   });
 
-  // --- 1. Initial Load: Check Directory Handle & Permissions ---
+  // --- 1. Initial Load: Check IndexedDB / Directory Handle & Permissions ---
   useEffect(() => {
     async function initStorage() {
       try {
+        // Try IndexedDB first (supports huge image databases)
+        const idbData = await loadDataFromIndexedDB();
+        if (idbData && idbData.categories && idbData.items) {
+          setAppData(idbData);
+        }
+
         const storedHandle = await getStoredDirectoryHandle();
         if (storedHandle) {
           const hasPerm = await verifyPermission(storedHandle, true);
