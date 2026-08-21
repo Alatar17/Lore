@@ -2,14 +2,72 @@
 
 @layer base {
   :root {
-    --bg-primary: #0a0d14;
-    --bg-surface: #121722;
-    --bg-surface-elevated: #1a2232;
-    --border-subtle: #222b3d;
-    --border-medium: #303c54;
+    --bg-primary: #090d16;
+    --bg-surface: #121826;
+    --bg-surface-elevated: #1a2336;
+    --border-subtle: #202c42;
+    --border-medium: #334466;
+    --accent-color: #3b82f6;
+    --accent-glow: rgba(59, 130, 246, 0.25);
+    --ambient-bg: radial-gradient(ellipse 80% 60% at 50% -20%, rgba(37, 99, 235, 0.14), transparent);
     --text-main: #f1f5f9;
     --text-muted: #94a3b8;
     --text-dim: #64748b;
+  }
+
+  [data-theme="deep-slate"] {
+    --bg-primary: #090d16;
+    --bg-surface: #121826;
+    --bg-surface-elevated: #1a2336;
+    --border-subtle: #202c42;
+    --border-medium: #334466;
+    --accent-color: #3b82f6;
+    --accent-glow: rgba(59, 130, 246, 0.25);
+    --ambient-bg: radial-gradient(ellipse 80% 60% at 50% -20%, rgba(37, 99, 235, 0.14), transparent);
+  }
+
+  [data-theme="midnight-blue"] {
+    --bg-primary: #030712;
+    --bg-surface: #0a1128;
+    --bg-surface-elevated: #111d42;
+    --border-subtle: #192a56;
+    --border-medium: #274288;
+    --accent-color: #06b6d4;
+    --accent-glow: rgba(6, 182, 212, 0.3);
+    --ambient-bg: radial-gradient(ellipse 80% 60% at 50% -20%, rgba(6, 182, 212, 0.22), transparent);
+  }
+
+  [data-theme="cyber-emerald"] {
+    --bg-primary: #030c08;
+    --bg-surface: #091a11;
+    --bg-surface-elevated: #102d1f;
+    --border-subtle: #143d29;
+    --border-medium: #1f5c3e;
+    --accent-color: #10b981;
+    --accent-glow: rgba(16, 185, 129, 0.25);
+    --ambient-bg: radial-gradient(ellipse 80% 60% at 50% -20%, rgba(16, 185, 129, 0.2), transparent);
+  }
+
+  [data-theme="warm-amber"] {
+    --bg-primary: #120b06;
+    --bg-surface: #20140a;
+    --bg-surface-elevated: #331f0f;
+    --border-subtle: #452a14;
+    --border-medium: #6b411f;
+    --accent-color: #f59e0b;
+    --accent-glow: rgba(245, 158, 11, 0.25);
+    --ambient-bg: radial-gradient(ellipse 80% 60% at 50% -20%, rgba(245, 158, 11, 0.22), transparent);
+  }
+
+  [data-theme="pure-dark"] {
+    --bg-primary: #000000;
+    --bg-surface: #0e0e11;
+    --bg-surface-elevated: #18181c;
+    --border-subtle: #27272a;
+    --border-medium: #3f3f46;
+    --accent-color: #e2e8f0;
+    --accent-glow: rgba(255, 255, 255, 0.15);
+    --ambient-bg: none;
   }
 
   body {
@@ -20,6 +78,7 @@
     padding: 0;
     overflow-x: hidden;
     -webkit-font-smoothing: antialiased;
+    transition: background-color 0.3s ease, color 0.3s ease;
   }
 }
 
@@ -32,14 +91,14 @@
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: #252f44;
+  background: var(--border-medium, #252f44);
   border-radius: 4px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #3b4968;
+  background: var(--accent-color, #3b82f6);
 }
 
 .custom-scrollbar {
   scrollbar-width: thin;
-  scrollbar-color: #252f44 transparent;
+  scrollbar-color: var(--border-medium, #252f44) transparent;
 }

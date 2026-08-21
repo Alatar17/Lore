@@ -1,5 +1,5 @@
-import React, { useState, useRef } from 'react';
-import { AppData, Category, MainTabType, TierRow } from '../types';
+import React, { useState, useRef, useEffect } from 'react';
+import { AppData, Category, MainTabType, AppTheme, ViewSettings } from '../types';
 import { createDefaultTierRows } from '../data/initialData';
 import {
   downloadJsonFile,
@@ -19,13 +19,17 @@ import {
   HardDrive,
   Layers,
   Settings,
-  FolderOpen,
+  Palette,
+  Keyboard,
+  Check,
 } from 'lucide-react';
 
 interface SettingsModalProps {
   appData: AppData;
   activeMainTab: MainTabType;
   dirHandle: FileSystemDirectoryHandle | null;
+  viewSettings: ViewSettings;
+  onUpdateViewSettings: (newSettings: Partial<ViewSettings>) => void;
   onConnectFolder: () => Promise<void>;
   onDisconnectFolder: () => void;
   onUpdateCategories: (mainTab: MainTabType, newCategories: Category[]) => void;
@@ -33,22 +37,95 @@ interface SettingsModalProps {
   onClose: () => void;
 }
 
+interface ThemeOption {
+  id: AppTheme;
+  name: string;
+  desc: string;
+  bgPreview: string;
+  accentPreview: string;
+  cardPreview: string;
+  borderPreview: string;
+}
+
+const THEMES: ThemeOption[] = [
+  {
+    id: 'deep-slate',
+    name: 'Derin Lacivert (Varsayılan)',
+    desc: 'Sinematik ve dengeli koyu lacivert tonlar, yumuşak mavi vurgular',
+    bgPreview: 'bg-[#090d16]',
+    cardPreview: 'bg-[#121826]',
+    accentPreview: 'bg-blue-500',
+    borderPreview: 'border-blue-500/40',
+  },
+  {
+    id: 'midnight-blue',
+    name: 'Gece Mavisi (Neon)',
+    desc: 'Derin okyanus mavisi zemin, canlı elektrik mavisi ve mor parıltılar',
+    bgPreview: 'bg-[#060913]',
+    cardPreview: 'bg-[#0d1527]',
+    accentPreview: 'bg-cyan-500',
+    borderPreview: 'border-cyan-500/40',
+  },
+  {
+    id: 'cyber-emerald',
+    name: 'Zümrüt & Matrix',
+    desc: 'Koyu füme zemin, zarif ve göz yormayan zümrüt yeşili vurgular',
+    bgPreview: 'bg-[#080e0c]',
+    cardPreview: 'bg-[#101b17]',
+    accentPreview: 'bg-emerald-500',
+    borderPreview: 'border-emerald-500/40',
+  },
+  {
+    id: 'warm-amber',
+    name: 'Sıcak Amber & Karamel',
+    desc: 'Sinematik sıcak tonlar, altın ve kehribar sarısı yumuşak detaylar',
+    bgPreview: 'bg-[#120f0d]',
+    cardPreview: 'bg-[#1e1713]',
+    accentPreview: 'bg-amber-500',
+    borderPreview: 'border-amber-500/40',
+  },
+  {
+    id: 'pure-dark',
+    name: 'Saf Siyah (OLED)',
+    desc: 'Maksimum kontrast, zifiri siyah zemin ve nötr metalik çizgiler',
+    bgPreview: 'bg-[#000000]',
+    cardPreview: 'bg-[#101012]',
+    accentPreview: 'bg-slate-200',
+    borderPreview: 'border-white/20',
+  },
+];
+
 export const SettingsModal: React.FC<SettingsModalProps> = ({
   appData,
   activeMainTab,
   dirHandle,
+  viewSettings,
+  onUpdateViewSettings,
   onConnectFolder,
   onDisconnectFolder,
   onUpdateCategories,
   onReplaceAllData,
   onClose,
 }) => {
-  const [activeTab, setActiveTab] = useState<'categories' | 'storage'>('categories');
+  const [activeTab, setActiveTab] = useState<'categories' | 'themes' | 'shortcuts' | 'storage'>('categories');
   const [settingsMainTab, setSettingsMainTab] = useState<MainTabType>(activeMainTab);
   const [connecting, setConnecting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  const currentTheme = viewSettings.theme || 'deep-slate';
   const cats = appData.categories[settingsMainTab] || [];
+
+  // Close with Escape key
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.stopPropagation();
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [onClose]);
 
   // Category Actions
   const handleRenameCategory = (catId: string, currentName: string) => {
@@ -189,44 +266,69 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     >
       <div
         id="settings-modal-box"
-        className="relative w-full max-w-xl bg-[#1a1c22] border border-[#373d4d] rounded-2xl shadow-2xl overflow-hidden my-auto flex flex-col max-h-[85vh]"
+        className="relative w-full max-w-2xl h-[600px] max-h-[90vh] bg-[#141824] border border-white/10 rounded-2xl shadow-2xl overflow-hidden my-auto flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-3.5 border-b border-[#2d3240] bg-[#15171d]">
-          <h3 className="font-semibold text-base text-gray-100 flex items-center gap-2">
+        <div className="flex items-center justify-between px-5 py-3.5 border-b border-white/10 bg-black/30">
+          <h3 className="font-semibold text-base text-slate-100 flex items-center gap-2">
             <Settings className="w-4 h-4 text-blue-400" />
             Ayarlar
           </h3>
           <button
             id="close-settings-btn"
             onClick={onClose}
-            className="p-1 rounded-lg text-gray-400 hover:text-white hover:bg-white/10 transition-colors"
+            className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
           >
             <X className="w-4 h-4" />
           </button>
         </div>
 
         {/* Modal Navigation Tabs */}
-        <div className="flex border-b border-[#2d3240] px-5 pt-2 gap-2 bg-[#15171d]">
+        <div className="flex border-b border-white/10 px-4 pt-2 gap-1.5 bg-black/20 overflow-x-auto">
           <button
             id="tab-btn-categories"
             onClick={() => setActiveTab('categories')}
-            className={`px-4 py-2 text-xs font-semibold rounded-t-lg transition-colors border-b-2 flex items-center gap-1.5 ${
+            className={`px-3.5 py-2 text-xs font-semibold rounded-t-lg transition-colors border-b-2 flex items-center gap-1.5 whitespace-nowrap cursor-pointer ${
               activeTab === 'categories'
-                ? 'border-blue-500 text-blue-400 bg-[#1e2028]'
-                : 'border-transparent text-gray-400 hover:text-gray-200'
+                ? 'border-blue-500 text-blue-400 bg-white/5'
+                : 'border-transparent text-slate-400 hover:text-slate-200'
             }`}
           >
             <Layers className="w-3.5 h-3.5" /> Kategoriler
           </button>
+
+          <button
+            id="tab-btn-themes"
+            onClick={() => setActiveTab('themes')}
+            className={`px-3.5 py-2 text-xs font-semibold rounded-t-lg transition-colors border-b-2 flex items-center gap-1.5 whitespace-nowrap cursor-pointer ${
+              activeTab === 'themes'
+                ? 'border-blue-500 text-blue-400 bg-white/5'
+                : 'border-transparent text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            <Palette className="w-3.5 h-3.5" /> Temalar (Test)
+          </button>
+
+          <button
+            id="tab-btn-shortcuts"
+            onClick={() => setActiveTab('shortcuts')}
+            className={`px-3.5 py-2 text-xs font-semibold rounded-t-lg transition-colors border-b-2 flex items-center gap-1.5 whitespace-nowrap cursor-pointer ${
+              activeTab === 'shortcuts'
+                ? 'border-blue-500 text-blue-400 bg-white/5'
+                : 'border-transparent text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            <Keyboard className="w-3.5 h-3.5" /> Kısayollar (Shortcuts)
+          </button>
+
           <button
             id="tab-btn-storage"
             onClick={() => setActiveTab('storage')}
-            className={`px-4 py-2 text-xs font-semibold rounded-t-lg transition-colors border-b-2 flex items-center gap-1.5 ${
+            className={`px-3.5 py-2 text-xs font-semibold rounded-t-lg transition-colors border-b-2 flex items-center gap-1.5 whitespace-nowrap cursor-pointer ${
               activeTab === 'storage'
-                ? 'border-blue-500 text-blue-400 bg-[#1e2028]'
-                : 'border-transparent text-gray-400 hover:text-gray-200'
+                ? 'border-blue-500 text-blue-400 bg-white/5'
+                : 'border-transparent text-slate-400 hover:text-slate-200'
             }`}
           >
             <HardDrive className="w-3.5 h-3.5" /> Veri & Dosya Sistemi
@@ -235,17 +337,18 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
         {/* Body */}
         <div className="p-5 overflow-y-auto flex-1 custom-scrollbar space-y-4">
-          {activeTab === 'categories' ? (
+          {/* TAB 1: CATEGORIES */}
+          {activeTab === 'categories' && (
             <div>
               {/* Media / Game toggle in settings */}
-              <div className="flex gap-2 mb-4 p-1 bg-[#131419] rounded-xl border border-[#2d3240] w-fit">
+              <div className="flex gap-2 mb-4 p-1 bg-black/40 rounded-xl border border-white/10 w-fit">
                 <button
                   id="settings-media-tab-btn"
                   onClick={() => setSettingsMainTab('media')}
-                  className={`px-4 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                  className={`px-4 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
                     settingsMainTab === 'media'
-                      ? 'bg-[#252a37] text-white shadow'
-                      : 'text-gray-400 hover:text-gray-200'
+                      ? 'bg-white/15 text-white shadow'
+                      : 'text-slate-400 hover:text-slate-200'
                   }`}
                 >
                   🎬 Medya Kategorileri
@@ -253,10 +356,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 <button
                   id="settings-game-tab-btn"
                   onClick={() => setSettingsMainTab('game')}
-                  className={`px-4 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                  className={`px-4 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
                     settingsMainTab === 'game'
-                      ? 'bg-[#252a37] text-white shadow'
-                      : 'text-gray-400 hover:text-gray-200'
+                      ? 'bg-white/15 text-white shadow'
+                      : 'text-slate-400 hover:text-slate-200'
                   }`}
                 >
                   🎮 Oyun Kategorileri
@@ -274,179 +377,257 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     <div
                       key={c.id}
                       id={`manage-cat-${c.id}`}
-                      className="p-3.5 rounded-xl bg-[#161820] border border-[#2d3240] space-y-2.5"
+                      className="p-3.5 rounded-xl bg-white/5 border border-white/10 space-y-2.5"
                     >
-                      <div className="flex items-center justify-between gap-3">
+                      <div className="flex items-center justify-between gap-3 flex-wrap">
                         {/* Name + Item count */}
                         <div
                           onClick={() => handleRenameCategory(c.id, c.name)}
                           className="flex items-center gap-2 cursor-pointer group"
                         >
-                          <span className="font-semibold text-sm text-gray-100 group-hover:text-blue-400 transition-colors">
+                          <span className="font-semibold text-sm text-slate-100 group-hover:text-blue-400 transition-colors">
                             {c.name}
                           </span>
-                          <span className="text-xs text-gray-400">
+                          <span className="text-xs text-slate-400">
                             ({itemCount} yapım)
                           </span>
-                          <span className="text-[10px] text-gray-400 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <span className="text-[10px] text-slate-400 opacity-0 group-hover:opacity-100 transition-opacity">
                             ✎ Adı Değiştir
                           </span>
                         </div>
 
                         {/* Actions */}
                         <div className="flex items-center gap-3">
-                          <label className="flex items-center gap-1.5 text-xs text-gray-300 cursor-pointer select-none hover:text-white">
+                          <label className="flex items-center gap-1.5 text-xs text-slate-300 cursor-pointer select-none hover:text-white">
                             <input
                               type="checkbox"
                               checked={c.tierEnabled}
                               onChange={() => handleToggleTierList(c)}
-                              className="w-3.5 h-3.5 rounded border-gray-600 bg-gray-800 text-blue-500 focus:ring-0"
+                              className="rounded border-white/20 text-blue-600 focus:ring-0 focus:ring-offset-0 bg-black/40"
                             />
-                            <span>Tier List</span>
+                            <span>Tier List Aktif</span>
                           </label>
 
                           <button
-                            id={`del-cat-${c.id}`}
                             onClick={() => handleDeleteCategory(c)}
                             title="Kategoriyi Sil"
-                            className="p-1 rounded-md text-gray-400 hover:text-red-400 hover:bg-red-500/10 transition-colors"
+                            className="p-1 text-slate-400 hover:text-red-400 hover:bg-red-500/10 rounded transition-colors cursor-pointer"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
                           </button>
                         </div>
                       </div>
 
-                      {/* Subgroups chips */}
-                      <div className="flex flex-wrap items-center gap-1.5 pt-1 border-t border-[#252834]">
-                        <span className="text-[11px] text-gray-400 mr-1">
-                          Alt-gruplar:
-                        </span>
-                        {c.subgroups.map((s) => (
-                          <span
-                            key={s}
-                            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-[#222632] border border-[#363c4d] text-xs text-gray-300"
+                      {/* Subgroups */}
+                      <div className="pt-2 border-t border-white/5">
+                        <div className="text-[11px] text-slate-400 mb-1.5 font-medium flex items-center justify-between">
+                          <span>Alt Gruplar:</span>
+                          <button
+                            onClick={() => handleAddSubgroup(c.id)}
+                            className="text-blue-400 hover:text-blue-300 text-[11px] font-semibold flex items-center gap-1 cursor-pointer"
                           >
-                            <span>{s}</span>
-                            <button
-                              onClick={() => handleDeleteSubgroup(c.id, s)}
-                              className="text-gray-400 hover:text-red-400 text-xs leading-none"
-                              title="Alt-grubu kaldır"
-                            >
-                              ×
-                            </button>
-                          </span>
-                        ))}
+                            <Plus className="w-3 h-3" /> Alt Grup Ekle
+                          </button>
+                        </div>
 
-                        <button
-                          id={`add-sub-${c.id}`}
-                          onClick={() => handleAddSubgroup(c.id)}
-                          className="px-2 py-0.5 rounded-md border border-dashed border-[#3e4659] text-gray-400 hover:text-blue-400 hover:border-blue-400 text-xs flex items-center gap-1 transition-colors"
-                        >
-                          <Plus className="w-3 h-3" /> Alt-grup Ekle
-                        </button>
+                        {c.subgroups && c.subgroups.length > 0 ? (
+                          <div className="flex flex-wrap gap-1.5">
+                            {c.subgroups.map((sub) => (
+                              <span
+                                key={sub}
+                                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/5 border border-white/10 text-xs text-slate-200"
+                              >
+                                {sub}
+                                <button
+                                  onClick={() => handleDeleteSubgroup(c.id, sub)}
+                                  className="text-slate-400 hover:text-red-400 transition-colors cursor-pointer"
+                                  title="Alt grubu kaldır"
+                                >
+                                  ×
+                                </button>
+                              </span>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="text-[11px] text-slate-500 italic">
+                            Tanımlı alt grup yok.
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+
+                <button
+                  id="add-new-category-btn"
+                  onClick={handleAddCategory}
+                  className="w-full py-2.5 border border-dashed border-white/20 hover:border-blue-500/50 rounded-xl text-slate-300 hover:text-blue-400 text-xs font-semibold flex items-center justify-center gap-2 hover:bg-blue-500/5 transition-all cursor-pointer"
+                >
+                  <Plus className="w-4 h-4" /> Yeni Kategori Ekle ({settingsMainTab === 'media' ? 'Medya' : 'Oyun'})
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* TAB 2: THEMES (TEST) */}
+          {activeTab === 'themes' && (
+            <div className="space-y-4">
+              <div className="p-3 bg-blue-500/10 border border-blue-500/30 rounded-xl text-xs text-blue-200">
+                💡 <span className="font-semibold">Tema Deneme Alanı:</span> Farklı renk paletlerini deneyebilir, beğendiğin görsel detayları belirtebilirsin. Seçtiğin tema anında uygulanır.
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {THEMES.map((th) => {
+                  const isSelected = currentTheme === th.id;
+                  return (
+                    <div
+                      key={th.id}
+                      onClick={() => onUpdateViewSettings({ theme: th.id })}
+                      className={`p-4 rounded-xl border transition-all cursor-pointer space-y-3 relative ${
+                        isSelected
+                          ? 'border-blue-500 bg-white/10 shadow-lg shadow-blue-500/10'
+                          : 'border-white/10 bg-white/5 hover:border-white/20 hover:bg-white/10'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="font-semibold text-sm text-slate-100 flex items-center gap-2">
+                          {th.name}
+                        </span>
+                        {isSelected && (
+                          <span className="w-5 h-5 rounded-full bg-blue-500 text-white flex items-center justify-center">
+                            <Check className="w-3 h-3 stroke-[3]" />
+                          </span>
+                        )}
+                      </div>
+
+                      <p className="text-xs text-slate-400 leading-relaxed">
+                        {th.desc}
+                      </p>
+
+                      {/* Mini preview bar */}
+                      <div className={`p-2.5 rounded-lg ${th.bgPreview} border ${th.borderPreview} flex items-center gap-2`}>
+                        <div className={`w-8 h-8 rounded ${th.cardPreview} border border-white/10 flex items-center justify-center`}>
+                          <div className={`w-3 h-3 rounded-full ${th.accentPreview}`} />
+                        </div>
+                        <div className="flex-1 space-y-1">
+                          <div className="h-2 w-16 rounded bg-white/20" />
+                          <div className="h-1.5 w-10 rounded bg-white/10" />
+                        </div>
+                        <div className={`px-2 py-0.5 rounded text-[10px] font-bold text-white ${th.accentPreview}`}>
+                          Örnek
+                        </div>
                       </div>
                     </div>
                   );
                 })}
               </div>
-
-              {/* Add category button */}
-              <button
-                id="add-new-category-btn"
-                onClick={handleAddCategory}
-                className="w-full mt-4 py-2.5 rounded-xl border border-dashed border-[#383e50] hover:border-blue-500 hover:bg-blue-500/5 text-gray-300 hover:text-blue-400 text-xs font-semibold flex items-center justify-center gap-1.5 transition-all"
-              >
-                <Plus className="w-4 h-4" /> + Yeni Kategori Ekle
-              </button>
             </div>
-          ) : (
-            /* Tab 2: Storage & File System Access */
+          )}
+
+          {/* TAB 3: SHORTCUTS */}
+          {activeTab === 'shortcuts' && (
             <div className="space-y-4">
-              {/* File System Access Box */}
-              <div className="p-4 rounded-xl bg-[#161820] border border-[#2d3240] space-y-3">
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <h4 className="font-semibold text-sm text-gray-100 flex items-center gap-2">
-                      <FolderOpen className="w-4 h-4 text-amber-400" />
-                      Yerel Klasör Bağlantısı (File System Access API)
-                    </h4>
-                    <p className="text-xs text-gray-400 mt-1 leading-relaxed">
-                      Kullanıcı bilgisayarındaki bir klasörü seçtiğinde veriler{' '}
-                      <code className="text-amber-300">yapim-arsivim-data.json</code>{' '}
-                      olarak kaydedilir ve yüklenen resimler o klasörde tutulur.
-                    </p>
+              <div className="p-3 bg-white/5 border border-white/10 rounded-xl text-xs text-slate-300">
+                ⌨️ <span className="font-semibold text-slate-100">Klavye Kısayolları:</span> Herhangi bir modal veya yazı kutusunda olmadığınızda bu tuşlara basarak hızlı aksiyon alabilirsiniz.
+              </div>
+
+              <div className="space-y-2">
+                <div className="flex items-center justify-between p-3 rounded-xl bg-white/5 border border-white/10">
+                  <div className="space-y-0.5">
+                    <span className="text-sm font-semibold text-slate-100">Yeni Yapım Ekle (FAB)</span>
+                    <p className="text-xs text-slate-400">Yeni dizi, film, anime veya oyun ekleme penceresini açar</p>
                   </div>
+                  <kbd className="px-3 py-1.5 rounded-lg bg-black/60 border border-white/20 text-slate-200 text-xs font-mono font-bold shadow-inner">
+                    W
+                  </kbd>
                 </div>
 
-                <div className="p-3 rounded-lg bg-[#111216] border border-[#262a35] flex items-center justify-between gap-3">
-                  <div className="flex items-center gap-2">
-                    {dirHandle ? (
-                      <>
-                        <CheckCircle className="w-4 h-4 text-emerald-400 shrink-0" />
-                        <span className="text-xs font-semibold text-emerald-300">
-                          Bağlı Klasör: {dirHandle.name}
-                        </span>
-                      </>
-                    ) : (
-                      <>
-                        <AlertCircle className="w-4 h-4 text-amber-400 shrink-0" />
-                        <span className="text-xs text-gray-300">
-                          Henüz yerel klasör bağlanmadı (Tarayıcı hafızasında saklanıyor)
-                        </span>
-                      </>
-                    )}
+                <div className="flex items-center justify-between p-3 rounded-xl bg-white/5 border border-white/10">
+                  <div className="space-y-0.5">
+                    <span className="text-sm font-semibold text-slate-100">Pencereleri Kapat</span>
+                    <p className="text-xs text-slate-400">Açık olan detay kartı, ayarlar veya modalı kapatır</p>
                   </div>
+                  <kbd className="px-3 py-1.5 rounded-lg bg-black/60 border border-white/20 text-slate-200 text-xs font-mono font-bold shadow-inner">
+                    ESC
+                  </kbd>
+                </div>
+              </div>
+            </div>
+          )}
 
+          {/* TAB 4: STORAGE & FILE SYSTEM */}
+          {activeTab === 'storage' && (
+            <div className="space-y-4">
+              {/* Directory Status Box */}
+              <div className="p-4 rounded-xl bg-white/5 border border-white/10 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
+                    Yerel Klasör Senkronizasyonu
+                  </span>
+                  {dirHandle ? (
+                    <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">
+                      <CheckCircle className="w-3.5 h-3.5" /> Bağlı: {dirHandle.name}
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-500/10 text-amber-400 border border-amber-500/30">
+                      <AlertCircle className="w-3.5 h-3.5" /> Klasör Bağlı Değil
+                    </span>
+                  )}
+                </div>
+
+                <p className="text-xs text-slate-300 leading-relaxed">
+                  {dirHandle
+                    ? `Verileriniz bilgisayarınızdaki "${dirHandle.name}" klasörüne anlık olarak JSON ve görseller halinde yazılıyor.`
+                    : 'Bilgisayarınızdan bir klasör seçerek yapımlarınızın ve afişlerinizin doğrudan sabit diskinizde saklanmasını sağlayabilirsiniz.'}
+                </p>
+
+                <div className="flex gap-2 pt-1">
                   {dirHandle ? (
                     <button
+                      id="disconnect-dir-btn"
                       onClick={onDisconnectFolder}
-                      className="px-2.5 py-1 rounded bg-red-900/30 hover:bg-red-900/50 border border-red-700/50 text-red-300 text-xs font-medium transition-colors"
+                      className="py-2 px-3.5 rounded-xl bg-red-500/20 hover:bg-red-500/30 text-red-300 border border-red-500/40 text-xs font-semibold transition-colors cursor-pointer"
                     >
-                      Bağlantıyı Kes
+                      Klasör Bağlantısını Kes
                     </button>
                   ) : (
                     <button
                       id="connect-dir-btn"
                       onClick={handleConnect}
                       disabled={connecting}
-                      className="px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold transition-colors flex items-center gap-1.5 shadow"
+                      className="py-2 px-4 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold flex items-center gap-2 shadow-lg shadow-blue-600/30 transition-all cursor-pointer"
                     >
-                      <FolderSync className="w-3.5 h-3.5" />
-                      <span>{connecting ? 'Seçiliyor...' : 'Klasör Seç'}</span>
+                      <FolderSync className="w-4 h-4" />
+                      {connecting ? 'Bağlanıyor...' : 'Klasör Seç & Bağla'}
                     </button>
                   )}
                 </div>
               </div>
 
-              {/* Standalone Mobile HTML Export Box */}
-              <div className="p-4 rounded-xl bg-[#161820] border border-[#2d3240] space-y-3">
-                <div className="flex items-start gap-3">
-                  <Smartphone className="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" />
-                  <div>
-                    <h4 className="font-semibold text-sm text-gray-100">
-                      Telefon İçin Dışa Aktar (Tek Dosya HTML)
-                    </h4>
-                    <p className="text-xs text-gray-400 mt-1 leading-relaxed">
-                      Tüm verilerini ve görsellerini internet gerektirmeyen, tek bir{' '}
-                      <code className="text-emerald-300">.html</code> dosyasına
-                      paketler. Bu dosyayı LocalSend veya WhatsApp ile telefonuna atıp
-                      Chrome'da doğrudan açabilirsin (Salt okunur mobil arayüz).
-                    </p>
-                  </div>
+              {/* Mobile HTML Export Box */}
+              <div className="p-4 rounded-xl bg-white/5 border border-white/10 space-y-3">
+                <div className="flex items-center gap-2">
+                  <Smartphone className="w-4 h-4 text-emerald-400" />
+                  <h4 className="text-sm font-semibold text-slate-100">
+                    Mobil / Telefon Görünümü HTML Çıktısı
+                  </h4>
                 </div>
-
+                <p className="text-xs text-slate-300 leading-relaxed">
+                  Tüm arşivinizi, afişlerin gömülü olduğu tek bir bağımsız <code className="text-emerald-300">arsiv_mobil.html</code> dosyası olarak indirebilir, telefonunuza atıp internetsiz açabilirsiniz.
+                </p>
                 <button
-                  id="export-phone-html-btn"
+                  id="download-phone-html-btn"
                   onClick={() => downloadPhoneHtml(appData)}
-                  className="w-full py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold flex items-center justify-center gap-2 transition-colors shadow"
+                  className="py-2 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold flex items-center gap-2 shadow-lg shadow-emerald-600/20 transition-all cursor-pointer"
                 >
-                  <Smartphone className="w-4 h-4" /> Telefon İçin HTML İndir
+                  <Download className="w-4 h-4" />
+                  arsiv_mobil.html İndir
                 </button>
               </div>
 
-              {/* JSON Backup & Restore */}
-              <div className="p-4 rounded-xl bg-[#161820] border border-[#2d3240] space-y-3">
-                <h4 className="font-semibold text-sm text-gray-100 flex items-center gap-2">
+              {/* JSON Backup / Restore */}
+              <div className="p-4 rounded-xl bg-white/5 border border-white/10 space-y-3">
+                <h4 className="text-sm font-semibold text-slate-100 flex items-center gap-2">
                   <HardDrive className="w-4 h-4 text-blue-400" />
                   JSON Yedek Al / Geri Yükle
                 </h4>
@@ -463,7 +644,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   <button
                     id="download-json-backup-btn"
                     onClick={() => downloadJsonFile(appData)}
-                    className="py-2 px-3 rounded-lg bg-[#242834] hover:bg-[#2e3342] border border-[#383e50] text-xs font-medium text-gray-200 flex items-center justify-center gap-1.5 transition-colors"
+                    className="py-2 px-3 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-xs font-medium text-slate-200 flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
                   >
                     <Download className="w-3.5 h-3.5 text-blue-400" /> JSON İndir
                   </button>
@@ -471,7 +652,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   <button
                     id="upload-json-backup-btn"
                     onClick={() => fileInputRef.current?.click()}
-                    className="py-2 px-3 rounded-lg bg-[#242834] hover:bg-[#2e3342] border border-[#383e50] text-xs font-medium text-gray-200 flex items-center justify-center gap-1.5 transition-colors"
+                    className="py-2 px-3 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-xs font-medium text-slate-200 flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
                   >
                     <Upload className="w-3.5 h-3.5 text-emerald-400" /> JSON Yükle
                   </button>
@@ -482,14 +663,14 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         </div>
 
         {/* Footer */}
-        <div className="px-5 py-3 border-t border-[#2d3240] bg-[#15171d] flex items-center justify-between">
-          <span className="text-[11px] text-gray-400">
-            Yapım Arşivim v1.0 • File System Access API
+        <div className="px-5 py-3 border-t border-white/10 bg-black/30 flex items-center justify-between">
+          <span className="text-[11px] text-slate-400">
+            Yapım Arşivim • File System Access API
           </span>
           <button
             id="close-settings-footer-btn"
             onClick={onClose}
-            className="px-4 py-1.5 rounded-lg bg-[#282c37] hover:bg-[#323746] text-gray-200 text-xs font-medium transition-colors"
+            className="px-4 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-slate-200 text-xs font-medium transition-colors cursor-pointer"
           >
             Kapat
           </button>

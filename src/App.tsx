@@ -10,16 +10,15 @@ import {
 } from './types';
 import { INITIAL_DATA } from './data/initialData';
 import {
-  loadDataFromLocalStorage,
-  loadDataFromIndexedDB,
-  saveDataToLocalStorage,
   getStoredDirectoryHandle,
   storeDirectoryHandle,
-  clearStoredDirectoryHandle,
   verifyPermission,
   readDataFromFolder,
   writeDataToFolder,
+  loadDataFromLocalStorage,
+  saveDataToLocalStorage,
 } from './utils/fileSystem';
+
 import { HeaderTabs, TRACKED_TAB_ID } from './components/HeaderTabs';
 import { ItemCard } from './components/ItemCard';
 import { TrackedView } from './components/TrackedView';
@@ -31,28 +30,29 @@ import { Plus } from 'lucide-react';
 
 export default function App() {
   // --- Persistent App Data State ---
-  const [appData, setAppData] = useState<AppData>(() => loadDataFromLocalStorage());
+  const [appData, setAppData] = useState<AppData>(() => {
+    return loadDataFromLocalStorage() || INITIAL_DATA;
+  });
+
   const [dirHandle, setDirHandle] = useState<FileSystemDirectoryHandle | null>(null);
   const [isDataLoaded, setIsDataLoaded] = useState(false);
 
-  // --- UI & View Navigation State ---
+  // --- Active Navigation & Filter States ---
   const [mainTab, setMainTab] = useState<MainTabType>('media');
   const [activeCatId, setActiveCatId] = useState<string | null>(null);
   const [activeSub, setActiveSub] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<'grid' | 'tier'>('grid');
 
-  // Search & Panels
+  // Toolbar toggles & inputs
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [isViewOpen, setIsViewOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
-
-  // Modals
   const [selectedItem, setSelectedItem] = useState<ArchiveItem | null>(null);
 
-  // Filters State
+  // Filter State
   const [filters, setFilters] = useState<FilterState>({
     search: '',
     minRating: 0,
@@ -61,21 +61,38 @@ export default function App() {
     ankiFilter: 'all',
   });
 
-  // View Settings State with card size slider support
-  const [viewSettings, setViewSettings] = useState<ViewSettings>({
-    showTitleOnPoster: false,
-    showRating: true,
-    cardSize: 3,
+  // View Settings State with card size slider and theme support
+  const [viewSettings, setViewSettings] = useState<ViewSettings>(() => {
+    const saved = localStorage.getItem('yapim_view_settings');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch {}
+    }
+    return {
+      showTitleOnPoster: false,
+      showRating: true,
+      cardSize: 3,
+      theme: 'deep-slate',
+    };
   });
+
+  // Persist viewSettings and set data-theme on document root
+  useEffect(() => {
+    localStorage.setItem('yapim_view_settings', JSON.stringify(viewSettings));
+    document.documentElement.setAttribute(
+      'data-theme',
+      viewSettings.theme || 'deep-slate'
+    );
+  }, [viewSettings]);
 
   // --- 1. Initial Load: Check IndexedDB / Directory Handle & Permissions ---
   useEffect(() => {
     async function initStorage() {
       try {
-        // Try IndexedDB first (supports huge image databases)
-        const idbData = await loadDataFromIndexedDB();
-        if (idbData && idbData.categories && idbData.items) {
-          setAppData(idbData);
+        const local = loadDataFromLocalStorage();
+        if (local && local.categories && local.items) {
+          setAppData(local);
         }
 
         const storedHandle = await getStoredDirectoryHandle();
@@ -117,11 +134,46 @@ export default function App() {
     }
   }, [appData, dirHandle, isDataLoaded]);
 
-  // Close panels on background click
+  // Close panels
   const closeAllPanels = useCallback(() => {
     setIsFilterOpen(false);
     setIsViewOpen(false);
   }, []);
+
+  // --- 3. Global Keyboard Shortcuts ('W' for add, 'Escape' for close) ---
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // 'Escape' key -> ALWAYS close modals/popovers even if inside input/textarea
+      if (e.key === 'Escape') {
+        closeAllPanels();
+        if (selectedItem) setSelectedItem(null);
+        if (isAddModalOpen) setIsAddModalOpen(false);
+        if (isSettingsOpen) setIsSettingsOpen(false);
+        return;
+      }
+
+      // Don't trigger 'W' shortcut if user is typing in an input, textarea or contenteditable element
+      const target = e.target as HTMLElement;
+      if (
+        target.tagName === 'INPUT' ||
+        target.tagName === 'TEXTAREA' ||
+        target.tagName === 'SELECT' ||
+        target.isContentEditable
+      ) {
+        return;
+      }
+
+      // 'W' or 'w' key -> Open Add Item Modal (FAB action)
+      if (e.key === 'w' || e.key === 'W') {
+        e.preventDefault();
+        closeAllPanels();
+        setIsAddModalOpen(true);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [closeAllPanels, selectedItem, isAddModalOpen, isSettingsOpen]);
 
   // Directory Connection Handlers
   const handleConnectFolder = async () => {
@@ -159,88 +211,42 @@ export default function App() {
   };
 
   const handleDisconnectFolder = async () => {
-    await clearStoredDirectoryHandle();
     setDirHandle(null);
+    await storeDirectoryHandle(null as any);
   };
 
-  // Main Tab Switch Handler
-  const handleMainTabChange = (newTab: MainTabType) => {
-    setMainTab(newTab);
-    setActiveCatId(null);
-    setActiveSub(null);
-    setViewMode('grid');
-    closeAllPanels();
-  };
-
-  // Category Switch Handler
-  const handleCategorySelect = (catId: string | null) => {
-    setActiveCatId(catId);
-    setActiveSub(null);
-    setViewMode('grid');
-    closeAllPanels();
-  };
-
-  // Item Updates
-  const handleSaveItem = (updatedItem: ArchiveItem) => {
-    setAppData((prev) => ({
-      ...prev,
-      lastUpdated: new Date().toISOString(),
-      items: prev.items.map((it) => (it.id === updatedItem.id ? updatedItem : it)),
-    }));
-    if (selectedItem?.id === updatedItem.id) {
-      setSelectedItem(updatedItem);
-    }
-  };
-
+  // --- CRUD Operations on Items ---
   const handleAddItem = (newItem: ArchiveItem) => {
     setAppData((prev) => ({
       ...prev,
-      lastUpdated: new Date().toISOString(),
       items: [newItem, ...prev.items],
     }));
+    setIsAddModalOpen(false);
+  };
+
+  const handleSaveItem = (updatedItem: ArchiveItem) => {
+    setAppData((prev) => ({
+      ...prev,
+      items: prev.items.map((it) => (it.id === updatedItem.id ? updatedItem : it)),
+    }));
+    setSelectedItem(null);
   };
 
   const handleDeleteItem = (itemId: string) => {
     setAppData((prev) => ({
       ...prev,
-      lastUpdated: new Date().toISOString(),
       items: prev.items.filter((it) => it.id !== itemId),
     }));
-    if (selectedItem?.id === itemId) {
-      setSelectedItem(null);
-    }
+    setSelectedItem(null);
   };
 
-  // Tier Placement
-  const handleUpdateTierPlacement = (itemId: string, tierRowId: string | null) => {
+  // --- Category & Tier Row Operations ---
+  const handleUpdateCategories = (
+    tab: MainTabType,
+    newCategories: Category[]
+  ) => {
     setAppData((prev) => ({
       ...prev,
-      lastUpdated: new Date().toISOString(),
-      items: prev.items.map((it) =>
-        it.id === itemId ? { ...it, tier: tierRowId } : it
-      ),
-    }));
-  };
-
-  // Update Category Tier Rows
-  const handleUpdateCategoryTierRows = (catId: string, newRows: TierRow[]) => {
-    setAppData((prev) => ({
-      ...prev,
-      lastUpdated: new Date().toISOString(),
-      categories: {
-        ...prev.categories,
-        [mainTab]: prev.categories[mainTab].map((c) =>
-          c.id === catId ? { ...c, tierRows: newRows } : c
-        ),
-      },
-    }));
-  };
-
-  // Update Categories in Settings
-  const handleUpdateCategories = (tab: MainTabType, newCategories: Category[]) => {
-    setAppData((prev) => ({
-      ...prev,
-      lastUpdated: new Date().toISOString(),
       categories: {
         ...prev.categories,
         [tab]: newCategories,
@@ -248,55 +254,89 @@ export default function App() {
     }));
   };
 
-  // Replace Entire AppData (JSON Import)
-  const handleReplaceAllData = (newData: AppData) => {
-    setAppData(newData);
-    setActiveCatId(null);
-    setActiveSub(null);
-    setSelectedItem(null);
+  const handleUpdateCategoryTierRows = (
+    catId: string,
+    newRows: TierRow[]
+  ) => {
+    setAppData((prev) => {
+      const currentCats = prev.categories[mainTab] || [];
+      const updatedCats = currentCats.map((c) =>
+        c.id === catId ? { ...c, tierRows: newRows } : c
+      );
+      return {
+        ...prev,
+        categories: {
+          ...prev.categories,
+          [mainTab]: updatedCats,
+        },
+      };
+    });
   };
 
-  // Current categories list for current mainTab
-  const currentCategories = useMemo(
-    () => appData.categories[mainTab] || [],
-    [appData.categories, mainTab]
-  );
+  const handleUpdateTierPlacement = (
+    itemId: string,
+    tierId: string | null
+  ) => {
+    setAppData((prev) => ({
+      ...prev,
+      items: prev.items.map((it) =>
+        it.id === itemId ? { ...it, tier: tierId } : it
+      ),
+    }));
+  };
 
-  const activeCategory = useMemo(() => {
-    if (!activeCatId || activeCatId === TRACKED_TAB_ID) return null;
-    return currentCategories.find((c) => c.id === activeCatId) || null;
-  }, [currentCategories, activeCatId]);
+  // Switch Main Tabs (Media / Game)
+  const handleMainTabChange = (tab: MainTabType) => {
+    setMainTab(tab);
+    setActiveCatId(null);
+    setActiveSub(null);
+    setViewMode('grid');
+  };
 
-  // Filtered Items logic
+  const handleCategorySelect = (catId: string | null) => {
+    setActiveCatId(catId);
+    setActiveSub(null);
+  };
+
+  // Current category list for active main tab
+  const currentCategories = appData.categories[mainTab] || [];
+  const activeCategory =
+    activeCatId && activeCatId !== TRACKED_TAB_ID
+      ? currentCategories.find((c) => c.id === activeCatId)
+      : null;
+
+  // --- Filter and Search Logic ---
   const filteredItems = useMemo(() => {
     return appData.items.filter((item) => {
-      // 1. Main tab filter
+      // 1. Tab match
       if (item.mainTab !== mainTab) return false;
 
-      // 2. Category filter
-      if (activeCatId && activeCatId !== TRACKED_TAB_ID) {
+      // 2. Tracked View
+      if (mainTab === 'media' && activeCatId === TRACKED_TAB_ID) {
+        if (!item.isWatching && !item.isFollowing) return false;
+      } else if (activeCatId) {
+        // 3. Category match
         if (item.cat !== activeCatId) return false;
+        // Subgroup match
         if (activeSub && item.sub !== activeSub) return false;
       }
 
-      // 3. Search query filter
+      // 4. Search query
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase();
-        const matchesTitle = item.title.toLowerCase().includes(q);
-        const matchesDesc = item.desc?.toLowerCase().includes(q);
-        if (!matchesTitle && !matchesDesc) return false;
+        const matchesName = item.name.toLowerCase().includes(q);
+        const matchesAlt = item.altName?.toLowerCase().includes(q);
+        const matchesCast = item.cast?.toLowerCase().includes(q);
+        const matchesTags = item.tags?.some((t) => t.toLowerCase().includes(q));
+        if (!matchesName && !matchesAlt && !matchesCast && !matchesTags) {
+          return false;
+        }
       }
 
-      // 4. Rating filter
-      if (filters.minRating > 0 && item.rating < filters.minRating) {
-        return false;
-      }
-
-      // 5. Media special filters
-      if (mainTab === 'media') {
-        if (filters.watchingOnly && !item.watching) return false;
-        if (filters.followingOnly && !item.following) return false;
-      }
+      // 5. Rating & Watch status filters
+      if (filters.minRating > 0 && item.rating < filters.minRating) return false;
+      if (filters.watchingOnly && !item.isWatching) return false;
+      if (filters.followingOnly && !item.isFollowing) return false;
 
       // 6. Anki filter
       if (filters.ankiFilter === 'yes' && !item.anki) return false;
@@ -325,16 +365,50 @@ export default function App() {
     }
   }, [viewSettings.cardSize]);
 
+  // Theme style classes helper
+  const themeClasses = useMemo(() => {
+    const theme = viewSettings.theme || 'deep-slate';
+    switch (theme) {
+      case 'midnight-blue':
+        return {
+          bg: 'bg-[#030712]',
+          ambient: 'bg-[radial-gradient(ellipse_90%_70%_at_50%_-20%,rgba(6,182,212,0.22),transparent)]',
+        };
+      case 'cyber-emerald':
+        return {
+          bg: 'bg-[#030c08]',
+          ambient: 'bg-[radial-gradient(ellipse_90%_70%_at_50%_-20%,rgba(16,185,129,0.2),transparent)]',
+        };
+      case 'warm-amber':
+        return {
+          bg: 'bg-[#120b06]',
+          ambient: 'bg-[radial-gradient(ellipse_90%_70%_at_50%_-20%,rgba(245,158,11,0.2),transparent)]',
+        };
+      case 'pure-dark':
+        return {
+          bg: 'bg-[#000000]',
+          ambient: 'bg-transparent',
+        };
+      case 'deep-slate':
+      default:
+        return {
+          bg: 'bg-[#090d16]',
+          ambient: 'bg-[radial-gradient(ellipse_90%_70%_at_50%_-20%,rgba(37,99,235,0.16),transparent)]',
+        };
+    }
+  }, [viewSettings.theme]);
+
   return (
     <div
       id="app-root"
+      data-theme={viewSettings.theme || 'deep-slate'}
       onClick={closeAllPanels}
-      className="min-h-screen bg-[#090d16] text-slate-100 flex flex-col selection:bg-blue-600 selection:text-white relative overflow-x-hidden"
+      className={`min-h-screen ${themeClasses.bg} text-slate-100 flex flex-col selection:bg-blue-600 selection:text-white relative overflow-x-hidden transition-colors duration-300`}
     >
       {/* Background ambient lighting */}
-      <div className="fixed inset-0 pointer-events-none bg-[radial-gradient(ellipse_80%_60%_at_50%_-20%,rgba(37,99,235,0.08),rgba(255,255,255,0))]" />
+      <div className={`fixed inset-0 pointer-events-none ${themeClasses.ambient}`} />
 
-      <div className="w-full max-w-[1920px] mx-auto px-4 sm:px-8 lg:px-12 py-3 sm:py-5 flex-1 flex flex-col space-y-4 relative z-10">
+      <div className="w-full max-w-[1920px] mx-auto px-3 sm:px-8 lg:px-12 py-3 sm:py-5 flex-1 flex flex-col space-y-4 relative z-10">
         {/* Header Tabs & Navigation */}
         <HeaderTabs
           mainTab={mainTab}
@@ -355,16 +429,16 @@ export default function App() {
           onViewModeChange={setViewMode}
           onSearchChange={setSearchQuery}
           onToggleSearch={() => {
-            setIsSearchOpen(!isSearchOpen);
+            setIsSearchOpen((prev) => !prev);
             setIsFilterOpen(false);
             setIsViewOpen(false);
           }}
           onToggleFilter={() => {
-            setIsFilterOpen(!isFilterOpen);
+            setIsFilterOpen((prev) => !prev);
             setIsViewOpen(false);
           }}
           onToggleView={() => {
-            setIsViewOpen(!isViewOpen);
+            setIsViewOpen((prev) => !prev);
             setIsFilterOpen(false);
           }}
           onOpenSettings={() => {
@@ -424,7 +498,7 @@ export default function App() {
               ) : (
                 <div
                   id="empty-items-state"
-                  className="py-20 text-center rounded-2xl border border-dashed border-[#1e273a] bg-[#0e1320]/60 p-8 space-y-4 max-w-lg mx-auto"
+                  className="py-20 text-center rounded-2xl border border-dashed border-white/10 bg-white/5 p-8 space-y-4 max-w-lg mx-auto"
                 >
                   <p className="text-slate-300 text-sm font-medium">
                     Bu filtreye veya kategoriye uyan yapım bulunamadı.
@@ -442,17 +516,18 @@ export default function App() {
         </main>
       </div>
 
-      {/* Floating Action Button (FAB) for Adding Items */}
+      {/* Floating Action Button (FAB) for Adding Items - Sönük & Minimalist Stil */}
       <button
         id="fab-add-item-btn"
-        onClick={() => {
+        onClick={(e) => {
+          e.stopPropagation();
           closeAllPanels();
           setIsAddModalOpen(true);
         }}
-        title={mainTab === 'game' ? 'Yeni Oyun Ekle (+)' : 'Yeni Yapım Ekle (+)'}
-        className="fixed bottom-7 right-7 z-40 w-13 h-13 rounded-full bg-blue-600/85 hover:bg-blue-500 text-white shadow-xl shadow-blue-900/50 hover:shadow-blue-500/40 flex items-center justify-center transition-all duration-300 hover:scale-110 active:scale-95 border border-blue-400/40 backdrop-blur-md cursor-pointer group"
+        title={`Yeni Ekle (Kısayol: W)`}
+        className="fixed bottom-6 right-6 z-40 w-11 h-11 rounded-full bg-slate-800/80 hover:bg-blue-600 text-slate-300 hover:text-white shadow-lg shadow-black/40 hover:shadow-blue-600/30 flex items-center justify-center transition-all duration-200 hover:scale-105 active:scale-95 border border-white/10 hover:border-blue-400/40 backdrop-blur-md cursor-pointer group"
       >
-        <Plus className="w-6 h-6 transition-transform duration-300 group-hover:rotate-90" />
+        <Plus className="w-5 h-5 transition-transform duration-200 group-hover:rotate-90" />
       </button>
 
       {/* --- Modals --- */}
@@ -486,10 +561,17 @@ export default function App() {
           appData={appData}
           activeMainTab={mainTab}
           dirHandle={dirHandle}
+          viewSettings={viewSettings}
+          onUpdateViewSettings={(newSet) =>
+            setViewSettings((prev) => ({ ...prev, ...newSet }))
+          }
           onConnectFolder={handleConnectFolder}
           onDisconnectFolder={handleDisconnectFolder}
           onUpdateCategories={handleUpdateCategories}
-          onReplaceAllData={handleReplaceAllData}
+          onReplaceAllData={(newData) => {
+            setAppData(newData);
+            setIsSettingsOpen(false);
+          }}
           onClose={() => setIsSettingsOpen(false)}
         />
       )}

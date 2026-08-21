@@ -25,11 +25,11 @@ export const ItemCard: React.FC<ItemCardProps> = ({
     >
       {/* Poster Container */}
       <div
-        className="relative w-full aspect-[2/3] rounded-xl overflow-hidden border border-[#212b3e] bg-[#121724] shadow-md transition-all duration-300 group-hover:shadow-2xl group-hover:shadow-blue-950/40 group-hover:border-blue-500/50"
+        className="relative w-full aspect-[2/3] rounded-xl overflow-hidden border border-[var(--border-subtle)] bg-[var(--bg-surface)] shadow-md transition-all duration-300 group-hover:shadow-2xl group-hover:border-[var(--accent-color)]"
         style={{
           background: item.thumbnail
-            ? '#0e131d'
-            : `radial-gradient(circle at 50% 30%, ${baseColor}22 0%, #101522 100%)`,
+            ? 'var(--bg-surface)'
+            : `radial-gradient(circle at 50% 30%, ${baseColor}22 0%, var(--bg-surface) 100%)`,
         }}
       >
         {item.thumbnail ? (
