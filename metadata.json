@@ -1,0 +1,6 @@
+{
+  "name": "Yapım Arşivim",
+  "description": "File System Access API ve yerel JSON tabanlı kişisel medya ve oyun arşivi yöneticisi.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
