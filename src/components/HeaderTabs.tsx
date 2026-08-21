@@ -1,4 +1,4 @@
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, useState } from 'react';
 import {
   Category,
   FilterState,
@@ -12,17 +12,25 @@ import {
   SlidersHorizontal,
   Eye,
   Settings,
-  Plus,
   X,
-  HardDrive,
-  FolderCheck,
+  ChevronDown,
+  ChevronRight,
+  Film,
+  Gamepad2,
+  Sparkles,
+  Layers,
+  LayoutGrid,
+  ListOrdered,
 } from 'lucide-react';
 
 export const TRACKED_TAB_ID = '__tracked__';
 
 interface HeaderTabsProps {
   mainTab: MainTabType;
-  categories: Category[];
+  categories: {
+    media: Category[];
+    game: Category[];
+  };
   activeCatId: string | null;
   activeSub: string | null;
   viewMode: 'grid' | 'tier';
@@ -42,7 +50,6 @@ interface HeaderTabsProps {
   onToggleFilter: () => void;
   onToggleView: () => void;
   onOpenSettings: () => void;
-  onOpenAddModal: () => void;
   onFilterChange: (newFilters: Partial<FilterState>) => void;
   onViewSettingsChange: (newSettings: Partial<ViewSettings>) => void;
   onClosePanels: () => void;
@@ -60,7 +67,6 @@ export const HeaderTabs: React.FC<HeaderTabsProps> = ({
   isViewOpen,
   filters,
   viewSettings,
-  dirHandle,
   onMainTabChange,
   onCategorySelect,
   onSubgroupSelect,
@@ -70,15 +76,18 @@ export const HeaderTabs: React.FC<HeaderTabsProps> = ({
   onToggleFilter,
   onToggleView,
   onOpenSettings,
-  onOpenAddModal,
   onFilterChange,
   onViewSettingsChange,
   onClosePanels,
 }) => {
   const searchInputRef = useRef<HTMLInputElement>(null);
+  const [openDropdown, setOpenDropdown] = useState<'media' | 'game' | null>(null);
+  const [expandedCatId, setExpandedCatId] = useState<string | null>(null);
+
+  const currentCategoryList = mainTab === 'media' ? categories.media : categories.game;
   const activeCategory =
     activeCatId && activeCatId !== TRACKED_TAB_ID
-      ? categories.find((c) => c.id === activeCatId)
+      ? currentCategoryList.find((c) => c.id === activeCatId)
       : null;
 
   useEffect(() => {
@@ -87,117 +96,386 @@ export const HeaderTabs: React.FC<HeaderTabsProps> = ({
     }
   }, [isSearchOpen]);
 
+  // Close dropdowns on global panel close or escape
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (!target.closest('#category-dropdown-container')) {
+        setOpenDropdown(null);
+      }
+    };
+    window.addEventListener('click', handleClickOutside);
+    return () => window.removeEventListener('click', handleClickOutside);
+  }, []);
+
   const activeFiltersCount =
     (filters.minRating > 0 ? 1 : 0) +
     (filters.watchingOnly ? 1 : 0) +
     (filters.followingOnly ? 1 : 0) +
     (filters.ankiFilter !== 'all' ? 1 : 0);
 
+  const toggleDropdown = (tab: 'media' | 'game', e: React.MouseEvent) => {
+    e.stopPropagation();
+    onClosePanels();
+    if (mainTab !== tab) {
+      onMainTabChange(tab);
+      onCategorySelect(null);
+      onSubgroupSelect(null);
+    }
+    setOpenDropdown(openDropdown === tab ? null : tab);
+  };
+
+  const handleSelectCategoryFromMenu = (catId: string | null, sub: string | null = null) => {
+    onCategorySelect(catId);
+    onSubgroupSelect(sub);
+    setOpenDropdown(null);
+  };
+
   return (
-    <header className="space-y-3 pb-3 border-b border-[#252834]">
-      {/* 1. Main Tabs: Medya & Oyun */}
-      <div className="flex items-center justify-between gap-3 flex-wrap">
-        <div className="flex items-center gap-2.5">
-          <button
-            id="main-tab-media"
-            onClick={() => onMainTabChange('media')}
-            className={`px-5 py-2 rounded-xl text-sm font-semibold transition-all select-none border ${
-              mainTab === 'media'
-                ? 'bg-[#222634] text-white border-blue-500/70 shadow-md shadow-blue-500/5'
-                : 'bg-[#15171d] text-gray-400 border-[#2d3240] hover:text-gray-200 hover:bg-[#1a1d24]'
-            }`}
+    <header className="relative z-30 flex flex-col gap-3 py-2 border-b border-[#1b2333]/80">
+      {/* Top Main Navigation Bar */}
+      <div className="flex items-center justify-between gap-4 flex-wrap">
+        {/* Left Side: Brand Logo & Dropdown Menus */}
+        <div className="flex items-center gap-4 sm:gap-6 flex-wrap" id="category-dropdown-container">
+          {/* Logo */}
+          <div
+            id="brand-logo"
+            onClick={() => {
+              onCategorySelect(null);
+              onSubgroupSelect(null);
+              onSearchChange('');
+            }}
+            className="flex items-center gap-2 cursor-pointer select-none group"
           >
-            🎬 Medya
-          </button>
-          <button
-            id="main-tab-game"
-            onClick={() => onMainTabChange('game')}
-            className={`px-5 py-2 rounded-xl text-sm font-semibold transition-all select-none border ${
-              mainTab === 'game'
-                ? 'bg-[#222634] text-white border-blue-500/70 shadow-md shadow-blue-500/5'
-                : 'bg-[#15171d] text-gray-400 border-[#2d3240] hover:text-gray-200 hover:bg-[#1a1d24]'
-            }`}
-          >
-            🎮 Oyun
-          </button>
-        </div>
-
-        {/* Directory Connection & Add button */}
-        <div className="flex items-center gap-2">
-          {dirHandle ? (
-            <div
-              title={`Veriler "${dirHandle.name}" yerel klasörüne kaydediliyor`}
-              className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-950/40 border border-emerald-800/40 text-[11px] font-medium text-emerald-400"
-            >
-              <FolderCheck className="w-3.5 h-3.5" />
-              <span className="truncate max-w-[120px]">{dirHandle.name}</span>
+            <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-500 flex items-center justify-center shadow-lg shadow-blue-600/30 group-hover:scale-105 transition-transform">
+              <Sparkles className="w-4 h-4 text-white" />
             </div>
-          ) : (
-            <div
-              title="Veriler tarayıcı hafızasında saklanıyor. Ayarlar'dan yerel klasör bağlayabilirsiniz."
-              className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[#1a1c24] border border-[#2d3240] text-[11px] text-gray-400"
-            >
-              <HardDrive className="w-3.5 h-3.5 text-gray-400" />
-              <span>Yerel Depolama</span>
-            </div>
-          )}
+            <span className="text-xl font-bold tracking-tight text-white group-hover:text-blue-300 transition-colors">
+              Lore
+            </span>
+          </div>
 
-          <button
-            id="add-item-header-btn"
-            onClick={onOpenAddModal}
-            className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold shadow-md transition-all active:scale-95"
-          >
-            <Plus className="w-4 h-4" />
-            <span>{mainTab === 'game' ? 'Oyun Ekle' : 'Yapım Ekle'}</span>
-          </button>
-        </div>
-      </div>
-
-      {/* 2. Category Buttons Row & Control Icons (Same Row) */}
-      <div className="flex items-center justify-between gap-3 flex-wrap">
-        {/* Category chips */}
-        <div className="flex items-center gap-2 flex-wrap">
-          {/* Pinned Tab for Medya */}
-          {mainTab === 'media' && (
-            <button
-              id="cat-tab-tracked"
-              onClick={() => onCategorySelect(TRACKED_TAB_ID)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-all select-none ${
-                activeCatId === TRACKED_TAB_ID
-                  ? 'bg-amber-500/20 text-amber-300 border-amber-500/80 font-semibold shadow'
-                  : 'bg-[#181920] text-amber-400/90 border-amber-500/30 hover:bg-amber-500/10'
-              }`}
-            >
-              ★ İzlenen / Takip
-            </button>
-          )}
-
-          {/* User Categories */}
-          {categories.map((c) => {
-            const isActive = activeCatId === c.id;
-            return (
+          {/* Media & Game Dropdown Selectors */}
+          <div className="flex items-center gap-2 relative">
+            {/* Medya Dropdown Button */}
+            <div className="relative">
               <button
-                key={c.id}
-                id={`cat-tab-${c.id}`}
-                onClick={() => onCategorySelect(isActive ? null : c.id)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-all select-none ${
-                  isActive
-                    ? 'bg-[#252936] text-white border-gray-400 font-semibold shadow'
-                    : 'bg-[#15171d] text-gray-300 border-[#2d3240] hover:bg-[#1f222b] hover:text-white'
+                id="dropdown-media-btn"
+                onClick={(e) => toggleDropdown('media', e)}
+                className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all duration-200 border cursor-pointer ${
+                  mainTab === 'media'
+                    ? 'bg-[#182236] text-white border-blue-500/60 shadow-lg shadow-blue-500/10'
+                    : 'bg-[#0f1420] text-slate-400 border-[#1f283d] hover:text-slate-200 hover:bg-[#141b2b]'
                 }`}
               >
-                {c.name}
+                <Film className="w-4 h-4 text-blue-400" />
+                <span>Medya</span>
+                <ChevronDown
+                  className={`w-3.5 h-3.5 text-slate-400 transition-transform duration-200 ${
+                    openDropdown === 'media' ? 'rotate-180 text-blue-400' : ''
+                  }`}
+                />
               </button>
-            );
-          })}
+
+              {/* Medya Dropdown Menu */}
+              {openDropdown === 'media' && (
+                <div
+                  id="dropdown-media-menu"
+                  className="absolute top-12 left-0 z-50 w-64 p-2 bg-[#121826]/95 backdrop-blur-xl border border-[#26334a] rounded-2xl shadow-2xl animate-in fade-in zoom-in-95 duration-150 space-y-1"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <div className="px-3 py-1.5 text-[10px] font-semibold text-slate-400 uppercase tracking-wider flex items-center justify-between">
+                    <span>Medya Kategorileri</span>
+                    <button
+                      onClick={() => handleSelectCategoryFromMenu(null)}
+                      className="text-blue-400 hover:underline capitalize"
+                    >
+                      Tümünü Gör
+                    </button>
+                  </div>
+
+                  {/* İzlenen / Takip Quick Item */}
+                  <button
+                    onClick={() => handleSelectCategoryFromMenu(TRACKED_TAB_ID)}
+                    className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-medium transition-colors text-left ${
+                      activeCatId === TRACKED_TAB_ID
+                        ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
+                        : 'text-amber-400/90 hover:bg-amber-500/10'
+                    }`}
+                  >
+                    <span className="flex items-center gap-2">
+                      <span className="text-amber-400">★</span> İzlenen & Takip
+                    </span>
+                    <span className="text-[10px] text-amber-500/70">Özel Vitrin</span>
+                  </button>
+
+                  <div className="my-1 border-t border-[#1e273a]" />
+
+                  {/* Categories */}
+                  <div className="max-h-72 overflow-y-auto space-y-0.5 custom-scrollbar">
+                    {categories.media.map((cat) => {
+                      const isCatActive = activeCatId === cat.id;
+                      const hasSubs = cat.subgroups && cat.subgroups.length > 0;
+                      const isExpanded = expandedCatId === cat.id;
+
+                      return (
+                        <div key={cat.id} className="rounded-xl overflow-hidden">
+                          <div
+                            className={`flex items-center justify-between px-3 py-2 rounded-xl text-xs font-medium transition-colors cursor-pointer ${
+                              isCatActive
+                                ? 'bg-blue-600 text-white'
+                                : 'text-slate-300 hover:bg-[#1b2438] hover:text-white'
+                            }`}
+                          >
+                            <div
+                              onClick={() => handleSelectCategoryFromMenu(cat.id, null)}
+                              className="flex-1 truncate"
+                            >
+                              {cat.name}
+                            </div>
+                            {hasSubs && (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setExpandedCatId(isExpanded ? null : cat.id);
+                                }}
+                                className={`p-1 rounded hover:bg-white/10 ${
+                                  isExpanded ? 'text-blue-300' : 'text-slate-400'
+                                }`}
+                                title="Alt kategoriler"
+                              >
+                                <ChevronRight
+                                  className={`w-3.5 h-3.5 transition-transform ${
+                                    isExpanded ? 'rotate-90' : ''
+                                  }`}
+                                />
+                              </button>
+                            )}
+                          </div>
+
+                          {/* Nested Subgroups */}
+                          {hasSubs && isExpanded && (
+                            <div className="ml-4 pl-2 my-1 border-l border-blue-500/30 space-y-0.5 animate-in fade-in">
+                              <button
+                                onClick={() => handleSelectCategoryFromMenu(cat.id, null)}
+                                className={`w-full text-left px-2.5 py-1.5 rounded-lg text-[11px] transition-colors ${
+                                  isCatActive && activeSub === null
+                                    ? 'bg-blue-500/20 text-blue-300 font-semibold'
+                                    : 'text-slate-400 hover:text-white hover:bg-white/5'
+                                }`}
+                              >
+                                • Tümü ({cat.name})
+                              </button>
+                              {cat.subgroups.map((sub) => (
+                                <button
+                                  key={sub}
+                                  onClick={() => handleSelectCategoryFromMenu(cat.id, sub)}
+                                  className={`w-full text-left px-2.5 py-1.5 rounded-lg text-[11px] transition-colors truncate ${
+                                    isCatActive && activeSub === sub
+                                      ? 'bg-blue-500/20 text-blue-300 font-semibold'
+                                      : 'text-slate-400 hover:text-white hover:bg-white/5'
+                                  }`}
+                                >
+                                  • {sub}
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Oyun Dropdown Button */}
+            <div className="relative">
+              <button
+                id="dropdown-game-btn"
+                onClick={(e) => toggleDropdown('game', e)}
+                className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all duration-200 border cursor-pointer ${
+                  mainTab === 'game'
+                    ? 'bg-[#182236] text-white border-blue-500/60 shadow-lg shadow-blue-500/10'
+                    : 'bg-[#0f1420] text-slate-400 border-[#1f283d] hover:text-slate-200 hover:bg-[#141b2b]'
+                }`}
+              >
+                <Gamepad2 className="w-4 h-4 text-emerald-400" />
+                <span>Oyun</span>
+                <ChevronDown
+                  className={`w-3.5 h-3.5 text-slate-400 transition-transform duration-200 ${
+                    openDropdown === 'game' ? 'rotate-180 text-blue-400' : ''
+                  }`}
+                />
+              </button>
+
+              {/* Oyun Dropdown Menu */}
+              {openDropdown === 'game' && (
+                <div
+                  id="dropdown-game-menu"
+                  className="absolute top-12 left-0 z-50 w-64 p-2 bg-[#121826]/95 backdrop-blur-xl border border-[#26334a] rounded-2xl shadow-2xl animate-in fade-in zoom-in-95 duration-150 space-y-1"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <div className="px-3 py-1.5 text-[10px] font-semibold text-slate-400 uppercase tracking-wider flex items-center justify-between">
+                    <span>Oyun Kategorileri</span>
+                    <button
+                      onClick={() => handleSelectCategoryFromMenu(null)}
+                      className="text-blue-400 hover:underline capitalize"
+                    >
+                      Tümünü Gör
+                    </button>
+                  </div>
+
+                  <div className="my-1 border-t border-[#1e273a]" />
+
+                  {/* Categories */}
+                  <div className="max-h-72 overflow-y-auto space-y-0.5 custom-scrollbar">
+                    {categories.game.map((cat) => {
+                      const isCatActive = activeCatId === cat.id;
+                      const hasSubs = cat.subgroups && cat.subgroups.length > 0;
+                      const isExpanded = expandedCatId === cat.id;
+
+                      return (
+                        <div key={cat.id} className="rounded-xl overflow-hidden">
+                          <div
+                            className={`flex items-center justify-between px-3 py-2 rounded-xl text-xs font-medium transition-colors cursor-pointer ${
+                              isCatActive
+                                ? 'bg-blue-600 text-white'
+                                : 'text-slate-300 hover:bg-[#1b2438] hover:text-white'
+                            }`}
+                          >
+                            <div
+                              onClick={() => handleSelectCategoryFromMenu(cat.id, null)}
+                              className="flex-1 truncate"
+                            >
+                              {cat.name}
+                            </div>
+                            {hasSubs && (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setExpandedCatId(isExpanded ? null : cat.id);
+                                }}
+                                className={`p-1 rounded hover:bg-white/10 ${
+                                  isExpanded ? 'text-blue-300' : 'text-slate-400'
+                                }`}
+                                title="Alt kategoriler"
+                              >
+                                <ChevronRight
+                                  className={`w-3.5 h-3.5 transition-transform ${
+                                    isExpanded ? 'rotate-90' : ''
+                                  }`}
+                                />
+                              </button>
+                            )}
+                          </div>
+
+                          {/* Nested Subgroups */}
+                          {hasSubs && isExpanded && (
+                            <div className="ml-4 pl-2 my-1 border-l border-blue-500/30 space-y-0.5 animate-in fade-in">
+                              <button
+                                onClick={() => handleSelectCategoryFromMenu(cat.id, null)}
+                                className={`w-full text-left px-2.5 py-1.5 rounded-lg text-[11px] transition-colors ${
+                                  isCatActive && activeSub === null
+                                    ? 'bg-blue-500/20 text-blue-300 font-semibold'
+                                    : 'text-slate-400 hover:text-white hover:bg-white/5'
+                                }`}
+                              >
+                                • Tümü ({cat.name})
+                              </button>
+                              {cat.subgroups.map((sub) => (
+                                <button
+                                  key={sub}
+                                  onClick={() => handleSelectCategoryFromMenu(cat.id, sub)}
+                                  className={`w-full text-left px-2.5 py-1.5 rounded-lg text-[11px] transition-colors truncate ${
+                                    isCatActive && activeSub === sub
+                                      ? 'bg-blue-500/20 text-blue-300 font-semibold'
+                                      : 'text-slate-400 hover:text-white hover:bg-white/5'
+                                  }`}
+                                >
+                                  • {sub}
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Breadcrumb Path Tag */}
+          {(activeCatId !== null || activeSub !== null) && (
+            <div
+              id="active-breadcrumb-pill"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#141d2e] border border-blue-500/30 text-xs text-slate-200 animate-in fade-in"
+            >
+              <span className="text-slate-400 font-medium">
+                {mainTab === 'media' ? 'Medya' : 'Oyun'}
+              </span>
+              <span className="text-slate-500">›</span>
+              <span className="font-semibold text-blue-300">
+                {activeCatId === TRACKED_TAB_ID
+                  ? '★ İzlenen / Takip'
+                  : activeCategory?.name || 'Seçili Kategori'}
+              </span>
+              {activeSub && (
+                <>
+                  <span className="text-slate-500">›</span>
+                  <span className="text-slate-100 font-semibold">{activeSub}</span>
+                </>
+              )}
+              <button
+                onClick={() => {
+                  onCategorySelect(null);
+                  onSubgroupSelect(null);
+                }}
+                title="Filtreyi Temizle"
+                className="ml-1 p-0.5 rounded-md hover:bg-white/10 text-slate-400 hover:text-white transition-colors cursor-pointer"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          )}
+
+          {/* Tier List / Grid View Switcher (Visible only when category has tierEnabled) */}
+          {activeCategory && activeCategory.tierEnabled && (
+            <div className="flex items-center gap-1 p-1 bg-[#101522] rounded-xl border border-[#202c42]">
+              <button
+                id="viewmode-grid-btn"
+                onClick={() => onViewModeChange('grid')}
+                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium transition-all ${
+                  viewMode === 'grid'
+                    ? 'bg-blue-600 text-white shadow font-semibold'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                <LayoutGrid className="w-3 h-3" /> Izgara
+              </button>
+              <button
+                id="viewmode-tier-btn"
+                onClick={() => onViewModeChange('tier')}
+                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium transition-all ${
+                  viewMode === 'tier'
+                    ? 'bg-amber-600 text-white shadow font-semibold'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                <ListOrdered className="w-3 h-3" /> Tier List
+              </button>
+            </div>
+          )}
         </div>
 
-        {/* Action icons group (Aligned far right on same row) */}
-        <div className="flex items-center gap-1.5 relative">
+        {/* Right Side: Toolbar Icons (Search, Filter, View, Settings) */}
+        <div className="flex items-center gap-2 relative">
           {/* Search Box / Toggle */}
           {isSearchOpen ? (
-            <div className="flex items-center bg-[#15171d] border border-[#3e4454] rounded-lg px-2 py-1 w-44 sm:w-56">
-              <Search className="w-3.5 h-3.5 text-gray-400 shrink-0 mr-1.5" />
+            <div className="flex items-center bg-[#101624] border border-[#28354c] rounded-xl px-3 py-1.5 w-48 sm:w-64 animate-in fade-in">
+              <Search className="w-3.5 h-3.5 text-slate-400 shrink-0 mr-2" />
               <input
                 ref={searchInputRef}
                 id="search-header-input"
@@ -205,14 +483,14 @@ export const HeaderTabs: React.FC<HeaderTabsProps> = ({
                 value={searchQuery}
                 onChange={(e) => onSearchChange(e.target.value)}
                 placeholder="Yapım ara..."
-                className="w-full bg-transparent text-xs text-gray-100 placeholder-gray-500 focus:outline-none"
+                className="w-full bg-transparent text-xs text-slate-100 placeholder-slate-500 focus:outline-none"
               />
               <button
                 onClick={() => {
                   onSearchChange('');
                   onToggleSearch();
                 }}
-                className="text-gray-400 hover:text-white text-xs ml-1"
+                className="text-slate-400 hover:text-white text-xs ml-1.5 cursor-pointer"
               >
                 <X className="w-3.5 h-3.5" />
               </button>
@@ -221,28 +499,28 @@ export const HeaderTabs: React.FC<HeaderTabsProps> = ({
             <button
               id="search-toggle-btn"
               onClick={onToggleSearch}
-              title="Ara (🔍)"
-              className="p-2 rounded-lg bg-[#161820] hover:bg-[#202430] border border-[#2d3240] text-gray-300 hover:text-white transition-colors"
+              title="Arama (🔍)"
+              className="p-2.5 rounded-xl bg-[#101624] hover:bg-[#182236] border border-[#212c40] text-slate-300 hover:text-white transition-all cursor-pointer hover:border-blue-500/40"
             >
               <Search className="w-4 h-4" />
             </button>
           )}
 
-          {/* Filter button + Popover */}
+          {/* Filter Popover Button */}
           <div className="relative">
             <button
               id="filter-toggle-btn"
               onClick={onToggleFilter}
               title="Filtrele (🎚)"
-              className={`p-2 rounded-lg border transition-colors relative ${
+              className={`p-2.5 rounded-xl border transition-all relative cursor-pointer ${
                 isFilterOpen || activeFiltersCount > 0
-                  ? 'bg-[#222736] border-blue-500/60 text-blue-400'
-                  : 'bg-[#161820] hover:bg-[#202430] border-[#2d3240] text-gray-300 hover:text-white'
+                  ? 'bg-[#18243a] border-blue-500 text-blue-400 shadow-md shadow-blue-500/10'
+                  : 'bg-[#101624] hover:bg-[#182236] border-[#212c40] text-slate-300 hover:text-white hover:border-blue-500/40'
               }`}
             >
               <SlidersHorizontal className="w-4 h-4" />
               {activeFiltersCount > 0 && (
-                <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-blue-500 text-[10px] font-bold text-white flex items-center justify-center">
+                <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-blue-500 text-[10px] font-bold text-white flex items-center justify-center shadow">
                   {activeFiltersCount}
                 </span>
               )}
@@ -258,16 +536,16 @@ export const HeaderTabs: React.FC<HeaderTabsProps> = ({
             )}
           </div>
 
-          {/* View settings button + Popover */}
+          {/* View Settings Popover Button */}
           <div className="relative">
             <button
               id="view-toggle-btn"
               onClick={onToggleView}
               title="Görünüm Ayarları (👁)"
-              className={`p-2 rounded-lg border transition-colors ${
+              className={`p-2.5 rounded-xl border transition-all cursor-pointer ${
                 isViewOpen
-                  ? 'bg-[#222736] border-blue-500/60 text-blue-400'
-                  : 'bg-[#161820] hover:bg-[#202430] border-[#2d3240] text-gray-300 hover:text-white'
+                  ? 'bg-[#18243a] border-blue-500 text-blue-400 shadow-md shadow-blue-500/10'
+                  : 'bg-[#101624] hover:bg-[#182236] border-[#212c40] text-slate-300 hover:text-white hover:border-blue-500/40'
               }`}
             >
               <Eye className="w-4 h-4" />
@@ -282,87 +560,17 @@ export const HeaderTabs: React.FC<HeaderTabsProps> = ({
             )}
           </div>
 
-          {/* Settings Modal Toggle */}
+          {/* Settings Modal Trigger (Far Right) */}
           <button
             id="settings-toggle-btn"
             onClick={onOpenSettings}
             title="Ayarlar (⚙)"
-            className="p-2 rounded-lg bg-[#161820] hover:bg-[#202430] border border-[#2d3240] text-gray-300 hover:text-white transition-colors"
+            className="p-2.5 rounded-xl bg-[#101624] hover:bg-[#182236] border border-[#212c40] text-slate-300 hover:text-white transition-all cursor-pointer hover:border-blue-500/40"
           >
             <Settings className="w-4 h-4" />
           </button>
         </div>
       </div>
-
-      {/* 3. Subgroups Row (Visible ONLY when parent category is selected and has subgroups) */}
-      {activeCategory && activeCategory.subgroups.length > 0 && (
-        <div
-          id="subgroups-row"
-          className="flex items-center gap-1.5 pt-1 pl-1 flex-wrap"
-        >
-          <span className="text-[11px] text-gray-400 font-medium mr-1">
-            Alt-Grup:
-          </span>
-          <button
-            id="sub-btn-all"
-            onClick={() => onSubgroupSelect(null)}
-            className={`px-2.5 py-1 rounded-md text-xs transition-all ${
-              activeSub === null
-                ? 'bg-[#262c3b] text-blue-400 font-semibold border border-blue-500/40'
-                : 'bg-[#14151b] text-gray-400 hover:text-gray-200 border border-[#262934]'
-            }`}
-          >
-            Tümü
-          </button>
-          {activeCategory.subgroups.map((sub) => {
-            const isSubActive = activeSub === sub;
-            return (
-              <button
-                key={sub}
-                id={`sub-btn-${sub}`}
-                onClick={() => onSubgroupSelect(isSubActive ? null : sub)}
-                className={`px-2.5 py-1 rounded-md text-xs transition-all ${
-                  isSubActive
-                    ? 'bg-[#262c3b] text-blue-400 font-semibold border border-blue-500/40'
-                    : 'bg-[#14151b] text-gray-400 hover:text-gray-200 border border-[#262934]'
-                }`}
-              >
-                {sub}
-              </button>
-            );
-          })}
-        </div>
-      )}
-
-      {/* 4. View Mode Switcher (Grid vs Tier List) - ONLY when category has tierEnabled */}
-      {activeCategory && activeCategory.tierEnabled && (
-        <div className="flex items-center justify-between pt-1 border-t border-[#222530]">
-          <div className="flex items-center gap-1.5 p-1 bg-[#14151b] rounded-lg border border-[#262934]">
-            <button
-              id="viewmode-grid-btn"
-              onClick={() => onViewModeChange('grid')}
-              className={`px-3 py-1 rounded-md text-xs font-medium transition-all ${
-                viewMode === 'grid'
-                  ? 'bg-[#222736] text-white shadow font-semibold'
-                  : 'text-gray-400 hover:text-gray-200'
-              }`}
-            >
-              Izgara
-            </button>
-            <button
-              id="viewmode-tier-btn"
-              onClick={() => onViewModeChange('tier')}
-              className={`px-3 py-1 rounded-md text-xs font-medium transition-all ${
-                viewMode === 'tier'
-                  ? 'bg-[#222736] text-amber-300 shadow font-semibold'
-                  : 'text-gray-400 hover:text-gray-200'
-              }`}
-            >
-              Tier List
-            </button>
-          </div>
-        </div>
-      )}
     </header>
   );
 };

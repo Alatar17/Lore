@@ -2,14 +2,14 @@
 
 @layer base {
   :root {
-    --bg-primary: #121316;
-    --bg-surface: #1a1c22;
-    --bg-surface-elevated: #242730;
-    --border-subtle: #2d313c;
-    --border-medium: #3e4454;
-    --text-main: #f3f4f6;
-    --text-muted: #9ca3af;
-    --text-dim: #6b7280;
+    --bg-primary: #0a0d14;
+    --bg-surface: #121722;
+    --bg-surface-elevated: #1a2232;
+    --border-subtle: #222b3d;
+    --border-medium: #303c54;
+    --text-main: #f1f5f9;
+    --text-muted: #94a3b8;
+    --text-dim: #64748b;
   }
 
   body {
@@ -32,14 +32,14 @@
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: #333846;
+  background: #252f44;
   border-radius: 4px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #4b5266;
+  background: #3b4968;
 }
 
 .custom-scrollbar {
   scrollbar-width: thin;
-  scrollbar-color: #333846 transparent;
+  scrollbar-color: #252f44 transparent;
 }

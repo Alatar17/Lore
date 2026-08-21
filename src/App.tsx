@@ -27,6 +27,7 @@ import { TierListView } from './components/TierListView';
 import { ItemDetailModal } from './components/ItemDetailModal';
 import { AddItemModal } from './components/AddItemModal';
 import { SettingsModal } from './components/SettingsModal';
+import { Plus } from 'lucide-react';
 
 export default function App() {
   // --- Persistent App Data State ---
@@ -60,10 +61,11 @@ export default function App() {
     ankiFilter: 'all',
   });
 
-  // View Settings State
+  // View Settings State with card size slider support
   const [viewSettings, setViewSettings] = useState<ViewSettings>({
     showTitleOnPoster: false,
     showRating: true,
+    cardSize: 3,
   });
 
   // --- 1. Initial Load: Check IndexedDB / Directory Handle & Permissions ---
@@ -304,17 +306,39 @@ export default function App() {
     });
   }, [appData.items, mainTab, activeCatId, activeSub, searchQuery, filters]);
 
+  // Card size calculation for CSS Grid auto-fill (1: 120px, 2: 150px, 3: 185px, 4: 230px, 5: 280px)
+  const cardMinWidth = useMemo(() => {
+    const size = viewSettings.cardSize || 3;
+    switch (size) {
+      case 1:
+        return 120;
+      case 2:
+        return 150;
+      case 3:
+        return 185;
+      case 4:
+        return 230;
+      case 5:
+        return 280;
+      default:
+        return 185;
+    }
+  }, [viewSettings.cardSize]);
+
   return (
     <div
       id="app-root"
       onClick={closeAllPanels}
-      className="min-h-screen bg-[#121316] text-gray-100 flex flex-col selection:bg-blue-600 selection:text-white"
+      className="min-h-screen bg-[#090d16] text-slate-100 flex flex-col selection:bg-blue-600 selection:text-white relative overflow-x-hidden"
     >
-      <div className="w-full max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-6 flex-1 flex flex-col space-y-4">
+      {/* Background ambient lighting */}
+      <div className="fixed inset-0 pointer-events-none bg-[radial-gradient(ellipse_80%_60%_at_50%_-20%,rgba(37,99,235,0.08),rgba(255,255,255,0))]" />
+
+      <div className="w-full max-w-[1920px] mx-auto px-4 sm:px-8 lg:px-12 py-3 sm:py-5 flex-1 flex flex-col space-y-4 relative z-10">
         {/* Header Tabs & Navigation */}
         <HeaderTabs
           mainTab={mainTab}
-          categories={currentCategories}
+          categories={appData.categories}
           activeCatId={activeCatId}
           activeSub={activeSub}
           viewMode={viewMode}
@@ -347,10 +371,6 @@ export default function App() {
             closeAllPanels();
             setIsSettingsOpen(true);
           }}
-          onOpenAddModal={() => {
-            closeAllPanels();
-            setIsAddModalOpen(true);
-          }}
           onFilterChange={(newFilters) =>
             setFilters((prev) => ({ ...prev, ...newFilters }))
           }
@@ -361,7 +381,7 @@ export default function App() {
         />
 
         {/* Main Content Area */}
-        <main className="flex-1">
+        <main className="flex-1 pt-1">
           {/* A: Tracked / İzlenen View for Media */}
           {mainTab === 'media' && activeCatId === TRACKED_TAB_ID ? (
             <TrackedView
@@ -382,12 +402,15 @@ export default function App() {
               onItemClick={(item) => setSelectedItem(item)}
             />
           ) : (
-            /* C: Standard Netflix-style Card Grid */
+            /* C: Fluid & Dynamic Poster Grid */
             <div id="items-grid-section">
               {filteredItems.length > 0 ? (
                 <div
                   id="items-grid"
-                  className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-7 2xl:grid-cols-8 gap-3 sm:gap-4"
+                  className="grid gap-3 sm:gap-4.5 transition-all duration-300"
+                  style={{
+                    gridTemplateColumns: `repeat(auto-fill, minmax(${cardMinWidth}px, 1fr))`,
+                  }}
                 >
                   {filteredItems.map((item) => (
                     <ItemCard
@@ -401,14 +424,14 @@ export default function App() {
               ) : (
                 <div
                   id="empty-items-state"
-                  className="py-16 text-center rounded-2xl border border-dashed border-[#2b303e] bg-[#15171e] p-8 space-y-3"
+                  className="py-20 text-center rounded-2xl border border-dashed border-[#1e273a] bg-[#0e1320]/60 p-8 space-y-4 max-w-lg mx-auto"
                 >
-                  <p className="text-gray-300 text-sm font-medium">
+                  <p className="text-slate-300 text-sm font-medium">
                     Bu filtreye veya kategoriye uyan yapım bulunamadı.
                   </p>
                   <button
                     onClick={() => setIsAddModalOpen(true)}
-                    className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold shadow transition-colors"
+                    className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold shadow-lg shadow-blue-600/30 transition-all cursor-pointer"
                   >
                     + Yeni Yapım Ekle
                   </button>
@@ -418,6 +441,19 @@ export default function App() {
           )}
         </main>
       </div>
+
+      {/* Floating Action Button (FAB) for Adding Items */}
+      <button
+        id="fab-add-item-btn"
+        onClick={() => {
+          closeAllPanels();
+          setIsAddModalOpen(true);
+        }}
+        title={mainTab === 'game' ? 'Yeni Oyun Ekle (+)' : 'Yeni Yapım Ekle (+)'}
+        className="fixed bottom-7 right-7 z-40 w-13 h-13 rounded-full bg-blue-600/85 hover:bg-blue-500 text-white shadow-xl shadow-blue-900/50 hover:shadow-blue-500/40 flex items-center justify-center transition-all duration-300 hover:scale-110 active:scale-95 border border-blue-400/40 backdrop-blur-md cursor-pointer group"
+      >
+        <Plus className="w-6 h-6 transition-transform duration-300 group-hover:rotate-90" />
+      </button>
 
       {/* --- Modals --- */}
 

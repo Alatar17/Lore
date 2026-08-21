@@ -66,4 +66,5 @@ export interface FilterState {
 export interface ViewSettings {
   showTitleOnPoster: boolean;
   showRating: boolean;
+  cardSize: number; // 1 to 5 (or slider range 140 - 280)
 }
