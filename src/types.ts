@@ -36,12 +36,22 @@ export interface ArchiveItem {
   // Media specific
   watching?: boolean;
   following?: boolean;
+  dropped?: boolean;
 
   // Game specific
   status?: GameStatus;
   achPercent?: number | null;
   achMax?: number;
   hours?: number;
+
+  // Field-Scoped Tags
+  // Media fields: firm (Firma/Stüdyo), director (Yönetmen), actors (Oyuncular), genre (Tür)
+  // Game fields: developer (Geliştirici), genre (Tür)
+  firm?: string[];
+  director?: string[];
+  actors?: string[];
+  developer?: string[];
+  genre?: string[];
 
   // Common
   anki: boolean;
@@ -83,3 +93,26 @@ export interface ViewSettings {
   theme?: AppTheme;
   backdropBlur?: boolean; // Controls background blur for modals and overlays
 }
+
+export type MediaTagField = 'firm' | 'director' | 'actors' | 'genre';
+export type GameTagField = 'developer' | 'genre';
+export type TagFieldKey = MediaTagField | GameTagField;
+
+export interface TagFieldDef {
+  key: TagFieldKey;
+  label: string;
+  placeholder: string;
+  iconName?: string;
+}
+
+export const MEDIA_TAG_FIELDS: TagFieldDef[] = [
+  { key: 'firm', label: 'Firma / Stüdyo', placeholder: 'Örn: MAPPA, Warner Bros, Ufotable...' },
+  { key: 'director', label: 'Yönetmen', placeholder: 'Örn: Christopher Nolan, Hayao Miyazaki...' },
+  { key: 'actors', label: 'Oyuncular / Seslendirme', placeholder: 'Örn: Cillian Murphy, Kenjiro Tsuda...' },
+  { key: 'genre', label: 'Tür', placeholder: 'Örn: Aksiyon, Psikolojik, Bilim Kurgu...' },
+];
+
+export const GAME_TAG_FIELDS: TagFieldDef[] = [
+  { key: 'developer', label: 'Geliştirici / Stüdyo', placeholder: 'Örn: FromSoftware, CD Projekt Red, Valve...' },
+  { key: 'genre', label: 'Tür', placeholder: 'Örn: Souls-like, RPG, Roguelike, Açık Dünya...' },
+];

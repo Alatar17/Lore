@@ -1,11 +1,27 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { AppData, Category, MainTabType, AppTheme, ViewSettings } from '../types';
+import {
+  AppData,
+  Category,
+  MainTabType,
+  AppTheme,
+  ViewSettings,
+  ArchiveItem,
+  TagFieldKey,
+  MEDIA_TAG_FIELDS,
+  GAME_TAG_FIELDS,
+} from '../types';
 import { createDefaultTierRows, INITIAL_DATA } from '../data/initialData';
 import {
   downloadJsonFile,
   parseUploadedJson,
   downloadPhoneHtml,
 } from '../utils/fileSystem';
+import {
+  getFieldScopedTags,
+  getFieldScopedTagCounts,
+  renameTagInItems,
+  removeTagFromItems,
+} from '../utils/tagUtils';
 import {
   X,
   Plus,
@@ -23,6 +39,13 @@ import {
   Keyboard,
   Check,
   RotateCcw,
+  Tags,
+  Edit2,
+  Film,
+  Gamepad2,
+  Building2,
+  Clapperboard,
+  Users,
 } from 'lucide-react';
 
 interface SettingsModalProps {
@@ -34,6 +57,7 @@ interface SettingsModalProps {
   onConnectFolder: () => Promise<void>;
   onDisconnectFolder: () => void;
   onUpdateCategories: (mainTab: MainTabType, newCategories: Category[]) => void;
+  onUpdateItems?: (newItems: ArchiveItem[]) => void;
   onReplaceAllData: (newData: AppData) => void;
   onClose: () => void;
 }
@@ -87,16 +111,64 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   onConnectFolder,
   onDisconnectFolder,
   onUpdateCategories,
+  onUpdateItems,
   onReplaceAllData,
   onClose,
 }) => {
-  const [activeTab, setActiveTab] = useState<'categories' | 'themes' | 'shortcuts' | 'storage'>('categories');
+  const [activeTab, setActiveTab] = useState<'categories' | 'tags' | 'themes' | 'shortcuts' | 'storage'>('categories');
   const [settingsMainTab, setSettingsMainTab] = useState<MainTabType>(activeMainTab);
+  const [tagFieldKey, setTagFieldKey] = useState<TagFieldKey>('firm');
   const [connecting, setConnecting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const currentTheme = viewSettings.theme || 'pure-dark';
   const cats = appData.categories[settingsMainTab] || [];
+
+  // Active tag field list based on media/game
+  const currentTagFields = settingsMainTab === 'media' ? MEDIA_TAG_FIELDS : GAME_TAG_FIELDS;
+
+  // Make sure tagFieldKey matches active settingsMainTab
+  useEffect(() => {
+    if (settingsMainTab === 'media' && (tagFieldKey === 'developer')) {
+      setTagFieldKey('firm');
+    } else if (settingsMainTab === 'game' && (tagFieldKey === 'firm' || tagFieldKey === 'director' || tagFieldKey === 'actors')) {
+      setTagFieldKey('developer');
+    }
+  }, [settingsMainTab, tagFieldKey]);
+
+  // Tag Management Handlers
+  const handleRenameTag = (oldTag: string) => {
+    const newTag = window.prompt(`"${oldTag}" etiketini yeniden adlandır:`, oldTag);
+    if (!newTag || !newTag.trim() || newTag.trim() === oldTag) return;
+
+    if (!onUpdateItems) return;
+    const updated = renameTagInItems(
+      appData.items,
+      settingsMainTab,
+      tagFieldKey,
+      oldTag,
+      newTag.trim()
+    );
+    onUpdateItems(updated);
+  };
+
+  const handleDeleteTag = (tagToDelete: string) => {
+    const countsMap = getFieldScopedTagCounts(appData.items, settingsMainTab, tagFieldKey);
+    const count = countsMap.get(tagToDelete) || 0;
+    const ok = window.confirm(
+      `"${tagToDelete}" etiketini bu alandaki ${count} yapımın tümünden silmek istediğinize emin misiniz?`
+    );
+    if (!ok) return;
+
+    if (!onUpdateItems) return;
+    const updated = removeTagFromItems(
+      appData.items,
+      settingsMainTab,
+      tagFieldKey,
+      tagToDelete
+    );
+    onUpdateItems(updated);
+  };
 
   // Close with Escape key
   useEffect(() => {
@@ -244,14 +316,16 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   return (
     <div
       id="settings-modal-overlay"
-      className={`fixed inset-0 z-50 bg-black/75 ${
-        viewSettings.backdropBlur !== false ? 'backdrop-blur-sm' : ''
-      } flex items-center justify-center p-3 sm:p-5 overflow-y-auto`}
+      className={`fixed inset-0 z-50 ${
+        viewSettings.backdropBlur !== false
+          ? 'bg-black/75 backdrop-blur-sm'
+          : 'bg-transparent backdrop-blur-none pointer-events-auto'
+      } flex items-center justify-center p-3 sm:p-6 overflow-y-auto transition-all duration-200`}
       onClick={onClose}
     >
       <div
         id="settings-modal-box"
-        className="relative w-full max-w-2xl h-[680px] max-h-[94vh] bg-[#141824] border border-white/10 rounded-2xl shadow-2xl overflow-hidden my-auto flex flex-col"
+        className="relative w-full max-w-3xl h-[85vh] max-h-[92vh] min-h-[560px] bg-[#12151f] border border-white/15 rounded-2xl shadow-2xl overflow-hidden my-auto flex flex-col transition-all"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
@@ -281,6 +355,18 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             }`}
           >
             <Layers className="w-3.5 h-3.5" /> Kategoriler
+          </button>
+
+          <button
+            id="tab-btn-tags"
+            onClick={() => setActiveTab('tags')}
+            className={`px-3.5 py-2 text-xs font-semibold rounded-t-lg transition-colors border-b-2 flex items-center gap-1.5 whitespace-nowrap cursor-pointer ${
+              activeTab === 'tags'
+                ? 'border-blue-500 text-blue-400 bg-white/5'
+                : 'border-transparent text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            <Tags className="w-3.5 h-3.5" /> Etiketler (Alan Bazlı)
           </button>
 
           <button
@@ -454,6 +540,112 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             </div>
           )}
 
+          {/* TAB: TAGS (FIELD-SCOPED) */}
+          {activeTab === 'tags' && (
+            <div className="space-y-4">
+              {/* Media / Game toggle */}
+              <div className="flex gap-2 p-1 bg-black/40 rounded-xl border border-white/10 w-fit">
+                <button
+                  onClick={() => {
+                    setSettingsMainTab('media');
+                    setTagFieldKey('firm');
+                  }}
+                  className={`px-4 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer flex items-center gap-1.5 ${
+                    settingsMainTab === 'media'
+                      ? 'bg-white/15 text-white shadow'
+                      : 'text-slate-400 hover:text-slate-200'
+                  }`}
+                >
+                  <Film className="w-3.5 h-3.5" /> Medya Etiketleri
+                </button>
+                <button
+                  onClick={() => {
+                    setSettingsMainTab('game');
+                    setTagFieldKey('developer');
+                  }}
+                  className={`px-4 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer flex items-center gap-1.5 ${
+                    settingsMainTab === 'game'
+                      ? 'bg-white/15 text-white shadow'
+                      : 'text-slate-400 hover:text-slate-200'
+                  }`}
+                >
+                  <Gamepad2 className="w-3.5 h-3.5" /> Oyun Etiketleri
+                </button>
+              </div>
+
+              {/* Field selector tabs */}
+              <div className="flex gap-1.5 border-b border-white/10 pb-2 overflow-x-auto">
+                {currentTagFields.map((field) => (
+                  <button
+                    key={field.key}
+                    onClick={() => setTagFieldKey(field.key)}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all whitespace-nowrap cursor-pointer flex items-center gap-1.5 ${
+                      tagFieldKey === field.key
+                        ? 'bg-blue-600/30 text-blue-300 border border-blue-500/40 shadow-sm'
+                        : 'bg-white/5 text-slate-400 hover:text-slate-200 hover:bg-white/10 border border-white/5'
+                    }`}
+                  >
+                    <span>{field.label}</span>
+                    <span className="text-[10px] px-1.5 py-0.2 bg-black/40 rounded-full text-slate-400 font-mono">
+                      {getFieldScopedTags(appData.items, settingsMainTab, field.key).length}
+                    </span>
+                  </button>
+                ))}
+              </div>
+
+              {/* Active Field Tags List */}
+              {(() => {
+                const tagsList = getFieldScopedTags(appData.items, settingsMainTab, tagFieldKey);
+                const tagCounts = getFieldScopedTagCounts(appData.items, settingsMainTab, tagFieldKey);
+
+                if (tagsList.length === 0) {
+                  return (
+                    <div className="py-12 text-center text-slate-500 text-xs">
+                      Bu alanda kayıtlı etiket bulunmuyor. Yapım detayından etiket ekleyebilirsiniz.
+                    </div>
+                  );
+                }
+
+                return (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    {tagsList.map((tag) => (
+                      <div
+                        key={tag}
+                        className="flex items-center justify-between p-2.5 rounded-xl bg-white/5 border border-white/10 hover:border-white/20 transition-all group"
+                      >
+                        <div className="flex items-center gap-2 overflow-hidden">
+                          <span className="text-xs font-medium text-slate-200 truncate group-hover:text-blue-300 transition-colors">
+                            {tag}
+                          </span>
+                          <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-white/10 text-slate-400 shrink-0 font-mono font-semibold">
+                            {tagCounts.get(tag) || 0} yapım
+                          </span>
+                        </div>
+
+                        <div className="flex items-center gap-1 shrink-0">
+                          <button
+                            onClick={() => handleRenameTag(tag)}
+                            title="Etiketi Yeniden Adlandır"
+                            className="p-1 text-slate-400 hover:text-blue-400 hover:bg-blue-500/10 rounded transition-colors cursor-pointer"
+                          >
+                            <Edit2 className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            onClick={() => handleDeleteTag(tag)}
+                            title="Etiketi Sil (Tüm yapımlardan kaldırılır)"
+                            className="p-1 text-slate-400 hover:text-red-400 hover:bg-red-500/10 rounded transition-colors cursor-pointer"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                );
+              })()}
+            </div>
+          )}
+
           {/* TAB 2: THEMES (TEST) */}
           {activeTab === 'themes' && (
             <div className="space-y-4">
@@ -541,11 +733,41 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               <div className="space-y-2">
                 <div className="flex items-center justify-between p-3 rounded-xl bg-white/5 border border-white/10">
                   <div className="space-y-0.5">
-                    <span className="text-sm font-semibold text-slate-100">Tam Ekran Aç / Kapat</span>
-                    <p className="text-xs text-slate-400">Uygulamayı tam ekrana geçirir veya tam ekrandan çıkar</p>
+                    <span className="text-sm font-semibold text-slate-100">Medya Ana Sayfası</span>
+                    <p className="text-xs text-slate-400">Nerede olursanız olun Medya Ana Sayfasına götürür</p>
                   </div>
                   <kbd className="px-3 py-1.5 rounded-lg bg-black/60 border border-white/20 text-slate-200 text-xs font-mono font-bold shadow-inner">
-                    SPACE
+                    1
+                  </kbd>
+                </div>
+
+                <div className="flex items-center justify-between p-3 rounded-xl bg-white/5 border border-white/10">
+                  <div className="space-y-0.5">
+                    <span className="text-sm font-semibold text-slate-100">Oyun Ana Sayfası</span>
+                    <p className="text-xs text-slate-400">Nerede olursanız olun Oyun Ana Sayfasına götürür</p>
+                  </div>
+                  <kbd className="px-3 py-1.5 rounded-lg bg-black/60 border border-white/20 text-slate-200 text-xs font-mono font-bold shadow-inner">
+                    2
+                  </kbd>
+                </div>
+
+                <div className="flex items-center justify-between p-3 rounded-xl bg-white/5 border border-white/10">
+                  <div className="space-y-0.5">
+                    <span className="text-sm font-semibold text-slate-100">İzlenen & Takip Listesi</span>
+                    <p className="text-xs text-slate-400">İzlenen & Takip Listesi vitrinini açar</p>
+                  </div>
+                  <kbd className="px-3 py-1.5 rounded-lg bg-black/60 border border-white/20 text-slate-200 text-xs font-mono font-bold shadow-inner">
+                    3
+                  </kbd>
+                </div>
+
+                <div className="flex items-center justify-between p-3 rounded-xl bg-white/5 border border-white/10">
+                  <div className="space-y-0.5">
+                    <span className="text-sm font-semibold text-slate-100">Akıllı ESC / Ayarlar</span>
+                    <p className="text-xs text-slate-400">Pencere açıksa kapatır; ekranda açık pencere yoksa doğrudan Ayarlar'ı açar</p>
+                  </div>
+                  <kbd className="px-3 py-1.5 rounded-lg bg-black/60 border border-white/20 text-slate-200 text-xs font-mono font-bold shadow-inner">
+                    ESC
                   </kbd>
                 </div>
 
@@ -561,21 +783,21 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
                 <div className="flex items-center justify-between p-3 rounded-xl bg-white/5 border border-white/10">
                   <div className="space-y-0.5">
-                    <span className="text-sm font-semibold text-slate-100">Izgara / Tier List Görünüm Değiştir</span>
-                    <p className="text-xs text-slate-400">Aktif kategoride tier list açıksa görünümler arasında geçiş yapar</p>
+                    <span className="text-sm font-semibold text-slate-100">Tam Ekran Aç / Kapat</span>
+                    <p className="text-xs text-slate-400">Uygulamayı tam ekrana geçirir veya tam ekrandan çıkar</p>
                   </div>
                   <kbd className="px-3 py-1.5 rounded-lg bg-black/60 border border-white/20 text-slate-200 text-xs font-mono font-bold shadow-inner">
-                    TAB
+                    SPACE
                   </kbd>
                 </div>
 
                 <div className="flex items-center justify-between p-3 rounded-xl bg-white/5 border border-white/10">
                   <div className="space-y-0.5">
-                    <span className="text-sm font-semibold text-slate-100">Pencereleri Kapat</span>
-                    <p className="text-xs text-slate-400">Açık olan detay kartı, ayarlar veya modalı kapatır</p>
+                    <span className="text-sm font-semibold text-slate-100">Izgara / Tier List Görünüm Değiştir</span>
+                    <p className="text-xs text-slate-400">Aktif kategoride tier list açıksa görünümler arasında geçiş yapar</p>
                   </div>
                   <kbd className="px-3 py-1.5 rounded-lg bg-black/60 border border-white/20 text-slate-200 text-xs font-mono font-bold shadow-inner">
-                    ESC
+                    TAB
                   </kbd>
                 </div>
               </div>

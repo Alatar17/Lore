@@ -1,7 +1,9 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { ArchiveItem, Category, GameStatus, MainTabType } from '../types';
 import { MEDIA_COLORS, GAME_COLORS } from '../data/initialData';
 import { optimizeImageFile } from '../utils/imageOptimizer';
+import { TagInputBox } from './TagInputBox';
+import { getFieldScopedTags, getFieldScopedTagCounts } from '../utils/tagUtils';
 import {
   X,
   Upload,
@@ -14,9 +16,13 @@ import {
   Check,
   Tv,
   Bookmark,
-  Brain,
+  Sparkles,
   HelpCircle,
-  ImageIcon,
+  Building2,
+  Clapperboard,
+  Users,
+  Tags,
+  PauseCircle,
 } from 'lucide-react';
 
 interface AddItemModalProps {
@@ -24,6 +30,7 @@ interface AddItemModalProps {
   categories: Category[];
   activeCatId: string | null;
   activeSub: string | null;
+  allItems?: ArchiveItem[];
   onAdd: (newItem: ArchiveItem) => void;
   onClose: () => void;
 }
@@ -33,6 +40,7 @@ export const AddItemModal: React.FC<AddItemModalProps> = ({
   categories,
   activeCatId,
   activeSub,
+  allItems = [],
   onAdd,
   onClose,
 }) => {
@@ -52,9 +60,72 @@ export const AddItemModal: React.FC<AddItemModalProps> = ({
   const [thumbnail, setThumbnail] = useState<string | undefined>(undefined);
   const [pasteNotice, setPasteNotice] = useState<string | null>(null);
 
+  // Field-Scoped Tags state
+  const [firm, setFirm] = useState<string[]>([]);
+  const [director, setDirector] = useState<string[]>([]);
+  const [actors, setActors] = useState<string[]>([]);
+  const [developer, setDeveloper] = useState<string[]>([]);
+  const [genre, setGenre] = useState<string[]>([]);
+
+  // Available field-scoped tags and count maps for autocomplete
+  const availableFirmTags = useMemo(
+    () => getFieldScopedTags(allItems, 'media', 'firm'),
+    [allItems]
+  );
+  const firmTagCounts = useMemo(
+    () => getFieldScopedTagCounts(allItems, 'media', 'firm'),
+    [allItems]
+  );
+
+  const availableDirectorTags = useMemo(
+    () => getFieldScopedTags(allItems, 'media', 'director'),
+    [allItems]
+  );
+  const directorTagCounts = useMemo(
+    () => getFieldScopedTagCounts(allItems, 'media', 'director'),
+    [allItems]
+  );
+
+  const availableActorsTags = useMemo(
+    () => getFieldScopedTags(allItems, 'media', 'actors'),
+    [allItems]
+  );
+  const actorsTagCounts = useMemo(
+    () => getFieldScopedTagCounts(allItems, 'media', 'actors'),
+    [allItems]
+  );
+
+  const availableMediaGenreTags = useMemo(
+    () => getFieldScopedTags(allItems, 'media', 'genre'),
+    [allItems]
+  );
+  const mediaGenreTagCounts = useMemo(
+    () => getFieldScopedTagCounts(allItems, 'media', 'genre'),
+    [allItems]
+  );
+
+  const availableDevTags = useMemo(
+    () => getFieldScopedTags(allItems, 'game', 'developer'),
+    [allItems]
+  );
+  const devTagCounts = useMemo(
+    () => getFieldScopedTagCounts(allItems, 'game', 'developer'),
+    [allItems]
+  );
+
+  const availableGameGenreTags = useMemo(
+    () => getFieldScopedTags(allItems, 'game', 'genre'),
+    [allItems]
+  );
+  const gameGenreTagCounts = useMemo(
+    () => getFieldScopedTagCounts(allItems, 'game', 'genre'),
+    [allItems]
+  );
+
   // Media Specific
   const [watching, setWatching] = useState(false);
   const [following, setFollowing] = useState(false);
+  const [dropped, setDropped] = useState(false);
 
   // Game Specific
   const [status, setStatus] = useState<GameStatus>('Oynanıyor');
@@ -159,26 +230,38 @@ export const AddItemModal: React.FC<AddItemModalProps> = ({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim()) {
-      window.alert('Lütfen bir başlık girin.');
+      window.alert('Lütfen yapım başlığı girin.');
       return;
     }
 
     const newItem: ArchiveItem = {
-      id: `${mainTab}_${Date.now()}`,
+      id: `${mainTab}_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
       mainTab,
-      title: title.trim(),
       cat,
       sub: sub || null,
+      title: title.trim(),
       rating,
-      date,
+      date: date || '??',
       desc: desc.trim(),
       thumbnail,
+      // Media tags
+      firm: !isGame && firm.length > 0 ? firm : undefined,
+      director: !isGame && director.length > 0 ? director : undefined,
+      actors: !isGame && actors.length > 0 ? actors : undefined,
+      // Game tags
+      developer: isGame && developer.length > 0 ? developer : undefined,
+      // Common tags
+      genre: genre.length > 0 ? genre : undefined,
+      // Media flags
       watching: !isGame ? watching : undefined,
       following: !isGame ? following : undefined,
+      dropped: !isGame ? dropped : undefined,
+      // Game flags
       status: isGame ? status : undefined,
       achPercent: isGame ? achPercent : undefined,
       achMax: isGame ? achMax : undefined,
       hours: isGame ? hours : undefined,
+      // Common
       anki,
       tier: null,
       createdAt: Date.now(),
@@ -191,29 +274,23 @@ export const AddItemModal: React.FC<AddItemModalProps> = ({
 
   return (
     <div
-      id="add-item-modal-overlay"
+      id="add-modal-overlay"
       className="fixed inset-0 z-50 bg-black/80 backdrop-blur-xs flex items-center justify-center p-3 sm:p-5 overflow-y-auto"
       onClick={onClose}
     >
       <div
-        id="add-item-modal-box"
-        className="relative w-full max-w-2xl bg-[#131722] border border-white/15 rounded-2xl shadow-2xl overflow-hidden my-auto flex flex-col max-h-[90vh]"
+        id="add-modal-box"
+        className="relative w-full max-w-2xl bg-[#131722] border border-white/15 rounded-2xl shadow-2xl overflow-hidden my-auto flex flex-col max-h-[92vh]"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Header Bar */}
-        <div className="flex items-center justify-between px-5 py-3.5 border-b border-white/10 bg-black/40">
-          <div className="flex items-center gap-2 text-xs text-slate-400 font-medium">
-            <span className="text-slate-300 font-semibold">{isGame ? '🎮 Yeni Oyun Ekle' : '🎬 Yeni Medya Ekle'}</span>
-            <span>/</span>
-            <span className="text-blue-300 font-semibold">{selectedCatObj?.name || cat}</span>
-            {sub && (
-              <>
-                <span>/</span>
-                <span className="text-slate-200">{sub}</span>
-              </>
-            )}
-          </div>
-
+        {/* Header bar */}
+        <div className="flex items-center justify-between px-5 py-3 border-b border-white/10 bg-black/40">
+          <h2 className="text-sm font-bold text-white flex items-center gap-2">
+            <span className="p-1 rounded-lg bg-blue-600/20 text-blue-400 border border-blue-500/30">
+              <Plus className="w-3.5 h-3.5" />
+            </span>
+            <span>Yeni {isGame ? 'Oyun' : 'Medya'} Ekle</span>
+          </h2>
           <button
             id="close-add-modal-btn"
             onClick={onClose}
@@ -223,36 +300,47 @@ export const AddItemModal: React.FC<AddItemModalProps> = ({
           </button>
         </div>
 
-        {/* Modal Body: 2 Columns like ItemDetailModal */}
-        <form onSubmit={handleSubmit} className="p-5 sm:p-6 space-y-5 overflow-y-auto flex-1 custom-scrollbar">
-          {/* Top Section: Poster + Main Info */}
-          <div className="flex flex-col sm:flex-row gap-5">
-            {/* Poster column */}
-            <div className="w-36 sm:w-44 shrink-0 mx-auto sm:mx-0 flex flex-col items-center gap-2">
+        {/* Modal Body */}
+        <form onSubmit={handleSubmit} className="p-5 sm:p-6 space-y-4 overflow-y-auto flex-1 custom-scrollbar">
+          {/* TOP SECTION: Left Compact Poster (with top-right X and bottom buttons) + Right Info & Notes */}
+          <div className="flex flex-col sm:flex-row gap-4 items-start">
+            {/* Left: Compact Poster Column */}
+            <div className="w-28 sm:w-32 shrink-0 mx-auto sm:mx-0 flex flex-col gap-1.5">
               <div
-                className="relative w-full aspect-[2/3] rounded-xl overflow-hidden border border-white/15 shadow-md flex items-center justify-center text-center p-3"
+                className="relative w-full aspect-[2/3] rounded-xl overflow-hidden border border-white/15 shadow-md flex items-center justify-center text-center group"
                 style={{
                   backgroundColor: thumbnail ? '#0b0e14' : `${baseColor}22`,
                   borderColor: thumbnail ? 'rgba(255,255,255,0.15)' : `${baseColor}60`,
                 }}
               >
                 {thumbnail ? (
-                  <img
-                    src={thumbnail}
-                    alt="Afiş Önizleme"
-                    className="w-full h-full object-cover"
-                  />
+                  <>
+                    <img
+                      src={thumbnail}
+                      alt={title || 'Kapak Resmi'}
+                      className="w-full h-full object-cover rounded-xl"
+                    />
+                    {/* Top-Right "X" icon to remove image */}
+                    <button
+                      type="button"
+                      onClick={() => setThumbnail(undefined)}
+                      title="Resmi Kaldır"
+                      className="absolute top-1.5 right-1.5 p-1 rounded-md bg-black/70 hover:bg-red-600 text-white/80 hover:text-white shadow transition-all cursor-pointer z-10"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </>
                 ) : (
-                  <div className="flex flex-col items-center justify-center gap-2 text-neutral-400 p-2">
-                    <ImageIcon className="w-8 h-8 opacity-40" />
-                    <span className="text-[11px] font-medium leading-tight">
-                      {title ? title : 'Afiş Önizleme'}
-                    </span>
-                  </div>
+                  <span
+                    className="text-[11px] font-semibold px-2"
+                    style={{ color: `${baseColor}ee` }}
+                  >
+                    {title || 'Resim Yok'}
+                  </span>
                 )}
               </div>
 
-              {/* Upload / Change thumbnail buttons */}
+              {/* Hidden file input */}
               <input
                 type="file"
                 ref={fileInputRef}
@@ -260,77 +348,69 @@ export const AddItemModal: React.FC<AddItemModalProps> = ({
                 accept="image/*"
                 className="hidden"
               />
-              <div className="flex flex-col gap-1.5 w-full">
-                <div className="flex items-center gap-1.5 w-full">
-                  <button
-                    type="button"
-                    onClick={() => fileInputRef.current?.click()}
-                    className="flex-1 px-2.5 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-[11px] font-medium text-slate-200 flex items-center justify-center gap-1 transition-colors cursor-pointer"
-                  >
-                    <Upload className="w-3 h-3 text-blue-400" />
-                    <span>{thumbnail ? 'Değiştir' : 'Afiş Yükle'}</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handlePasteFromClipboard}
-                    className="px-2.5 py-1.5 rounded-lg bg-blue-600/20 hover:bg-blue-600/30 border border-blue-500/40 text-[11px] font-medium text-blue-300 flex items-center justify-center gap-1 transition-colors cursor-pointer"
-                    title="Panodaki resmi yapıştır (Ctrl+V)"
-                  >
-                    <ClipboardPaste className="w-3 h-3" />
-                  </button>
-                </div>
 
-                {thumbnail && (
-                  <button
-                    type="button"
-                    onClick={() => setThumbnail(undefined)}
-                    className="text-[11px] text-red-400 hover:underline text-center py-0.5 cursor-pointer"
-                  >
-                    Resmi Kaldır
-                  </button>
-                )}
-
-                {pasteNotice && (
-                  <p className="text-[10px] text-emerald-400 text-center flex items-center justify-center gap-1">
-                    <Check className="w-3 h-3" /> {pasteNotice}
-                  </p>
-                )}
+              {/* Below Poster: Text + Icon Buttons (Yükle / Yapıştır) */}
+              <div className="grid grid-cols-2 gap-1 w-full">
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="px-2 py-1 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-[10px] font-semibold text-slate-200 flex items-center justify-center gap-1 transition-colors cursor-pointer"
+                  title="Resim Dosyası Seç"
+                >
+                  <Upload className="w-3 h-3 text-blue-400 shrink-0" />
+                  <span>{thumbnail ? 'Değiştir' : 'Yükle'}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={handlePasteFromClipboard}
+                  className="px-2 py-1 rounded-lg bg-blue-600/20 hover:bg-blue-600/30 border border-blue-500/40 text-[10px] font-semibold text-blue-300 flex items-center justify-center gap-1 transition-colors cursor-pointer"
+                  title="Panodaki resmi yapıştır (Ctrl+V)"
+                >
+                  <ClipboardPaste className="w-3 h-3 shrink-0" />
+                  <span>Yapıştır</span>
+                </button>
               </div>
+
+              {pasteNotice && (
+                <p className="text-[9px] text-emerald-400 text-center flex items-center justify-center gap-1">
+                  <Check className="w-2.5 h-2.5" /> {pasteNotice}
+                </p>
+              )}
             </div>
 
-            {/* Main Form Fields */}
-            <div className="flex-1 space-y-3.5">
+            {/* Right: Main Fields + Notes */}
+            <div className="flex-1 w-full space-y-2.5">
               {/* Title */}
               <div>
-                <label className="block text-[11px] uppercase tracking-wider text-slate-400 font-semibold mb-1">
+                <label className="block text-[10px] uppercase tracking-wider text-slate-400 font-semibold mb-0.5">
                   Başlık *
                 </label>
                 <input
                   id="add-title-input"
                   type="text"
                   required
-                  placeholder={isGame ? 'Örn: Elden Ring' : 'Örn: Attack on Titan'}
+                  placeholder={isGame ? 'Örn: Elden Ring' : 'Örn: Vinland Saga'}
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
-                  className="w-full bg-black/30 text-white font-semibold border border-white/10 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-blue-500 transition-colors"
-                  autoFocus
+                  className="w-full bg-black/30 text-white font-semibold border border-white/10 rounded-xl px-3 py-1.5 text-xs focus:outline-none focus:border-blue-500 transition-colors"
                 />
               </div>
 
               {/* Category & Subgroup Selectors */}
-              <div className={`grid gap-2.5 ${selectedCatObj?.subgroups.length ? 'grid-cols-2' : 'grid-cols-1'}`}>
+              <div className={`grid gap-2 ${selectedCatObj?.subgroups.length ? 'grid-cols-2' : 'grid-cols-1'}`}>
                 <div>
-                  <label className="block text-[11px] uppercase tracking-wider text-slate-400 font-semibold mb-1">
+                  <label className="block text-[10px] uppercase tracking-wider text-slate-400 font-semibold mb-0.5">
                     Kategori
                   </label>
                   <select
                     id="add-category-select"
                     value={cat}
                     onChange={(e) => {
-                      setCat(e.target.value);
+                      const newCat = e.target.value;
+                      setCat(newCat);
                       setSub(null);
                     }}
-                    className="w-full bg-black/30 text-slate-200 border border-white/10 rounded-xl px-2.5 py-2 text-xs focus:outline-none focus:border-blue-500 cursor-pointer"
+                    className="w-full bg-black/30 text-slate-200 border border-white/10 rounded-xl px-2.5 py-1.5 text-xs focus:outline-none focus:border-blue-500 cursor-pointer"
                   >
                     {categories.map((c) => (
                       <option key={c.id} value={c.id} className="bg-slate-900 text-white">
@@ -340,17 +420,17 @@ export const AddItemModal: React.FC<AddItemModalProps> = ({
                   </select>
                 </div>
 
-                {/* Subgroup Selector */}
+                {/* Subgroup Selector - ONLY visible if category has subgroups */}
                 {selectedCatObj && selectedCatObj.subgroups.length > 0 && (
                   <div>
-                    <label className="block text-[11px] uppercase tracking-wider text-slate-400 font-semibold mb-1">
+                    <label className="block text-[10px] uppercase tracking-wider text-slate-400 font-semibold mb-0.5">
                       Alt-Grup
                     </label>
                     <select
                       id="add-subgroup-select"
                       value={sub || ''}
                       onChange={(e) => setSub(e.target.value || null)}
-                      className="w-full bg-black/30 text-slate-200 border border-white/10 rounded-xl px-2.5 py-2 text-xs focus:outline-none focus:border-blue-500 cursor-pointer"
+                      className="w-full bg-black/30 text-slate-200 border border-white/10 rounded-xl px-2.5 py-1.5 text-xs focus:outline-none focus:border-blue-500 cursor-pointer"
                     >
                       <option value="" className="bg-slate-900 text-white">Yok / Genel</option>
                       {selectedCatObj.subgroups.map((s) => (
@@ -364,16 +444,16 @@ export const AddItemModal: React.FC<AddItemModalProps> = ({
               </div>
 
               {/* Rating & Date */}
-              <div className="grid grid-cols-2 gap-2.5">
+              <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <label className="block text-[11px] uppercase tracking-wider text-slate-400 font-semibold mb-1 flex items-center gap-1">
+                  <label className="block text-[10px] uppercase tracking-wider text-slate-400 font-semibold mb-0.5 flex items-center gap-1">
                     <Star className="w-3 h-3 text-amber-400 fill-amber-400" /> Puan (1-10)
                   </label>
                   <select
                     id="add-rating-select"
                     value={rating}
                     onChange={(e) => setRating(Number(e.target.value))}
-                    className="w-full bg-black/30 text-amber-300 font-bold border border-white/10 rounded-xl px-2.5 py-2 text-xs focus:outline-none focus:border-blue-500 cursor-pointer"
+                    className="w-full bg-black/30 text-amber-300 font-bold border border-white/10 rounded-xl px-2.5 py-1.5 text-xs focus:outline-none focus:border-blue-500 cursor-pointer"
                   >
                     {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((num) => (
                       <option key={num} value={num} className="bg-slate-900 text-amber-300">
@@ -384,13 +464,13 @@ export const AddItemModal: React.FC<AddItemModalProps> = ({
                 </div>
 
                 <div>
-                  <label className="block text-[11px] uppercase tracking-wider text-slate-400 font-semibold mb-1 flex items-center gap-1">
+                  <label className="block text-[10px] uppercase tracking-wider text-slate-400 font-semibold mb-0.5 flex items-center gap-1">
                     <Calendar className="w-3 h-3 text-neutral-400" /> Tarih
                   </label>
-                  <div className="flex items-center gap-1.5">
+                  <div className="flex items-center gap-1">
                     {date === '??' || date === '??.??' ? (
-                      <div className="flex-1 bg-amber-500/10 text-amber-300 border border-amber-500/30 rounded-xl px-2.5 py-2 text-xs font-semibold flex items-center justify-between">
-                        <span>Tarih Bilinmiyor (??)</span>
+                      <div className="flex-1 bg-amber-500/10 text-amber-300 border border-amber-500/30 rounded-xl px-2.5 py-1.5 text-xs font-semibold flex items-center justify-between">
+                        <span>Bilinmiyor (??)</span>
                       </div>
                     ) : (
                       <input
@@ -398,7 +478,7 @@ export const AddItemModal: React.FC<AddItemModalProps> = ({
                         type="date"
                         value={date}
                         onChange={(e) => setDate(e.target.value)}
-                        className="flex-1 bg-black/40 text-neutral-200 border border-white/10 rounded-xl px-2.5 py-2 text-xs focus:outline-none focus:border-neutral-400"
+                        className="flex-1 bg-black/40 text-neutral-200 border border-white/10 rounded-xl px-2 py-1.5 text-xs focus:outline-none focus:border-neutral-400"
                       />
                     )}
                     <button
@@ -411,174 +491,264 @@ export const AddItemModal: React.FC<AddItemModalProps> = ({
                           setDate('??');
                         }
                       }}
-                      title="Ne zaman izlediğimi / oynadığımı hatırlamıyorum (Tarih Bilinmiyor: ??)"
-                      className={`h-[34px] px-2.5 rounded-xl border text-xs font-semibold transition-all flex items-center justify-center cursor-pointer shrink-0 ${
+                      title="Tarih Bilinmiyor (??)"
+                      className={`h-[30px] px-2 rounded-xl border text-xs font-semibold transition-all flex items-center justify-center cursor-pointer shrink-0 ${
                         date === '??' || date === '??.??'
                           ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
                           : 'bg-white/5 text-neutral-400 border-white/10 hover:text-white hover:bg-white/10'
                       }`}
                     >
-                      <HelpCircle className="w-4 h-4" />
+                      <HelpCircle className="w-3.5 h-3.5" />
                     </button>
                   </div>
                 </div>
               </div>
 
-              {/* Media Options */}
-              {!isGame && (
-                <div className="pt-2 border-t border-white/10 space-y-2">
-                  <label className="flex items-center gap-2 text-xs text-slate-300 cursor-pointer select-none hover:text-white">
-                    <input
-                      id="add-watching-cb"
-                      type="checkbox"
-                      checked={watching}
-                      onChange={(e) => setWatching(e.target.checked)}
-                      className="w-4 h-4 rounded border-slate-600 bg-slate-800 text-blue-500 focus:ring-0 cursor-pointer"
-                    />
-                    <Tv className="w-3.5 h-3.5 text-cyan-400" />
-                    <span>İzlenen listesinde (Aktif izleniyor)</span>
-                  </label>
-
-                  <label className="flex items-center gap-2 text-xs text-slate-300 cursor-pointer select-none hover:text-white">
-                    <input
-                      id="add-following-cb"
-                      type="checkbox"
-                      checked={following}
-                      onChange={(e) => setFollowing(e.target.checked)}
-                      className="w-4 h-4 rounded border-slate-600 bg-slate-800 text-amber-500 focus:ring-0 cursor-pointer"
-                    />
-                    <Bookmark className="w-3.5 h-3.5 text-amber-400" />
-                    <span>Takip listesinde (Yeni sezon/bölüm bekleniyor)</span>
-                  </label>
-
-                  <label className="flex items-center gap-2 text-xs text-slate-300 cursor-pointer select-none hover:text-white">
-                    <input
-                      id="add-anki-cb"
-                      type="checkbox"
-                      checked={anki}
-                      onChange={(e) => setAnki(e.target.checked)}
-                      className="w-4 h-4 rounded border-slate-600 bg-slate-800 text-emerald-500 focus:ring-0 cursor-pointer"
-                    />
-                    <Brain className="w-3.5 h-3.5 text-emerald-400" />
-                    <span>Anki Destesine Eklendi</span>
-                  </label>
-                </div>
-              )}
-
-              {/* Game Options */}
-              {isGame && (
-                <div className="pt-2 border-t border-white/10 space-y-3">
-                  <div>
-                    <label className="block text-[11px] uppercase tracking-wider text-slate-400 font-semibold mb-1">
-                      Oyun Durumu
-                    </label>
-                    <select
-                      id="add-game-status-select"
-                      value={status}
-                      onChange={(e) => setStatus(e.target.value as GameStatus)}
-                      className="w-full bg-black/30 text-slate-200 border border-white/10 rounded-xl px-2.5 py-2 text-xs focus:outline-none focus:border-blue-500 cursor-pointer"
-                    >
-                      <option value="Oynanıyor">Oynanıyor</option>
-                      <option value="Tamamlandı">Tamamlandı</option>
-                      <option value="%100 Başarım">%100 Başarım</option>
-                      <option value="Yarım Bırakıldı">Yarım Bırakıldı</option>
-                      <option value="Oynanacak">Oynanacak</option>
-                    </select>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-2.5">
-                    <div>
-                      <label className="block text-[11px] uppercase tracking-wider text-slate-400 font-semibold mb-1 flex items-center gap-1">
-                        <Clock className="w-3 h-3 text-slate-400" /> Saat
-                      </label>
-                      <input
-                        id="add-hours-input"
-                        type="number"
-                        min="0"
-                        placeholder="Örn: 45"
-                        value={hours || ''}
-                        onChange={(e) => setHours(Number(e.target.value))}
-                        className="w-full bg-black/30 text-slate-200 border border-white/10 rounded-xl px-2.5 py-1.5 text-xs focus:outline-none focus:border-blue-500"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-[11px] uppercase tracking-wider text-slate-400 font-semibold mb-1 flex items-center gap-1">
-                        <Trophy className="w-3 h-3 text-amber-400" /> Başarım (%)
-                      </label>
-                      <div className="flex items-center gap-1.5">
-                        <input
-                          id="add-ach-input"
-                          type="number"
-                          min="0"
-                          max="100"
-                          placeholder="Örn: 85"
-                          value={achPercent ?? ''}
-                          onChange={(e) => setAchPercent(e.target.value ? Number(e.target.value) : null)}
-                          className="flex-1 bg-black/30 text-slate-200 border border-white/10 rounded-xl px-2.5 py-1.5 text-xs focus:outline-none focus:border-blue-500"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => setAchPercent(100)}
-                          title="%100 Başarım yap"
-                          className="px-2 py-1.5 bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 text-[10px] font-bold rounded-lg border border-amber-500/30 cursor-pointer"
-                        >
-                          %100
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-
-                  <label className="flex items-center gap-2 text-xs text-slate-300 cursor-pointer select-none hover:text-white pt-1">
-                    <input
-                      id="add-game-anki-cb"
-                      type="checkbox"
-                      checked={anki}
-                      onChange={(e) => setAnki(e.target.checked)}
-                      className="w-4 h-4 rounded border-slate-600 bg-slate-800 text-emerald-500 focus:ring-0 cursor-pointer"
-                    />
-                    <Brain className="w-3.5 h-3.5 text-emerald-400" />
-                    <span>Anki Destesine Eklendi</span>
-                  </label>
-                </div>
-              )}
+              {/* Description & Notes Area (Top Section next to Poster) */}
+              <div>
+                <label className="block text-[10px] uppercase tracking-wider text-slate-400 font-semibold mb-0.5">
+                  Açıklama / Notlar
+                </label>
+                <textarea
+                  id="add-desc-textarea"
+                  rows={2}
+                  value={desc}
+                  onChange={(e) => setDesc(e.target.value)}
+                  placeholder="Yıllar sonra hatırlamak için notlar, hisler, önemli detaylar..."
+                  className="w-full bg-black/30 text-slate-200 border border-white/10 rounded-xl p-2.5 text-xs leading-relaxed focus:outline-none focus:border-blue-500 resize-y custom-scrollbar"
+                />
+              </div>
             </div>
           </div>
 
-          {/* Description / Notes */}
-          <div className="pt-2 border-t border-white/10">
-            <label className="block text-[11px] uppercase tracking-wider text-slate-400 font-semibold mb-1">
-              Açıklama / Kişisel Notlar
+          {/* DIVIDER LINE */}
+          <div className="border-t border-white/10 pt-1" />
+
+          {/* MIDDLE SECTION: STATUS CONTROLS */}
+          <div className="space-y-1.5">
+            <label className="block text-[10px] uppercase tracking-wider text-slate-400 font-bold">
+              DURUM
             </label>
-            <textarea
-              id="add-desc-textarea"
-              rows={3}
-              placeholder="Yapım hakkında notlarınız, incelemeniz veya hatırlatıcı detaylar..."
-              value={desc}
-              onChange={(e) => setDesc(e.target.value)}
-              className="w-full bg-black/30 text-slate-200 border border-white/10 rounded-xl p-3 text-xs leading-relaxed focus:outline-none focus:border-blue-500 custom-scrollbar resize-none"
-            />
+            {!isGame ? (
+              /* Media Status Options (İzlenen, Takip, Yarım Bırakıldı, Anki) */
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 p-2 rounded-xl bg-white/[0.02] border border-white/5">
+                <label className="flex items-center gap-2 text-xs text-slate-300 cursor-pointer select-none hover:text-white p-1.5 rounded-lg hover:bg-white/5 transition-colors">
+                  <input
+                    id="add-watching-cb"
+                    type="checkbox"
+                    checked={watching}
+                    onChange={(e) => setWatching(e.target.checked)}
+                    className="w-4 h-4 rounded border-slate-600 bg-slate-800 text-cyan-500 focus:ring-0 cursor-pointer"
+                  />
+                  <Tv className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
+                  <span className="text-xs">İzlenen</span>
+                </label>
+
+                <label className="flex items-center gap-2 text-xs text-slate-300 cursor-pointer select-none hover:text-white p-1.5 rounded-lg hover:bg-white/5 transition-colors">
+                  <input
+                    id="add-following-cb"
+                    type="checkbox"
+                    checked={following}
+                    onChange={(e) => setFollowing(e.target.checked)}
+                    className="w-4 h-4 rounded border-slate-600 bg-slate-800 text-amber-500 focus:ring-0 cursor-pointer"
+                  />
+                  <Bookmark className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                  <span className="text-xs">Takip</span>
+                </label>
+
+                <label className="flex items-center gap-2 text-xs text-slate-300 cursor-pointer select-none hover:text-white p-1.5 rounded-lg hover:bg-white/5 transition-colors">
+                  <input
+                    id="add-dropped-cb"
+                    type="checkbox"
+                    checked={dropped}
+                    onChange={(e) => setDropped(e.target.checked)}
+                    className="w-4 h-4 rounded border-slate-600 bg-slate-800 text-rose-500 focus:ring-0 cursor-pointer"
+                  />
+                  <PauseCircle className="w-3.5 h-3.5 text-rose-400 shrink-0" />
+                  <span className="text-xs">Yarım Bırakıldı</span>
+                </label>
+
+                <label className="flex items-center gap-2 text-xs text-slate-300 cursor-pointer select-none hover:text-white p-1.5 rounded-lg hover:bg-white/5 transition-colors">
+                  <input
+                    id="add-anki-cb"
+                    type="checkbox"
+                    checked={anki}
+                    onChange={(e) => setAnki(e.target.checked)}
+                    className="w-4 h-4 rounded border-slate-600 bg-slate-800 text-emerald-500 focus:ring-0 cursor-pointer"
+                  />
+                  <Sparkles className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                  <span className="text-xs">Anki</span>
+                </label>
+              </div>
+            ) : (
+              /* Game Status Options */
+              <div className="grid grid-cols-1 sm:grid-cols-4 gap-2.5 p-2 rounded-xl bg-white/[0.02] border border-white/5 items-center">
+                <div>
+                  <label className="block text-[10px] uppercase tracking-wider text-slate-400 font-semibold mb-0.5">
+                    Oyun Durumu
+                  </label>
+                  <select
+                    id="add-game-status-select"
+                    value={status}
+                    onChange={(e) => setStatus(e.target.value as GameStatus)}
+                    className="w-full bg-black/30 text-slate-200 border border-white/10 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:border-blue-500 cursor-pointer"
+                  >
+                    <option value="Oynanıyor" className="bg-slate-900 text-white">🎮 Oynanıyor</option>
+                    <option value="Tamamlandı" className="bg-slate-900 text-white">✅ Tamamlandı</option>
+                    <option value="Yarım Bırakıldı" className="bg-slate-900 text-white">⏸ Yarım Bırakıldı</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-[10px] uppercase tracking-wider text-slate-400 font-semibold mb-0.5 flex items-center gap-1">
+                    <Trophy className="w-3 h-3 text-amber-400" /> Başarım (%)
+                  </label>
+                  <div className="flex items-center gap-1">
+                    <input
+                      id="add-ach-input"
+                      type="number"
+                      min="0"
+                      max={achMax}
+                      placeholder="0"
+                      value={achPercent ?? ''}
+                      onChange={(e) =>
+                        setAchPercent(
+                          e.target.value ? Number(e.target.value) : null
+                        )
+                      }
+                      className="w-full bg-black/30 text-amber-300 font-semibold border border-white/10 rounded-lg px-2 py-1 text-xs focus:outline-none focus:border-blue-500"
+                    />
+                    <span className="text-slate-400 text-xs">/</span>
+                    <input
+                      type="number"
+                      min="1"
+                      title="Üst limit"
+                      value={achMax}
+                      onChange={(e) => setAchMax(Number(e.target.value) || 100)}
+                      className="w-14 bg-black/30 text-slate-300 border border-white/10 rounded-lg px-1.5 py-1 text-xs text-center focus:outline-none focus:border-blue-500"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-[10px] uppercase tracking-wider text-slate-400 font-semibold mb-0.5 flex items-center gap-1">
+                    <Clock className="w-3 h-3 text-sky-400" /> Oynanma (Saat)
+                  </label>
+                  <input
+                    id="add-hours-input"
+                    type="number"
+                    min="0"
+                    value={hours}
+                    onChange={(e) => setHours(Number(e.target.value) || 0)}
+                    className="w-full bg-black/30 text-sky-300 font-semibold border border-white/10 rounded-lg px-2 py-1 text-xs focus:outline-none focus:border-blue-500"
+                  />
+                </div>
+
+                <div className="flex items-end pb-0.5">
+                  <label className="flex items-center gap-1.5 text-xs text-slate-300 cursor-pointer select-none hover:text-white p-1 rounded-lg hover:bg-white/5 transition-colors">
+                    <input
+                      id="add-anki-game-cb"
+                      type="checkbox"
+                      checked={anki}
+                      onChange={(e) => setAnki(e.target.checked)}
+                      className="w-4 h-4 rounded border-slate-600 bg-slate-800 text-emerald-500 focus:ring-0 cursor-pointer"
+                    />
+                    <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
+                    <span className="text-xs">Anki'ye İşlendi</span>
+                  </label>
+                </div>
+              </div>
+            )}
           </div>
 
-          {/* Modal Footer / Actions */}
-          <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-white/10">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-4 py-2 rounded-xl text-xs font-medium text-slate-300 hover:text-white hover:bg-white/5 transition-colors cursor-pointer"
-            >
-              İptal
-            </button>
-            <button
-              id="submit-add-item-btn"
-              type="submit"
-              className="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold shadow-lg shadow-blue-600/30 flex items-center gap-1.5 transition-all cursor-pointer"
-            >
-              <Plus className="w-3.5 h-3.5" />
-              <span>Arşive Ekle</span>
-            </button>
+          {/* Prominent Separator between Status and Field-Scoped Tags */}
+          <div className="border-t-2 border-white/20 my-3" />
+
+          {/* BOTTOM SECTION: FIELD-SCOPED TAGS (En Altta, Tam Genişlik) */}
+          <div className="space-y-3 pt-1">
+            <div className="flex items-center gap-1.5 text-xs font-bold text-slate-200">
+              <Tags className="w-3.5 h-3.5 text-blue-400" />
+              <span>Etiketler & Alanlar</span>
+            </div>
+
+            {!isGame ? (
+              /* Media Tag Fields: Firma, Yönetmen, Oyuncular, Tür */
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <TagInputBox
+                  label="Firma / Stüdyo"
+                  placeholder="Örn: MAPPA, WIT Studio, Ufotable..."
+                  tags={firm}
+                  onChange={setFirm}
+                  availableTags={availableFirmTags}
+                  tagCounts={firmTagCounts}
+                  icon={<Building2 className="w-3 h-3 text-purple-400" />}
+                />
+                <TagInputBox
+                  label="Yönetmen"
+                  placeholder="Örn: Christopher Nolan, Miyazaki..."
+                  tags={director}
+                  onChange={setDirector}
+                  availableTags={availableDirectorTags}
+                  tagCounts={directorTagCounts}
+                  icon={<Clapperboard className="w-3 h-3 text-amber-400" />}
+                />
+                <TagInputBox
+                  label="Oyuncular / Seslendirme"
+                  placeholder="Örn: Kenjiro Tsuda, Cillian Murphy..."
+                  tags={actors}
+                  onChange={setActors}
+                  availableTags={availableActorsTags}
+                  tagCounts={actorsTagCounts}
+                  icon={<Users className="w-3 h-3 text-sky-400" />}
+                />
+                <TagInputBox
+                  label="Tür"
+                  placeholder="Örn: Aksiyon, Dram, Bilim Kurgu, Seinen..."
+                  tags={genre}
+                  onChange={setGenre}
+                  availableTags={availableMediaGenreTags}
+                  tagCounts={mediaGenreTagCounts}
+                  icon={<Tags className="w-3 h-3 text-emerald-400" />}
+                />
+              </div>
+            ) : (
+              /* Game Tag Fields: Geliştirici, Tür */
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <TagInputBox
+                  label="Geliştirici / Stüdyo"
+                  placeholder="Örn: FromSoftware, CD Projekt RED, Larian..."
+                  tags={developer}
+                  onChange={setDeveloper}
+                  availableTags={availableDevTags}
+                  tagCounts={devTagCounts}
+                  icon={<Building2 className="w-3 h-3 text-purple-400" />}
+                />
+                <TagInputBox
+                  label="Tür"
+                  placeholder="Örn: Souls-like, RPG, Açık Dünya, CRPG..."
+                  tags={genre}
+                  onChange={setGenre}
+                  availableTags={availableGameGenreTags}
+                  tagCounts={gameGenreTagCounts}
+                  icon={<Tags className="w-3 h-3 text-emerald-400" />}
+                />
+              </div>
+            )}
           </div>
         </form>
+
+        {/* Footer with Explicit Action Buttons */}
+        <div className="flex items-center justify-end px-5 py-3 border-t border-white/10 bg-black/40">
+          <button
+            id="save-add-form-btn"
+            type="button"
+            onClick={handleSubmit}
+            className="flex items-center gap-1.5 px-6 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-semibold text-xs transition-all shadow-lg shadow-blue-600/30 cursor-pointer"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            <span>Kütüphaneye Ekle</span>
+          </button>
+        </div>
       </div>
     </div>
   );

@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useState } from 'react';
+import React, { useRef, useEffect, useState, useMemo } from 'react';
 import {
   Category,
   FilterState,
@@ -19,6 +19,8 @@ import {
   Gamepad2,
   LayoutGrid,
   ListOrdered,
+  BarChart3,
+  Tag,
 } from 'lucide-react';
 
 export const TRACKED_TAB_ID = '__tracked__';
@@ -40,6 +42,12 @@ interface HeaderTabsProps {
   filters: FilterState;
   viewSettings: ViewSettings;
   dirHandle: FileSystemDirectoryHandle | null;
+  uiExperiments?: {
+    toolbarBox?: boolean;
+    toolbarGlass?: boolean;
+    floatingToolbar?: boolean;
+    cardBorderGlow?: boolean;
+  };
   onMainTabChange: (tab: MainTabType) => void;
   onCategorySelect: (catId: string | null) => void;
   onSubgroupSelect: (sub: string | null) => void;
@@ -49,6 +57,7 @@ interface HeaderTabsProps {
   onToggleFilter: () => void;
   onToggleView: () => void;
   onOpenSettings: () => void;
+  onOpenStatistics?: () => void;
   onFilterChange: (newFilters: Partial<FilterState>) => void;
   onViewSettingsChange: (newSettings: Partial<ViewSettings>) => void;
   onClosePanels: () => void;
@@ -67,6 +76,7 @@ export const HeaderTabs: React.FC<HeaderTabsProps> = ({
   isViewOpen,
   filters,
   viewSettings,
+  uiExperiments,
   onMainTabChange,
   onCategorySelect,
   onSubgroupSelect,
@@ -76,6 +86,7 @@ export const HeaderTabs: React.FC<HeaderTabsProps> = ({
   onToggleFilter,
   onToggleView,
   onOpenSettings,
+  onOpenStatistics,
   onFilterChange,
   onViewSettingsChange,
   onClosePanels,
@@ -87,6 +98,116 @@ export const HeaderTabs: React.FC<HeaderTabsProps> = ({
   const [hoveredCatTop, setHoveredCatTop] = useState<number>(0);
   const hoverTimeoutRef = useRef<any>(null);
   const subMenuTimeoutRef = useRef<any>(null);
+
+  // Search Mode: 'search' (Normal title/text search) vs 'tag' (Tag/year chip search)
+  const [searchMode, setSearchMode] = useState<'search' | 'tag'>('search');
+  const [searchTextInput, setSearchTextInput] = useState('');
+  const [tagChips, setTagChips] = useState<string[]>([]);
+  const [typedTagInput, setTypedTagInput] = useState('');
+
+  // Reset to default 'search' mode whenever search is opened or closed
+  useEffect(() => {
+    if (isSearchOpen) {
+      setSearchMode('search');
+      setSearchTextInput(searchQuery);
+      setTagChips([]);
+      setTypedTagInput('');
+      setTimeout(() => {
+        if (searchInputRef.current) {
+          searchInputRef.current.focus();
+        }
+      }, 50);
+    } else {
+      setSearchMode('search');
+      setSearchTextInput('');
+      setTagChips([]);
+      setTypedTagInput('');
+    }
+  }, [isSearchOpen]);
+
+  const toggleSearchMode = () => {
+    if (searchMode === 'search') {
+      // Switch to Tag mode
+      const initialChips = searchTextInput
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean);
+      setSearchMode('tag');
+      setTagChips(initialChips);
+      setTypedTagInput('');
+      setSearchTextInput('');
+      onSearchChange(initialChips.join(', '));
+    } else {
+      // Switch to Normal search mode
+      const combined = [...tagChips, typedTagInput.trim()].filter(Boolean).join(' ');
+      setSearchMode('search');
+      setSearchTextInput(combined);
+      setTagChips([]);
+      setTypedTagInput('');
+      onSearchChange(combined);
+    }
+    setTimeout(() => {
+      if (searchInputRef.current) {
+        searchInputRef.current.focus();
+      }
+    }, 50);
+  };
+
+  const handleRemoveTagChip = (indexToRemove: number) => {
+    const updated = tagChips.filter((_, idx) => idx !== indexToRemove);
+    setTagChips(updated);
+    const combined = typedTagInput.trim()
+      ? [...updated, typedTagInput.trim()].join(', ')
+      : updated.join(', ');
+    onSearchChange(combined);
+  };
+
+  const handleTagKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter' || e.key === ',') {
+      e.preventDefault();
+      const val = typedTagInput.trim();
+      if (val) {
+        if (!tagChips.some((c) => c.toLowerCase() === val.toLowerCase())) {
+          const updated = [...tagChips, val];
+          setTagChips(updated);
+          onSearchChange(updated.join(', '));
+        }
+        setTypedTagInput('');
+      }
+    } else if (e.key === 'Backspace' && !typedTagInput && tagChips.length > 0) {
+      e.preventDefault();
+      handleRemoveTagChip(tagChips.length - 1);
+    }
+  };
+
+  const handleTagInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value;
+    if (val.includes(',')) {
+      const parts = val.split(',').map((p) => p.trim()).filter(Boolean);
+      const updated = [...tagChips];
+      parts.forEach((p) => {
+        if (!updated.some((c) => c.toLowerCase() === p.toLowerCase())) {
+          updated.push(p);
+        }
+      });
+      setTagChips(updated);
+      setTypedTagInput('');
+      onSearchChange(updated.join(', '));
+    } else {
+      setTypedTagInput(val);
+      // Live filter with current tagChips + whatever is being actively typed
+      const live = val.trim()
+        ? [...tagChips, val.trim()].join(', ')
+        : tagChips.join(', ');
+      onSearchChange(live);
+    }
+  };
+
+  const handleNormalSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value;
+    setSearchTextInput(val);
+    onSearchChange(val);
+  };
 
   const currentCategoryList = mainTab === 'media' ? categories.media : categories.game;
   const activeCategory =
@@ -102,7 +223,7 @@ export const HeaderTabs: React.FC<HeaderTabsProps> = ({
 
   // Close dropdown or empty search on outside click
   useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
+    const handleDocumentClick = (e: MouseEvent) => {
       const target = e.target as HTMLElement;
       if (!target.closest('#category-dropdown-container')) {
         setOpenDropdown(null);
@@ -114,8 +235,8 @@ export const HeaderTabs: React.FC<HeaderTabsProps> = ({
         }
       }
     };
-    window.addEventListener('click', handleClickOutside);
-    return () => window.removeEventListener('click', handleClickOutside);
+    document.addEventListener('mousedown', handleDocumentClick);
+    return () => document.removeEventListener('mousedown', handleDocumentClick);
   }, [isSearchOpen, searchQuery, onToggleSearch]);
 
   const activeFiltersCount =
@@ -178,15 +299,25 @@ export const HeaderTabs: React.FC<HeaderTabsProps> = ({
   };
 
   return (
-    <header className="relative z-30 flex flex-col gap-3 py-3 border-b border-white/10">
+    <header
+      className={`relative z-30 flex flex-col gap-3 py-3 transition-all duration-300 ${
+        uiExperiments?.toolbarBox
+          ? 'bg-neutral-900/60 p-3.5 rounded-2xl border border-white/10 shadow-lg'
+          : uiExperiments?.toolbarGlass
+          ? 'bg-white/[0.03] backdrop-blur-xl p-3.5 rounded-2xl border border-white/10 shadow-2xl'
+          : uiExperiments?.floatingToolbar
+          ? 'bg-neutral-900/85 backdrop-blur-md px-5 py-2.5 rounded-full border border-white/15 shadow-xl max-w-5xl mx-auto w-full'
+          : 'border-b border-white/10'
+      }`}
+    >
       {/* 3-Column Navigation Bar: Left: Breadcrumb + Count | Center: Tabs | Right: Tools */}
-      <div className="grid grid-cols-1 md:grid-cols-3 items-center gap-3 sm:gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-3 items-center gap-3 sm:gap-4 min-h-[38px]">
         {/* 1. LEFT SIDE: Clickable Breadcrumb & Item Count Badge */}
         <div className="flex items-center gap-2 min-w-0 justify-start order-2 md:order-1 flex-wrap">
           {/* Breadcrumb Navigation Pill */}
           <div
             id="active-breadcrumb-pill"
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-neutral-900/90 border border-white/10 text-xs text-neutral-300"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-neutral-900/90 border border-white/10 text-xs text-neutral-300 h-8"
           >
             {/* Main Tab (Medya / Oyun) - Clickable! */}
             <button
@@ -280,16 +411,6 @@ export const HeaderTabs: React.FC<HeaderTabsProps> = ({
               >
                 {/* Main Category Menu List (Fixed Width & Stable) */}
                 <div className="w-60 p-2 bg-[#181818]/95 backdrop-blur-xl border border-white/15 rounded-xl shadow-2xl space-y-1 relative">
-                  <div className="px-3 py-1.5 text-[10px] font-semibold text-neutral-400 uppercase tracking-wider flex items-center justify-between">
-                    <span>Medya Kategorileri</span>
-                    <button
-                      onClick={() => handleSelectCategoryFromMenu('media', null)}
-                      className="text-neutral-300 hover:text-white hover:underline capitalize cursor-pointer"
-                    >
-                      Tümünü Gör
-                    </button>
-                  </div>
-
                   {/* İzlenen / Takip Quick Item */}
                   <button
                     onClick={() => handleSelectCategoryFromMenu('media', TRACKED_TAB_ID)}
@@ -415,18 +536,6 @@ export const HeaderTabs: React.FC<HeaderTabsProps> = ({
               >
                 {/* Main Category Menu List (Fixed Width & Stable) */}
                 <div className="w-60 p-2 bg-[#181818]/95 backdrop-blur-xl border border-white/15 rounded-xl shadow-2xl space-y-1 relative">
-                  <div className="px-3 py-1.5 text-[10px] font-semibold text-neutral-400 uppercase tracking-wider flex items-center justify-between">
-                    <span>Oyun Kategorileri</span>
-                    <button
-                      onClick={() => handleSelectCategoryFromMenu('game', null)}
-                      className="text-neutral-300 hover:text-white hover:underline capitalize cursor-pointer"
-                    >
-                      Tümünü Gör
-                    </button>
-                  </div>
-
-                  <div className="my-1 border-t border-white/10" />
-
                   {/* Categories */}
                   <div className="max-h-72 overflow-y-auto space-y-0.5 custom-scrollbar">
                     {categories.game.map((cat) => {
@@ -537,28 +646,95 @@ export const HeaderTabs: React.FC<HeaderTabsProps> = ({
             </>
           )}
 
-          {/* Search Box / Toggle */}
+          {/* Search Box / Toggle with Switchable Mode (Search <-> Tag) */}
           {isSearchOpen ? (
             <div
               ref={searchContainerRef}
-              className="flex items-center bg-neutral-900 border border-white/15 rounded-lg px-2.5 py-1.5 w-48 sm:w-56 animate-in fade-in"
+              className="flex items-center gap-1.5 bg-neutral-900 border border-white/20 rounded-lg px-2 min-w-[220px] max-w-sm sm:max-w-md h-8 animate-in fade-in"
             >
-              <Search className="w-3.5 h-3.5 text-neutral-400 shrink-0 mr-2" />
-              <input
-                ref={searchInputRef}
-                id="search-header-input"
-                type="text"
-                value={searchQuery}
-                onChange={(e) => onSearchChange(e.target.value)}
-                placeholder="Yapım ara..."
-                className="w-full bg-transparent text-xs text-neutral-100 placeholder-neutral-500 focus:outline-none"
-              />
+              {/* Mode Toggle Button: Click to switch between Normal Search and Tag Search */}
               <button
+                type="button"
+                id="search-mode-toggle-btn"
+                onClick={toggleSearchMode}
+                title={
+                  searchMode === 'search'
+                    ? 'Etiket Arama Moduna Geç (🏷️)'
+                    : 'Normal Arama Moduna Geç (🔍)'
+                }
+                className={`p-1 rounded-md transition-all cursor-pointer flex items-center justify-center shrink-0 ${
+                  searchMode === 'tag'
+                    ? 'bg-blue-600/40 text-white border border-blue-400/50'
+                    : 'text-neutral-400 hover:text-white hover:bg-white/10'
+                }`}
+              >
+                {searchMode === 'tag' ? (
+                  <Tag className="w-3.5 h-3.5 text-white" />
+                ) : (
+                  <Search className="w-3.5 h-3.5 text-neutral-300" />
+                )}
+              </button>
+
+              {/* TAG MODE: Render oval tag chips */}
+              {searchMode === 'tag' &&
+                tagChips.map((chip, index) => (
+                  <span
+                    key={`${chip}_${index}`}
+                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-blue-600/25 border border-blue-500/40 text-blue-300 text-[11px] font-medium shrink-0 animate-in fade-in zoom-in-95 duration-100"
+                  >
+                    <span>{chip}</span>
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveTagChip(index)}
+                      className="hover:text-white rounded-full p-0.5 cursor-pointer text-blue-400 hover:bg-blue-500/30"
+                    >
+                      <X className="w-2.5 h-2.5" />
+                    </button>
+                  </span>
+                ))}
+
+              {/* INPUT ELEMENT: Changes behavior based on searchMode */}
+              {searchMode === 'tag' ? (
+                <input
+                  ref={searchInputRef}
+                  id="search-header-input"
+                  type="text"
+                  value={typedTagInput}
+                  onChange={handleTagInputChange}
+                  onKeyDown={handleTagKeyDown}
+                  placeholder={
+                    tagChips.length === 0
+                      ? 'Etiket ara (örn: mappa, 2024)...'
+                      : '+ etiket...'
+                  }
+                  className="flex-1 min-w-[90px] bg-transparent text-xs text-neutral-100 placeholder-neutral-500 focus:outline-none py-0.5"
+                />
+              ) : (
+                <input
+                  ref={searchInputRef}
+                  id="search-header-input"
+                  type="text"
+                  value={searchTextInput}
+                  onChange={handleNormalSearchChange}
+                  placeholder="Yapım ara..."
+                  className="flex-1 min-w-[120px] bg-transparent text-xs text-neutral-100 placeholder-neutral-500 focus:outline-none py-0.5"
+                />
+              )}
+
+              {/* Clear / Close Button */}
+              <button
+                type="button"
+                id="search-close-btn"
                 onClick={() => {
+                  setSearchTextInput('');
+                  setTagChips([]);
+                  setTypedTagInput('');
+                  setSearchMode('search');
                   onSearchChange('');
                   onToggleSearch();
                 }}
-                className="text-neutral-400 hover:text-white text-xs ml-1.5 cursor-pointer"
+                className="text-neutral-400 hover:text-white p-1 rounded hover:bg-white/5 text-xs ml-auto cursor-pointer shrink-0"
+                title="Aramayı Kapat ve Temizle"
               >
                 <X className="w-3.5 h-3.5" />
               </button>
@@ -568,7 +744,11 @@ export const HeaderTabs: React.FC<HeaderTabsProps> = ({
               id="search-toggle-btn"
               onClick={onToggleSearch}
               title="Arama (🔍)"
-              className="p-2 rounded-lg bg-neutral-900/80 hover:bg-neutral-800 border border-white/10 text-neutral-300 hover:text-white transition-all cursor-pointer"
+              className={`h-8 w-8 rounded-lg border transition-all cursor-pointer flex items-center justify-center ${
+                searchQuery.trim()
+                  ? 'bg-blue-600/30 border-blue-500/50 text-blue-200 shadow-sm'
+                  : 'bg-neutral-900/80 hover:bg-neutral-800 border-white/10 text-neutral-300 hover:text-white'
+              }`}
             >
               <Search className="w-4 h-4" />
             </button>
@@ -583,7 +763,7 @@ export const HeaderTabs: React.FC<HeaderTabsProps> = ({
                 onToggleFilter();
               }}
               title="Filtrele (🎚)"
-              className={`p-2 rounded-lg border transition-all relative cursor-pointer ${
+              className={`h-8 w-8 rounded-lg border transition-all relative cursor-pointer flex items-center justify-center ${
                 isFilterOpen || activeFiltersCount > 0
                   ? 'bg-neutral-800 border-white/30 text-white shadow-sm'
                   : 'bg-neutral-900/80 hover:bg-neutral-800 border-white/10 text-neutral-300 hover:text-white'
@@ -616,7 +796,7 @@ export const HeaderTabs: React.FC<HeaderTabsProps> = ({
                 onToggleView();
               }}
               title="Görünüm Ayarları (👁)"
-              className={`p-2 rounded-lg border transition-all cursor-pointer ${
+              className={`h-8 w-8 rounded-lg border transition-all cursor-pointer flex items-center justify-center ${
                 isViewOpen
                   ? 'bg-neutral-800 border-white/30 text-white shadow-sm'
                   : 'bg-neutral-900/80 hover:bg-neutral-800 border-white/10 text-neutral-300 hover:text-white'
@@ -646,7 +826,7 @@ export const HeaderTabs: React.FC<HeaderTabsProps> = ({
               onOpenSettings();
             }}
             title="Ayarlar (⚙)"
-            className="p-2 rounded-lg bg-neutral-900/80 hover:bg-neutral-800 border border-white/10 text-neutral-300 hover:text-white transition-all cursor-pointer"
+            className="h-8 w-8 rounded-lg bg-neutral-900/80 hover:bg-neutral-800 border border-white/10 text-neutral-300 hover:text-white transition-all cursor-pointer flex items-center justify-center"
           >
             <Settings className="w-4 h-4" />
           </button>

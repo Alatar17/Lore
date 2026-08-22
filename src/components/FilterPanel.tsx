@@ -76,33 +76,52 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
       </div>
 
       <div className="space-y-3.5">
-        {/* Puan Eşiği (Rating Filter) */}
+        {/* Puan Eşiği (Rating Dropdown Menu: Tümü, 9+, 8+, 7+) */}
         <div>
           <label className="block text-[11px] uppercase tracking-wider text-neutral-400 font-semibold mb-1.5 flex items-center gap-1.5">
             <Star className="w-3.5 h-3.5 text-amber-400" />
             <span>Puan Eşiği</span>
           </label>
-          <div className="grid grid-cols-4 gap-1">
-            {[
-              { label: 'Tümü', val: 0 },
-              { label: '★ 7+', val: 7 },
-              { label: '★ 8+', val: 8 },
-              { label: '★ 9+', val: 9 },
-            ].map((opt) => (
-              <button
-                key={opt.val}
-                type="button"
-                onClick={() => onChange({ minRating: opt.val })}
-                className={`py-1.5 text-xs rounded-lg font-medium transition-all cursor-pointer text-center ${
-                  filters.minRating === opt.val
-                    ? 'bg-neutral-200 text-neutral-900 font-semibold shadow'
-                    : 'bg-neutral-800/80 text-neutral-400 hover:text-white hover:bg-neutral-700/80'
-                }`}
-              >
-                {opt.label}
-              </button>
-            ))}
-          </div>
+          <select
+            id="filter-rating-select"
+            value={filters.minRating}
+            onChange={(e) => onChange({ minRating: Number(e.target.value) })}
+            className="w-full bg-neutral-800 text-neutral-200 border border-white/10 rounded-lg px-2.5 py-1.5 text-xs focus:outline-none focus:border-white/30 cursor-pointer"
+          >
+            <option value={0} className="bg-neutral-900 text-white">
+              Tümü (Filtre Yok)
+            </option>
+            <option value={10} className="bg-neutral-900 text-amber-300 font-bold">
+              ★ 10 Puan
+            </option>
+            <option value={9} className="bg-neutral-900 text-amber-300 font-bold">
+              ★ 9+ Puan
+            </option>
+            <option value={8} className="bg-neutral-900 text-amber-300 font-bold">
+              ★ 8+ Puan
+            </option>
+            <option value={7} className="bg-neutral-900 text-amber-300 font-bold">
+              ★ 7+ Puan
+            </option>
+            <option value={6} className="bg-neutral-900 text-amber-300">
+              ★ 6+ Puan
+            </option>
+            <option value={5} className="bg-neutral-900 text-amber-300">
+              ★ 5+ Puan
+            </option>
+            <option value={4} className="bg-neutral-900 text-amber-300">
+              ★ 4+ Puan
+            </option>
+            <option value={3} className="bg-neutral-900 text-amber-300">
+              ★ 3+ Puan
+            </option>
+            <option value={2} className="bg-neutral-900 text-amber-300">
+              ★ 2+ Puan
+            </option>
+            <option value={1} className="bg-neutral-900 text-amber-300">
+              ★ 1+ Puan
+            </option>
+          </select>
         </div>
 
         {/* Media-Specific: Watching / Following */}

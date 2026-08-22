@@ -26,7 +26,8 @@ import { TierListView } from './components/TierListView';
 import { ItemDetailModal } from './components/ItemDetailModal';
 import { AddItemModal } from './components/AddItemModal';
 import { SettingsModal } from './components/SettingsModal';
-import { Plus } from 'lucide-react';
+import { StatisticsModal } from './components/StatisticsModal';
+import { Plus, BarChart3 } from 'lucide-react';
 
 export default function App() {
   // --- Persistent App Data State ---
@@ -49,6 +50,7 @@ export default function App() {
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [isViewOpen, setIsViewOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isStatisticsOpen, setIsStatisticsOpen] = useState(false);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [selectedItem, setSelectedItem] = useState<ArchiveItem | null>(null);
 
@@ -164,19 +166,32 @@ export default function App() {
       ? currentCategories.find((c) => c.id === activeCatId)
       : null;
 
-  // --- 3. Global Keyboard Shortcuts ('W' for add, 'Escape' for close, 'Tab' for grid/tier) ---
+  // --- 3. Global Keyboard Shortcuts (1: Media Home, 2: Game Home, 3: Tracked, 'W': Add, 'Escape': Smart ESC/Settings, 'Tab': Grid/Tier, 'Space': Fullscreen) ---
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // 'Escape' key -> ALWAYS close modals/popovers even if inside input/textarea
+      // 'Escape' key -> Smart ESC:
+      // If modal/panel/search is open -> close active window.
+      // If no window is open -> open Settings (or close if already open).
       if (e.key === 'Escape') {
-        closeAllPanels();
-        if (selectedItem) setSelectedItem(null);
-        if (isAddModalOpen) setIsAddModalOpen(false);
-        if (isSettingsOpen) setIsSettingsOpen(false);
+        e.preventDefault();
+        if (selectedItem) {
+          setSelectedItem(null);
+        } else if (isAddModalOpen) {
+          setIsAddModalOpen(false);
+        } else if (isSettingsOpen) {
+          setIsSettingsOpen(false);
+        } else if (isFilterOpen || isViewOpen) {
+          closeAllPanels();
+        } else if (isSearchOpen) {
+          setIsSearchOpen(false);
+          setSearchQuery('');
+        } else {
+          setIsSettingsOpen(true);
+        }
         return;
       }
 
-      // Don't trigger 'W' shortcut if user is typing in an input, textarea or contenteditable element
+      // Don't trigger shortcuts if user is typing in an input, textarea, select or contenteditable element
       const target = e.target as HTMLElement;
       if (
         target.tagName === 'INPUT' ||
@@ -184,6 +199,48 @@ export default function App() {
         target.tagName === 'SELECT' ||
         target.isContentEditable
       ) {
+        return;
+      }
+
+      // '1' key -> Nerede olursan ol Medya Ana Sayfasına götürür
+      if (e.key === '1') {
+        e.preventDefault();
+        closeAllPanels();
+        setSelectedItem(null);
+        setIsAddModalOpen(false);
+        setIsSettingsOpen(false);
+        setMainTab('media');
+        setActiveCatId(null);
+        setActiveSub(null);
+        setViewMode('grid');
+        return;
+      }
+
+      // '2' key -> Nerede olursan ol Oyun Ana Sayfasına götürür
+      if (e.key === '2') {
+        e.preventDefault();
+        closeAllPanels();
+        setSelectedItem(null);
+        setIsAddModalOpen(false);
+        setIsSettingsOpen(false);
+        setMainTab('game');
+        setActiveCatId(null);
+        setActiveSub(null);
+        setViewMode('grid');
+        return;
+      }
+
+      // '3' key -> İzlenen & Takip Listesini açar
+      if (e.key === '3') {
+        e.preventDefault();
+        closeAllPanels();
+        setSelectedItem(null);
+        setIsAddModalOpen(false);
+        setIsSettingsOpen(false);
+        setMainTab('media');
+        setActiveCatId(TRACKED_TAB_ID);
+        setActiveSub(null);
+        setViewMode('grid');
         return;
       }
 
@@ -217,7 +274,7 @@ export default function App() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [closeAllPanels, selectedItem, isAddModalOpen, isSettingsOpen, activeCategory]);
+  }, [closeAllPanels, selectedItem, isAddModalOpen, isSettingsOpen, isFilterOpen, isViewOpen, isSearchOpen, activeCategory]);
 
   // Directory Connection Handlers
   const handleConnectFolder = async () => {
@@ -358,14 +415,46 @@ export default function App() {
         if (activeSub && item.sub !== activeSub) return false;
       }
 
-      // 4. Search query
+      // 4. Search query (Comma-separated multi-tag / year / term AND logic)
       if (searchQuery.trim()) {
-        const q = searchQuery.toLowerCase();
-        const itemTitle = (item.title || (item as any).name || '').toLowerCase();
-        const matchesDesc = (item.desc || '').toLowerCase().includes(q);
-        const matchesTitle = itemTitle.includes(q);
-        if (!matchesTitle && !matchesDesc) {
-          return false;
+        const terms = searchQuery
+          .split(',')
+          .map((t) => t.trim().toLowerCase())
+          .filter(Boolean);
+
+        if (terms.length > 0) {
+          const itemTitle = (item.title || '').toLowerCase();
+          const itemDesc = (item.desc || '').toLowerCase();
+          const itemDate = (item.date || '').toLowerCase();
+          const itemCat = (item.cat || '').toLowerCase();
+          const itemSub = (item.sub || '').toLowerCase();
+          const itemStatus = (item.status || '').toLowerCase();
+          
+          const itemGenres = (item.genre || []).map((g) => g.toLowerCase());
+          const itemFirms = (item.firm || []).map((f) => f.toLowerCase());
+          const itemDirectors = (item.director || []).map((d) => d.toLowerCase());
+          const itemActors = (item.actors || []).map((a) => a.toLowerCase());
+          const itemDevelopers = (item.developer || []).map((d) => d.toLowerCase());
+
+          // Check if ALL terms match the item (AND logic)
+          const matchesAllTerms = terms.every((term) => {
+            if (itemTitle.includes(term)) return true;
+            if (itemDesc.includes(term)) return true;
+            if (itemDate.includes(term)) return true;
+            if (itemCat.includes(term)) return true;
+            if (itemSub.includes(term)) return true;
+            if (itemStatus.includes(term)) return true;
+            if (itemGenres.some((g) => g.includes(term))) return true;
+            if (itemFirms.some((f) => f.includes(term))) return true;
+            if (itemDirectors.some((d) => d.includes(term))) return true;
+            if (itemActors.some((a) => a.includes(term))) return true;
+            if (itemDevelopers.some((d) => d.includes(term))) return true;
+            return false;
+          });
+
+          if (!matchesAllTerms) {
+            return false;
+          }
         }
       }
 
@@ -477,6 +566,10 @@ export default function App() {
             closeAllPanels();
             setIsSettingsOpen(true);
           }}
+          onOpenStatistics={() => {
+            closeAllPanels();
+            setIsStatisticsOpen(true);
+          }}
           onFilterChange={(newFilters) =>
             setFilters((prev) => ({ ...prev, ...newFilters }))
           }
@@ -550,18 +643,35 @@ export default function App() {
 
       {/* Floating Action Button (FAB) for Adding Items - Sadece Izgara Modunda Görünür */}
       {viewMode === 'grid' && (
-        <button
-          id="fab-add-item-btn"
-          onClick={(e) => {
-            e.stopPropagation();
-            closeAllPanels();
-            setIsAddModalOpen(true);
-          }}
-          title={`Yeni Ekle (Kısayol: W)`}
-          className="fixed bottom-6 right-6 z-40 w-11 h-11 rounded-full bg-slate-800/80 hover:bg-blue-600 text-slate-300 hover:text-white shadow-lg shadow-black/40 hover:shadow-blue-600/30 flex items-center justify-center transition-all duration-200 hover:scale-105 active:scale-95 border border-white/10 hover:border-blue-400/40 backdrop-blur-md cursor-pointer group"
-        >
-          <Plus className="w-5 h-5 transition-transform duration-200 group-hover:rotate-90" />
-        </button>
+        <>
+          {/* Floating Left Bottom Minimal Statistics Button */}
+          <button
+            id="fab-statistics-btn"
+            onClick={(e) => {
+              e.stopPropagation();
+              closeAllPanels();
+              setIsStatisticsOpen(true);
+            }}
+            title="İstatistikler & Grafikler (📊)"
+            className="fixed bottom-5 left-5 z-40 w-8 h-8 rounded-full bg-slate-900/80 hover:bg-blue-600 text-slate-400 hover:text-white shadow-md hover:shadow-blue-600/30 flex items-center justify-center transition-all duration-200 hover:scale-105 active:scale-95 border border-white/10 hover:border-blue-400/40 backdrop-blur-md cursor-pointer opacity-70 hover:opacity-100 group"
+          >
+            <BarChart3 className="w-3.5 h-3.5 transition-transform duration-200 group-hover:scale-110" />
+          </button>
+
+          {/* Floating Right Bottom Add Button */}
+          <button
+            id="fab-add-item-btn"
+            onClick={(e) => {
+              e.stopPropagation();
+              closeAllPanels();
+              setIsAddModalOpen(true);
+            }}
+            title={`Yeni Ekle (Kısayol: W)`}
+            className="fixed bottom-6 right-6 z-40 w-11 h-11 rounded-full bg-slate-800/80 hover:bg-blue-600 text-slate-300 hover:text-white shadow-lg shadow-black/40 hover:shadow-blue-600/30 flex items-center justify-center transition-all duration-200 hover:scale-105 active:scale-95 border border-white/10 hover:border-blue-400/40 backdrop-blur-md cursor-pointer group"
+          >
+            <Plus className="w-5 h-5 transition-transform duration-200 group-hover:rotate-90" />
+          </button>
+        </>
       )}
 
       {/* --- Modals --- */}
@@ -571,6 +681,7 @@ export default function App() {
         <ItemDetailModal
           item={selectedItem}
           categories={currentCategories}
+          allItems={appData.items}
           onSave={handleSaveItem}
           onDelete={handleDeleteItem}
           onClose={() => setSelectedItem(null)}
@@ -584,6 +695,7 @@ export default function App() {
           categories={currentCategories}
           activeCatId={activeCatId !== TRACKED_TAB_ID ? activeCatId : null}
           activeSub={activeSub}
+          allItems={appData.items}
           onAdd={handleAddItem}
           onClose={() => setIsAddModalOpen(false)}
         />
@@ -602,11 +714,24 @@ export default function App() {
           onConnectFolder={handleConnectFolder}
           onDisconnectFolder={handleDisconnectFolder}
           onUpdateCategories={handleUpdateCategories}
+          onUpdateItems={(newItems) => {
+            setAppData((prev) => ({ ...prev, items: newItems }));
+          }}
           onReplaceAllData={(newData) => {
             setAppData(newData);
             setIsSettingsOpen(false);
           }}
           onClose={() => setIsSettingsOpen(false)}
+        />
+      )}
+
+      {/* 4. Statistics Modal */}
+      {isStatisticsOpen && (
+        <StatisticsModal
+          items={appData.items}
+          categories={appData.categories}
+          initialTab={mainTab}
+          onClose={() => setIsStatisticsOpen(false)}
         />
       )}
     </div>

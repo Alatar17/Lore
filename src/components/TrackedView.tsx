@@ -20,6 +20,25 @@ export const TrackedView: React.FC<TrackedViewProps> = ({
   const watchingItems = items.filter((it) => it.watching);
   const followingItems = items.filter((it) => it.following);
 
+  // Card size calculation for CSS Grid auto-fill (1: 120px, 2: 150px, 3: 185px, 4: 230px, 5: 280px)
+  const cardMinWidth = React.useMemo(() => {
+    const size = viewSettings.cardSize || 3;
+    switch (size) {
+      case 1:
+        return 120;
+      case 2:
+        return 150;
+      case 3:
+        return 185;
+      case 4:
+        return 230;
+      case 5:
+        return 280;
+      default:
+        return 185;
+    }
+  }, [viewSettings.cardSize]);
+
   const buildPromptText = () => {
     const names = followingItems.map((it) => `- ${it.title}`).join('\n');
     return `Aşağıdaki dizi/anime isimlerinin güncel bölüm/sezon durumunu web'den araştır.
@@ -64,7 +83,15 @@ ${names || '- (Takip listesinde henüz yapım yok)'}`;
         </div>
 
         {watchingItems.length > 0 ? (
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-3.5">
+          <div
+            className="grid grid-cols-3 sm:grid-cols-auto-fill gap-2 sm:gap-4.5 transition-all duration-300"
+            style={{
+              gridTemplateColumns:
+                typeof window !== 'undefined' && window.innerWidth < 640
+                  ? 'repeat(3, minmax(0, 1fr))'
+                  : `repeat(auto-fill, minmax(${cardMinWidth}px, 1fr))`,
+            }}
+          >
             {watchingItems.map((item) => (
               <ItemCard
                 key={item.id}
@@ -159,7 +186,15 @@ ${names || '- (Takip listesinde henüz yapım yok)'}`;
         )}
 
         {followingItems.length > 0 ? (
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-3.5">
+          <div
+            className="grid grid-cols-3 sm:grid-cols-auto-fill gap-2 sm:gap-4.5 transition-all duration-300"
+            style={{
+              gridTemplateColumns:
+                typeof window !== 'undefined' && window.innerWidth < 640
+                  ? 'repeat(3, minmax(0, 1fr))'
+                  : `repeat(auto-fill, minmax(${cardMinWidth}px, 1fr))`,
+            }}
+          >
             {followingItems.map((item) => (
               <ItemCard
                 key={item.id}
