@@ -248,39 +248,6 @@ export const TierListView: React.FC<TierListViewProps> = ({
       id="tier-list-container"
       className="flex flex-col min-h-[calc(100vh-140px)] select-none pb-6"
     >
-      {/* Top Controls Bar */}
-      <div className="flex items-center justify-between pb-3 mb-3 border-b border-white/10 px-1">
-        <div className="flex items-center gap-2">
-          <span className="text-xs font-semibold text-neutral-300 uppercase tracking-wider">
-            {category.name} Tier List
-          </span>
-          <span className="text-[11px] text-neutral-400 bg-white/5 px-2 py-0.5 rounded-md border border-white/10 font-mono">
-            {catItems.length - poolItems.length} / {catItems.length} Sıralandı
-          </span>
-        </div>
-
-        <div className="flex items-center gap-2">
-          <button
-            id="clear-all-tier-cards-btn"
-            onClick={handleClearAllTiers}
-            title="Tüm sıralanmış kartları havuza geri çek"
-            className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white/5 hover:bg-white/10 text-neutral-400 hover:text-neutral-200 border border-white/10 text-xs font-medium transition-colors cursor-pointer"
-          >
-            <RotateCcw className="w-3 h-3" />
-            <span className="hidden sm:inline">Havuza Topla</span>
-          </button>
-          <button
-            id="add-tier-row-top-btn"
-            onClick={() => handleAddRow()}
-            title="Yeni Tier Satırı Ekle"
-            className="flex items-center gap-1 px-3 py-1 rounded-lg bg-neutral-200 hover:bg-white text-neutral-900 text-xs font-semibold shadow transition-all cursor-pointer"
-          >
-            <Plus className="w-3.5 h-3.5" />
-            <span>Satır Ekle</span>
-          </button>
-        </div>
-      </div>
-
       {/* Tier Rows Area (Expands to fill top portion) */}
       <div className="space-y-2 flex-1 mb-5">
         {category.tierRows.map((row, index) => {
@@ -400,9 +367,19 @@ export const TierListView: React.FC<TierListViewProps> = ({
               ({poolItems.length} yapım henüz sıralanmamış)
             </span>
           </div>
-          <span className="text-[11px] text-neutral-400 hidden sm:inline">
-            İpucu: Kartı sürükleyin veya sağ tıklayarak hızlıca taşıyın
-          </span>
+
+          {/* Havuza Topla Button */}
+          {catItems.length - poolItems.length > 0 && (
+            <button
+              id="clear-all-tier-cards-btn"
+              onClick={handleClearAllTiers}
+              title="Tüm sıralanmış kartları havuza geri çek"
+              className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/5 hover:bg-white/10 text-neutral-300 hover:text-white border border-white/10 text-xs font-medium transition-colors cursor-pointer"
+            >
+              <RotateCcw className="w-3 h-3" />
+              <span>Havuza Topla</span>
+            </button>
+          )}
         </div>
 
         <div

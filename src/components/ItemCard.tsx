@@ -117,42 +117,46 @@ export const ItemCard: React.FC<ItemCardProps> = ({
           </div>
         )}
 
-        {/* Anki Badge (Bottom Right if media, or beside game status) */}
+        {/* Anki Badge (Bottom Right if media, or beside achievement on game) */}
         {showAnki && (
           <span
             id={`badge-anki-${item.id}`}
             title="Anki destesine eklendi"
-            className="absolute bottom-1.5 right-1.5 p-1 rounded-md bg-black/90 backdrop-blur-md border border-emerald-500/50 text-emerald-400 shadow-md z-20 flex items-center justify-center"
+            className={`absolute bottom-1.5 ${isGame && showGameStatus && item.achPercent !== null && item.achPercent !== undefined ? 'right-12' : 'right-1.5'} p-1 rounded-md bg-black/90 backdrop-blur-md border border-emerald-500/50 text-emerald-400 shadow-md z-20 flex items-center justify-center`}
           >
             <Brain className="w-3 h-3" />
           </span>
         )}
 
-        {/* Game Badges */}
+        {/* Game Badges: Hours on Left, Achievement % on Right */}
         {isGame && showGameStatus && (
-          <div className="absolute bottom-1.5 left-1.5 flex items-center gap-1 z-20">
-            {/* Hours */}
+          <>
+            {/* Hours (Bottom-Left) */}
             {item.hours !== undefined && item.hours > 0 && (
-              <span
-                id={`badge-hours-${item.id}`}
-                title="Oynanma süresi"
-                className="px-1.5 py-0.5 rounded-md bg-black/90 backdrop-blur-md border border-white/20 text-[10px] font-semibold text-neutral-300 shadow-md"
-              >
-                {item.hours}s
-              </span>
+              <div className="absolute bottom-1.5 left-1.5 flex items-center gap-1 z-20">
+                <span
+                  id={`badge-hours-${item.id}`}
+                  title="Oynanma süresi"
+                  className="px-1.5 py-0.5 rounded-md bg-black/90 backdrop-blur-md border border-white/20 text-[10px] font-semibold text-neutral-300 shadow-md"
+                >
+                  {item.hours}s
+                </span>
+              </div>
             )}
 
-            {/* Achievement % */}
+            {/* Achievement % (Bottom-Right) */}
             {item.achPercent !== null && item.achPercent !== undefined && (
-              <span
-                id={`badge-ach-${item.id}`}
-                title="Başarım tamamlanma"
-                className="px-1.5 py-0.5 rounded-md bg-black/90 backdrop-blur-md border border-emerald-500/40 text-[10px] font-semibold text-emerald-400 shadow-md"
-              >
-                %{item.achPercent}
-              </span>
+              <div className="absolute bottom-1.5 right-1.5 flex items-center gap-1 z-20">
+                <span
+                  id={`badge-ach-${item.id}`}
+                  title="Başarım tamamlanma yüzdesi"
+                  className="px-1.5 py-0.5 rounded-md bg-black/90 backdrop-blur-md border border-emerald-500/40 text-[10px] font-semibold text-emerald-400 shadow-md"
+                >
+                  %{item.achPercent}
+                </span>
+              </div>
             )}
-          </div>
+          </>
         )}
       </div>
 

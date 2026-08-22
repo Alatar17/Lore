@@ -24,7 +24,6 @@ const GAME_STATUS_OPTIONS: { label: string; value: GameStatus | 'all' }[] = [
   { label: 'Tamamlandı', value: 'Tamamlandı' },
   { label: '%100 Başarım', value: '%100 Başarım' },
   { label: 'Yarım Bırakıldı', value: 'Yarım Bırakıldı' },
-  { label: 'Oynanacak', value: 'Oynanacak' },
 ];
 
 export const FilterPanel: React.FC<FilterPanelProps> = ({

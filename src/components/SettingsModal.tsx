@@ -244,12 +244,14 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   return (
     <div
       id="settings-modal-overlay"
-      className="fixed inset-0 z-50 bg-black/80 backdrop-blur-xs flex items-center justify-center p-3 sm:p-5 overflow-y-auto"
+      className={`fixed inset-0 z-50 bg-black/75 ${
+        viewSettings.backdropBlur !== false ? 'backdrop-blur-sm' : ''
+      } flex items-center justify-center p-3 sm:p-5 overflow-y-auto`}
       onClick={onClose}
     >
       <div
         id="settings-modal-box"
-        className="relative w-full max-w-2xl h-[600px] max-h-[90vh] bg-[#141824] border border-white/10 rounded-2xl shadow-2xl overflow-hidden my-auto flex flex-col"
+        className="relative w-full max-w-2xl h-[680px] max-h-[94vh] bg-[#141824] border border-white/10 rounded-2xl shadow-2xl overflow-hidden my-auto flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
@@ -456,7 +458,29 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           {activeTab === 'themes' && (
             <div className="space-y-4">
               <div className="p-3 bg-blue-500/10 border border-blue-500/30 rounded-xl text-xs text-blue-200">
-                💡 <span className="font-semibold">Tema Deneme Alanı:</span> Farklı renk paletlerini deneyebilir, beğendiğin görsel detayları belirtebilirsin. Seçtiğin tema anında uygulanır.
+                💡 <span className="font-semibold">Tema & Görünüm Ayarları:</span> Farklı renk temalarını deneyebilir, arka plan bulanıklığını açıp kapatabilirsiniz.
+              </div>
+
+              {/* Backdrop Blur Toggle */}
+              <div className="p-4 rounded-xl bg-white/5 border border-white/10 flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <span className="text-sm font-semibold text-slate-100 flex items-center gap-2">
+                    Arka Plan Bulanıklığı
+                  </span>
+                  <p className="text-xs text-slate-400">
+                    Açıkken pencerelerin arkasını hafif buzlu/bulanık yapar; kapalıyken arkadaki temanın net görünmesini sağlar.
+                  </p>
+                </div>
+
+                <label className="relative inline-flex items-center cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={viewSettings.backdropBlur !== false}
+                    onChange={(e) => onUpdateViewSettings({ backdropBlur: e.target.checked })}
+                    className="sr-only peer"
+                  />
+                  <div className="w-11 h-6 bg-neutral-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                </label>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -517,11 +541,31 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               <div className="space-y-2">
                 <div className="flex items-center justify-between p-3 rounded-xl bg-white/5 border border-white/10">
                   <div className="space-y-0.5">
+                    <span className="text-sm font-semibold text-slate-100">Tam Ekran Aç / Kapat</span>
+                    <p className="text-xs text-slate-400">Uygulamayı tam ekrana geçirir veya tam ekrandan çıkar</p>
+                  </div>
+                  <kbd className="px-3 py-1.5 rounded-lg bg-black/60 border border-white/20 text-slate-200 text-xs font-mono font-bold shadow-inner">
+                    SPACE
+                  </kbd>
+                </div>
+
+                <div className="flex items-center justify-between p-3 rounded-xl bg-white/5 border border-white/10">
+                  <div className="space-y-0.5">
                     <span className="text-sm font-semibold text-slate-100">Yeni Yapım Ekle (FAB)</span>
                     <p className="text-xs text-slate-400">Yeni dizi, film, anime veya oyun ekleme penceresini açar</p>
                   </div>
                   <kbd className="px-3 py-1.5 rounded-lg bg-black/60 border border-white/20 text-slate-200 text-xs font-mono font-bold shadow-inner">
                     W
+                  </kbd>
+                </div>
+
+                <div className="flex items-center justify-between p-3 rounded-xl bg-white/5 border border-white/10">
+                  <div className="space-y-0.5">
+                    <span className="text-sm font-semibold text-slate-100">Izgara / Tier List Görünüm Değiştir</span>
+                    <p className="text-xs text-slate-400">Aktif kategoride tier list açıksa görünümler arasında geçiş yapar</p>
+                  </div>
+                  <kbd className="px-3 py-1.5 rounded-lg bg-black/60 border border-white/20 text-slate-200 text-xs font-mono font-bold shadow-inner">
+                    TAB
                   </kbd>
                 </div>
 

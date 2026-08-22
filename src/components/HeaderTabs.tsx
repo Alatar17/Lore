@@ -81,8 +81,10 @@ export const HeaderTabs: React.FC<HeaderTabsProps> = ({
   onClosePanels,
 }) => {
   const searchInputRef = useRef<HTMLInputElement>(null);
+  const searchContainerRef = useRef<HTMLDivElement>(null);
   const [openDropdown, setOpenDropdown] = useState<'media' | 'game' | null>(null);
   const [hoveredCat, setHoveredCat] = useState<Category | null>(null);
+  const [hoveredCatTop, setHoveredCatTop] = useState<number>(0);
   const hoverTimeoutRef = useRef<any>(null);
   const subMenuTimeoutRef = useRef<any>(null);
 
@@ -98,7 +100,7 @@ export const HeaderTabs: React.FC<HeaderTabsProps> = ({
     }
   }, [isSearchOpen]);
 
-  // Close dropdown on outside click
+  // Close dropdown or empty search on outside click
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       const target = e.target as HTMLElement;
@@ -106,10 +108,15 @@ export const HeaderTabs: React.FC<HeaderTabsProps> = ({
         setOpenDropdown(null);
         setHoveredCat(null);
       }
+      if (isSearchOpen && !searchQuery.trim()) {
+        if (searchContainerRef.current && !searchContainerRef.current.contains(target)) {
+          onToggleSearch();
+        }
+      }
     };
     window.addEventListener('click', handleClickOutside);
     return () => window.removeEventListener('click', handleClickOutside);
-  }, []);
+  }, [isSearchOpen, searchQuery, onToggleSearch]);
 
   const activeFiltersCount =
     (filters.minRating > 0 ? 1 : 0) +
@@ -117,7 +124,7 @@ export const HeaderTabs: React.FC<HeaderTabsProps> = ({
     (filters.followingOnly ? 1 : 0) +
     (filters.ankiFilter !== 'all' ? 1 : 0);
 
-  // Pure Hover handlers for Main Dropdown buttons
+  // Pure Hover handlers for Main Dropdown buttons with snappy 120ms delay
   const handleMouseEnter = (tab: 'media' | 'game') => {
     if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
     if (openDropdown !== tab) {
@@ -131,13 +138,17 @@ export const HeaderTabs: React.FC<HeaderTabsProps> = ({
     hoverTimeoutRef.current = setTimeout(() => {
       setOpenDropdown(null);
       setHoveredCat(null);
-    }, 250);
+    }, 120);
   };
 
-  // Hover handlers for Category items to show subcategory flyout instantly
-  const handleCatMouseEnter = (cat: Category) => {
+  // Hover handlers for Category items to align subcategory flyout vertically to the exact item
+  const handleCatMouseEnter = (cat: Category, e: React.MouseEvent) => {
     if (subMenuTimeoutRef.current) clearTimeout(subMenuTimeoutRef.current);
     setHoveredCat(cat);
+    const target = e.currentTarget as HTMLElement;
+    if (target) {
+      setHoveredCatTop(target.offsetTop);
+    }
   };
 
   // Clicking the main button switches the tab and toggles dropdown
@@ -306,7 +317,7 @@ export const HeaderTabs: React.FC<HeaderTabsProps> = ({
                       return (
                         <div
                           key={cat.id}
-                          onMouseEnter={() => handleCatMouseEnter(cat)}
+                          onMouseEnter={(e) => handleCatMouseEnter(cat, e)}
                           onClick={() => handleSelectCategoryFromMenu('media', cat.id, null)}
                           className={`flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium transition-colors cursor-pointer ${
                             isCatActive
@@ -329,11 +340,12 @@ export const HeaderTabs: React.FC<HeaderTabsProps> = ({
                     })}
                   </div>
 
-                  {/* Absolute Positioned Right Flyout Submenu - Leaves Main Menu Untouched */}
+                  {/* Absolute Positioned Right Flyout Submenu - Aligned with hovered category */}
                   {hoveredCat && hoveredCat.subgroups && hoveredCat.subgroups.length > 0 && (
                     <div
                       id="flyout-subgroups-menu"
-                      className="absolute top-0 left-full ml-1 w-52 p-2 bg-[#181818]/95 backdrop-blur-xl border border-white/15 rounded-2xl shadow-2xl space-y-1 animate-in fade-in zoom-in-95 duration-100 z-50"
+                      style={{ top: `${Math.max(0, hoveredCatTop - 4)}px` }}
+                      className="absolute left-full ml-1.5 w-52 p-2 bg-[#181818]/95 backdrop-blur-xl border border-white/15 rounded-2xl shadow-2xl space-y-1 animate-in fade-in zoom-in-95 duration-100 z-50"
                       onMouseEnter={() => {
                         if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
                       }}
@@ -425,7 +437,7 @@ export const HeaderTabs: React.FC<HeaderTabsProps> = ({
                       return (
                         <div
                           key={cat.id}
-                          onMouseEnter={() => handleCatMouseEnter(cat)}
+                          onMouseEnter={(e) => handleCatMouseEnter(cat, e)}
                           onClick={() => handleSelectCategoryFromMenu('game', cat.id, null)}
                           className={`flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium transition-colors cursor-pointer ${
                             isCatActive
@@ -452,7 +464,8 @@ export const HeaderTabs: React.FC<HeaderTabsProps> = ({
                   {hoveredCat && hoveredCat.subgroups && hoveredCat.subgroups.length > 0 && (
                     <div
                       id="flyout-game-subgroups-menu"
-                      className="absolute top-0 left-full ml-1 w-52 p-2 bg-[#181818]/95 backdrop-blur-xl border border-white/15 rounded-2xl shadow-2xl space-y-1 animate-in fade-in zoom-in-95 duration-100 z-50"
+                      style={{ top: `${Math.max(0, hoveredCatTop - 4)}px` }}
+                      className="absolute left-full ml-1.5 w-52 p-2 bg-[#181818]/95 backdrop-blur-xl border border-white/15 rounded-2xl shadow-2xl space-y-1 animate-in fade-in zoom-in-95 duration-100 z-50"
                       onMouseEnter={() => {
                         if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
                       }}
@@ -526,7 +539,10 @@ export const HeaderTabs: React.FC<HeaderTabsProps> = ({
 
           {/* Search Box / Toggle */}
           {isSearchOpen ? (
-            <div className="flex items-center bg-neutral-900 border border-white/15 rounded-lg px-2.5 py-1.5 w-48 sm:w-56 animate-in fade-in">
+            <div
+              ref={searchContainerRef}
+              className="flex items-center bg-neutral-900 border border-white/15 rounded-lg px-2.5 py-1.5 w-48 sm:w-56 animate-in fade-in"
+            >
               <Search className="w-3.5 h-3.5 text-neutral-400 shrink-0 mr-2" />
               <input
                 ref={searchInputRef}

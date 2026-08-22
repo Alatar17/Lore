@@ -195,6 +195,17 @@ export default function App() {
         return;
       }
 
+      // 'Space' key -> Toggle Fullscreen On/Off
+      if (e.code === 'Space' || e.key === ' ') {
+        e.preventDefault();
+        if (!document.fullscreenElement) {
+          document.documentElement.requestFullscreen().catch(() => {});
+        } else {
+          document.exitFullscreen().catch(() => {});
+        }
+        return;
+      }
+
       // 'Tab' key -> Toggle between Grid and Tier List view if tier list is enabled for active category
       if (e.key === 'Tab') {
         if (activeCategory && activeCategory.tierEnabled) {
@@ -339,7 +350,7 @@ export default function App() {
 
       // 2. Tracked View
       if (mainTab === 'media' && activeCatId === TRACKED_TAB_ID) {
-        if (!item.isWatching && !item.isFollowing) return false;
+        if (!item.watching && !item.following && !(item as any).isWatching && !(item as any).isFollowing) return false;
       } else if (activeCatId) {
         // 3. Category match
         if (item.cat !== activeCatId) return false;

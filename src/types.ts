@@ -1,6 +1,11 @@
 export type MainTabType = 'media' | 'game';
 
-export type GameStatus = 'Oynanıyor' | 'Tamamlandı' | 'Yarım Bırakıldı';
+export type GameStatus =
+  | 'Oynanıyor'
+  | 'Tamamlandı'
+  | '%100 Başarım'
+  | 'Yarım Bırakıldı'
+  | 'Oynanacak';
 
 export interface TierRow {
   id: string;
@@ -76,4 +81,5 @@ export interface ViewSettings {
   showGameStatus: boolean;
   cardSize: number; // 1 to 5
   theme?: AppTheme;
+  backdropBlur?: boolean; // Controls background blur for modals and overlays
 }
