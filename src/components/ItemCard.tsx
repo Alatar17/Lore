@@ -1,18 +1,28 @@
 import React from 'react';
 import { ArchiveItem, ViewSettings } from '../types';
 import { MEDIA_COLORS, GAME_COLORS } from '../data/initialData';
-import { Tv, Bookmark, Star, Brain } from 'lucide-react';
+import { Tv, Bookmark, Star, Brain, Check } from 'lucide-react';
 
 interface ItemCardProps {
   item: ArchiveItem;
   viewSettings: ViewSettings;
   onClick: () => void;
+  onMouseEnter?: () => void;
+  onMouseLeave?: () => void;
+  isSelectionMode?: boolean;
+  isSelected?: boolean;
+  onToggleSelect?: () => void;
 }
 
 export const ItemCard: React.FC<ItemCardProps> = ({
   item,
   viewSettings,
   onClick,
+  onMouseEnter,
+  onMouseLeave,
+  isSelectionMode,
+  isSelected,
+  onToggleSelect,
 }) => {
   const isGame = item.mainTab === 'game';
   const palette = isGame ? GAME_COLORS : MEDIA_COLORS;
@@ -38,15 +48,34 @@ export const ItemCard: React.FC<ItemCardProps> = ({
   const showFollowing = viewSettings.showFollowing !== false && !isGame && item.following;
   const showGameStatus = viewSettings.showGameStatus !== false && isGame;
 
+  const handleCardClick = (e: React.MouseEvent) => {
+    if (isSelectionMode) {
+      e.stopPropagation();
+      onToggleSelect?.();
+    } else {
+      onClick();
+    }
+  };
+
   return (
     <div
       id={`card-${item.id}`}
-      onClick={onClick}
-      className="group cursor-pointer flex flex-col transition-all duration-300 hover:-translate-y-1.5 select-none"
+      onClick={handleCardClick}
+      onMouseEnter={onMouseEnter}
+      onMouseLeave={onMouseLeave}
+      className={`group cursor-pointer flex flex-col transition-all duration-300 ${
+        isSelectionMode ? 'hover:scale-[1.02]' : 'hover:-translate-y-1.5'
+      } select-none relative`}
     >
       {/* Poster Container */}
       <div
-        className="relative w-full aspect-[2/3] rounded-xl overflow-hidden border border-white/10 bg-[#181818] shadow-md transition-all duration-300 group-hover:shadow-2xl group-hover:border-white/30"
+        className={`relative w-full aspect-[2/3] rounded-xl overflow-hidden border bg-[#181818] shadow-md transition-all duration-300 ${
+          isSelected
+            ? 'border-blue-500 ring-2 ring-blue-500/80 shadow-lg shadow-blue-500/20'
+            : isSelectionMode
+            ? 'border-white/20 hover:border-blue-400/50'
+            : 'border-white/10 group-hover:shadow-2xl group-hover:border-white/30'
+        }`}
         style={{
           background: item.thumbnail
             ? '#141414'
@@ -57,7 +86,9 @@ export const ItemCard: React.FC<ItemCardProps> = ({
           <img
             src={item.thumbnail}
             alt={item.title}
-            className="w-full h-full object-cover transition-transform duration-500 ease-out group-hover:scale-105"
+            className={`w-full h-full object-cover transition-transform duration-500 ease-out ${
+              isSelectionMode ? '' : 'group-hover:scale-105'
+            }`}
             loading="lazy"
           />
         ) : (
@@ -71,8 +102,26 @@ export const ItemCard: React.FC<ItemCardProps> = ({
           </div>
         )}
 
+        {/* Selection Checkbox Overlay */}
+        {isSelectionMode && (
+          <div
+            id={`select-checkbox-${item.id}`}
+            onClick={(e) => {
+              e.stopPropagation();
+              onToggleSelect?.();
+            }}
+            className={`absolute top-2 left-2 z-30 w-6 h-6 rounded-lg flex items-center justify-center transition-all duration-200 shadow-md ${
+              isSelected
+                ? 'bg-blue-600 border border-blue-400 text-white scale-110'
+                : 'bg-black/70 border border-white/40 text-transparent hover:border-white hover:bg-black/90'
+            }`}
+          >
+            <Check className={`w-4 h-4 stroke-[3] ${isSelected ? 'opacity-100' : 'opacity-0'}`} />
+          </div>
+        )}
+
         {/* Date Badge: Top Left for Both Media and Game (Format: YYYY or ??) */}
-        {showYear && (
+        {showYear && !isSelectionMode && (
           <div
             id={`badge-date-${item.id}`}
             title={`Yıl: ${formattedYear}`}

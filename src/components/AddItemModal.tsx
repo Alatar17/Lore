@@ -49,9 +49,12 @@ export const AddItemModal: React.FC<AddItemModalProps> = ({
     categories.find((c) => c.id === activeCatId) ||
     categories[0] || { id: 'genel', name: 'Genel', subgroups: [] };
 
+  const validDefaultSub =
+    activeSub && defaultCat.subgroups?.includes(activeSub) ? activeSub : null;
+
   const [title, setTitle] = useState('');
   const [cat, setCat] = useState(defaultCat.id);
-  const [sub, setSub] = useState<string | null>(activeSub || null);
+  const [sub, setSub] = useState<string | null>(validDefaultSub);
   const [rating, setRating] = useState<number>(8);
   const [date, setDate] = useState<string>(
     new Date().toISOString().split('T')[0]
@@ -468,7 +471,11 @@ export const AddItemModal: React.FC<AddItemModalProps> = ({
                     <Calendar className="w-3 h-3 text-neutral-400" /> Tarih
                   </label>
                   <div className="flex items-center gap-1">
-                    {date === '??' || date === '??.??' ? (
+                    {(!isGame && watching) || (isGame && status === 'Oynanıyor') ? (
+                      <div className="flex-1 bg-cyan-500/10 text-cyan-300 border border-cyan-500/30 rounded-xl px-2.5 py-1.5 text-xs font-semibold flex items-center justify-between">
+                        <span>{isGame ? '🎮 Oynanıyor (Devam Ediyor)' : '📺 İzleniyor (Devam Ediyor)'}</span>
+                      </div>
+                    ) : date === '??' || date === '??.??' ? (
                       <div className="flex-1 bg-amber-500/10 text-amber-300 border border-amber-500/30 rounded-xl px-2.5 py-1.5 text-xs font-semibold flex items-center justify-between">
                         <span>Bilinmiyor (??)</span>
                       </div>
@@ -481,25 +488,27 @@ export const AddItemModal: React.FC<AddItemModalProps> = ({
                         className="flex-1 bg-black/40 text-neutral-200 border border-white/10 rounded-xl px-2 py-1.5 text-xs focus:outline-none focus:border-neutral-400"
                       />
                     )}
-                    <button
-                      type="button"
-                      id="toggle-add-unknown-date-btn"
-                      onClick={() => {
-                        if (date === '??' || date === '??.??' || date === '') {
-                          setDate(new Date().toISOString().split('T')[0]);
-                        } else {
-                          setDate('??');
-                        }
-                      }}
-                      title="Tarih Bilinmiyor (??)"
-                      className={`h-[30px] px-2 rounded-xl border text-xs font-semibold transition-all flex items-center justify-center cursor-pointer shrink-0 ${
-                        date === '??' || date === '??.??'
-                          ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
-                          : 'bg-white/5 text-neutral-400 border-white/10 hover:text-white hover:bg-white/10'
-                      }`}
-                    >
-                      <HelpCircle className="w-3.5 h-3.5" />
-                    </button>
+                    {!((!isGame && watching) || (isGame && status === 'Oynanıyor')) && (
+                      <button
+                        type="button"
+                        id="toggle-add-unknown-date-btn"
+                        onClick={() => {
+                          if (date === '??' || date === '??.??' || date === '') {
+                            setDate(new Date().toISOString().split('T')[0]);
+                          } else {
+                            setDate('??');
+                          }
+                        }}
+                        title="Tarih Bilinmiyor (??)"
+                        className={`h-[30px] px-2 rounded-xl border text-xs font-semibold transition-all flex items-center justify-center cursor-pointer shrink-0 ${
+                          date === '??' || date === '??.??'
+                            ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+                            : 'bg-white/5 text-neutral-400 border-white/10 hover:text-white hover:bg-white/10'
+                        }`}
+                      >
+                        <HelpCircle className="w-3.5 h-3.5" />
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>

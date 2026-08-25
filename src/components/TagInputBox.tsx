@@ -24,6 +24,22 @@ export const TagInputBox: React.FC<TagInputBoxProps> = ({
   const [isOpen, setIsOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  // Smooth scroll into view when dropdown is opened so user doesn't have to scroll manually
+  useEffect(() => {
+    if (isOpen) {
+      const timer = setTimeout(() => {
+        if (dropdownRef.current) {
+          dropdownRef.current.scrollIntoView({
+            behavior: 'smooth',
+            block: 'nearest',
+          });
+        }
+      }, 50);
+      return () => clearTimeout(timer);
+    }
+  }, [isOpen]);
 
   // Filter available tags that are NOT already selected
   const unselectedTags = availableTags.filter(
@@ -171,6 +187,7 @@ export const TagInputBox: React.FC<TagInputBoxProps> = ({
       {/* Autocomplete / Eagle Style Tag Chips (Oval Pills Side-by-Side) */}
       {isOpen && (filteredSuggestions.length > 0 || canCreateNew) && (
         <div
+          ref={dropdownRef}
           className="absolute left-0 right-0 top-full mt-1.5 z-50 bg-[#151822]/98 backdrop-blur-xl border border-white/20 rounded-xl shadow-2xl overflow-hidden p-2.5 max-h-56 overflow-y-auto custom-scrollbar animate-in fade-in zoom-in-95 duration-100"
           onClick={(e) => e.stopPropagation()}
         >

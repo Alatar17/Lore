@@ -21,6 +21,10 @@ import {
   ListOrdered,
   BarChart3,
   Tag,
+  Undo2,
+  Redo2,
+  Download,
+  Upload,
 } from 'lucide-react';
 
 export const TRACKED_TAB_ID = '__tracked__';
@@ -42,6 +46,11 @@ interface HeaderTabsProps {
   filters: FilterState;
   viewSettings: ViewSettings;
   dirHandle: FileSystemDirectoryHandle | null;
+  isSelectionMode?: boolean;
+  canUndo?: boolean;
+  canRedo?: boolean;
+  onUndo?: () => void;
+  onRedo?: () => void;
   uiExperiments?: {
     toolbarBox?: boolean;
     toolbarGlass?: boolean;
@@ -52,6 +61,7 @@ interface HeaderTabsProps {
   onCategorySelect: (catId: string | null) => void;
   onSubgroupSelect: (sub: string | null) => void;
   onViewModeChange: (mode: 'grid' | 'tier') => void;
+  onToggleSelectionMode?: () => void;
   onSearchChange: (query: string) => void;
   onToggleSearch: () => void;
   onToggleFilter: () => void;
@@ -76,11 +86,17 @@ export const HeaderTabs: React.FC<HeaderTabsProps> = ({
   isViewOpen,
   filters,
   viewSettings,
+  isSelectionMode,
+  canUndo,
+  canRedo,
+  onUndo,
+  onRedo,
   uiExperiments,
   onMainTabChange,
   onCategorySelect,
   onSubgroupSelect,
   onViewModeChange,
+  onToggleSelectionMode,
   onSearchChange,
   onToggleSearch,
   onToggleFilter,
@@ -305,8 +321,6 @@ export const HeaderTabs: React.FC<HeaderTabsProps> = ({
           ? 'bg-neutral-900/60 p-3.5 rounded-2xl border border-white/10 shadow-lg'
           : uiExperiments?.toolbarGlass
           ? 'bg-white/[0.03] backdrop-blur-xl p-3.5 rounded-2xl border border-white/10 shadow-2xl'
-          : uiExperiments?.floatingToolbar
-          ? 'bg-neutral-900/85 backdrop-blur-md px-5 py-2.5 rounded-full border border-white/15 shadow-xl max-w-5xl mx-auto w-full'
           : 'border-b border-white/10'
       }`}
     >
@@ -360,14 +374,23 @@ export const HeaderTabs: React.FC<HeaderTabsProps> = ({
             )}
           </div>
 
-          {/* Simple Clean Count Badge (Only Number) */}
-          <span
+          {/* Simple Clean Count Badge (Only Number) - Click to toggle Selection Mode */}
+          <button
             id="item-count-badge"
-            title={`${totalFilteredCount} yapım listeleniyor`}
-            className="px-2.5 py-1 rounded-lg bg-neutral-800 border border-white/10 text-neutral-200 font-bold text-xs"
+            onClick={onToggleSelectionMode}
+            title={
+              isSelectionMode
+                ? 'Seçim modundan çık'
+                : `${totalFilteredCount} yapım listeleniyor (Seçim modunu açmak için tıkla)`
+            }
+            className={`px-2.5 py-1 rounded-lg border font-bold text-xs transition-all duration-200 cursor-pointer ${
+              isSelectionMode
+                ? 'bg-blue-600 border-blue-400 text-white shadow-lg shadow-blue-600/40 ring-2 ring-blue-400/50 scale-105'
+                : 'bg-neutral-800 border-white/10 text-neutral-200 hover:bg-neutral-700 hover:text-white hover:border-white/20'
+            }`}
           >
             {totalFilteredCount}
-          </span>
+          </button>
         </div>
 
         {/* 2. CENTER: Medya & Oyun Navigation Dropdown Buttons */}
@@ -430,7 +453,21 @@ export const HeaderTabs: React.FC<HeaderTabsProps> = ({
 
                   {/* Categories */}
                   <div className="max-h-72 overflow-y-auto space-y-0.5 custom-scrollbar">
-                    {categories.media.map((cat) => {
+                    {categories.media.length === 0 ? (
+                      <div className="py-2.5 px-3 text-center">
+                        <p className="text-[11px] text-neutral-400">Henüz kategori yok</p>
+                        <button
+                          onClick={() => {
+                            setOpenDropdown(null);
+                            onOpenSettings();
+                          }}
+                          className="mt-1 text-[11px] text-blue-400 hover:text-blue-300 font-medium hover:underline cursor-pointer"
+                        >
+                          + Kategori Tanımla
+                        </button>
+                      </div>
+                    ) : (
+                      categories.media.map((cat) => {
                       const isCatActive = mainTab === 'media' && activeCatId === cat.id;
                       const hasSubs = cat.subgroups && cat.subgroups.length > 0;
                       const isHovered = hoveredCat?.id === cat.id;
@@ -458,7 +495,7 @@ export const HeaderTabs: React.FC<HeaderTabsProps> = ({
                           )}
                         </div>
                       );
-                    })}
+                    }))}
                   </div>
 
                   {/* Absolute Positioned Right Flyout Submenu - Aligned with hovered category */}
@@ -538,7 +575,21 @@ export const HeaderTabs: React.FC<HeaderTabsProps> = ({
                 <div className="w-60 p-2 bg-[#181818]/95 backdrop-blur-xl border border-white/15 rounded-xl shadow-2xl space-y-1 relative">
                   {/* Categories */}
                   <div className="max-h-72 overflow-y-auto space-y-0.5 custom-scrollbar">
-                    {categories.game.map((cat) => {
+                    {categories.game.length === 0 ? (
+                      <div className="py-2.5 px-3 text-center">
+                        <p className="text-[11px] text-neutral-400">Henüz kategori yok</p>
+                        <button
+                          onClick={() => {
+                            setOpenDropdown(null);
+                            onOpenSettings();
+                          }}
+                          className="mt-1 text-[11px] text-blue-400 hover:text-blue-300 font-medium hover:underline cursor-pointer"
+                        >
+                          + Kategori Tanımla
+                        </button>
+                      </div>
+                    ) : (
+                      categories.game.map((cat) => {
                       const isCatActive = mainTab === 'game' && activeCatId === cat.id;
                       const hasSubs = cat.subgroups && cat.subgroups.length > 0;
                       const isHovered = hoveredCat?.id === cat.id;
@@ -566,7 +617,7 @@ export const HeaderTabs: React.FC<HeaderTabsProps> = ({
                           )}
                         </div>
                       );
-                    })}
+                    }))}
                   </div>
 
                   {/* Absolute Positioned Right Flyout Submenu */}
@@ -615,10 +666,43 @@ export const HeaderTabs: React.FC<HeaderTabsProps> = ({
           className="flex items-center justify-end gap-1.5 relative order-3 flex-wrap"
           onClick={(e) => e.stopPropagation()}
         >
-          {/* Izgara / Tier List Switcher (Moved to right toolbar!) */}
+          {/* Izgara / Tier List Switcher and Undo / Redo / Export / Import Controls */}
           {activeCategory && activeCategory.tierEnabled && (
             <>
-              <div className="flex items-center p-0.5 bg-neutral-900 rounded-lg border border-white/10">
+              {/* Undo & Redo (Only in Tier mode, positioned to the left of Izgara/Tier) */}
+              {viewMode === 'tier' && (
+                <div className="flex items-center p-0.5 bg-neutral-900 rounded-lg border border-white/10">
+                  <button
+                    id="tier-undo-btn"
+                    onClick={onUndo}
+                    disabled={!canUndo}
+                    title="Geri Al (Ctrl+Z)"
+                    className={`p-1.5 rounded-md transition-all flex items-center justify-center ${
+                      canUndo
+                        ? 'text-neutral-200 hover:text-white hover:bg-neutral-800 cursor-pointer active:scale-95'
+                        : 'text-neutral-600 opacity-40 cursor-not-allowed'
+                    }`}
+                  >
+                    <Undo2 className="w-3.5 h-3.5" />
+                  </button>
+                  <button
+                    id="tier-redo-btn"
+                    onClick={onRedo}
+                    disabled={!canRedo}
+                    title="İleri Al (Ctrl+Y)"
+                    className={`p-1.5 rounded-md transition-all flex items-center justify-center ${
+                      canRedo
+                        ? 'text-neutral-200 hover:text-white hover:bg-neutral-800 cursor-pointer active:scale-95'
+                        : 'text-neutral-600 opacity-40 cursor-not-allowed'
+                    }`}
+                  >
+                    <Redo2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              )}
+
+              {/* View Mode Switcher */}
+              <div className="flex items-center p-0.5 bg-neutral-900 rounded-lg border border-white/10 gap-0.5">
                 <button
                   id="viewmode-grid-btn"
                   onClick={() => onViewModeChange('grid')}

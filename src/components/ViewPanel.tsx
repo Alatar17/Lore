@@ -1,6 +1,6 @@
 import React from 'react';
-import { ViewSettings, MainTabType } from '../types';
-import { SlidersHorizontal, ZoomIn, ZoomOut, Tv, Bookmark, Star, Calendar, Brain, Gamepad2, Type } from 'lucide-react';
+import { ViewSettings, MainTabType, SortOption } from '../types';
+import { SlidersHorizontal, ZoomIn, ZoomOut, Tv, Bookmark, Star, Calendar, Brain, Gamepad2, Type, ArrowUpDown } from 'lucide-react';
 
 interface ViewPanelProps {
   settings: ViewSettings;
@@ -11,6 +11,7 @@ interface ViewPanelProps {
 
 export const ViewPanel: React.FC<ViewPanelProps> = ({ settings, mainTab, onChange }) => {
   const cardSize = settings.cardSize || 3;
+  const currentSort: SortOption = settings.sortBy || 'date-desc';
 
   return (
     <div
@@ -21,11 +22,43 @@ export const ViewPanel: React.FC<ViewPanelProps> = ({ settings, mainTab, onChang
       <div className="flex items-center gap-2 pb-2.5 mb-3 border-b border-white/10">
         <SlidersHorizontal className="w-4 h-4 text-white" />
         <span className="font-semibold text-xs text-neutral-200 uppercase tracking-wider">
-          Görünüm Seçenekleri
+          Görünüm & Sıralama
         </span>
       </div>
 
-      <div className="space-y-2.5">
+      <div className="space-y-3">
+        {/* Sort Order Selector */}
+        <div className="space-y-1.5 pb-2.5 border-b border-white/10">
+          <label className="block text-[11px] uppercase tracking-wider text-neutral-400 font-semibold flex items-center gap-1.5">
+            <ArrowUpDown className="w-3.5 h-3.5 text-blue-400" />
+            <span>Sıralama Ölçütü</span>
+          </label>
+          <select
+            id="view-sort-select"
+            value={currentSort}
+            onChange={(e) => onChange({ sortBy: e.target.value as SortOption })}
+            className="w-full bg-neutral-800 text-neutral-200 border border-white/10 rounded-lg px-2.5 py-1.5 text-xs focus:outline-none focus:border-white/30 cursor-pointer"
+          >
+            <option value="date-desc" className="bg-neutral-900 text-white">
+              İzleme / Bitirme Tarihi (Yeniden Eskiye) [Varsayılan]
+            </option>
+            <option value="date-asc" className="bg-neutral-900 text-white">
+              İzleme / Bitirme Tarihi (Eskiden Yeniye)
+            </option>
+            <option value="rating-desc" className="bg-neutral-900 text-white">
+              Puan (Yüksekten Düşüğe)
+            </option>
+            <option value="rating-asc" className="bg-neutral-900 text-white">
+              Puan (Düşükten Yükseğe)
+            </option>
+            <option value="title-asc" className="bg-neutral-900 text-white">
+              İsim (A-Z)
+            </option>
+            <option value="title-desc" className="bg-neutral-900 text-white">
+              İsim (Z-A)
+            </option>
+          </select>
+        </div>
         {/* Common: Title */}
         <label className="flex items-center justify-between text-xs text-neutral-300 hover:text-white cursor-pointer select-none py-1 px-1 rounded-lg hover:bg-white/5 transition-colors">
           <div className="flex items-center gap-2">

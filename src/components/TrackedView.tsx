@@ -7,12 +7,20 @@ interface TrackedViewProps {
   items: ArchiveItem[];
   viewSettings: ViewSettings;
   onItemClick: (item: ArchiveItem) => void;
+  onItemHover?: (item: ArchiveItem | null) => void;
+  isSelectionMode?: boolean;
+  selectedItemIds?: Set<string>;
+  onToggleSelectItem?: (id: string) => void;
 }
 
 export const TrackedView: React.FC<TrackedViewProps> = ({
   items,
   viewSettings,
   onItemClick,
+  onItemHover,
+  isSelectionMode,
+  selectedItemIds,
+  onToggleSelectItem,
 }) => {
   const [showPromptBox, setShowPromptBox] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -98,6 +106,11 @@ ${names || '- (Takip listesinde henüz yapım yok)'}`;
                 item={item}
                 viewSettings={viewSettings}
                 onClick={() => onItemClick(item)}
+                onMouseEnter={() => onItemHover?.(item)}
+                onMouseLeave={() => onItemHover?.(null)}
+                isSelectionMode={isSelectionMode}
+                isSelected={selectedItemIds?.has(item.id)}
+                onToggleSelect={() => onToggleSelectItem?.(item.id)}
               />
             ))}
           </div>
@@ -201,6 +214,11 @@ ${names || '- (Takip listesinde henüz yapım yok)'}`;
                 item={item}
                 viewSettings={viewSettings}
                 onClick={() => onItemClick(item)}
+                onMouseEnter={() => onItemHover?.(item)}
+                onMouseLeave={() => onItemHover?.(null)}
+                isSelectionMode={isSelectionMode}
+                isSelected={selectedItemIds?.has(item.id)}
+                onToggleSelect={() => onToggleSelectItem?.(item.id)}
               />
             ))}
           </div>

@@ -81,6 +81,14 @@ export interface FilterState {
 
 export type AppTheme = 'pure-dark' | 'charcoal-gray' | 'dark-slate';
 
+export type SortOption =
+  | 'date-desc'
+  | 'date-asc'
+  | 'rating-desc'
+  | 'rating-asc'
+  | 'title-asc'
+  | 'title-desc';
+
 export interface ViewSettings {
   showTitle: boolean;
   showRating: boolean;
@@ -90,6 +98,7 @@ export interface ViewSettings {
   showFollowing: boolean;
   showGameStatus: boolean;
   cardSize: number; // 1 to 5
+  sortBy?: SortOption; // Default: 'date-desc'
   theme?: AppTheme;
   backdropBlur?: boolean; // Controls background blur for modals and overlays
 }
@@ -116,3 +125,12 @@ export const GAME_TAG_FIELDS: TagFieldDef[] = [
   { key: 'developer', label: 'Geliştirici / Stüdyo', placeholder: 'Örn: FromSoftware, CD Projekt Red, Valve...' },
   { key: 'genre', label: 'Tür', placeholder: 'Örn: Souls-like, RPG, Roguelike, Açık Dünya...' },
 ];
+
+export interface TierListCategoryExportData {
+  type: 'LORE_TIER_LIST_BACKUP';
+  version: number;
+  exportedAt: string;
+  category: Category;
+  mainTab: MainTabType;
+  items: ArchiveItem[];
+}

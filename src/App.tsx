@@ -17,7 +17,12 @@ import {
   writeDataToFolder,
   loadDataFromLocalStorage,
   saveDataToLocalStorage,
+  deleteImageFromFolder,
+  exportTierListBackup,
+  parseTierListBackupFile,
+  checkDirectoryHandleAccessibility,
 } from './utils/fileSystem';
+import { sortArchiveItems } from './utils/sortUtils';
 
 import { HeaderTabs, TRACKED_TAB_ID } from './components/HeaderTabs';
 import { ItemCard } from './components/ItemCard';
@@ -27,7 +32,10 @@ import { ItemDetailModal } from './components/ItemDetailModal';
 import { AddItemModal } from './components/AddItemModal';
 import { SettingsModal } from './components/SettingsModal';
 import { StatisticsModal } from './components/StatisticsModal';
-import { Plus, BarChart3 } from 'lucide-react';
+import { ImagePreviewModal } from './components/ImagePreviewModal';
+import { BulkMoveModal } from './components/BulkMoveModal';
+import { CustomDialog, CustomDialogOptions } from './components/CustomDialog';
+import { Plus, BarChart3, CheckSquare, Square, Trash2, FolderInput, X } from 'lucide-react';
 
 export default function App() {
   // --- Persistent App Data State ---
@@ -37,6 +45,12 @@ export default function App() {
 
   const [dirHandle, setDirHandle] = useState<FileSystemDirectoryHandle | null>(null);
   const [isDataLoaded, setIsDataLoaded] = useState(false);
+  const [dialogOptions, setDialogOptions] = useState<CustomDialogOptions | null>(null);
+
+  // --- Bulk Selection State ---
+  const [isSelectionMode, setIsSelectionMode] = useState(false);
+  const [selectedItemIds, setSelectedItemIds] = useState<Set<string>>(new Set());
+  const [isBulkMoveOpen, setIsBulkMoveOpen] = useState(false);
 
   // --- Active Navigation & Filter States ---
   const [mainTab, setMainTab] = useState<MainTabType>('media');
@@ -53,6 +67,16 @@ export default function App() {
   const [isStatisticsOpen, setIsStatisticsOpen] = useState(false);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [selectedItem, setSelectedItem] = useState<ArchiveItem | null>(null);
+  const [hoveredItem, setHoveredItem] = useState<ArchiveItem | null>(null);
+  const [previewItem, setPreviewItem] = useState<ArchiveItem | null>(null);
+
+  // UI Experiments State for testing toolbar & UI designs
+  const [uiExperiments, setUiExperiments] = useState({
+    toolbarBox: false,
+    toolbarGlass: false,
+    floatingToolbar: false,
+    cardBorderGlow: false,
+  });
 
   // Filter State
   const [filters, setFilters] = useState<FilterState>({
@@ -116,14 +140,20 @@ export default function App() {
 
         const storedHandle = await getStoredDirectoryHandle();
         if (storedHandle) {
-          const hasPerm = await verifyPermission(storedHandle, true);
-          if (hasPerm) {
-            setDirHandle(storedHandle);
-            const folderData = await readDataFromFolder(storedHandle);
-            if (folderData && folderData.categories && folderData.items) {
-              setAppData(folderData);
-              saveDataToLocalStorage(folderData);
+          const isAccessible = await checkDirectoryHandleAccessibility(storedHandle);
+          if (isAccessible) {
+            const hasPerm = await verifyPermission(storedHandle, true);
+            if (hasPerm) {
+              setDirHandle(storedHandle);
+              const folderData = await readDataFromFolder(storedHandle);
+              if (folderData && folderData.categories && folderData.items) {
+                setAppData(folderData);
+                saveDataToLocalStorage(folderData);
+              }
             }
+          } else {
+            // Folder is no longer accessible (renamed, moved, or deleted)
+            await storeDirectoryHandle(null as any);
           }
         }
       } catch (err) {
@@ -170,11 +200,13 @@ export default function App() {
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       // 'Escape' key -> Smart ESC:
-      // If modal/panel/search is open -> close active window.
+      // If preview/modal/panel/search is open -> close active window.
       // If no window is open -> open Settings (or close if already open).
       if (e.key === 'Escape') {
         e.preventDefault();
-        if (selectedItem) {
+        if (previewItem) {
+          setPreviewItem(null);
+        } else if (selectedItem) {
           setSelectedItem(null);
         } else if (isAddModalOpen) {
           setIsAddModalOpen(false);
@@ -199,6 +231,17 @@ export default function App() {
         target.tagName === 'SELECT' ||
         target.isContentEditable
       ) {
+        return;
+      }
+
+      // 'F' or 'f' key -> Toggle large poster preview for currently hovered card
+      if (e.key === 'f' || e.key === 'F') {
+        e.preventDefault();
+        if (previewItem) {
+          setPreviewItem(null);
+        } else if (hoveredItem) {
+          setPreviewItem(hoveredItem);
+        }
         return;
       }
 
@@ -274,7 +317,7 @@ export default function App() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [closeAllPanels, selectedItem, isAddModalOpen, isSettingsOpen, isFilterOpen, isViewOpen, isSearchOpen, activeCategory]);
+  }, [closeAllPanels, selectedItem, isAddModalOpen, isSettingsOpen, isFilterOpen, isViewOpen, isSearchOpen, activeCategory, hoveredItem, previewItem]);
 
   // Directory Connection Handlers
   const handleConnectFolder = async () => {
@@ -334,11 +377,111 @@ export default function App() {
   };
 
   const handleDeleteItem = (itemId: string) => {
+    const itemToDelete = appData.items.find((it) => it.id === itemId);
+    if (dirHandle) {
+      deleteImageFromFolder(dirHandle, itemToDelete?.thumbnailFileName, itemId).catch((e) => {
+        console.warn('Failed to delete image from folder:', e);
+      });
+    }
+
     setAppData((prev) => ({
       ...prev,
       items: prev.items.filter((it) => it.id !== itemId),
     }));
     setSelectedItem(null);
+  };
+
+  // --- Bulk Selection & Action Handlers ---
+  const handleToggleSelectItem = (itemId: string) => {
+    setSelectedItemIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(itemId)) {
+        next.delete(itemId);
+      } else {
+        next.add(itemId);
+      }
+      return next;
+    });
+  };
+
+  const handleSelectAllFiltered = (currentFilteredItems: ArchiveItem[]) => {
+    const allIds = currentFilteredItems.map((it) => it.id);
+    const isAllSelected = allIds.length > 0 && allIds.every((id) => selectedItemIds.has(id));
+    
+    setSelectedItemIds((prev) => {
+      const next = new Set(prev);
+      if (isAllSelected) {
+        allIds.forEach((id) => next.delete(id));
+      } else {
+        allIds.forEach((id) => next.add(id));
+      }
+      return next;
+    });
+  };
+
+  const handleBulkDelete = () => {
+    if (selectedItemIds.size === 0) return;
+    const count = selectedItemIds.size;
+    
+    setDialogOptions({
+      type: 'confirm',
+      title: 'Toplu Yapım Sil',
+      message: `Seçili ${count} yapım arşivden ve diskteki karşılık gelen afiş görselleri silinecektir. Bu işlem geri alınamaz. Devam etmek istiyor musunuz?`,
+      confirmLabel: 'Evet, Sil',
+      cancelLabel: 'İptal',
+      danger: true,
+      onConfirm: () => {
+        if (dirHandle) {
+          const itemsToDelete = appData.items.filter((it) => selectedItemIds.has(it.id));
+          for (const item of itemsToDelete) {
+            deleteImageFromFolder(dirHandle, item.thumbnailFileName, item.id).catch((e) => {
+              console.warn('Failed to delete image during bulk delete:', e);
+            });
+          }
+        }
+
+        setAppData((prev) => {
+          const updated = {
+            ...prev,
+            items: prev.items.filter((it) => !selectedItemIds.has(it.id)),
+          };
+          saveDataToLocalStorage(updated);
+          if (dirHandle) {
+            writeDataToFolder(dirHandle, updated).catch(() => {});
+          }
+          return updated;
+        });
+
+        setSelectedItemIds(new Set());
+      },
+    });
+  };
+
+  const handleBulkMove = (targetCatId: string, targetSub: string | null) => {
+    if (selectedItemIds.size === 0) return;
+    setAppData((prev) => {
+      const updated = {
+        ...prev,
+        items: prev.items.map((it) => {
+          if (selectedItemIds.has(it.id)) {
+            return {
+              ...it,
+              cat: targetCatId,
+              sub: targetSub,
+            };
+          }
+          return it;
+        }),
+      };
+      saveDataToLocalStorage(updated);
+      if (dirHandle) {
+        writeDataToFolder(dirHandle, updated).catch(() => {});
+      }
+      return updated;
+    });
+
+    setSelectedItemIds(new Set());
+    setIsBulkMoveOpen(false);
   };
 
   // --- Category & Tier Row Operations ---
@@ -374,16 +517,30 @@ export default function App() {
     });
   };
 
-  const handleUpdateTierPlacement = (
-    itemId: string,
-    tierId: string | null
-  ) => {
-    setAppData((prev) => ({
-      ...prev,
-      items: prev.items.map((it) =>
-        it.id === itemId ? { ...it, tier: tierId } : it
-      ),
-    }));
+  // --- Tier List Undo/Redo & Moved Item Tracking State & Refs ---
+  const [tierHistory, setTierHistory] = useState<ArchiveItem[][]>([]);
+  const [tierHistoryIndex, setTierHistoryIndex] = useState<number>(-1);
+
+  // Refs for instantaneous, synchronous history indexing without closure lag
+  const tierHistoryRef = React.useRef<ArchiveItem[][]>([]);
+  const tierHistoryIndexRef = React.useRef<number>(-1);
+
+  // Helper to compare whether two item states have identical tier placements & order in the active category
+  const areCategoryPlacementsEqual = (
+    a: ArchiveItem[],
+    b: ArchiveItem[],
+    tab: MainTabType,
+    catId: string
+  ): boolean => {
+    const aCat = a.filter((it) => it.mainTab === tab && it.cat === catId);
+    const bCat = b.filter((it) => it.mainTab === tab && it.cat === catId);
+    if (aCat.length !== bCat.length) return false;
+    for (let i = 0; i < aCat.length; i++) {
+      if (aCat[i].id !== bCat[i].id || aCat[i].tier !== bCat[i].tier) {
+        return false;
+      }
+    }
+    return true;
   };
 
   // Switch Main Tabs (Media / Game)
@@ -399,9 +556,331 @@ export default function App() {
     setActiveSub(null);
   };
 
+  // Reset Tier List history when entering Tier Mode or switching categories
+  useEffect(() => {
+    if (viewMode === 'tier' && activeCatId) {
+      tierHistoryRef.current = [appData.items];
+      tierHistoryIndexRef.current = 0;
+      setTierHistory([appData.items]);
+      setTierHistoryIndex(0);
+    } else {
+      tierHistoryRef.current = [];
+      tierHistoryIndexRef.current = -1;
+      setTierHistory([]);
+      setTierHistoryIndex(-1);
+    }
+  }, [mainTab, activeCatId, viewMode]);
+
+  // Star Badge: Computes cards currently placed differently from Session Snapshot 0
+  const movedItemIds = useMemo(() => {
+    if (viewMode !== 'tier' || !activeCatId || tierHistory.length <= 1 || tierHistoryIndex === 0) {
+      return new Set<string>();
+    }
+
+    const baseItems = tierHistory[0];
+    if (!baseItems) return new Set<string>();
+
+    const baseCatItems = baseItems.filter((it) => it.mainTab === mainTab && it.cat === activeCatId);
+    const currentCatItems = appData.items.filter((it) => it.mainTab === mainTab && it.cat === activeCatId);
+
+    const baseMap = new Map<string, { tier: string | null; indexInTier: number }>();
+    const baseTierCounters = new Map<string | null, number>();
+    baseCatItems.forEach((it) => {
+      const idx = baseTierCounters.get(it.tier) || 0;
+      baseMap.set(it.id, { tier: it.tier, indexInTier: idx });
+      baseTierCounters.set(it.tier, idx + 1);
+    });
+
+    const movedSet = new Set<string>();
+    const curTierCounters = new Map<string | null, number>();
+    currentCatItems.forEach((it) => {
+      const curIdx = curTierCounters.get(it.tier) || 0;
+      curTierCounters.set(it.tier, curIdx + 1);
+
+      const base = baseMap.get(it.id);
+      if (!base) {
+        movedSet.add(it.id);
+      } else if (base.tier !== it.tier || base.indexInTier !== curIdx) {
+        movedSet.add(it.id);
+      }
+    });
+
+    return movedSet;
+  }, [appData.items, mainTab, activeCatId, viewMode, tierHistory, tierHistoryIndex]);
+
+  const handleUpdateTierPlacement = (
+    itemId: string,
+    tierId: string | null,
+    targetItemId?: string | null,
+    position?: 'before' | 'after'
+  ) => {
+    const currentItems = appData.items;
+    const itemIndex = currentItems.findIndex((it) => it.id === itemId);
+    if (itemIndex === -1) return;
+
+    const item = { ...currentItems[itemIndex], tier: tierId };
+    const newItems = currentItems.filter((it) => it.id !== itemId);
+
+    if (targetItemId && targetItemId !== itemId) {
+      const targetIndex = newItems.findIndex((it) => it.id === targetItemId);
+      if (targetIndex !== -1) {
+        const insertIndex = position === 'after' ? targetIndex + 1 : targetIndex;
+        newItems.splice(insertIndex, 0, item);
+      } else {
+        newItems.push(item);
+      }
+    } else if (tierId !== null) {
+      // Find the last item with this tier in newItems
+      let lastIndex = -1;
+      for (let i = newItems.length - 1; i >= 0; i--) {
+        if (newItems[i].tier === tierId) {
+          lastIndex = i;
+          break;
+        }
+      }
+      if (lastIndex !== -1) {
+        newItems.splice(lastIndex + 1, 0, item);
+      } else {
+        newItems.push(item);
+      }
+    } else {
+      // Returned to unranked pool
+      newItems.push(item);
+    }
+
+    // Check if placement actually changed
+    if (activeCatId && areCategoryPlacementsEqual(currentItems, newItems, mainTab, activeCatId)) {
+      return;
+    }
+
+    // Synchronously record snapshot to Undo/Redo history stack once
+    const curIdx = tierHistoryIndexRef.current;
+    const baseHistory = curIdx >= 0 ? tierHistoryRef.current.slice(0, curIdx + 1) : [currentItems];
+    const newHistory = [...baseHistory, newItems];
+    const newIdx = newHistory.length - 1;
+
+    tierHistoryRef.current = newHistory;
+    tierHistoryIndexRef.current = newIdx;
+    setTierHistory(newHistory);
+    setTierHistoryIndex(newIdx);
+
+    setAppData((prev) => ({ ...prev, items: newItems }));
+  };
+
+  // Batch placement update (e.g. for clearing a row or clearing all cards in a single undo step)
+  const handleBatchUpdateTierPlacements = (
+    updates: { itemId: string; tierRowId: string | null }[]
+  ) => {
+    if (!activeCatId || updates.length === 0) return;
+    const currentItems = appData.items;
+    const updateMap = new Map(updates.map((u) => [u.itemId, u.tierRowId]));
+
+    const newItems = currentItems.map((it) => {
+      if (updateMap.has(it.id)) {
+        return { ...it, tier: updateMap.get(it.id)! };
+      }
+      return it;
+    });
+
+    if (areCategoryPlacementsEqual(currentItems, newItems, mainTab, activeCatId)) {
+      return;
+    }
+
+    const curIdx = tierHistoryIndexRef.current;
+    const baseHistory = curIdx >= 0 ? tierHistoryRef.current.slice(0, curIdx + 1) : [currentItems];
+    const newHistory = [...baseHistory, newItems];
+    const newIdx = newHistory.length - 1;
+
+    tierHistoryRef.current = newHistory;
+    tierHistoryIndexRef.current = newIdx;
+    setTierHistory(newHistory);
+    setTierHistoryIndex(newIdx);
+
+    setAppData((prev) => ({ ...prev, items: newItems }));
+  };
+
+  const canUndo = viewMode === 'tier' && tierHistoryIndex > 0;
+  const canRedo =
+    viewMode === 'tier' &&
+    tierHistoryIndex >= 0 &&
+    tierHistoryIndex < tierHistory.length - 1;
+
+  const handleTierUndo = () => {
+    const curIdx = tierHistoryIndexRef.current;
+    if (curIdx <= 0) return;
+    const newIdx = curIdx - 1;
+    const targetItems = tierHistoryRef.current[newIdx];
+    if (targetItems) {
+      tierHistoryIndexRef.current = newIdx;
+      setTierHistoryIndex(newIdx);
+      setAppData((prev) => ({ ...prev, items: targetItems }));
+    }
+  };
+
+  const handleTierRedo = () => {
+    const curIdx = tierHistoryIndexRef.current;
+    if (curIdx < 0 || curIdx >= tierHistoryRef.current.length - 1) return;
+    const newIdx = curIdx + 1;
+    const targetItems = tierHistoryRef.current[newIdx];
+    if (targetItems) {
+      tierHistoryIndexRef.current = newIdx;
+      setTierHistoryIndex(newIdx);
+      setAppData((prev) => ({ ...prev, items: targetItems }));
+    }
+  };
+
+  // Keyboard Shortcuts for Tier List Undo (Ctrl+Z) & Redo (Ctrl+Y / Ctrl+Shift+Z)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (viewMode !== 'tier') return;
+      const target = e.target as HTMLElement;
+      if (
+        target &&
+        (target.tagName === 'INPUT' ||
+          target.tagName === 'TEXTAREA' ||
+          target.isContentEditable)
+      ) {
+        return;
+      }
+
+      const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
+      const isCmdOrCtrl = isMac ? e.metaKey : e.ctrlKey;
+
+      if (isCmdOrCtrl && !e.altKey) {
+        if (e.key === 'z' || e.key === 'Z') {
+          if (e.shiftKey) {
+            e.preventDefault();
+            handleTierRedo();
+          } else {
+            e.preventDefault();
+            handleTierUndo();
+          }
+        } else if (e.key === 'y' || e.key === 'Y') {
+          e.preventDefault();
+          handleTierRedo();
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [viewMode, canUndo, canRedo, tierHistory, tierHistoryIndex]);
+
+  // Export and Import for active Tier List
+  const handleExportTierList = () => {
+    if (!activeCategory) return;
+    exportTierListBackup(mainTab, activeCategory, appData.items);
+  };
+
+  const handleImportTierList = async (file: File) => {
+    if (!activeCategory) return;
+    try {
+      const backup = await parseTierListBackupFile(file);
+      
+      setDialogOptions({
+        type: 'confirm',
+        title: 'Tier List Yedeğini Geri Yükle',
+        message: `"${backup.category.name}" kategorisine ait Tier List yedeği bulundu (${backup.items.length} yapım, ${backup.category.tierRows.length} satır).\n\nBu kategorinin Tier List yapısı ve kart sıralamaları geri yüklensin mi?`,
+        confirmLabel: 'Geri Yükle',
+        cancelLabel: 'Vazgeç',
+        onConfirm: () => {
+          // Update category tierRows
+          const updatedCats = {
+            ...appData.categories,
+            [mainTab]: (appData.categories[mainTab] || []).map((c) =>
+              c.id === activeCategory.id
+                ? { ...c, tierEnabled: true, tierRows: backup.category.tierRows }
+                : c
+            ),
+          };
+
+          const backupItemMap = new Map(backup.items.map((it) => [it.id, it]));
+          
+          // Current items in this category
+          const categoryCurrentItems = appData.items.filter(
+            (it) => it.mainTab === mainTab && it.cat === activeCategory.id
+          );
+          const otherItems = appData.items.filter(
+            (it) => !(it.mainTab === mainTab && it.cat === activeCategory.id)
+          );
+
+          // 1. Items present in the backup: restore backup tier and retain backup order
+          const restoredBackupItems: ArchiveItem[] = [];
+          const placedTitles: string[] = [];
+          for (const bItem of backup.items) {
+            const currentMatching = categoryCurrentItems.find((it) => it.id === bItem.id);
+            if (currentMatching) {
+              restoredBackupItems.push({
+                ...currentMatching,
+                tier: bItem.tier,
+              });
+              placedTitles.push(currentMatching.title);
+            }
+          }
+
+          // 2. Items NOT present in the backup (e.g. 15th anime added today vs 14 in yesterday's backup):
+          // Send to unranked pool (tier: null) and append at the end
+          const newUnbackedItems: ArchiveItem[] = categoryCurrentItems
+            .filter((it) => !backupItemMap.has(it.id))
+            .map((it) => ({
+              ...it,
+              tier: null, // Send to unranked pool
+            }));
+          const newPoolTitles = newUnbackedItems.map((it) => it.title);
+
+          // 3. Backup items that are missing from current library (deleted or moved):
+          const currentItemMap = new Map(categoryCurrentItems.map((it) => [it.id, it]));
+          const missingFromLibrary = backup.items.filter((it) => !currentItemMap.has(it.id));
+          const missingTitles = missingFromLibrary.map((it) => it.title || it.id);
+
+          const mergedCategoryItems = [...restoredBackupItems, ...newUnbackedItems];
+          const updatedItems = [...otherItems, ...mergedCategoryItems];
+
+          // Reset history for tier session with newly imported state
+          tierHistoryRef.current = [updatedItems];
+          tierHistoryIndexRef.current = 0;
+          setTierHistory([updatedItems]);
+          setTierHistoryIndex(0);
+
+          const updatedData = {
+            ...appData,
+            categories: updatedCats,
+            items: updatedItems,
+          };
+          setAppData(updatedData);
+          saveDataToLocalStorage(updatedData);
+          if (dirHandle) {
+            writeDataToFolder(dirHandle, updatedData).catch(() => {});
+          }
+
+          setDialogOptions({
+            type: 'tier-report',
+            title: `"${activeCategory.name}" Tier Listesi Yüklendi`,
+            confirmText: 'Tamam',
+            tierReport: {
+              categoryName: activeCategory.name,
+              placedCount: placedTitles.length,
+              placedTitles,
+              newPoolCount: newPoolTitles.length,
+              newPoolTitles,
+              missingCount: missingTitles.length,
+              missingTitles,
+            },
+          });
+        },
+      });
+    } catch (err: any) {
+      setDialogOptions({
+        type: 'alert',
+        title: 'İçe Aktarma Hatası',
+        message: 'Tier List içe aktarma hatası: ' + (err.message || err),
+      });
+    }
+  };
+
   // --- Filter and Search Logic ---
   const filteredItems = useMemo(() => {
-    return appData.items.filter((item) => {
+    const result = appData.items.filter((item) => {
       // 1. Tab match
       if (item.mainTab !== mainTab) return false;
 
@@ -474,7 +953,10 @@ export default function App() {
 
       return true;
     });
-  }, [appData.items, mainTab, activeCatId, activeSub, searchQuery, filters]);
+
+    // Apply Sorting: Default to 'date-desc' (Last Watched/Finished first, ?? dates safely placed at the end)
+    return sortArchiveItems(result, viewSettings.sortBy || 'date-desc');
+  }, [appData.items, mainTab, activeCatId, activeSub, searchQuery, filters, viewSettings.sortBy]);
 
   // Card size calculation for CSS Grid auto-fill (1: 120px, 2: 150px, 3: 185px, 4: 230px, 5: 280px)
   const cardMinWidth = useMemo(() => {
@@ -544,10 +1026,22 @@ export default function App() {
           filters={filters}
           viewSettings={viewSettings}
           dirHandle={dirHandle}
+          isSelectionMode={isSelectionMode}
+          canUndo={canUndo}
+          canRedo={canRedo}
+          onUndo={handleTierUndo}
+          onRedo={handleTierRedo}
+          onExportTierList={handleExportTierList}
+          onImportTierList={handleImportTierList}
+          uiExperiments={uiExperiments}
           onMainTabChange={handleMainTabChange}
           onCategorySelect={handleCategorySelect}
           onSubgroupSelect={setActiveSub}
           onViewModeChange={setViewMode}
+          onToggleSelectionMode={() => {
+            setIsSelectionMode((p) => !p);
+            setSelectedItemIds(new Set());
+          }}
           onSearchChange={setSearchQuery}
           onToggleSearch={() => {
             setIsSearchOpen((prev) => !prev);
@@ -562,8 +1056,15 @@ export default function App() {
             setIsViewOpen((prev) => !prev);
             setIsFilterOpen(false);
           }}
-          onOpenSettings={() => {
+          onOpenSettings={async () => {
             closeAllPanels();
+            if (dirHandle) {
+              const isAccessible = await checkDirectoryHandleAccessibility(dirHandle);
+              if (!isAccessible) {
+                setDirHandle(null);
+                await storeDirectoryHandle(null as any);
+              }
+            }
             setIsSettingsOpen(true);
           }}
           onOpenStatistics={() => {
@@ -586,7 +1087,17 @@ export default function App() {
             <TrackedView
               items={filteredItems}
               viewSettings={viewSettings}
-              onItemClick={(item) => setSelectedItem(item)}
+              onItemClick={(item) => {
+                if (isSelectionMode) {
+                  handleToggleSelectItem(item.id);
+                } else {
+                  setSelectedItem(item);
+                }
+              }}
+              onItemHover={(item) => setHoveredItem(item)}
+              isSelectionMode={isSelectionMode}
+              selectedItemIds={selectedItemIds}
+              onToggleSelectItem={handleToggleSelectItem}
             />
           ) : activeCategory && activeCategory.tierEnabled && viewMode === 'tier' ? (
             /* B: Tier List View */
@@ -594,7 +1105,9 @@ export default function App() {
               mainTab={mainTab}
               category={activeCategory}
               items={appData.items}
+              movedItemIds={movedItemIds}
               onUpdateTierPlacement={handleUpdateTierPlacement}
+              onBatchUpdateTierPlacements={handleBatchUpdateTierPlacements}
               onUpdateCategoryRows={(rows) =>
                 handleUpdateCategoryTierRows(activeCategory.id, rows)
               }
@@ -616,7 +1129,20 @@ export default function App() {
                       key={item.id}
                       item={item}
                       viewSettings={viewSettings}
-                      onClick={() => setSelectedItem(item)}
+                      onClick={() => {
+                        if (isSelectionMode) {
+                          handleToggleSelectItem(item.id);
+                        } else {
+                          setSelectedItem(item);
+                        }
+                      }}
+                      onMouseEnter={() => setHoveredItem(item)}
+                      onMouseLeave={() =>
+                        setHoveredItem((prev) => (prev?.id === item.id ? null : prev))
+                      }
+                      isSelectionMode={isSelectionMode}
+                      isSelected={selectedItemIds.has(item.id)}
+                      onToggleSelect={() => handleToggleSelectItem(item.id)}
                     />
                   ))}
                 </div>
@@ -640,6 +1166,82 @@ export default function App() {
           )}
         </main>
       </div>
+
+      {/* Floating Bulk Action Bar */}
+      {isSelectionMode && (
+        <div
+          id="bulk-actions-floating-bar"
+          className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-neutral-900/95 border border-blue-500/40 backdrop-blur-xl px-4 py-2.5 rounded-2xl shadow-2xl shadow-black/80 flex items-center gap-3 animate-in fade-in slide-in-from-bottom-4 duration-200"
+        >
+          <div className="flex items-center gap-2 pr-2 border-r border-white/10">
+            <span className="w-2.5 h-2.5 rounded-full bg-blue-500 animate-pulse" />
+            <span className="text-xs font-bold text-white whitespace-nowrap">
+              {selectedItemIds.size} / {filteredItems.length} Seçili
+            </span>
+          </div>
+
+          {/* Select All / Deselect Button */}
+          <button
+            id="bulk-select-all-btn"
+            onClick={() => handleSelectAllFiltered(filteredItems)}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-neutral-200 text-xs font-medium transition-colors cursor-pointer"
+            title={
+              filteredItems.length > 0 &&
+              filteredItems.every((it) => selectedItemIds.has(it.id))
+                ? 'Seçimi Temizle'
+                : 'Tümünü Seç'
+            }
+          >
+            {filteredItems.length > 0 &&
+            filteredItems.every((it) => selectedItemIds.has(it.id)) ? (
+              <>
+                <CheckSquare className="w-3.5 h-3.5 text-blue-400" />
+                <span>Bırak</span>
+              </>
+            ) : (
+              <>
+                <Square className="w-3.5 h-3.5 text-neutral-400" />
+                <span>Tümü</span>
+              </>
+            )}
+          </button>
+
+          {/* Move Button */}
+          <button
+            id="bulk-move-btn"
+            disabled={selectedItemIds.size === 0}
+            onClick={() => setIsBulkMoveOpen(true)}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-600/90 hover:bg-blue-600 text-white text-xs font-semibold shadow-md shadow-blue-600/30 transition-all disabled:opacity-40 disabled:pointer-events-none cursor-pointer"
+          >
+            <FolderInput className="w-3.5 h-3.5" />
+            <span>Taşı</span>
+          </button>
+
+          {/* Delete Button */}
+          <button
+            id="bulk-delete-btn"
+            disabled={selectedItemIds.size === 0}
+            onClick={handleBulkDelete}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-red-600/90 hover:bg-red-600 text-white text-xs font-semibold shadow-md shadow-red-600/30 transition-all disabled:opacity-40 disabled:pointer-events-none cursor-pointer"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+            <span>Sil</span>
+          </button>
+
+          {/* Exit Selection Mode Button */}
+          <button
+            id="bulk-close-btn"
+            onClick={() => {
+              setIsSelectionMode(false);
+              setSelectedItemIds(new Set());
+            }}
+            className="p-1.5 rounded-xl hover:bg-white/10 text-neutral-400 hover:text-white transition-colors cursor-pointer ml-1"
+            title="Seçim modunu kapat"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
 
       {/* Floating Action Button (FAB) for Adding Items - Sadece Izgara Modunda Görünür */}
       {viewMode === 'grid' && (
@@ -671,6 +1273,51 @@ export default function App() {
           >
             <Plus className="w-5 h-5 transition-transform duration-200 group-hover:rotate-90" />
           </button>
+
+          {/* Bottom Center UI Experiment Test Bar */}
+          <div
+            id="ui-test-experiment-bar"
+            onClick={(e) => e.stopPropagation()}
+            className="fixed bottom-5 left-1/2 -translate-x-1/2 z-40 bg-neutral-900/90 border border-white/20 backdrop-blur-md px-3 py-1.5 rounded-2xl shadow-2xl flex items-center gap-1.5 text-xs select-none"
+          >
+            <span className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider px-1">
+              UI Test:
+            </span>
+            <button
+              type="button"
+              onClick={() =>
+                setUiExperiments((p) => ({
+                  ...p,
+                  toolbarBox: !p.toolbarBox,
+                  toolbarGlass: false,
+                }))
+              }
+              className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-all cursor-pointer ${
+                uiExperiments.toolbarBox
+                  ? 'bg-blue-600 text-white shadow'
+                  : 'bg-white/5 hover:bg-white/10 text-neutral-300'
+              }`}
+            >
+              Gri Toolbar Kutu {uiExperiments.toolbarBox ? '✓' : ''}
+            </button>
+            <button
+              type="button"
+              onClick={() =>
+                setUiExperiments((p) => ({
+                  ...p,
+                  toolbarGlass: !p.toolbarGlass,
+                  toolbarBox: false,
+                }))
+              }
+              className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-all cursor-pointer ${
+                uiExperiments.toolbarGlass
+                  ? 'bg-blue-600 text-white shadow'
+                  : 'bg-white/5 hover:bg-white/10 text-neutral-300'
+              }`}
+            >
+              Buzlu Cam {uiExperiments.toolbarGlass ? '✓' : ''}
+            </button>
+          </div>
         </>
       )}
 
@@ -717,6 +1364,9 @@ export default function App() {
           onUpdateItems={(newItems) => {
             setAppData((prev) => ({ ...prev, items: newItems }));
           }}
+          onSelectItem={(item) => {
+            setSelectedItem(item);
+          }}
           onReplaceAllData={(newData) => {
             setAppData(newData);
             setIsSettingsOpen(false);
@@ -732,6 +1382,34 @@ export default function App() {
           categories={appData.categories}
           initialTab={mainTab}
           onClose={() => setIsStatisticsOpen(false)}
+        />
+      )}
+
+      {/* 5. Image Large Preview Lightbox Modal (Triggered by 'F' key) */}
+      {previewItem && (
+        <ImagePreviewModal
+          item={previewItem}
+          onClose={() => setPreviewItem(null)}
+        />
+      )}
+
+      {/* 6. Bulk Move Modal */}
+      {isBulkMoveOpen && (
+        <BulkMoveModal
+          isOpen={isBulkMoveOpen}
+          selectedCount={selectedItemIds.size}
+          mainTab={mainTab}
+          categories={currentCategories}
+          onClose={() => setIsBulkMoveOpen(false)}
+          onMove={handleBulkMove}
+        />
+      )}
+
+      {/* 7. Centered Custom In-App Dialog / Report Modal */}
+      {dialogOptions && (
+        <CustomDialog
+          options={dialogOptions}
+          onClose={() => setDialogOptions(null)}
         />
       )}
     </div>

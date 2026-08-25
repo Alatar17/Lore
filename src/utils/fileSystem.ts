@@ -1,7 +1,28 @@
-import { AppData, ArchiveItem } from '../types';
+import { AppData, ArchiveItem, Category, MainTabType, TierListCategoryExportData } from '../types';
 import { INITIAL_DATA } from '../data/initialData';
+import JSZip from 'jszip';
+import { renderTierListToPngBlob } from './tierImageExport';
 
-const LOCAL_STORAGE_KEY = 'yapim_arsivim_app_data_v2';
+// Helper to get formatted date string for export files (e.g., 2026-08-24_11-50 or 2026-08-24)
+export function getFormattedDateForFilename(): string {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  const hours = String(now.getHours()).padStart(2, '0');
+  const mins = String(now.getMinutes()).padStart(2, '0');
+  return `${year}-${month}-${day}_${hours}-${mins}`;
+}
+
+// Format sanitized category name for filenames
+export function sanitizeFilename(name: string): string {
+  return name
+    .replace(/[<>:"/\\|?*]+/g, '')
+    .replace(/\s+/g, '_')
+    .trim();
+}
+
+const LOCAL_STORAGE_KEY = 'yapim_arsivim_app_data_v4';
 const DB_NAME = 'YapimArsivimDB';
 const DB_STORE = 'fs_handles';
 const APP_DATA_STORE = 'app_data_store';
@@ -133,6 +154,52 @@ export async function verifyPermission(
   return false;
 }
 
+/**
+ * Checks if the directory handle is still valid, accessible, and exists on disk.
+ * Returns true if valid, false if folder was renamed, moved, deleted, or permission revoked.
+ */
+export async function checkDirectoryHandleAccessibility(
+  handle: FileSystemDirectoryHandle | null
+): Promise<boolean> {
+  if (!handle) return false;
+  try {
+    // 1. Check permission
+    const hasPerm = await verifyPermission(handle, false);
+    if (!hasPerm) return false;
+
+    // 2. Test lightweight directory operation to verify folder actually exists on disk
+    if (typeof (handle as any).values === 'function') {
+      const iterator = (handle as any).values();
+      await iterator.next();
+    } else if (typeof (handle as any).keys === 'function') {
+      const iterator = (handle as any).keys();
+      await iterator.next();
+    } else {
+      try {
+        await handle.getFileHandle(DATA_FILE_NAME, { create: false });
+      } catch (err: any) {
+        if (err.name === 'NotFoundError') {
+          return true;
+        }
+        throw err;
+      }
+    }
+    return true;
+  } catch (err: any) {
+    console.warn('Directory handle is no longer valid/accessible:', err);
+    return false;
+  }
+}
+
+function readFileAsBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
 // --- Load / Save Data from File System ---
 
 export async function readDataFromFolder(dirHandle: FileSystemDirectoryHandle): Promise<AppData | null> {
@@ -141,10 +208,33 @@ export async function readDataFromFolder(dirHandle: FileSystemDirectoryHandle): 
     const file = await fileHandle.getFile();
     const text = await file.text();
     const json = JSON.parse(text) as AppData;
+
+    let imagesDir: FileSystemDirectoryHandle | null = null;
+    try {
+      imagesDir = await dirHandle.getDirectoryHandle('images', { create: false });
+    } catch {
+      imagesDir = null;
+    }
+
+    if (imagesDir && json.items) {
+      for (const item of json.items) {
+        if (!item.thumbnail && item.thumbnailFileName) {
+          try {
+            const fileName = item.thumbnailFileName.replace(/^images\//, '');
+            const imgHandle = await imagesDir.getFileHandle(fileName);
+            const imgFile = await imgHandle.getFile();
+            const base64 = await readFileAsBase64(imgFile);
+            item.thumbnail = base64;
+          } catch {
+            // Ignore missing images
+          }
+        }
+      }
+    }
+
     return json;
   } catch (err: any) {
     if (err.name === 'NotFoundError') {
-      // File doesn't exist yet in the selected folder
       return null;
     }
     console.error('Error reading data from folder:', err);
@@ -154,10 +244,46 @@ export async function readDataFromFolder(dirHandle: FileSystemDirectoryHandle): 
 
 export async function writeDataToFolder(dirHandle: FileSystemDirectoryHandle, data: AppData): Promise<void> {
   try {
+    // 1. Ensure images folder exists and save each base64 image as a physical file
+    let imagesDir: FileSystemDirectoryHandle | null = null;
+    try {
+      imagesDir = await dirHandle.getDirectoryHandle('images', { create: true });
+    } catch (e) {
+      console.warn('Could not create images directory:', e);
+    }
+
+    const cleanItems: ArchiveItem[] = [];
+
+    for (const item of data.items) {
+      const itemCopy = { ...item };
+      if (item.thumbnail && item.thumbnail.startsWith('data:image/') && imagesDir) {
+        try {
+          const mimeMatch = item.thumbnail.match(/data:image\/([a-zA-Z0-9]+);/);
+          const ext = mimeMatch ? (mimeMatch[1] === 'jpeg' ? 'jpg' : mimeMatch[1]) : 'jpg';
+          const imgName = `${item.id}.${ext}`;
+          const blob = dataURLtoBlob(item.thumbnail);
+
+          const imgHandle = await imagesDir.getFileHandle(imgName, { create: true });
+          const imgWritable = await (imgHandle as any).createWritable();
+          await imgWritable.write(blob);
+          await imgWritable.close();
+
+          itemCopy.thumbnailFileName = `images/${imgName}`;
+        } catch (imgErr) {
+          console.warn(`Could not write image for ${item.id}:`, imgErr);
+        }
+      }
+      cleanItems.push(itemCopy);
+    }
+
+    // 2. Write the JSON file
     const fileHandle = await dirHandle.getFileHandle(DATA_FILE_NAME, { create: true });
-    const writable = await fileHandle.createWritable();
-    const content = JSON.stringify(data, null, 2);
-    await writable.write(content);
+    const writable = await (fileHandle as any).createWritable();
+    const dataToWrite: AppData = {
+      ...data,
+      items: cleanItems,
+    };
+    await writable.write(JSON.stringify(dataToWrite, null, 2));
     await writable.close();
   } catch (err) {
     console.error('Error writing data to folder:', err);
@@ -180,6 +306,113 @@ export async function saveImageToFolder(
   } catch (err) {
     console.error('Error saving image to folder:', err);
     throw err;
+  }
+}
+
+/**
+ * Scans the local `images/` directory in the connected folder and deletes any image
+ * file that does not belong to any active item in `items`.
+ * Returns the count and names of cleaned files.
+ */
+export async function cleanOrphanImagesInFolder(
+  dirHandle: FileSystemDirectoryHandle,
+  items: ArchiveItem[]
+): Promise<{ cleanedCount: number; deletedFiles: string[] }> {
+  try {
+    let imagesDir: FileSystemDirectoryHandle | null = null;
+    try {
+      imagesDir = await dirHandle.getDirectoryHandle('images', { create: false });
+    } catch {
+      return { cleanedCount: 0, deletedFiles: [] };
+    }
+
+    if (!imagesDir) return { cleanedCount: 0, deletedFiles: [] };
+
+    // Build set of all active referenced file names
+    const activeFileNames = new Set<string>();
+    for (const item of items) {
+      if (item.thumbnailFileName) {
+        activeFileNames.add(item.thumbnailFileName.replace(/^images\//, ''));
+      }
+      activeFileNames.add(`${item.id}.jpg`);
+      activeFileNames.add(`${item.id}.jpeg`);
+      activeFileNames.add(`${item.id}.png`);
+      activeFileNames.add(`${item.id}.webp`);
+    }
+
+    const deletedFiles: string[] = [];
+
+    // Safely iterate directory entries
+    if ((imagesDir as any).values) {
+      for await (const entry of (imagesDir as any).values()) {
+        if (entry.kind === 'file') {
+          const name = entry.name;
+          if (!activeFileNames.has(name)) {
+            try {
+              await (imagesDir as any).removeEntry(name);
+              deletedFiles.push(name);
+            } catch (delErr) {
+              console.warn(`Could not remove orphan image ${name}:`, delErr);
+            }
+          }
+        }
+      }
+    }
+
+    return { cleanedCount: deletedFiles.length, deletedFiles };
+  } catch (err) {
+    console.error('Error cleaning orphan images:', err);
+    throw err;
+  }
+}
+
+/**
+ * Deletes the specific image file(s) for a deleted item from the local images/ folder.
+ */
+export async function deleteImageFromFolder(
+  dirHandle: FileSystemDirectoryHandle,
+  thumbnailFileName?: string,
+  itemId?: string
+): Promise<void> {
+  try {
+    let imagesDir: FileSystemDirectoryHandle | null = null;
+    try {
+      imagesDir = await dirHandle.getDirectoryHandle('images', { create: false });
+    } catch {
+      return;
+    }
+    if (!imagesDir) return;
+
+    if (thumbnailFileName) {
+      const fileName = thumbnailFileName.replace(/^images\//, '');
+      try {
+        await (imagesDir as any).removeEntry(fileName);
+      } catch {}
+    }
+
+    if (itemId) {
+      const extensions = ['jpg', 'jpeg', 'png', 'webp', 'gif', 'bmp', 'svg'];
+      for (const ext of extensions) {
+        try {
+          await (imagesDir as any).removeEntry(`${itemId}.${ext}`);
+        } catch {}
+      }
+
+      // Check directory entries starting with itemId (e.g. media_1787582297875_4ioms.webp)
+      if ((imagesDir as any).values) {
+        try {
+          for await (const entry of (imagesDir as any).values()) {
+            if (entry.kind === 'file' && entry.name.startsWith(itemId)) {
+              try {
+                await (imagesDir as any).removeEntry(entry.name);
+              } catch {}
+            }
+          }
+        } catch {}
+      }
+    }
+  } catch (err) {
+    console.warn('Error deleting image file from folder:', err);
   }
 }
 
@@ -227,17 +460,113 @@ export function downloadJsonFile(data: AppData, filename = 'yapim-arsivim-data.j
   URL.revokeObjectURL(url);
 }
 
-export function parseUploadedJson(file: File): Promise<AppData> {
+export interface ParsedJsonResult {
+  appData: AppData;
+  isItemListOnly: boolean;
+  importedItems: ArchiveItem[];
+}
+
+export function parseUploadedJson(file: File, existingAppData?: AppData): Promise<ParsedJsonResult> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = (e) => {
       try {
         const text = e.target?.result as string;
         const json = JSON.parse(text);
-        if (!json.categories || !json.items) {
-          throw new Error('Geçersiz Yapım Arşivim veri dosyası.');
+
+        // Case 1: Direct array of items (e.g. oyunlar.json)
+        if (Array.isArray(json)) {
+          const sanitizedItems: ArchiveItem[] = json.map((it: any, index: number) => ({
+            id: it.id || `item_${Date.now()}_${index}`,
+            mainTab: it.mainTab === 'game' ? 'game' : 'media',
+            cat: it.cat || '',
+            sub: it.sub || null,
+            title: it.title || 'İsimsiz Yapım',
+            rating: typeof it.rating === 'number' ? it.rating : 0,
+            date: it.date || it.watchDate || '',
+            desc: it.desc || it.notes || '',
+            thumbnail: it.thumbnail || '',
+            thumbnailFileName: it.thumbnailFileName || undefined,
+            tier: it.tier || null,
+            following: it.following ?? false,
+            watching: it.watching ?? false,
+            dropped: it.dropped ?? false,
+            status: it.status || undefined,
+            achPercent: it.achPercent !== undefined ? it.achPercent : null,
+            achMax: it.achMax || undefined,
+            hours: it.hours || undefined,
+            firm: Array.isArray(it.firm) ? it.firm : undefined,
+            director: Array.isArray(it.director) ? it.director : undefined,
+            actors: Array.isArray(it.actors) ? it.actors : undefined,
+            developer: Array.isArray(it.developer) ? it.developer : undefined,
+            genre: Array.isArray(it.genre) ? it.genre : undefined,
+            anki: it.anki ?? false,
+            createdAt: it.createdAt || Date.now(),
+            updatedAt: it.updatedAt || Date.now(),
+          }));
+
+          const baseCategories = existingAppData?.categories || INITIAL_DATA.categories;
+          return resolve({
+            appData: {
+              version: existingAppData?.version || 1,
+              lastUpdated: new Date().toISOString(),
+              categories: baseCategories,
+              items: sanitizedItems,
+            },
+            isItemListOnly: true,
+            importedItems: sanitizedItems,
+          });
         }
-        resolve(json as AppData);
+
+        // Case 2: Object with items array (and optional categories)
+        if (json && typeof json === 'object' && Array.isArray(json.items)) {
+          const sanitizedItems: ArchiveItem[] = json.items.map((it: any, index: number) => ({
+            id: it.id || `item_${Date.now()}_${index}`,
+            mainTab: it.mainTab === 'game' ? 'game' : 'media',
+            cat: it.cat || '',
+            sub: it.sub || null,
+            title: it.title || 'İsimsiz Yapım',
+            rating: typeof it.rating === 'number' ? it.rating : 0,
+            date: it.date || it.watchDate || '',
+            desc: it.desc || it.notes || '',
+            thumbnail: it.thumbnail || '',
+            thumbnailFileName: it.thumbnailFileName || undefined,
+            tier: it.tier || null,
+            following: it.following ?? false,
+            watching: it.watching ?? false,
+            dropped: it.dropped ?? false,
+            status: it.status || undefined,
+            achPercent: it.achPercent !== undefined ? it.achPercent : null,
+            achMax: it.achMax || undefined,
+            hours: it.hours || undefined,
+            firm: Array.isArray(it.firm) ? it.firm : undefined,
+            director: Array.isArray(it.director) ? it.director : undefined,
+            actors: Array.isArray(it.actors) ? it.actors : undefined,
+            developer: Array.isArray(it.developer) ? it.developer : undefined,
+            genre: Array.isArray(it.genre) ? it.genre : undefined,
+            anki: it.anki ?? false,
+            createdAt: it.createdAt || Date.now(),
+            updatedAt: it.updatedAt || Date.now(),
+          }));
+
+          const hasCategories = json.categories && typeof json.categories === 'object';
+          const categories = hasCategories
+            ? json.categories
+            : existingAppData?.categories || INITIAL_DATA.categories;
+
+          return resolve({
+            appData: {
+              version: json.version || existingAppData?.version || 1,
+              lastUpdated: new Date().toISOString(),
+              categories,
+              items: sanitizedItems,
+            },
+            isItemListOnly: !hasCategories,
+            importedItems: sanitizedItems,
+          });
+        }
+
+        throw new Error('Geçersiz Yapım Arşivim veri dosyası.');
       } catch (err) {
         reject(err);
       }
@@ -245,6 +574,249 @@ export function parseUploadedJson(file: File): Promise<AppData> {
     reader.onerror = () => reject(new Error('Dosya okunamadı'));
     reader.readAsText(file);
   });
+}
+
+// Helper to convert base64/dataURL to Blob
+function dataURLtoBlob(dataurl: string): Blob {
+  const arr = dataurl.split(',');
+  const mime = arr[0].match(/:(.*?);/)?.[1] || 'image/jpeg';
+  const bstr = atob(arr[1]);
+  let n = bstr.length;
+  const u8arr = new Uint8Array(n);
+  while (n--) {
+    u8arr[n] = bstr.charCodeAt(n);
+  }
+  return new Blob([u8arr], { type: mime });
+}
+
+/**
+ * Builds a single, self-contained ZIP archive containing:
+ * - yapim-arsivim-data.json (Database, categories, items)
+ * - images/ (All cover posters)
+ * - tier_lists/ (Tier List JSON and high-res PNG posters for all categories)
+ */
+export async function buildUnifiedZipBlob(data: AppData): Promise<Blob> {
+  const zip = new JSZip();
+  const imgFolder = zip.folder('images');
+  const tierFolder = zip.folder('tier_lists');
+
+  // 1. Process items and pack image files
+  const cleanItems: ArchiveItem[] = [];
+  const seenIds = new Set<string>();
+
+  for (const item of data.items) {
+    if (!item.id || seenIds.has(item.id)) continue;
+    seenIds.add(item.id);
+
+    const itemCopy = { ...item };
+    if (item.thumbnail && item.thumbnail.startsWith('data:image/')) {
+      try {
+        const mimeMatch = item.thumbnail.match(/data:image\/([a-zA-Z0-9]+);/);
+        const ext = mimeMatch ? (mimeMatch[1] === 'jpeg' ? 'jpg' : mimeMatch[1]) : 'jpg';
+        const imgName = `${item.id}.${ext}`;
+        const blob = dataURLtoBlob(item.thumbnail);
+        if (imgFolder) {
+          imgFolder.file(imgName, blob);
+        }
+        itemCopy.thumbnailFileName = `images/${imgName}`;
+      } catch (e) {
+        console.warn('Image zip export error:', e);
+      }
+    }
+    cleanItems.push(itemCopy);
+  }
+
+  const exportData: AppData = {
+    ...data,
+    items: cleanItems,
+  };
+  zip.file(DATA_FILE_NAME, JSON.stringify(exportData, null, 2));
+
+  // 2. Generate Tier Lists JSON & PNGs for all categories
+  const allTabs: MainTabType[] = ['media', 'game'];
+  const now = new Date();
+
+  for (const tab of allTabs) {
+    const cats = data.categories[tab] || [];
+    for (const cat of cats) {
+      if (cat.tierEnabled) {
+        const catItems = data.items.filter(
+          (it) => it.mainTab === tab && it.cat === cat.id
+        );
+        const tierBackup: TierListCategoryExportData = {
+          type: 'LORE_TIER_LIST_BACKUP',
+          version: 1,
+          exportedAt: now.toISOString(),
+          category: cat,
+          mainTab: tab,
+          items: catItems,
+        };
+        const safeName = sanitizeFilename(cat.name);
+        const jsonFileName = `${tab}_${safeName}_TierList.json`;
+        const pngFileName = `${tab}_${safeName}_TierList.png`;
+
+        if (tierFolder) {
+          tierFolder.file(jsonFileName, JSON.stringify(tierBackup, null, 2));
+          try {
+            const pngBlob = await renderTierListToPngBlob(cat, catItems, tab);
+            tierFolder.file(pngFileName, pngBlob);
+          } catch (pngErr) {
+            console.warn(`Could not render PNG snapshot for ${cat.name}:`, pngErr);
+          }
+        }
+      }
+    }
+  }
+
+  return await zip.generateAsync({
+    type: 'blob',
+    compression: 'DEFLATE',
+    compressionOptions: { level: 6 },
+  });
+}
+
+// --- ZIP Backup / Restore (Unified Single-ZIP Format) ---
+
+export async function exportAppDataToZip(data: AppData, filename?: string): Promise<void> {
+  const actualFilename = filename || `Lore_Yedek_${getFormattedDateForFilename()}.zip`;
+  const zipBlob = await buildUnifiedZipBlob(data);
+
+  const url = URL.createObjectURL(zipBlob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = actualFilename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+export async function importAppDataFromZip(
+  fileOrBlob: File | Blob,
+  rootDirHandle?: FileSystemDirectoryHandle | null
+): Promise<AppData> {
+  const zip = await JSZip.loadAsync(fileOrBlob);
+
+  // 1. Find database json file
+  let jsonFile = zip.file(DATA_FILE_NAME);
+  if (!jsonFile) {
+    const jsonFiles = zip.file(/\.json$/i);
+    // Find json that is not inside tier_lists/
+    const rootOrMainJsons = jsonFiles.filter((f) => !f.name.startsWith('tier_lists/'));
+    if (rootOrMainJsons.length > 0) {
+      jsonFile = rootOrMainJsons[0];
+    } else if (jsonFiles.length > 0) {
+      jsonFile = jsonFiles[0];
+    }
+  }
+
+  if (!jsonFile) {
+    throw new Error('ZIP dosyası içinde geçerli bir veritabanı JSON dosyası bulunamadı.');
+  }
+
+  const jsonText = await jsonFile.async('text');
+  const rawAppData = JSON.parse(jsonText) as AppData;
+
+  if (!rawAppData.categories || !rawAppData.items) {
+    throw new Error('Geçersiz Yapım Arşivim verisi.');
+  }
+
+  // 2. Read images in zip and optionally write to rootDirHandle
+  const imageFiles = zip.file(/^images\/.+/i);
+  const imageMap = new Map<string, string>();
+
+  let localImagesDirHandle: any = null;
+  if (rootDirHandle) {
+    try {
+      localImagesDirHandle = await getOrCreateImagesDirectory(rootDirHandle);
+    } catch (e) {
+      console.warn('Could not access images directory for disk extraction:', e);
+    }
+  }
+
+  for (const imgZip of imageFiles) {
+    if (imgZip.dir) continue;
+    try {
+      const baseFilename = imgZip.name.replace(/^images\//i, '');
+      const ext = baseFilename.split('.').pop()?.toLowerCase() || 'jpg';
+      const mime = ext === 'png' ? 'image/png' : ext === 'webp' ? 'image/webp' : 'image/jpeg';
+      const blob = await imgZip.async('blob');
+      const base64 = await imgZip.async('base64');
+      const dataUrl = `data:${mime};base64,${base64}`;
+
+      imageMap.set(imgZip.name.toLowerCase(), dataUrl);
+      imageMap.set(baseFilename.toLowerCase(), dataUrl);
+
+      // Save directly to disk if connected
+      if (localImagesDirHandle) {
+        try {
+          const fh = await localImagesDirHandle.getFileHandle(baseFilename, { create: true });
+          const writable = await fh.createWritable();
+          await writable.write(blob);
+          await writable.close();
+        } catch (we) {
+          console.warn('Failed to extract image to disk:', baseFilename, we);
+        }
+      }
+    } catch (e) {
+      console.warn('Error reading image from zip:', imgZip.name, e);
+    }
+  }
+
+  // Check any root images
+  const rootImages = zip.file(/\.(jpe?g|png|webp)$/i);
+  for (const imgZip of rootImages) {
+    if (!imgZip.name.startsWith('images/') && !imgZip.name.startsWith('tier_lists/')) {
+      try {
+        const ext = imgZip.name.split('.').pop()?.toLowerCase() || 'jpg';
+        const mime = ext === 'png' ? 'image/png' : ext === 'webp' ? 'image/webp' : 'image/jpeg';
+        const base64 = await imgZip.async('base64');
+        const dataUrl = `data:${mime};base64,${base64}`;
+        imageMap.set(imgZip.name.toLowerCase(), dataUrl);
+      } catch (e) {}
+    }
+  }
+
+  // 3. Deduplicate items & attach thumbnails back to items
+  const uniqueItemsMap = new Map<string, ArchiveItem>();
+
+  for (const rawItem of rawAppData.items) {
+    if (!rawItem.id) continue;
+    const item: ArchiveItem = { ...rawItem };
+
+    if (!item.thumbnail || !item.thumbnail.startsWith('data:image/')) {
+      if (item.thumbnailFileName) {
+        const match =
+          imageMap.get(item.thumbnailFileName.toLowerCase()) ||
+          imageMap.get(item.thumbnailFileName.replace(/^images\//i, '').toLowerCase());
+        if (match) {
+          item.thumbnail = match;
+        }
+      }
+      if (!item.thumbnail || !item.thumbnail.startsWith('data:image/')) {
+        const idKeyJpg = `${item.id}.jpg`.toLowerCase();
+        const idKeyWebp = `${item.id}.webp`.toLowerCase();
+        const idKeyPng = `${item.id}.png`.toLowerCase();
+        if (imageMap.has(idKeyJpg)) {
+          item.thumbnail = imageMap.get(idKeyJpg)!;
+        } else if (imageMap.has(idKeyWebp)) {
+          item.thumbnail = imageMap.get(idKeyWebp)!;
+        } else if (imageMap.has(idKeyPng)) {
+          item.thumbnail = imageMap.get(idKeyPng)!;
+        }
+      }
+    }
+
+    uniqueItemsMap.set(item.id, item);
+  }
+
+  const appData: AppData = {
+    ...rawAppData,
+    items: Array.from(uniqueItemsMap.values()),
+    lastUpdated: new Date().toISOString(),
+  };
+
+  return appData;
 }
 
 // --- Standalone HTML Export for Mobile/Phone ("Telefon için Dışa Aktar") ---
@@ -555,4 +1127,221 @@ export function downloadPhoneHtml(data: AppData): void {
   a.click();
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
+}
+
+export interface FolderBackupItem {
+  folderName: string;
+  zipFileName: string;
+  dateFormatted: string;
+  dateTimestamp: number;
+  dirHandle: FileSystemDirectoryHandle;
+  fileHandle: FileSystemFileHandle;
+}
+
+export async function generateFullBackupInFolder(
+  dirHandle: FileSystemDirectoryHandle,
+  data: AppData
+): Promise<string> {
+  // 1. Ensure 'Backup' parent folder exists in the selected directory
+  const backupParentDir = await dirHandle.getDirectoryHandle('Backup', { create: true });
+
+  // 2. Create date-named subfolder: YYYY-MM-DD_HH-mm (e.g. 2026-08-25_16-45)
+  const now = new Date();
+  const pad = (n: number) => String(n).padStart(2, '0');
+  const dateStr = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}_${pad(now.getHours())}-${pad(now.getMinutes())}`;
+  const backupFolderName = dateStr;
+  const targetBackupDir = await backupParentDir.getDirectoryHandle(backupFolderName, { create: true });
+
+  // 3. Build unified single ZIP (Database + Images + Tier Lists JSON & PNGs)
+  const zipBlob = await buildUnifiedZipBlob(data);
+
+  // 4. Save the single ZIP inside Backup/<Date_Folder>/Lore_Yedek_<Date>.zip
+  const zipFileName = `Lore_Yedek_${dateStr}.zip`;
+  const zipHandle = await targetBackupDir.getFileHandle(zipFileName, { create: true });
+  const zipWritable = await (zipHandle as any).createWritable();
+  await zipWritable.write(zipBlob);
+  await zipWritable.close();
+
+  return `Backup/${backupFolderName}/${zipFileName}`;
+}
+
+const TR_MONTHS = [
+  'Ocak', 'Şubat', 'Mart', 'Nisan', 'Mayıs', 'Haziran',
+  'Temmuz', 'Ağustos', 'Eylül', 'Ekim', 'Kasım', 'Aralık'
+];
+
+function formatBackupDateLabel(dateFolderName: string): { label: string; timestamp: number } {
+  // Try to parse YYYY-MM-DD_HH-mm or similar timestamps from name
+  const match = dateFolderName.match(/(\d{4})[-_](\d{2})[-_](\d{2})(?:[-_](\d{2})[-_](\d{2}))?/);
+  if (match) {
+    const year = parseInt(match[1], 10);
+    const month = parseInt(match[2], 10) - 1;
+    const day = parseInt(match[3], 10);
+    const hour = match[4] ? parseInt(match[4], 10) : 0;
+    const min = match[5] ? parseInt(match[5], 10) : 0;
+
+    const d = new Date(year, month, day, hour, min);
+    const monthName = TR_MONTHS[month] || String(month + 1);
+    const timeStr = `${String(hour).padStart(2, '0')}:${String(min).padStart(2, '0')}`;
+    return {
+      label: `${day} ${monthName} ${year} — ${timeStr}`,
+      timestamp: d.getTime(),
+    };
+  }
+
+  return {
+    label: dateFolderName.replace(/_/g, ' '),
+    timestamp: 0,
+  };
+}
+
+/**
+ * Scans the Backup/ directory in the connected root folder and returns all available backups sorted newest to oldest.
+ */
+export async function listFolderBackups(dirHandle: FileSystemDirectoryHandle): Promise<FolderBackupItem[]> {
+  const backups: FolderBackupItem[] = [];
+
+  try {
+    let backupDir: FileSystemDirectoryHandle;
+    try {
+      backupDir = await dirHandle.getDirectoryHandle('Backup', { create: false });
+    } catch {
+      // No Backup directory exists yet
+      return [];
+    }
+
+    if ((backupDir as any).values) {
+      for await (const entry of (backupDir as any).values()) {
+        if (entry.kind === 'directory') {
+          const subDirHandle = entry as FileSystemDirectoryHandle;
+          // Look for .zip files inside this subfolder
+          if ((subDirHandle as any).values) {
+            for await (const fileEntry of (subDirHandle as any).values()) {
+              if (fileEntry.kind === 'file' && fileEntry.name.toLowerCase().endsWith('.zip')) {
+                const { label, timestamp } = formatBackupDateLabel(entry.name || fileEntry.name);
+                backups.push({
+                  folderName: entry.name,
+                  zipFileName: fileEntry.name,
+                  dateFormatted: label,
+                  dateTimestamp: timestamp,
+                  dirHandle: subDirHandle,
+                  fileHandle: fileEntry as FileSystemFileHandle,
+                });
+              }
+            }
+          }
+        } else if (entry.kind === 'file' && entry.name.toLowerCase().endsWith('.zip')) {
+          // Direct zip in Backup/ folder
+          const { label, timestamp } = formatBackupDateLabel(entry.name);
+          backups.push({
+            folderName: 'Backup',
+            zipFileName: entry.name,
+            dateFormatted: label,
+            dateTimestamp: timestamp,
+            dirHandle: backupDir,
+            fileHandle: entry as FileSystemFileHandle,
+          });
+        }
+      }
+    }
+  } catch (err) {
+    console.warn('Error listing folder backups:', err);
+  }
+
+  // Sort newest first
+  backups.sort((a, b) => b.dateTimestamp - a.dateTimestamp);
+  return backups;
+}
+
+/**
+ * Restores all data from a selected FolderBackupItem.
+ */
+export async function restoreFromFolderBackup(
+  backupItem: FolderBackupItem,
+  rootDirHandle?: FileSystemDirectoryHandle | null
+): Promise<{ appData: AppData; restoredItemCount: number }> {
+  const file = await backupItem.fileHandle.getFile();
+  const appData = await importAppDataFromZip(file, rootDirHandle);
+  return {
+    appData,
+    restoredItemCount: appData.items.length,
+  };
+}
+
+
+export function exportTierListBackup(
+  mainTab: MainTabType,
+  category: Category,
+  allItems: ArchiveItem[]
+): void {
+  const catItems = allItems.filter(
+    (it) => it.mainTab === mainTab && it.cat === category.id
+  );
+
+  const backupData: TierListCategoryExportData = {
+    type: 'LORE_TIER_LIST_BACKUP',
+    version: 1,
+    exportedAt: new Date().toISOString(),
+    category,
+    mainTab,
+    items: catItems,
+  };
+
+  const dateStr = getFormattedDateForFilename();
+  const safeCatName = sanitizeFilename(category.name);
+  const filename = `Lore_${safeCatName}_TierList_${dateStr}.json`;
+
+  const jsonStr = JSON.stringify(backupData, null, 2);
+  const blob = new Blob([jsonStr], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+export function parseTierListBackupFile(file: File): Promise<TierListCategoryExportData> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const text = e.target?.result as string;
+        const json = JSON.parse(text);
+
+        if (
+          json &&
+          json.type === 'LORE_TIER_LIST_BACKUP' &&
+          json.category &&
+          json.category.id &&
+          Array.isArray(json.category.tierRows) &&
+          Array.isArray(json.items)
+        ) {
+          resolve(json as TierListCategoryExportData);
+          return;
+        }
+
+        // Backward/Alternative support: If someone exported category object directly or appData
+        if (json && json.tierRows && Array.isArray(json.tierRows) && json.id) {
+          resolve({
+            type: 'LORE_TIER_LIST_BACKUP',
+            version: 1,
+            exportedAt: new Date().toISOString(),
+            category: json as Category,
+            mainTab: json.mainTab || 'media',
+            items: json.items || [],
+          });
+          return;
+        }
+
+        throw new Error('Geçersiz Tier List yedek dosyası formatı.');
+      } catch (err: any) {
+        reject(err);
+      }
+    };
+    reader.onerror = () => reject(new Error('Dosya okunamadı'));
+    reader.readAsText(file);
+  });
 }

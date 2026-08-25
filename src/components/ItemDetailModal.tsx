@@ -43,9 +43,34 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
   onDelete,
   onClose,
 }) => {
-  const [formData, setFormData] = useState<ArchiveItem>({ ...item });
+  // Ensure valid category and subgroup upon initialization
+  const [formData, setFormData] = useState<ArchiveItem>(() => {
+    let cat = item.cat;
+    let sub = item.sub;
+    const catObj = categories.find((c) => c.id === cat);
+    if (!catObj && categories.length > 0) {
+      cat = categories[0].id;
+      sub = null;
+    } else if (catObj) {
+      if (sub && !catObj.subgroups.includes(sub)) {
+        sub = null;
+      }
+    }
+    return { ...item, cat, sub };
+  });
   const [pasteNotice, setPasteNotice] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Auto-sync category if categories list updates or current cat becomes invalid
+  useEffect(() => {
+    if (categories.length > 0 && !categories.some((c) => c.id === formData.cat)) {
+      setFormData((prev) => ({
+        ...prev,
+        cat: categories[0].id,
+        sub: null,
+      }));
+    }
+  }, [categories, formData.cat]);
 
   const isGame = formData.mainTab === 'game';
   const selectedCatObj = categories.find((c) => c.id === formData.cat);
@@ -232,7 +257,7 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
   return (
     <div
       id="detail-modal-overlay"
-      className="fixed inset-0 z-50 bg-black/80 backdrop-blur-xs flex items-center justify-center p-3 sm:p-5 overflow-y-auto"
+      className="fixed inset-0 z-60 bg-black/80 backdrop-blur-xs flex items-center justify-center p-3 sm:p-5 overflow-y-auto"
       onClick={onClose}
     >
       <div
@@ -245,7 +270,7 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
           <div className="flex items-center gap-2 text-xs text-slate-400 font-medium">
             <span className="text-slate-300 font-semibold">{isGame ? '🎮 Oyun' : '🎬 Medya'}</span>
             <span>/</span>
-            <span className="text-blue-300 font-semibold">{selectedCatObj?.name || formData.cat}</span>
+            <span className="text-blue-300 font-semibold">{selectedCatObj?.name || 'Kategorisiz'}</span>
             {formData.sub && (
               <>
                 <span>/</span>
@@ -443,7 +468,11 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
                     <Calendar className="w-3 h-3 text-neutral-400" /> Tarih
                   </label>
                   <div className="flex items-center gap-1">
-                    {formData.date === '??' || formData.date === '??.??' ? (
+                    {(!isGame && formData.watching) || (isGame && formData.status === 'Oynanıyor') ? (
+                      <div className="flex-1 bg-cyan-500/10 text-cyan-300 border border-cyan-500/30 rounded-xl px-2.5 py-1.5 text-xs font-semibold flex items-center justify-between">
+                        <span>{isGame ? '🎮 Oynanıyor (Devam Ediyor)' : '📺 İzleniyor (Devam Ediyor)'}</span>
+                      </div>
+                    ) : formData.date === '??' || formData.date === '??.??' ? (
                       <div className="flex-1 bg-amber-500/10 text-amber-300 border border-amber-500/30 rounded-xl px-2.5 py-1.5 text-xs font-semibold flex items-center justify-between">
                         <span>Bilinmiyor (??)</span>
                       </div>
@@ -456,25 +485,27 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
                         className="flex-1 bg-black/40 text-neutral-200 border border-white/10 rounded-xl px-2 py-1.5 text-xs focus:outline-none focus:border-neutral-400"
                       />
                     )}
-                    <button
-                      type="button"
-                      id="toggle-unknown-date-btn"
-                      onClick={() => {
-                        if (formData.date === '??' || formData.date === '??.??' || formData.date === '') {
-                          handleChange('date', new Date().toISOString().split('T')[0]);
-                        } else {
-                          handleChange('date', '??');
-                        }
-                      }}
-                      title="Tarih Bilinmiyor (??)"
-                      className={`h-[30px] px-2 rounded-xl border text-xs font-semibold transition-all flex items-center justify-center cursor-pointer shrink-0 ${
-                        formData.date === '??' || formData.date === '??.??'
-                          ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
-                          : 'bg-white/5 text-neutral-400 border-white/10 hover:text-white hover:bg-white/10'
-                      }`}
-                    >
-                      <HelpCircle className="w-3.5 h-3.5" />
-                    </button>
+                    {!((!isGame && formData.watching) || (isGame && formData.status === 'Oynanıyor')) && (
+                      <button
+                        type="button"
+                        id="toggle-unknown-date-btn"
+                        onClick={() => {
+                          if (formData.date === '??' || formData.date === '??.??' || formData.date === '') {
+                            handleChange('date', new Date().toISOString().split('T')[0]);
+                          } else {
+                            handleChange('date', '??');
+                          }
+                        }}
+                        title="Tarih Bilinmiyor (??)"
+                        className={`h-[30px] px-2 rounded-xl border text-xs font-semibold transition-all flex items-center justify-center cursor-pointer shrink-0 ${
+                          formData.date === '??' || formData.date === '??.??'
+                            ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+                            : 'bg-white/5 text-neutral-400 border-white/10 hover:text-white hover:bg-white/10'
+                        }`}
+                      >
+                        <HelpCircle className="w-3.5 h-3.5" />
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>
