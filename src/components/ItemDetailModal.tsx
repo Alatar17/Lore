@@ -412,6 +412,7 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
                     }}
                     className="w-full bg-black/30 text-slate-200 border border-white/10 rounded-xl px-2.5 py-1.5 text-xs focus:outline-none focus:border-blue-500 cursor-pointer"
                   >
+                    <option value="" className="bg-slate-900 text-neutral-400">(Kategorisiz / Havuz)</option>
                     {categories.map((c) => (
                       <option key={c.id} value={c.id} className="bg-slate-900 text-white">
                         {c.name}
@@ -468,12 +469,14 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
                     <Calendar className="w-3 h-3 text-neutral-400" /> Tarih
                   </label>
                   <div className="flex items-center gap-1">
-                    {(!isGame && formData.watching) || (isGame && formData.status === 'Oynanıyor') ? (
-                      <div className="flex-1 bg-cyan-500/10 text-cyan-300 border border-cyan-500/30 rounded-xl px-2.5 py-1.5 text-xs font-semibold flex items-center justify-between">
-                        <span>{isGame ? '🎮 Oynanıyor (Devam Ediyor)' : '📺 İzleniyor (Devam Ediyor)'}</span>
-                      </div>
-                    ) : formData.date === '??' || formData.date === '??.??' ? (
-                      <div className="flex-1 bg-amber-500/10 text-amber-300 border border-amber-500/30 rounded-xl px-2.5 py-1.5 text-xs font-semibold flex items-center justify-between">
+                    {formData.date === '??' || formData.date === '??.??' ? (
+                      <div
+                        className={`flex-1 rounded-xl px-2.5 py-1.5 text-xs font-semibold flex items-center justify-between transition-opacity ${
+                          isGame && formData.status === 'Oynanıyor'
+                            ? 'bg-amber-500/5 text-amber-300/40 border border-amber-500/15 opacity-40 pointer-events-none'
+                            : 'bg-amber-500/10 text-amber-300 border border-amber-500/30'
+                        }`}
+                      >
                         <span>Bilinmiyor (??)</span>
                       </div>
                     ) : (
@@ -481,31 +484,37 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
                         id="detail-date-input"
                         type="date"
                         value={formData.date}
+                        disabled={isGame && formData.status === 'Oynanıyor'}
                         onChange={(e) => handleChange('date', e.target.value)}
-                        className="flex-1 bg-black/40 text-neutral-200 border border-white/10 rounded-xl px-2 py-1.5 text-xs focus:outline-none focus:border-neutral-400"
+                        className={`flex-1 border rounded-xl px-2 py-1.5 text-xs focus:outline-none transition-all ${
+                          isGame && formData.status === 'Oynanıyor'
+                            ? 'bg-black/50 text-neutral-500 border-white/5 opacity-40 cursor-not-allowed pointer-events-none select-none'
+                            : 'bg-black/40 text-neutral-200 border-white/10 focus:border-neutral-400'
+                        }`}
                       />
                     )}
-                    {!((!isGame && formData.watching) || (isGame && formData.status === 'Oynanıyor')) && (
-                      <button
-                        type="button"
-                        id="toggle-unknown-date-btn"
-                        onClick={() => {
-                          if (formData.date === '??' || formData.date === '??.??' || formData.date === '') {
-                            handleChange('date', new Date().toISOString().split('T')[0]);
-                          } else {
-                            handleChange('date', '??');
-                          }
-                        }}
-                        title="Tarih Bilinmiyor (??)"
-                        className={`h-[30px] px-2 rounded-xl border text-xs font-semibold transition-all flex items-center justify-center cursor-pointer shrink-0 ${
-                          formData.date === '??' || formData.date === '??.??'
-                            ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
-                            : 'bg-white/5 text-neutral-400 border-white/10 hover:text-white hover:bg-white/10'
-                        }`}
-                      >
-                        <HelpCircle className="w-3.5 h-3.5" />
-                      </button>
-                    )}
+                    <button
+                      type="button"
+                      id="toggle-unknown-date-btn"
+                      disabled={isGame && formData.status === 'Oynanıyor'}
+                      onClick={() => {
+                        if (formData.date === '??' || formData.date === '??.??' || formData.date === '') {
+                          handleChange('date', new Date().toISOString().split('T')[0]);
+                        } else {
+                          handleChange('date', '??');
+                        }
+                      }}
+                      title="Tarih Bilinmiyor (??)"
+                      className={`h-[30px] px-2 rounded-xl border text-xs font-semibold transition-all flex items-center justify-center shrink-0 ${
+                        isGame && formData.status === 'Oynanıyor'
+                          ? 'opacity-40 cursor-not-allowed pointer-events-none bg-white/5 text-neutral-500 border-white/5'
+                          : formData.date === '??' || formData.date === '??.??'
+                          ? 'bg-amber-500/20 text-amber-300 border-amber-500/40 cursor-pointer'
+                          : 'bg-white/5 text-neutral-400 border-white/10 hover:text-white hover:bg-white/10 cursor-pointer'
+                      }`}
+                    >
+                      <HelpCircle className="w-3.5 h-3.5" />
+                    </button>
                   </div>
                 </div>
               </div>
@@ -517,11 +526,11 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
                 </label>
                 <textarea
                   id="detail-desc-textarea"
-                  rows={2}
+                  rows={3}
                   value={formData.desc}
                   onChange={(e) => handleChange('desc', e.target.value)}
                   placeholder="Yıllar sonra hatırlamak için notlar, hisler, önemli detaylar..."
-                  className="w-full bg-black/30 text-slate-200 border border-white/10 rounded-xl p-2.5 text-xs leading-relaxed focus:outline-none focus:border-blue-500 resize-y custom-scrollbar"
+                  className="w-full bg-black/30 text-slate-200 border border-white/10 rounded-xl p-2.5 text-xs leading-relaxed focus:outline-none focus:border-blue-500 resize-y custom-scrollbar min-h-[82px]"
                 />
               </div>
             </div>

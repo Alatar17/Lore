@@ -4,6 +4,7 @@ import {
   FilterState,
   MainTabType,
   ViewSettings,
+  UiExperimentsState,
 } from '../types';
 import { FilterPanel } from './FilterPanel';
 import { ViewPanel } from './ViewPanel';
@@ -25,6 +26,7 @@ import {
   Redo2,
   Download,
   Upload,
+  FolderX,
 } from 'lucide-react';
 
 export const TRACKED_TAB_ID = '__tracked__';
@@ -51,12 +53,7 @@ interface HeaderTabsProps {
   canRedo?: boolean;
   onUndo?: () => void;
   onRedo?: () => void;
-  uiExperiments?: {
-    toolbarBox?: boolean;
-    toolbarGlass?: boolean;
-    floatingToolbar?: boolean;
-    cardBorderGlow?: boolean;
-  };
+  uiExperiments?: UiExperimentsState;
   onMainTabChange: (tab: MainTabType) => void;
   onCategorySelect: (catId: string | null) => void;
   onSubgroupSelect: (sub: string | null) => void;
@@ -259,7 +256,9 @@ export const HeaderTabs: React.FC<HeaderTabsProps> = ({
     (filters.minRating > 0 ? 1 : 0) +
     (filters.watchingOnly ? 1 : 0) +
     (filters.followingOnly ? 1 : 0) +
-    (filters.ankiFilter !== 'all' ? 1 : 0);
+    (filters.ankiFilter !== 'all' ? 1 : 0) +
+    (filters.uncategorizedOnly ? 1 : 0) +
+    (filters.gameStatus && filters.gameStatus !== 'all' ? 1 : 0);
 
   // Pure Hover handlers for Main Dropdown buttons with snappy 120ms delay
   const handleMouseEnter = (tab: 'media' | 'game') => {
@@ -292,6 +291,13 @@ export const HeaderTabs: React.FC<HeaderTabsProps> = ({
   const handleTabButtonClick = (tab: 'media' | 'game', e: React.MouseEvent) => {
     e.stopPropagation();
     if (mainTab !== tab) {
+      if (isSearchOpen) {
+        onToggleSearch();
+      }
+      onSearchChange('');
+      setSearchTextInput('');
+      setTagChips([]);
+      setTypedTagInput('');
       onMainTabChange(tab);
       onCategorySelect(null);
       onSubgroupSelect(null);
@@ -305,6 +311,14 @@ export const HeaderTabs: React.FC<HeaderTabsProps> = ({
     catId: string | null,
     sub: string | null = null
   ) => {
+    if (isSearchOpen) {
+      onToggleSearch();
+    }
+    onSearchChange('');
+    setSearchTextInput('');
+    setTagChips([]);
+    setTypedTagInput('');
+
     if (mainTab !== targetTab) {
       onMainTabChange(targetTab);
     }
@@ -317,10 +331,12 @@ export const HeaderTabs: React.FC<HeaderTabsProps> = ({
   return (
     <header
       className={`relative z-30 flex flex-col gap-3 py-3 transition-all duration-300 ${
-        uiExperiments?.toolbarBox
-          ? 'bg-neutral-900/60 p-3.5 rounded-2xl border border-white/10 shadow-lg'
-          : uiExperiments?.toolbarGlass
+        uiExperiments?.toolbarStyle === 'box'
+          ? 'bg-neutral-900/80 p-3.5 rounded-2xl border border-white/10 shadow-lg'
+          : uiExperiments?.toolbarStyle === 'glass'
           ? 'bg-white/[0.03] backdrop-blur-xl p-3.5 rounded-2xl border border-white/10 shadow-2xl'
+          : uiExperiments?.toolbarStyle === 'floating'
+          ? 'bg-neutral-900/90 backdrop-blur-md p-2.5 rounded-2xl border border-blue-500/30 shadow-2xl'
           : 'border-b border-white/10'
       }`}
     >
@@ -336,6 +352,13 @@ export const HeaderTabs: React.FC<HeaderTabsProps> = ({
             {/* Main Tab (Medya / Oyun) - Clickable! */}
             <button
               onClick={() => {
+                if (isSearchOpen) {
+                  onToggleSearch();
+                }
+                onSearchChange('');
+                setSearchTextInput('');
+                setTagChips([]);
+                setTypedTagInput('');
                 onCategorySelect(null);
                 onSubgroupSelect(null);
               }}
@@ -350,7 +373,16 @@ export const HeaderTabs: React.FC<HeaderTabsProps> = ({
               <>
                 <span className="text-neutral-600">/</span>
                 <button
-                  onClick={() => onSubgroupSelect(null)}
+                  onClick={() => {
+                    if (isSearchOpen) {
+                      onToggleSearch();
+                    }
+                    onSearchChange('');
+                    setSearchTextInput('');
+                    setTagChips([]);
+                    setTypedTagInput('');
+                    onSubgroupSelect(null);
+                  }}
                   title={activeSub ? `${activeCategory?.name || 'Kategori'} geneline dön` : ''}
                   className={`font-semibold cursor-pointer transition-colors ${
                     activeSub
@@ -391,6 +423,28 @@ export const HeaderTabs: React.FC<HeaderTabsProps> = ({
           >
             {totalFilteredCount}
           </button>
+
+          {/* Active Uncategorized Filter Indicator Pill */}
+          {filters.uncategorizedOnly && (
+            <div
+              id="active-uncategorized-indicator"
+              className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-rose-500/15 border border-rose-500/30 text-rose-300 text-xs font-semibold animate-in fade-in"
+            >
+              <FolderX className="w-3.5 h-3.5 text-rose-400 shrink-0" />
+              <span className="truncate max-w-[130px] sm:max-w-none">
+                {activeCategory ? `Alt Kategorisiz (${activeCategory.name})` : 'Kategorisiz'}
+              </span>
+              <button
+                type="button"
+                id="remove-uncategorized-filter-btn"
+                onClick={() => onFilterChange({ uncategorizedOnly: false })}
+                title="Kategorisiz filtresini kaldır"
+                className="p-0.5 ml-0.5 rounded hover:bg-rose-500/25 text-rose-300 hover:text-white cursor-pointer transition-colors"
+              >
+                <X className="w-3 h-3" />
+              </button>
+            </div>
+          )}
         </div>
 
         {/* 2. CENTER: Medya & Oyun Navigation Dropdown Buttons */}
@@ -867,6 +921,8 @@ export const HeaderTabs: React.FC<HeaderTabsProps> = ({
                 filters={filters}
                 onChange={onFilterChange}
                 onClose={onClosePanels}
+                activeCategoryName={activeCategory?.name || null}
+                activeSub={activeSub || null}
               />
             )}
           </div>

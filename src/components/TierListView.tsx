@@ -17,6 +17,7 @@ import {
   Check,
   Sparkles,
   Camera,
+  Eye,
 } from 'lucide-react';
 
 interface TierListViewProps {
@@ -33,6 +34,8 @@ interface TierListViewProps {
   onBatchUpdateTierPlacements?: (updates: { itemId: string; tierRowId: string | null }[]) => void;
   onUpdateCategoryRows: (newRows: TierRow[]) => void;
   onItemClick: (item: ArchiveItem) => void;
+  onItemHover?: (item: ArchiveItem | null) => void;
+  onItemPreview?: (item: ArchiveItem) => void;
 }
 
 interface RowContextMenuState {
@@ -93,6 +96,8 @@ export const TierListView: React.FC<TierListViewProps> = ({
   onBatchUpdateTierPlacements,
   onUpdateCategoryRows,
   onItemClick,
+  onItemHover,
+  onItemPreview,
 }) => {
   const [draggedItemId, setDraggedItemId] = useState<string | null>(null);
   const [dragOverRowId, setDragOverRowId] = useState<string | null>(null);
@@ -523,12 +528,18 @@ export const TierListView: React.FC<TierListViewProps> = ({
                       onDrop={(e) => handleCardDrop(e, item, row.id)}
                       onContextMenu={(e) => handleCardContextMenu(e, item)}
                       onClick={() => onItemClick(item)}
+                      onDoubleClick={(e) => {
+                        e.stopPropagation();
+                        onItemPreview?.(item);
+                      }}
+                      onMouseEnter={() => onItemHover?.(item)}
+                      onMouseLeave={() => onItemHover?.(null)}
                       className={`group relative w-[72px] sm:w-[84px] aspect-[2/3] max-h-[124px] rounded-lg overflow-visible cursor-grab active:cursor-grabbing transition-all select-none ${
                         isCurrentDragged
                           ? 'opacity-30 scale-95'
                           : 'hover:scale-105 hover:z-20'
                       }`}
-                      title={`${item.title}\n• Sürükle: İki kartın arasına veya istediğin sıraya bırak\n• Sağ tık: Menü\n• Sol tık: Detay`}
+                      title={`${item.title}\n• F: Büyük Afişi Göster\n• Çift Tık: Önizleme\n• Sürükle: İki kartın arasına veya istediğin sıraya bırak\n• Sağ tık: Menü\n• Sol tık: Detay`}
                     >
                       {/* Left Insertion Indicator */}
                       {isTargetBefore && (
@@ -546,7 +557,7 @@ export const TierListView: React.FC<TierListViewProps> = ({
                         {movedItemIds && movedItemIds.has(item.id) && (
                           <div
                             title="Bu oturumda taşındı / eklendi"
-                            className="absolute top-1 left-1 z-20 w-4 h-4 rounded-full bg-cyan-500/90 text-neutral-950 flex items-center justify-center shadow-[0_0_8px_rgba(6,182,212,0.8)] pointer-events-none"
+                            className="absolute top-1 left-1 z-20 w-4 h-4 rounded-full bg-amber-400 text-neutral-950 flex items-center justify-center shadow-[0_0_8px_rgba(251,191,36,0.9)] ring-1 ring-black/70 pointer-events-none"
                           >
                             <Sparkles className="w-2.5 h-2.5 fill-current" />
                           </div>
@@ -666,12 +677,18 @@ export const TierListView: React.FC<TierListViewProps> = ({
                 onDrop={(e) => handleCardDrop(e, item, null)}
                 onContextMenu={(e) => handleCardContextMenu(e, item)}
                 onClick={() => onItemClick(item)}
+                onDoubleClick={(e) => {
+                  e.stopPropagation();
+                  onItemPreview?.(item);
+                }}
+                onMouseEnter={() => onItemHover?.(item)}
+                onMouseLeave={() => onItemHover?.(null)}
                 className={`group relative w-[72px] sm:w-[84px] aspect-[2/3] max-h-[124px] rounded-lg overflow-visible cursor-grab active:cursor-grabbing transition-all select-none ${
                   isCurrentDragged
                     ? 'opacity-30 scale-95'
                     : 'hover:scale-105 hover:z-20'
                 }`}
-                title={`${item.title}\n• Sürükle: Sıralama satırına taşı\n• Sağ tık: Menü\n• Sol tık: Detay`}
+                title={`${item.title}\n• F: Büyük Afişi Göster\n• Çift Tık: Önizleme\n• Sürükle: Sıralama satırına taşı\n• Sağ tık: Menü\n• Sol tık: Detay`}
               >
                 {/* Left Insertion Indicator */}
                 {isTargetBefore && (
@@ -688,7 +705,7 @@ export const TierListView: React.FC<TierListViewProps> = ({
                   {movedItemIds && movedItemIds.has(item.id) && (
                     <div
                       title="Bu oturumda taşındı / eklendi"
-                      className="absolute top-1 left-1 z-20 w-4 h-4 rounded-full bg-cyan-500/90 text-neutral-950 flex items-center justify-center shadow-[0_0_8px_rgba(6,182,212,0.8)] pointer-events-none"
+                      className="absolute top-1 left-1 z-20 w-4 h-4 rounded-full bg-amber-400 text-neutral-950 flex items-center justify-center shadow-[0_0_8px_rgba(251,191,36,0.9)] ring-1 ring-black/70 pointer-events-none"
                     >
                       <Sparkles className="w-2.5 h-2.5 fill-current" />
                     </div>
@@ -898,6 +915,22 @@ export const TierListView: React.FC<TierListViewProps> = ({
                 <span>Havuza Gönder</span>
               </button>
             )}
+
+            <button
+              onClick={() => {
+                onItemPreview?.(cardContextMenu.item);
+                setCardContextMenu(null);
+              }}
+              className="w-full px-2.5 py-1.5 rounded-lg hover:bg-white/10 text-neutral-200 flex items-center justify-between text-left transition-colors cursor-pointer"
+            >
+              <span className="flex items-center gap-2">
+                <Eye className="w-3.5 h-3.5 text-blue-400" />
+                <span>Büyük Afişi Göster</span>
+              </span>
+              <kbd className="px-1.5 py-0.5 rounded bg-black/60 border border-white/20 text-[10px] font-mono font-bold text-neutral-300">
+                F
+              </kbd>
+            </button>
 
             <button
               onClick={() => {

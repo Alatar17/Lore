@@ -109,14 +109,13 @@ export const ImagePreviewModal: React.FC<ImagePreviewModalProps> = ({ item, onCl
               {item.title}
             </h3>
             <div className="flex flex-wrap items-center gap-2 text-xs text-slate-400">
-              <span className="capitalize font-medium text-slate-300">
-                {item.cat}
-                {item.sub ? ` • ${item.sub}` : ''}
-              </span>
               {item.genre && item.genre.length > 0 && (
+                <span>{item.genre.slice(0, 4).join(', ')}</span>
+              )}
+              {item.sub && (
                 <>
-                  <span>•</span>
-                  <span>{item.genre.slice(0, 3).join(', ')}</span>
+                  {item.genre && item.genre.length > 0 && <span>•</span>}
+                  <span className="font-medium text-slate-300">{item.sub}</span>
                 </>
               )}
             </div>

@@ -92,7 +92,7 @@ export const CustomDialog: React.FC<CustomDialogProps> = ({ options, onClose }) 
   return (
     <div
       id="custom-dialog-overlay"
-      className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 animate-in fade-in duration-150"
+      className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/70 animate-in fade-in duration-150"
       onClick={handleCancel}
       onKeyDown={handleKeyDown}
     >

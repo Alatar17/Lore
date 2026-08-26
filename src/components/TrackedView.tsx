@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
-import { ArchiveItem, ViewSettings } from '../types';
+import { ArchiveItem, ViewSettings, UiExperimentsState } from '../types';
 import { ItemCard } from './ItemCard';
 import { ClipboardList, Check, Sparkles } from 'lucide-react';
 
 interface TrackedViewProps {
   items: ArchiveItem[];
   viewSettings: ViewSettings;
+  uiExperiments?: UiExperimentsState;
   onItemClick: (item: ArchiveItem) => void;
   onItemHover?: (item: ArchiveItem | null) => void;
   isSelectionMode?: boolean;
@@ -16,6 +17,7 @@ interface TrackedViewProps {
 export const TrackedView: React.FC<TrackedViewProps> = ({
   items,
   viewSettings,
+  uiExperiments,
   onItemClick,
   onItemHover,
   isSelectionMode,
@@ -105,6 +107,7 @@ ${names || '- (Takip listesinde henüz yapım yok)'}`;
                 key={item.id}
                 item={item}
                 viewSettings={viewSettings}
+                uiExperiments={uiExperiments}
                 onClick={() => onItemClick(item)}
                 onMouseEnter={() => onItemHover?.(item)}
                 onMouseLeave={() => onItemHover?.(null)}
@@ -213,6 +216,7 @@ ${names || '- (Takip listesinde henüz yapım yok)'}`;
                 key={item.id}
                 item={item}
                 viewSettings={viewSettings}
+                uiExperiments={uiExperiments}
                 onClick={() => onItemClick(item)}
                 onMouseEnter={() => onItemHover?.(item)}
                 onMouseLeave={() => onItemHover?.(null)}

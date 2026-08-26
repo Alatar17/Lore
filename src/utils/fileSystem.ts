@@ -590,17 +590,17 @@ function dataURLtoBlob(dataurl: string): Blob {
 }
 
 /**
- * Builds a single, self-contained ZIP archive containing:
- * - yapim-arsivim-data.json (Database, categories, items)
- * - images/ (All cover posters)
- * - tier_lists/ (Tier List JSON and high-res PNG posters for all categories)
+ * Builds the Master Unified ZIP archive containing:
+ * - Lore_AnaKutuphane.zip (Database json + images/ cover folder)
+ * - TierList_Yedekleri/ (Individual Category Tier List JSON files and High-Res PNG posters)
  */
 export async function buildUnifiedZipBlob(data: AppData): Promise<Blob> {
-  const zip = new JSZip();
-  const imgFolder = zip.folder('images');
-  const tierFolder = zip.folder('tier_lists');
+  const masterZip = new JSZip();
 
-  // 1. Process items and pack image files
+  // 1. Build Inner Library ZIP (Lore_AnaKutuphane.zip)
+  const libZip = new JSZip();
+  const imgFolder = libZip.folder('images');
+
   const cleanItems: ArchiveItem[] = [];
   const seenIds = new Set<string>();
 
@@ -630,9 +630,19 @@ export async function buildUnifiedZipBlob(data: AppData): Promise<Blob> {
     ...data,
     items: cleanItems,
   };
-  zip.file(DATA_FILE_NAME, JSON.stringify(exportData, null, 2));
+  libZip.file(DATA_FILE_NAME, JSON.stringify(exportData, null, 2));
 
-  // 2. Generate Tier Lists JSON & PNGs for all categories
+  const libZipBlob = await libZip.generateAsync({
+    type: 'blob',
+    compression: 'DEFLATE',
+    compressionOptions: { level: 6 },
+  });
+
+  // Put Lore_AnaKutuphane.zip into the Master ZIP
+  masterZip.file('Lore_AnaKutuphane.zip', libZipBlob);
+
+  // 2. Generate TierList_Yedekleri folder in the Master ZIP
+  const tierFolder = masterZip.folder('TierList_Yedekleri');
   const allTabs: MainTabType[] = ['media', 'game'];
   const now = new Date();
 
@@ -652,8 +662,9 @@ export async function buildUnifiedZipBlob(data: AppData): Promise<Blob> {
           items: catItems,
         };
         const safeName = sanitizeFilename(cat.name);
-        const jsonFileName = `${tab}_${safeName}_TierList.json`;
-        const pngFileName = `${tab}_${safeName}_TierList.png`;
+        const tabPrefix = tab === 'game' ? 'Oyun' : 'Medya';
+        const jsonFileName = `${tabPrefix}_${safeName}_TierList.json`;
+        const pngFileName = `${tabPrefix}_${safeName}_TierList.png`;
 
         if (tierFolder) {
           tierFolder.file(jsonFileName, JSON.stringify(tierBackup, null, 2));
@@ -668,7 +679,7 @@ export async function buildUnifiedZipBlob(data: AppData): Promise<Blob> {
     }
   }
 
-  return await zip.generateAsync({
+  return await masterZip.generateAsync({
     type: 'blob',
     compression: 'DEFLATE',
     compressionOptions: { level: 6 },
@@ -678,7 +689,7 @@ export async function buildUnifiedZipBlob(data: AppData): Promise<Blob> {
 // --- ZIP Backup / Restore (Unified Single-ZIP Format) ---
 
 export async function exportAppDataToZip(data: AppData, filename?: string): Promise<void> {
-  const actualFilename = filename || `Lore_Yedek_${getFormattedDateForFilename()}.zip`;
+  const actualFilename = filename || `Lore_TumArsiv_${getFormattedDateForFilename()}.zip`;
   const zipBlob = await buildUnifiedZipBlob(data);
 
   const url = URL.createObjectURL(zipBlob);
@@ -695,14 +706,31 @@ export async function importAppDataFromZip(
   fileOrBlob: File | Blob,
   rootDirHandle?: FileSystemDirectoryHandle | null
 ): Promise<AppData> {
-  const zip = await JSZip.loadAsync(fileOrBlob);
+  let zip = await JSZip.loadAsync(fileOrBlob);
 
-  // 1. Find database json file
-  let jsonFile = zip.file(DATA_FILE_NAME);
+  // Check if this is a Master Zip containing an inner 'Lore_AnaKutuphane.zip' or similar archive
+  const innerLibZipFile = zip.file(/^(?:Lore_AnaKutuphane|Lore_KutuphanePaketi.*)\.zip$/i)[0];
+  let innerZip: JSZip | null = null;
+  if (innerLibZipFile) {
+    try {
+      const innerBlob = await innerLibZipFile.async('blob');
+      innerZip = await JSZip.loadAsync(innerBlob);
+    } catch (e) {
+      console.warn('Could not unpack inner library zip, reading directly:', e);
+    }
+  }
+
+  // 1. Find database json file (look in innerZip first, then master zip)
+  let jsonFile = innerZip ? innerZip.file(DATA_FILE_NAME) : null;
   if (!jsonFile) {
-    const jsonFiles = zip.file(/\.json$/i);
-    // Find json that is not inside tier_lists/
-    const rootOrMainJsons = jsonFiles.filter((f) => !f.name.startsWith('tier_lists/'));
+    jsonFile = zip.file(DATA_FILE_NAME);
+  }
+  if (!jsonFile) {
+    const searchTarget = innerZip || zip;
+    const jsonFiles = searchTarget.file(/\.json$/i);
+    const rootOrMainJsons = jsonFiles.filter(
+      (f) => !f.name.startsWith('tier_lists/') && !f.name.startsWith('TierList_Yedekleri/')
+    );
     if (rootOrMainJsons.length > 0) {
       jsonFile = rootOrMainJsons[0];
     } else if (jsonFiles.length > 0) {
@@ -721,14 +749,15 @@ export async function importAppDataFromZip(
     throw new Error('Geçersiz Yapım Arşivim verisi.');
   }
 
-  // 2. Read images in zip and optionally write to rootDirHandle
-  const imageFiles = zip.file(/^images\/.+/i);
+  // 2. Read images in zip (check innerZip first, then master zip)
+  const imageSource = innerZip || zip;
+  const imageFiles = imageSource.file(/^images\/.+/i);
   const imageMap = new Map<string, string>();
 
   let localImagesDirHandle: any = null;
   if (rootDirHandle) {
     try {
-      localImagesDirHandle = await getOrCreateImagesDirectory(rootDirHandle);
+      localImagesDirHandle = await rootDirHandle.getDirectoryHandle('images', { create: true });
     } catch (e) {
       console.warn('Could not access images directory for disk extraction:', e);
     }
@@ -764,16 +793,22 @@ export async function importAppDataFromZip(
   }
 
   // Check any root images
-  const rootImages = zip.file(/\.(jpe?g|png|webp)$/i);
+  const rootImages = imageSource.file(/\.(jpe?g|png|webp)$/i);
   for (const imgZip of rootImages) {
-    if (!imgZip.name.startsWith('images/') && !imgZip.name.startsWith('tier_lists/')) {
+    if (
+      !imgZip.name.startsWith('images/') &&
+      !imgZip.name.startsWith('tier_lists/') &&
+      !imgZip.name.startsWith('TierList_Yedekleri/')
+    ) {
       try {
         const ext = imgZip.name.split('.').pop()?.toLowerCase() || 'jpg';
         const mime = ext === 'png' ? 'image/png' : ext === 'webp' ? 'image/webp' : 'image/jpeg';
         const base64 = await imgZip.async('base64');
         const dataUrl = `data:${mime};base64,${base64}`;
         imageMap.set(imgZip.name.toLowerCase(), dataUrl);
-      } catch (e) {}
+      } catch (e) {
+        console.warn('Error reading root image from zip:', imgZip.name, e);
+      }
     }
   }
 
@@ -1145,24 +1180,22 @@ export async function generateFullBackupInFolder(
   // 1. Ensure 'Backup' parent folder exists in the selected directory
   const backupParentDir = await dirHandle.getDirectoryHandle('Backup', { create: true });
 
-  // 2. Create date-named subfolder: YYYY-MM-DD_HH-mm (e.g. 2026-08-25_16-45)
+  // 2. Direct single ZIP named Lore_TumArsiv_YYYY-MM-DD_HH-mm.zip inside Backup/
   const now = new Date();
   const pad = (n: number) => String(n).padStart(2, '0');
   const dateStr = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}_${pad(now.getHours())}-${pad(now.getMinutes())}`;
-  const backupFolderName = dateStr;
-  const targetBackupDir = await backupParentDir.getDirectoryHandle(backupFolderName, { create: true });
 
-  // 3. Build unified single ZIP (Database + Images + Tier Lists JSON & PNGs)
+  // 3. Build unified single Master ZIP
   const zipBlob = await buildUnifiedZipBlob(data);
 
-  // 4. Save the single ZIP inside Backup/<Date_Folder>/Lore_Yedek_<Date>.zip
-  const zipFileName = `Lore_Yedek_${dateStr}.zip`;
-  const zipHandle = await targetBackupDir.getFileHandle(zipFileName, { create: true });
+  // 4. Save the single ZIP inside Backup/Lore_TumArsiv_<Date>.zip
+  const zipFileName = `Lore_TumArsiv_${dateStr}.zip`;
+  const zipHandle = await backupParentDir.getFileHandle(zipFileName, { create: true });
   const zipWritable = await (zipHandle as any).createWritable();
   await zipWritable.write(zipBlob);
   await zipWritable.close();
 
-  return `Backup/${backupFolderName}/${zipFileName}`;
+  return `Backup/${zipFileName}`;
 }
 
 const TR_MONTHS = [

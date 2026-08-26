@@ -77,9 +77,15 @@ export interface FilterState {
   followingOnly: boolean;
   ankiFilter: 'all' | 'yes' | 'no';
   gameStatus?: GameStatus | 'all';
+  uncategorizedOnly?: boolean;
 }
 
-export type AppTheme = 'pure-dark' | 'charcoal-gray' | 'dark-slate';
+export type AppTheme =
+  | 'pure-dark'
+  | 'charcoal-gray'
+  | 'dark-slate'
+  | 'crimson-night'
+  | 'nordic-frost';
 
 export type SortOption =
   | 'date-desc'
@@ -101,6 +107,26 @@ export interface ViewSettings {
   sortBy?: SortOption; // Default: 'date-desc'
   theme?: AppTheme;
   backdropBlur?: boolean; // Controls background blur for modals and overlays
+  showQuickAppearanceBar?: boolean; // Show bottom floating appearance bar
+}
+
+export type ToolbarExperimentStyle = 'default' | 'box' | 'glass' | 'floating';
+export type CardVignetteStyle = 'none' | 'bottom' | 'top' | 'both';
+export type CardCornerRadius = 'normal' | 'sharp' | 'soft';
+export type CardHoverMotion = 'lift' | 'zoom' | 'none';
+export type BgAtmosphereExperiment = 'default' | 'dots';
+export type BadgeExperimentStyle = 'default' | 'neon' | 'minimal';
+export type BadgeDensity = 'full' | 'compact' | 'hover-only';
+
+export interface UiExperimentsState {
+  toolbarStyle: ToolbarExperimentStyle;
+  cardGlow: boolean; // Independent toggle for hover blue border glow
+  cardVignette: CardVignetteStyle; // Independent vignette orientation
+  cardRadius: CardCornerRadius; // 6.1: Keskin / Standart / Kavisli
+  cardHoverMotion: CardHoverMotion; // 6.2: Yükselme / Büyüme / Sabit
+  bgAtmosphere: BgAtmosphereExperiment;
+  badgeStyle: BadgeExperimentStyle;
+  badgeDensity: BadgeDensity; // 6.4: Dolu / Sade / Hover
 }
 
 export type MediaTagField = 'firm' | 'director' | 'actors' | 'genre';

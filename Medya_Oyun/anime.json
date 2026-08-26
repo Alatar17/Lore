@@ -6,8 +6,8 @@
     "sub": null,
     "title": "One Punch Man",
     "rating": 1,
-    "date": "2011-11-11",
-    "desc": "",
+    "date": "2026-08-01",
+    "desc": "Sadece hobi olarak kahramanlık yapan ve karşılaştığı tüm düşmanları tek bir yumrukla alt eden Saitama'nın kendine denk bir rakip arayışını anlatan efsanevi aksiyon ve parodi animesi.",
     "watching": false,
     "following": false,
     "dropped": false,
@@ -15,8 +15,8 @@
     "thumbnail": "",
     "firm": ["Madhouse", "J.C.Staff"],
     "director": ["Shingo Natsume", "Chikara Sakurai"],
-    "actors": ["Makoto Furukawa (Saitama)", "Kaito Ishikawa (Genos)", "ONE (Yazar)"],
-    "genre": ["Aksiyon", "Komedi", "Süper Kahraman", "Parodi", "Shounen", "Doğaüstü"]
+    "actors": ["Makoto Furukawa", "Kaito Ishikawa", "ONE"],
+    "genre": ["Aksiyon", "Komedi", "Süper Güç", "Parodi", "Shounen"]
   },
   {
     "id": "anime_frieren",
@@ -25,8 +25,8 @@
     "sub": null,
     "title": "Frieren: Beyond Journey's End",
     "rating": 1,
-    "date": "2011-11-11",
-    "desc": "",
+    "date": "2026-08-01",
+    "desc": "İblis Kral'ı yenen kahraman grubunun büyücüsü olan uzun ömürlü elf Frieren'in, yoldaşlarının ölümünün ardından insanları ve hayatın değerini anlama yolculuğu.",
     "watching": false,
     "following": false,
     "dropped": false,
@@ -34,8 +34,8 @@
     "thumbnail": "",
     "firm": ["Madhouse"],
     "director": ["Keiichirou Saitou"],
-    "actors": ["Atsumi Tanezaki (Frieren)", "Kana Ichinose (Fern)", "Chiaki Kobayashi (Stark)", "Kanehito Yamada (Yazar)"],
-    "genre": ["Fantezi", "Macera", "Dram", "Büyü", "Shounen", "Dilim Yaşam"]
+    "actors": ["Atsumi Tanezaki", "Kana Ichinose", "Chiaki Kobayashi", "Kanehito Yamada"],
+    "genre": ["Fantezi", "Macera", "Dram", "Büyü", "Shounen"]
   },
   {
     "id": "anime_steins_gate",
@@ -44,8 +44,8 @@
     "sub": null,
     "title": "Steins;Gate",
     "rating": 1,
-    "date": "2011-11-11",
-    "desc": "",
+    "date": "2026-08-01",
+    "desc": "Mikrodalga fırınla geçmişe mesaj gönderebilen bir düzenek keşfeden çılgın bilim insanı Okabe Rintaro ve arkadaşlarının zaman çizgileri ve dünya hatları arasındaki nefes kesici mücadelesi.",
     "watching": false,
     "following": false,
     "dropped": false,
@@ -53,7 +53,7 @@
     "thumbnail": "",
     "firm": ["White Fox"],
     "director": ["Hiroshi Hamasaki", "Tomoki Kobayashi"],
-    "actors": ["Mamoru Miyano (Okabe Rintaro)", "Asami Imai (Kurisu Makise)", "Kana Hanazawa (Mayuri Shiina)"],
+    "actors": ["Mamoru Miyano", "Asami Imai", "Kana Hanazawa"],
     "genre": ["Bilim Kurgu", "Zaman Yolculuğu", "Gerilim", "Psikolojik", "Gizem", "Dram"]
   },
   {
@@ -63,8 +63,8 @@
     "sub": null,
     "title": "Death Note",
     "rating": 1,
-    "date": "2011-11-11",
-    "desc": "",
+    "date": "2026-08-01",
+    "desc": "İsmi yazılan herkesi öldüren gizemli bir defter bulan dahi lise öğrencisi Light Yagami ile onu yakalamaya çalışan gizemli dedektif L arasındaki zeka savaşı.",
     "watching": false,
     "following": false,
     "dropped": false,
@@ -72,8 +72,8 @@
     "thumbnail": "",
     "firm": ["Madhouse"],
     "director": ["Tetsuro Araki"],
-    "actors": ["Mamoru Miyano (Light Yagami)", "Kappei Yamaguchi (L)", "Tsugumi Ohba (Yazar)"],
-    "genre": ["Gizem", "Psikolojik", "Gerilim", "Doğaüstü", "Shounen", "Dedektif"]
+    "actors": ["Mamoru Miyano", "Kappei Yamaguchi", "Tsugumi Ohba"],
+    "genre": ["Gizem", "Psikolojik", "Gerilim", "Doğaüstü", "Shounen"]
   },
   {
     "id": "anime_solo_leveling",
@@ -82,8 +82,8 @@
     "sub": null,
     "title": "Solo Leveling",
     "rating": 1,
-    "date": "2011-11-11",
-    "desc": "",
+    "date": "2026-08-01",
+    "desc": "İnsanlığın en zayıf E-seviye avcısı Sung Jin-woo'nun ölümcül bir çifte zindandan sağ çıkıp sadece kendisinin görebildiği bir seviye atlama sistemi kazanmasıyla başlayan yükselişi.",
     "watching": false,
     "following": false,
     "dropped": false,
@@ -91,8 +91,8 @@
     "thumbnail": "",
     "firm": ["A-1 Pictures"],
     "director": ["Shunsuke Nakashige"],
-    "actors": ["Taito Ban (Sung Jin-woo)", "Genta Nakamura", "Chugong (Yazar)"],
-    "genre": ["Aksiyon", "Fantezi", "Zindan", "Seviye Atlama", "Güç Fantezisi", "Doğaüstü"]
+    "actors": ["Taito Ban", "Genta Nakamura", "Chugong"],
+    "genre": ["Aksiyon", "Fantezi", "Doğaüstü", "Shounen"]
   },
   {
     "id": "anime_jujutsu_kaisen",
@@ -101,8 +101,8 @@
     "sub": null,
     "title": "Jujutsu Kaisen",
     "rating": 1,
-    "date": "2011-11-11",
-    "desc": "",
+    "date": "2026-08-01",
+    "desc": "Yuttuğu antik lanetli parmak yüzünden Lanetler Kralı Sukuna'nın taşıyıcısı olan Yuji Itadori'nin büyücülük lisesine katılarak lanetlere karşı verdiği amansız savaş.",
     "watching": false,
     "following": false,
     "dropped": false,
@@ -110,8 +110,8 @@
     "thumbnail": "",
     "firm": ["MAPPA"],
     "director": ["Sunghoo Park", "Shota Goshozono"],
-    "actors": ["Junya Enoki (Yuji Itadori)", "Yuma Uchida (Megumi Fushiguro)", "Yuichi Nakamura (Satoru Gojo)", "Gege Akutami (Yazar)"],
-    "genre": ["Aksiyon", "Doğaüstü", "Lanet", "Büyü", "Shounen", "Karanlık Fantezi"]
+    "actors": ["Junya Enoki", "Yuma Uchida", "Yuichi Nakamura", "Gege Akutami"],
+    "genre": ["Aksiyon", "Doğaüstü", "Karanlık Fantezi", "Büyü", "Shounen"]
   },
   {
     "id": "anime_sakamoto_days",
@@ -120,8 +120,8 @@
     "sub": null,
     "title": "Sakamoto Days",
     "rating": 1,
-    "date": "2011-11-11",
-    "desc": "",
+    "date": "2026-08-01",
+    "desc": "Yeraltı dünyasının efsanevi suikastçısı Taro Sakamoto'nun aşık olup emekliye ayrılması ve market işleterek ailesini korumak için eski düşmanlarıyla verdiği komik ve aksiyon dolu mücadele.",
     "watching": false,
     "following": false,
     "dropped": false,
@@ -129,8 +129,8 @@
     "thumbnail": "",
     "firm": ["TMS Entertainment"],
     "director": ["Masaki Watanabe"],
-    "actors": ["Tomokazu Sugita (Taro Sakamoto)", "Nobunaga Shimazaki (Shin Asakura)", "Yuto Suzuki (Yazar)"],
-    "genre": ["Aksiyon", "Komedi", "Suikastçı", "Dövüş Sanatları", "Shounen"]
+    "actors": ["Tomokazu Sugita", "Nobunaga Shimazaki", "Yuto Suzuki"],
+    "genre": ["Aksiyon", "Komedi", "Shounen"]
   },
   {
     "id": "anime_dandadan",
@@ -139,8 +139,8 @@
     "sub": null,
     "title": "Dandadan",
     "rating": 1,
-    "date": "2011-11-11",
-    "desc": "",
+    "date": "2026-08-01",
+    "desc": "Hayaletlere inanan Momo ile uzaylılara inanan Okarun'un iddiaya girip her ikisinin de gerçek olduğunu keşfetmesiyle başlayan çılgın, kaotik ve eğlenceli doğaüstü maceraları.",
     "watching": false,
     "following": false,
     "dropped": false,
@@ -148,8 +148,8 @@
     "thumbnail": "",
     "firm": ["Science SARU"],
     "director": ["Fuga Yamashiro"],
-    "actors": ["Shion Wakayama (Momo Ayase)", "Natsuki Hanae (Ken Takakura / Okarun)", "Yukinobu Tatsu (Yazar)"],
-    "genre": ["Aksiyon", "Komedi", "Doğaüstü", "Uzaylı", "Hayalet", "Romantizm", "Shounen"]
+    "actors": ["Shion Wakayama", "Natsuki Hanae", "Yukinobu Tatsu"],
+    "genre": ["Aksiyon", "Komedi", "Doğaüstü", "Bilim Kurgu", "Shounen"]
   },
   {
     "id": "anime_high_school_dxd",
@@ -158,8 +158,8 @@
     "sub": null,
     "title": "High School DxD",
     "rating": 1,
-    "date": "2011-11-11",
-    "desc": "",
+    "date": "2026-08-01",
+    "desc": "İlk randevusunda öldürülen ve güzel bir şeytan olan Rias Gremory tarafından reenkarnasyonla şeytan hizmetkarı olarak diriltilen Issei Hyoudou'nun fantastik okul hayatı.",
     "watching": false,
     "following": false,
     "dropped": false,
@@ -167,8 +167,8 @@
     "thumbnail": "",
     "firm": ["TNK", "Passione"],
     "director": ["Tetsuya Yanagisawa", "Yoshifumi Sueda"],
-    "actors": ["Yuki Kaji (Issei Hyoudou)", "Yoko Hikasa (Rias Gremory)", "Ichiei Ishibumi (Yazar)"],
-    "genre": ["Ecchi", "Harem", "Şeytan", "Aksiyon", "Komedi", "Okul", "Doğaüstü"]
+    "actors": ["Yuki Kaji", "Yoko Hikasa", "Ichiei Ishibumi"],
+    "genre": ["Ecchi", "Harem", "Aksiyon", "Komedi", "Doğaüstü", "Fantezi"]
   },
   {
     "id": "anime_witch_hat_atelier",
@@ -177,8 +177,8 @@
     "sub": null,
     "title": "Witch Hat Atelier",
     "rating": 1,
-    "date": "2011-11-11",
-    "desc": "",
+    "date": "2026-08-01",
+    "desc": "Büyü yapmanın doğuştan gelmediğini, çizilerek yapıldığını keşfeden genç kız Coco'nun gizemli büyücü Qifrey'in çırağı olarak büyü dünyasına adım atması.",
     "watching": false,
     "following": false,
     "dropped": false,
@@ -186,8 +186,8 @@
     "thumbnail": "",
     "firm": ["BUG FILMS"],
     "director": ["Ayumu Watanabe"],
-    "actors": ["Kamome Shirahama (Yazar)", "Coco", "Qifrey"],
-    "genre": ["Fantezi", "Büyü", "Macera", "Büyücü", "Seinen", "Sanat"]
+    "actors": ["Kamome Shirahama"],
+    "genre": ["Fantezi", "Büyü", "Macera", "Seinen"]
   },
   {
     "id": "anime_kill_la_kill",
@@ -196,8 +196,8 @@
     "sub": null,
     "title": "Kill la Kill",
     "rating": 1,
-    "date": "2011-11-11",
-    "desc": "",
+    "date": "2026-08-01",
+    "desc": "Babasının katilini arayan Ryuko Matoi'nin dev makas kılıcı ve canlı Goku Üniforması Senketsu ile Honnouji Akademisi'nin öğrenci konseyine meydan okuması.",
     "watching": false,
     "following": false,
     "dropped": false,
@@ -205,8 +205,8 @@
     "thumbnail": "",
     "firm": ["Studio Trigger"],
     "director": ["Hiroyuki Imaishi"],
-    "actors": ["Ami Koshimizu (Ryuko Matoi)", "Ryoka Yuzuki (Satsuki Kiryuin)", "Kazuki Nakashima (Yazar)"],
-    "genre": ["Aksiyon", "Komedi", "Bilim Kurgu", "Okul", "Süper Güç", "Parodi"]
+    "actors": ["Ami Koshimizu", "Ryoka Yuzuki", "Kazuki Nakashima"],
+    "genre": ["Aksiyon", "Komedi", "Bilim Kurgu", "Süper Güç", "Parodi"]
   },
   {
     "id": "anime_cyberpunk_edgerunners",
@@ -215,8 +215,8 @@
     "sub": null,
     "title": "Cyberpunk: Edgerunners",
     "rating": 1,
-    "date": "2011-11-11",
-    "desc": "",
+    "date": "2026-08-01",
+    "desc": "Geleceğin yozlaşmış Night City şehrinde her şeyini kaybeden yetenekli sokak çocuğu David'in sibernetik eklentiler takarak bir edgerunner paralı askerine dönüşmesi.",
     "watching": false,
     "following": false,
     "dropped": false,
@@ -224,7 +224,7 @@
     "thumbnail": "",
     "firm": ["Studio Trigger", "CD Projekt RED"],
     "director": ["Hiroyuki Imaishi"],
-    "actors": ["KENN (David Martinez)", "Aoi Yuuki (Lucy)", "Rafal Jaki (Yaratıcı)"],
+    "actors": ["KENN", "Aoi Yuuki", "Rafal Jaki"],
     "genre": ["Cyberpunk", "Bilim Kurgu", "Aksiyon", "Psikolojik", "Distopya", "Dram"]
   },
   {
@@ -234,8 +234,8 @@
     "sub": null,
     "title": "Akira",
     "rating": 1,
-    "date": "2011-11-11",
-    "desc": "",
+    "date": "2026-08-01",
+    "desc": "Üçüncü Dünya Savaşı sonrası kurulan distopik Neo-Tokyo'da motosiklet çetesi üyesi Tetsuo'nun yıkıcı psişik güçler kazanması ve eski dostu Kaneda ile karşı karşıya gelmesi.",
     "watching": false,
     "following": false,
     "dropped": false,
@@ -243,7 +243,7 @@
     "thumbnail": "",
     "firm": ["Tokyo Movie Shinsha"],
     "director": ["Katsuhiro Otomo"],
-    "actors": ["Mitsuo Iwata (Shotaro Kaneda)", "Nozomu Sasaki (Tetsuo Shima)", "Katsuhiro Otomo (Yazar)"],
-    "genre": ["Bilim Kurgu", "Cyberpunk", "Aksiyon", "Klasik", "Distopya", "Psikolojik", "Kült"]
+    "actors": ["Mitsuo Iwata", "Nozomu Sasaki", "Katsuhiro Otomo"],
+    "genre": ["Bilim Kurgu", "Cyberpunk", "Aksiyon", "Distopya", "Psikolojik"]
   }
 ]

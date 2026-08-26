@@ -415,6 +415,7 @@ export const AddItemModal: React.FC<AddItemModalProps> = ({
                     }}
                     className="w-full bg-black/30 text-slate-200 border border-white/10 rounded-xl px-2.5 py-1.5 text-xs focus:outline-none focus:border-blue-500 cursor-pointer"
                   >
+                    <option value="" className="bg-slate-900 text-neutral-400">(Kategorisiz / Havuz)</option>
                     {categories.map((c) => (
                       <option key={c.id} value={c.id} className="bg-slate-900 text-white">
                         {c.name}
@@ -471,12 +472,14 @@ export const AddItemModal: React.FC<AddItemModalProps> = ({
                     <Calendar className="w-3 h-3 text-neutral-400" /> Tarih
                   </label>
                   <div className="flex items-center gap-1">
-                    {(!isGame && watching) || (isGame && status === 'Oynanıyor') ? (
-                      <div className="flex-1 bg-cyan-500/10 text-cyan-300 border border-cyan-500/30 rounded-xl px-2.5 py-1.5 text-xs font-semibold flex items-center justify-between">
-                        <span>{isGame ? '🎮 Oynanıyor (Devam Ediyor)' : '📺 İzleniyor (Devam Ediyor)'}</span>
-                      </div>
-                    ) : date === '??' || date === '??.??' ? (
-                      <div className="flex-1 bg-amber-500/10 text-amber-300 border border-amber-500/30 rounded-xl px-2.5 py-1.5 text-xs font-semibold flex items-center justify-between">
+                    {date === '??' || date === '??.??' ? (
+                      <div
+                        className={`flex-1 rounded-xl px-2.5 py-1.5 text-xs font-semibold flex items-center justify-between transition-opacity ${
+                          isGame && status === 'Oynanıyor'
+                            ? 'bg-amber-500/5 text-amber-300/40 border border-amber-500/15 opacity-40 pointer-events-none'
+                            : 'bg-amber-500/10 text-amber-300 border border-amber-500/30'
+                        }`}
+                      >
                         <span>Bilinmiyor (??)</span>
                       </div>
                     ) : (
@@ -484,31 +487,37 @@ export const AddItemModal: React.FC<AddItemModalProps> = ({
                         id="add-date-input"
                         type="date"
                         value={date}
+                        disabled={isGame && status === 'Oynanıyor'}
                         onChange={(e) => setDate(e.target.value)}
-                        className="flex-1 bg-black/40 text-neutral-200 border border-white/10 rounded-xl px-2 py-1.5 text-xs focus:outline-none focus:border-neutral-400"
+                        className={`flex-1 border rounded-xl px-2 py-1.5 text-xs focus:outline-none transition-all ${
+                          isGame && status === 'Oynanıyor'
+                            ? 'bg-black/50 text-neutral-500 border-white/5 opacity-40 cursor-not-allowed pointer-events-none select-none'
+                            : 'bg-black/40 text-neutral-200 border-white/10 focus:border-neutral-400'
+                        }`}
                       />
                     )}
-                    {!((!isGame && watching) || (isGame && status === 'Oynanıyor')) && (
-                      <button
-                        type="button"
-                        id="toggle-add-unknown-date-btn"
-                        onClick={() => {
-                          if (date === '??' || date === '??.??' || date === '') {
-                            setDate(new Date().toISOString().split('T')[0]);
-                          } else {
-                            setDate('??');
-                          }
-                        }}
-                        title="Tarih Bilinmiyor (??)"
-                        className={`h-[30px] px-2 rounded-xl border text-xs font-semibold transition-all flex items-center justify-center cursor-pointer shrink-0 ${
-                          date === '??' || date === '??.??'
-                            ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
-                            : 'bg-white/5 text-neutral-400 border-white/10 hover:text-white hover:bg-white/10'
-                        }`}
-                      >
-                        <HelpCircle className="w-3.5 h-3.5" />
-                      </button>
-                    )}
+                    <button
+                      type="button"
+                      id="toggle-add-unknown-date-btn"
+                      disabled={isGame && status === 'Oynanıyor'}
+                      onClick={() => {
+                        if (date === '??' || date === '??.??' || date === '') {
+                          setDate(new Date().toISOString().split('T')[0]);
+                        } else {
+                          setDate('??');
+                        }
+                      }}
+                      title="Tarih Bilinmiyor (??)"
+                      className={`h-[30px] px-2 rounded-xl border text-xs font-semibold transition-all flex items-center justify-center shrink-0 ${
+                        isGame && status === 'Oynanıyor'
+                          ? 'opacity-40 cursor-not-allowed pointer-events-none bg-white/5 text-neutral-500 border-white/5'
+                          : date === '??' || date === '??.??'
+                          ? 'bg-amber-500/20 text-amber-300 border-amber-500/40 cursor-pointer'
+                          : 'bg-white/5 text-neutral-400 border-white/10 hover:text-white hover:bg-white/10 cursor-pointer'
+                      }`}
+                    >
+                      <HelpCircle className="w-3.5 h-3.5" />
+                    </button>
                   </div>
                 </div>
               </div>
@@ -520,11 +529,11 @@ export const AddItemModal: React.FC<AddItemModalProps> = ({
                 </label>
                 <textarea
                   id="add-desc-textarea"
-                  rows={2}
+                  rows={3}
                   value={desc}
                   onChange={(e) => setDesc(e.target.value)}
                   placeholder="Yıllar sonra hatırlamak için notlar, hisler, önemli detaylar..."
-                  className="w-full bg-black/30 text-slate-200 border border-white/10 rounded-xl p-2.5 text-xs leading-relaxed focus:outline-none focus:border-blue-500 resize-y custom-scrollbar"
+                  className="w-full bg-black/30 text-slate-200 border border-white/10 rounded-xl p-2.5 text-xs leading-relaxed focus:outline-none focus:border-blue-500 resize-y custom-scrollbar min-h-[82px]"
                 />
               </div>
             </div>

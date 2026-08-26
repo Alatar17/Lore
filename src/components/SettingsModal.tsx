@@ -67,6 +67,10 @@ import {
   Calendar,
   Clock,
   FolderTree,
+  ArrowUp,
+  ArrowDown,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react';
 
 interface SettingsModalProps {
@@ -149,7 +153,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   const [cleaningImages, setCleaningImages] = useState(false);
   const [takingFullBackup, setTakingFullBackup] = useState(false);
   const [showAdvancedStorage, setShowAdvancedStorage] = useState(false);
-  const [isRestoreMenuOpen, setIsRestoreMenuOpen] = useState(false);
+  const [isBackupsModalOpen, setIsBackupsModalOpen] = useState(false);
+  const [folderBackups, setFolderBackups] = useState<FolderBackupItem[]>([]);
+  const [loadingBackups, setLoadingBackups] = useState(false);
+  const [restoringBackup, setRestoringBackup] = useState(false);
 
   // Custom in-app dialog state
   const [dialogOptions, setDialogOptions] = useState<DialogOptions | null>(null);
@@ -463,6 +470,27 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     });
   };
 
+  const handleMoveCategory = (index: number, direction: 'up' | 'down') => {
+    const targetIndex = direction === 'up' ? index - 1 : index + 1;
+    if (targetIndex < 0 || targetIndex >= cats.length) return;
+    const newCats = [...cats];
+    const [moved] = newCats.splice(index, 1);
+    newCats.splice(targetIndex, 0, moved);
+    onUpdateCategories(settingsMainTab, newCats);
+  };
+
+  const handleMoveSubgroup = (catId: string, subIndex: number, direction: 'left' | 'right') => {
+    const cat = cats.find((c) => c.id === catId);
+    if (!cat || !cat.subgroups) return;
+    const targetIndex = direction === 'left' ? subIndex - 1 : subIndex + 1;
+    if (targetIndex < 0 || targetIndex >= cat.subgroups.length) return;
+    const newSubgroups = [...cat.subgroups];
+    const [moved] = newSubgroups.splice(subIndex, 1);
+    newSubgroups.splice(targetIndex, 0, moved);
+    const updated = cats.map((c) => (c.id === catId ? { ...c, subgroups: newSubgroups } : c));
+    onUpdateCategories(settingsMainTab, updated);
+  };
+
   // Connect Folder
   const handleConnect = async () => {
     setConnecting(true);
@@ -481,12 +509,12 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     }
   };
 
-  // Export ZIP (JSON + Images)
+  // Export Single Unified ZIP (Database + Images + Tier Lists)
   const handleExportZip = async () => {
     setExportingZip(true);
     try {
       const dateStr = getFormattedDateForFilename();
-      const filename = `Lore_tümarsiv_${dateStr}.zip`;
+      const filename = `Lore_Yedek_${dateStr}.zip`;
       await exportAppDataToZip(appData, filename);
     } catch (err: any) {
       setDialogOptions({
@@ -499,7 +527,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     }
   };
 
-  // Full Backup to connected folder (Backup/Lore_TamYedek_Tarih_Saat/)
+  // Full Backup to connected folder (Backup/Lore_TumArsiv_YYYY-MM-DD_HH-mm.zip)
   const handleTakeFullBackup = async () => {
     if (!dirHandle) return;
     setTakingFullBackup(true);
@@ -507,8 +535,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       const relativePath = await generateFullBackupInFolder(dirHandle, appData);
       setDialogOptions({
         type: 'alert',
-        title: 'Tam Yedekleme Başarıyla Alındı',
-        message: `Tam sistem yedeği başarıyla tamamlandı!\n\nKlasör: "${dirHandle.name}/${relativePath}" içerisine hem tüm kütüphanenizin tam ZIP arşivi hem de tüm kategorilerinizin Tier List ZIP arşivi ve PNG görsel afişleri otomatik kaydedildi.`,
+        title: 'Yedekleme Başarıyla Alındı',
+        message: `Tam sistem yedeğiniz başarıyla oluşturuldu!\n\nDosya Yolu: "${dirHandle.name}/${relativePath}"\n\nBu ZIP paketi içinde tüm veritabanınız, afiş görselleriniz ve kategorilerinizin Tier List dizilimleri ile PNG afişleri eksiksiz kaydedilmiştir.`,
       });
     } catch (err: any) {
       setDialogOptions({
@@ -521,24 +549,85 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     }
   };
 
-  // Upload ZIP
+  // Open Folder Backups List Modal
+  const handleOpenBackupsModal = async () => {
+    if (!dirHandle) {
+      setDialogOptions({
+        type: 'alert',
+        title: 'Klasör Bağlı Değil',
+        message: 'Geçmiş yedeklerinizi görüntülemek ve geri yüklemek için lütfen önce ana arşiv klasörünüzü bağlayın.',
+      });
+      return;
+    }
+    setLoadingBackups(true);
+    setIsBackupsModalOpen(true);
+    try {
+      const list = await listFolderBackups(dirHandle);
+      setFolderBackups(list);
+    } catch (err: any) {
+      console.error('Error fetching backups:', err);
+    } finally {
+      setLoadingBackups(false);
+    }
+  };
+
+  // Restore a specific backup from folder
+  const handleRestoreBackup = (backup: FolderBackupItem) => {
+    setIsBackupsModalOpen(false);
+    setDialogOptions({
+      type: 'confirm',
+      title: 'Yedekten Geri Yükle',
+      message: `"${backup.dateFormatted}" tarihli yedek yüklenecektir.\n\nMevcut kütüphane yapımlarınız, afişleriniz ve Tier List dizilimleriniz bu yedeğin kaydedildiği tarihteki durumuna geri dönecektir.\n\nOnaylıyor musunuz?`,
+      confirmText: 'Evet, Geri Yükle',
+      cancelText: 'Vazgeç',
+      onCancel: () => {
+        setIsBackupsModalOpen(true);
+      },
+      onConfirm: async () => {
+        setRestoringBackup(true);
+        try {
+          const { appData: restoredData, restoredItemCount } = await restoreFromFolderBackup(
+            backup,
+            dirHandle
+          );
+          onReplaceAllData(restoredData);
+          setDialogOptions({
+            type: 'alert',
+            title: 'Yedek Başarıyla Yüklendi',
+            message: `"${backup.dateFormatted}" tarihli yedek başarıyla yüklendi!\n\nToplam ${restoredItemCount} yapım, afişler ve tüm Tier List dizilimleri geri yüklendi.`,
+          });
+        } catch (err: any) {
+          setIsBackupsModalOpen(true);
+          setDialogOptions({
+            type: 'alert',
+            title: 'Geri Yükleme Hatası',
+            message: 'Yedek yüklenirken bir hata oluştu: ' + (err.message || err),
+          });
+        } finally {
+          setRestoringBackup(false);
+        }
+      },
+    });
+  };
+
+  // Upload External Unified ZIP
   const handleUploadZip = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     setImportingZip(true);
     try {
-      const data = await importAppDataFromZip(file);
+      const data = await importAppDataFromZip(file, dirHandle);
       setDialogOptions({
         type: 'confirm',
-        title: 'ZIP Kütüphane Paketi Yükle',
-        message: `ZIP kütüphane paketinden ${data.items?.length || 0} yapım ve tüm afiş görselleri çözüldü. Mevcut arşive yüklensin mi?`,
-        confirmText: 'Paketi Yükle',
+        title: 'ZIP Yedek Paketi Yükle',
+        message: `"${file.name}" dosyasından ${data.items?.length || 0} yapım, afişler ve Tier List dizilimleri çözüldü. Bu yedek mevcut arşive yüklensin mi?`,
+        confirmText: 'Yedeği Yükle',
         onConfirm: () => {
           onReplaceAllData(data);
           setDialogOptions({
             type: 'alert',
             title: 'Yükleme Tamamlandı',
-            message: 'ZIP paketi başarıyla yüklendi! Tüm yapımlar ve resimler aktarıldı.',
+            message: 'ZIP yedek paketi başarıyla yüklendi! Tüm yapımlar, afişler ve Tier List dizilimleri aktarıldı.',
           });
         },
       });
@@ -889,7 +978,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
                 {/* Categories list */}
                 <div className="space-y-3">
-                  {cats.map((c) => {
+                  {cats.map((c, idx) => {
                     const itemCount = appData.items.filter(
                       (it) => it.mainTab === settingsMainTab && it.cat === c.id
                     ).length;
@@ -901,20 +990,58 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                         className="p-3.5 rounded-xl bg-white/5 border border-white/10 space-y-2.5"
                       >
                         <div className="flex items-center justify-between gap-3 flex-wrap">
-                          {/* Name + Item count */}
-                          <div
-                            onClick={() => handleRenameCategory(c.id, c.name)}
-                            className="flex items-center gap-2 cursor-pointer group"
-                          >
-                            <span className="font-semibold text-sm text-slate-100 group-hover:text-blue-400 transition-colors">
-                              {c.name}
-                            </span>
-                            <span className="text-xs text-slate-400">
-                              ({itemCount} yapım)
-                            </span>
-                            <span className="text-[10px] text-slate-400 opacity-0 group-hover:opacity-100 transition-opacity">
-                              ✎ Adı Değiştir
-                            </span>
+                          {/* Reorder Buttons + Name + Item count */}
+                          <div className="flex items-center gap-2">
+                            {/* Up / Down category order - Minimalist styling */}
+                            <div className="flex items-center">
+                              <button
+                                type="button"
+                                disabled={idx === 0}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleMoveCategory(idx, 'up');
+                                }}
+                                title="Kategoriyi Yukarı Taşı"
+                                className={`p-1 rounded-md transition-colors ${
+                                  idx === 0
+                                    ? 'text-slate-600 cursor-not-allowed opacity-20'
+                                    : 'text-slate-400 hover:text-white hover:bg-white/10 cursor-pointer'
+                                }`}
+                              >
+                                <ArrowUp className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                type="button"
+                                disabled={idx === cats.length - 1}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleMoveCategory(idx, 'down');
+                                }}
+                                title="Kategoriyi Aşağı Taşı"
+                                className={`p-1 rounded-md transition-colors ${
+                                  idx === cats.length - 1
+                                    ? 'text-slate-600 cursor-not-allowed opacity-20'
+                                    : 'text-slate-400 hover:text-white hover:bg-white/10 cursor-pointer'
+                                }`}
+                              >
+                                <ArrowDown className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+
+                            <div
+                              onClick={() => handleRenameCategory(c.id, c.name)}
+                              className="flex items-center gap-2 cursor-pointer group"
+                            >
+                              <span className="font-semibold text-sm text-slate-100 group-hover:text-blue-400 transition-colors">
+                                {c.name}
+                              </span>
+                              <span className="text-xs text-slate-400">
+                                ({itemCount} yapım)
+                              </span>
+                              <span className="text-[10px] text-slate-400 opacity-0 group-hover:opacity-100 transition-opacity">
+                                ✎ Adı Değiştir
+                              </span>
+                            </div>
                           </div>
 
                           {/* Actions */}
@@ -981,15 +1108,43 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
                           {c.subgroups && c.subgroups.length > 0 ? (
                             <div className="flex flex-wrap gap-1.5">
-                              {c.subgroups.map((sub) => (
+                              {c.subgroups.map((sub, subIdx) => (
                                 <span
                                   key={sub}
-                                  className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/5 border border-white/10 text-xs text-slate-200"
+                                  className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-white/5 border border-white/10 text-xs text-slate-200"
                                 >
-                                  {sub}
+                                  {/* Reorder Subgroup */}
                                   <button
+                                    type="button"
+                                    disabled={subIdx === 0}
+                                    onClick={() => handleMoveSubgroup(c.id, subIdx, 'left')}
+                                    className={`p-0.5 rounded transition-colors ${
+                                      subIdx === 0 ? 'text-slate-600 opacity-30 cursor-not-allowed' : 'text-slate-400 hover:text-white cursor-pointer'
+                                    }`}
+                                    title="Sola / Öne Taşı"
+                                  >
+                                    <ChevronLeft className="w-3 h-3" />
+                                  </button>
+
+                                  <span className="font-medium px-0.5">{sub}</span>
+
+                                  <button
+                                    type="button"
+                                    disabled={subIdx === c.subgroups.length - 1}
+                                    onClick={() => handleMoveSubgroup(c.id, subIdx, 'right')}
+                                    className={`p-0.5 rounded transition-colors ${
+                                      subIdx === c.subgroups.length - 1 ? 'text-slate-600 opacity-30 cursor-not-allowed' : 'text-slate-400 hover:text-white cursor-pointer'
+                                    }`}
+                                    title="Sağa / Arkaya Taşı"
+                                  >
+                                    <ChevronRight className="w-3 h-3" />
+                                  </button>
+
+                                  {/* Delete */}
+                                  <button
+                                    type="button"
                                     onClick={() => handleDeleteSubgroup(c.id, sub)}
-                                    className="text-slate-400 hover:text-red-400 transition-colors cursor-pointer"
+                                    className="ml-1 text-slate-400 hover:text-red-400 transition-colors cursor-pointer"
                                     title="Alt grubu kaldır"
                                   >
                                     ×
@@ -1469,16 +1624,11 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 {/* 2. SEPARATE BOX: DEDICATED BACKUP & RESTORE CENTER */}
                 <div className="p-4 rounded-xl bg-white/5 border border-white/10 space-y-4">
                   <div className="flex items-center justify-between border-b border-white/10 pb-3">
-                    <div className="space-y-0.5">
-                      <div className="flex items-center gap-2">
-                        <ShieldCheck className="w-4 h-4 text-emerald-400" />
-                        <h4 className="text-sm font-bold text-slate-100">
-                          Yedekleme & Geri Yükleme Merkezi (Backup & Restore)
-                        </h4>
-                      </div>
-                      <p className="text-xs text-slate-400">
-                        Tek tıkla tam sistem yedeği (Zipleri ve Tier List PNG görsellerini) kaydedin veya mevcut yedek dosyalarını geri yükleyin.
-                      </p>
+                    <div className="flex items-center gap-2">
+                      <ShieldCheck className="w-4 h-4 text-emerald-400" />
+                      <h4 className="text-sm font-bold text-slate-100">
+                        Yedekleme & Geri Yükleme Merkezi
+                      </h4>
                     </div>
                   </div>
 
@@ -1497,157 +1647,134 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     accept=".json"
                     className="hidden"
                   />
-                  <input
-                    type="file"
-                    ref={tierRestoreInputRef}
-                    onChange={(e) => {
-                      if (cats.length > 0) {
-                        handleImportTierListFile(e, cats[0]);
-                      }
-                    }}
-                    accept=".json"
-                    className="hidden"
-                  />
 
-                  {/* Grid of Main Backup & Restore Actions */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    {/* Action 1: Klasöre Tam Yedek Al */}
-                    <div className="p-3.5 rounded-xl bg-black/40 border border-white/10 flex flex-col justify-between space-y-2.5">
-                      <div className="space-y-1">
-                        <div className="flex items-center gap-1.5 text-xs font-bold text-blue-300">
-                          <FolderArchive className="w-4 h-4 text-blue-400" />
-                          <span>Tam Klasör Yedeği Al</span>
-                        </div>
-                        <p className="text-[11px] text-slate-400 leading-relaxed">
-                          Bağlı klasörünüzde <code className="text-blue-300">Backup/</code> dizinine tüm arşiv zip'ini, Tier List zip'ini ve tüm kategorilerin PNG afişlerini yazar.
-                        </p>
-                      </div>
-
-                      {dirHandle ? (
-                        <button
-                          id="take-full-backup-btn"
-                          onClick={handleTakeFullBackup}
-                          disabled={takingFullBackup}
-                          className="w-full py-2 px-3 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold flex items-center justify-center gap-1.5 shadow-lg shadow-blue-600/30 transition-all cursor-pointer"
-                        >
-                          <HardDrive className="w-3.5 h-3.5" />
-                          {takingFullBackup ? 'Yedek Alınıyor...' : 'Klasöre Tam Yedek Al'}
-                        </button>
-                      ) : (
-                        <button
-                          onClick={handleConnect}
-                          className="w-full py-2 px-3 rounded-xl bg-white/10 hover:bg-white/15 text-slate-300 text-xs font-semibold flex items-center justify-center gap-1.5 transition-all cursor-pointer"
-                        >
-                          <FolderSync className="w-3.5 h-3.5" />
-                          Önce Klasör Bağlayın
-                        </button>
-                      )}
+                  {/* 1. Klasör İçi Yedekleme (Backup Klasörü) */}
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2 text-xs font-bold text-slate-300">
+                      <FolderArchive className="w-3.5 h-3.5 text-blue-400" />
+                      <span>Sistem Yedekleme (<code className="text-blue-300 font-mono text-[11px]">Backup/</code>)</span>
                     </div>
 
-                    {/* Action 2: Backup Yükle (Restore) */}
-                    <div className="p-3.5 rounded-xl bg-black/40 border border-white/10 flex flex-col justify-between space-y-2.5 relative">
-                      <div className="space-y-1">
-                        <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-300">
-                          <Upload className="w-4 h-4 text-emerald-400" />
-                          <span>Yedekten Geri Yükle</span>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      {/* Action 1: Tam Sistem Yedeği Oluştur */}
+                      <div className="p-3.5 rounded-xl bg-black/40 border border-white/10 flex flex-col justify-between space-y-2.5">
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-1.5 text-xs font-bold text-blue-300">
+                            <HardDrive className="w-4 h-4 text-blue-400" />
+                            <span>Tam Sistem Yedeği Oluştur</span>
+                          </div>
+                          <p className="text-[11px] text-slate-400 leading-relaxed">
+                            <code className="text-blue-300">Backup/</code> içerisine tüm kütüphane zip'ini ve kategorilerin bağımsız Tier List yedeklerini içeren tek ana paketi kaydeder.
+                          </p>
                         </div>
-                        <p className="text-[11px] text-slate-400 leading-relaxed">
-                          Önceden aldığınız bir ZIP kütüphane paketini veya JSON arşiv/yedek dosyasını seçerek uygulamaya aktarın.
-                        </p>
+
+                        {dirHandle ? (
+                          <button
+                            id="take-full-backup-btn"
+                            onClick={handleTakeFullBackup}
+                            disabled={takingFullBackup}
+                            className="w-full py-2 px-3 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold flex items-center justify-center gap-1.5 shadow-lg shadow-blue-600/30 transition-all cursor-pointer"
+                          >
+                            <HardDrive className="w-3.5 h-3.5" />
+                            {takingFullBackup ? 'Yedek Oluşturuluyor...' : '📦 Tam Sistem Yedeği Oluştur'}
+                          </button>
+                        ) : (
+                          <button
+                            onClick={handleConnect}
+                            className="w-full py-2 px-3 rounded-xl bg-white/10 hover:bg-white/15 text-slate-300 text-xs font-semibold flex items-center justify-center gap-1.5 transition-all cursor-pointer"
+                          >
+                            <FolderSync className="w-3.5 h-3.5" />
+                            Önce Klasör Bağlayın
+                          </button>
+                        )}
                       </div>
 
-                      <div className="relative">
-                        <button
-                          id="open-restore-options-btn"
-                          onClick={() => setIsRestoreMenuOpen(!isRestoreMenuOpen)}
-                          disabled={importingZip}
-                          className="w-full py-2 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold flex items-center justify-center gap-1.5 shadow-lg shadow-emerald-600/30 transition-all cursor-pointer"
-                        >
-                          <Upload className="w-3.5 h-3.5" />
-                          {importingZip ? 'Açılıyor...' : 'Yedek Dosyası Seç & Yükle ▾'}
-                        </button>
-
-                        {/* Dropdown Options for Restore */}
-                        {isRestoreMenuOpen && (
-                          <div
-                            className="absolute bottom-full mb-1.5 left-0 right-0 p-1.5 bg-[#1a1d26] border border-white/20 rounded-xl shadow-2xl space-y-1 z-30 animate-in fade-in zoom-in-95 duration-100"
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setIsRestoreMenuOpen(false);
-                                zipFileInputRef.current?.click();
-                              }}
-                              className="w-full text-left px-3 py-2 rounded-lg text-xs text-slate-200 hover:bg-blue-600/20 hover:text-blue-200 border border-transparent hover:border-blue-500/30 flex items-center gap-2 transition-all cursor-pointer"
-                            >
-                              <FileArchive className="w-3.5 h-3.5 text-blue-400 shrink-0" />
-                              <div>
-                                <span className="font-semibold block">ZIP Kütüphane Paketi (.zip)</span>
-                                <span className="text-[10px] text-slate-400 block">Tüm yapımlar ve görseller</span>
-                              </div>
-                            </button>
-
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setIsRestoreMenuOpen(false);
-                                fileInputRef.current?.click();
-                              }}
-                              className="w-full text-left px-3 py-2 rounded-lg text-xs text-slate-200 hover:bg-emerald-600/20 hover:text-emerald-200 border border-transparent hover:border-emerald-500/30 flex items-center gap-2 transition-all cursor-pointer"
-                            >
-                              <HardDrive className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-                              <div>
-                                <span className="font-semibold block">JSON Arşiv Dosyası (.json)</span>
-                                <span className="text-[10px] text-slate-400 block">Veritabanı ve yapım listesi</span>
-                              </div>
-                            </button>
+                      {/* Action 2: Geçmiş Yedekler Listesi & Geri Yükleme */}
+                      <div className="p-3.5 rounded-xl bg-black/40 border border-white/10 flex flex-col justify-between space-y-2.5">
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-300">
+                            <History className="w-4 h-4 text-emerald-400" />
+                            <span>Geçmiş Yedekten Geri Yükle</span>
                           </div>
+                          <p className="text-[11px] text-slate-400 leading-relaxed">
+                            <code className="text-emerald-300">Backup/</code> klasöründeki geçmiş tarihli yedeklerinizi görüntüleyin ve dilediğiniz güne geri dönün.
+                          </p>
+                        </div>
+
+                        {dirHandle ? (
+                          <button
+                            id="open-backups-modal-btn"
+                            onClick={handleOpenBackupsModal}
+                            disabled={loadingBackups}
+                            className="w-full py-2 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold flex items-center justify-center gap-1.5 shadow-lg shadow-emerald-600/30 transition-all cursor-pointer"
+                          >
+                            <History className="w-3.5 h-3.5" />
+                            {loadingBackups ? 'Yedekler Aranıyor...' : 'Geçmiş Yedekler Listesi ▾'}
+                          </button>
+                        ) : (
+                          <button
+                            onClick={handleConnect}
+                            className="w-full py-2 px-3 rounded-xl bg-white/10 hover:bg-white/15 text-slate-300 text-xs font-semibold flex items-center justify-center gap-1.5 transition-all cursor-pointer"
+                          >
+                            <FolderSync className="w-3.5 h-3.5" />
+                            Önce Klasör Bağlayın
+                          </button>
                         )}
                       </div>
                     </div>
+                  </div>
 
-                    {/* Action 3: ZIP İndir */}
-                    <div className="p-3.5 rounded-xl bg-black/40 border border-white/10 flex flex-col justify-between space-y-2">
-                      <div className="space-y-1">
-                        <span className="text-xs font-bold text-slate-200 flex items-center gap-1.5">
-                          <FileArchive className="w-3.5 h-3.5 text-blue-400" />
-                          <span>ZIP Paketi İndir (.zip)</span>
-                        </span>
-                        <p className="text-[11px] text-slate-400">
-                          Tüm veritabanı ve optimize edilmiş afişleri tek zip paketi olarak indirir.
-                        </p>
-                      </div>
-                      <button
-                        id="export-zip-btn"
-                        onClick={handleExportZip}
-                        disabled={exportingZip}
-                        className="w-full py-2 px-3 rounded-lg bg-white/10 hover:bg-white/15 border border-white/20 text-white text-xs font-semibold flex items-center justify-center gap-1.5 transition-all cursor-pointer"
-                      >
-                        <Download className="w-3.5 h-3.5 text-blue-400" />
-                        {exportingZip ? 'Paketleniyor...' : 'ZIP İndir (.zip)'}
-                      </button>
+                  {/* 2. Dışa / İçe Aktarma */}
+                  <div className="space-y-2 pt-2 border-t border-white/10">
+                    <div className="flex items-center gap-2 text-xs font-bold text-slate-300">
+                      <Download className="w-3.5 h-3.5 text-indigo-400" />
+                      <span>Dışa Aktar & İçe Aktar</span>
                     </div>
 
-                    {/* Action 4: JSON İndir */}
-                    <div className="p-3.5 rounded-xl bg-black/40 border border-white/10 flex flex-col justify-between space-y-2">
-                      <div className="space-y-1">
-                        <span className="text-xs font-bold text-slate-200 flex items-center gap-1.5">
-                          <HardDrive className="w-3.5 h-3.5 text-slate-400" />
-                          <span>JSON Veritabanı İndir (.json)</span>
-                        </span>
-                        <p className="text-[11px] text-slate-400">
-                          Metin bazlı salt JSON veritabanı dosyasını doğrudan indirir.
-                        </p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      {/* Action 3: ZIP İndir */}
+                      <div className="p-3.5 rounded-xl bg-black/40 border border-white/10 flex flex-col justify-between space-y-2">
+                        <div className="space-y-1">
+                          <span className="text-xs font-bold text-slate-200 flex items-center gap-1.5">
+                            <FileArchive className="w-3.5 h-3.5 text-blue-400" />
+                            <span>ZIP Paketi İndir (.zip)</span>
+                          </span>
+                          <p className="text-[11px] text-slate-400 leading-relaxed">
+                            Tüm kütüphaneyi, görselleri ve Tier List verilerini tek bir ZIP paketi olarak bilgisayara indirir.
+                          </p>
+                        </div>
+                        <button
+                          id="export-zip-btn"
+                          onClick={handleExportZip}
+                          disabled={exportingZip}
+                          className="w-full py-2 px-3 rounded-lg bg-white/10 hover:bg-white/15 border border-white/20 text-white text-xs font-semibold flex items-center justify-center gap-1.5 transition-all cursor-pointer"
+                        >
+                          <Download className="w-3.5 h-3.5 text-blue-400" />
+                          {exportingZip ? 'Paketleniyor...' : 'ZIP İndir (.zip)'}
+                        </button>
                       </div>
-                      <button
-                        id="download-json-backup-btn"
-                        onClick={() => downloadJsonFile(appData)}
-                        className="w-full py-2 px-3 rounded-lg bg-white/10 hover:bg-white/15 border border-white/20 text-white text-xs font-semibold flex items-center justify-center gap-1.5 transition-all cursor-pointer"
-                      >
-                        <Download className="w-3.5 h-3.5 text-slate-300" />
-                        JSON İndir (.json)
-                      </button>
+
+                      {/* Action 4: Dışarıdan ZIP Yükle */}
+                      <div className="p-3.5 rounded-xl bg-black/40 border border-white/10 flex flex-col justify-between space-y-2">
+                        <div className="space-y-1">
+                          <span className="text-xs font-bold text-slate-200 flex items-center gap-1.5">
+                            <Upload className="w-3.5 h-3.5 text-emerald-400" />
+                            <span>Dışarıdan ZIP Yükle (.zip)</span>
+                          </span>
+                          <p className="text-[11px] text-slate-400 leading-relaxed">
+                            Başka cihazdan veya diskten getirdiğiniz ZIP yedek paketini seçip uygulamaya yükler.
+                          </p>
+                        </div>
+                        <button
+                          id="upload-zip-direct-btn"
+                          onClick={() => zipFileInputRef.current?.click()}
+                          disabled={importingZip}
+                          className="w-full py-2 px-3 rounded-lg bg-white/10 hover:bg-white/15 border border-white/20 text-white text-xs font-semibold flex items-center justify-center gap-1.5 transition-all cursor-pointer"
+                        >
+                          <Upload className="w-3.5 h-3.5 text-emerald-400" />
+                          {importingZip ? 'Yükleniyor...' : 'ZIP Dosyası Seç & Yükle'}
+                        </button>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -1662,13 +1789,46 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                       onChange={(e) => setShowAdvancedStorage(e.target.checked)}
                       className="w-4 h-4 rounded border-white/20 bg-black/40 text-blue-500 focus:ring-blue-400/40"
                     />
-                    <span className="font-semibold text-slate-200">Gelişmiş Seçenekleri Göster (Advanced)</span>
+                    <span className="font-semibold text-slate-200">Gelişmiş Seçenekleri Göster</span>
                   </label>
                 </div>
 
-                {/* Advanced Section: Mobile HTML Export & Reset */}
+                {/* Advanced Section: JSON, Mobile HTML Export & Reset */}
                 {showAdvancedStorage && (
                   <div className="space-y-4 pt-1 transition-all">
+                    {/* JSON Arşiv & İçe Aktarma */}
+                    <div className="p-4 rounded-xl bg-white/5 border border-white/10 space-y-3">
+                      <div className="flex items-center gap-2">
+                        <Download className="w-4 h-4 text-blue-400" />
+                        <h4 className="text-sm font-semibold text-slate-100">
+                          JSON Veri İşlemleri (İndir & İçe Aktar)
+                        </h4>
+                      </div>
+                      <p className="text-xs text-slate-300 leading-relaxed">
+                        Arşivinizi ham <code className="text-blue-300 font-mono">.json</code> formatında dışa aktarabilir veya dışarıdan hazırladığınız JSON listelerini (<code className="text-amber-300 font-mono">oyunlar.json</code>, <code className="text-amber-300 font-mono">anime.json</code> vb.) mevcut kütüphanenize doğrudan ekleyebilirsiniz.
+                      </p>
+                      <div className="flex items-center gap-2.5 flex-wrap pt-1">
+                        <button
+                          id="download-json-advanced-btn"
+                          type="button"
+                          onClick={() => downloadJsonFile(appData)}
+                          className="py-2 px-3.5 rounded-xl bg-blue-600/20 hover:bg-blue-600/30 text-blue-300 border border-blue-500/40 text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer"
+                        >
+                          <Download className="w-3.5 h-3.5" />
+                          JSON Arşivi İndir (.json)
+                        </button>
+                        <button
+                          id="upload-json-advanced-btn"
+                          type="button"
+                          onClick={() => fileInputRef.current?.click()}
+                          className="py-2 px-3.5 rounded-xl bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-500/40 text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer"
+                        >
+                          <Upload className="w-3.5 h-3.5" />
+                          JSON Yükle / İçe Aktar (.json)
+                        </button>
+                      </div>
+                    </div>
+
                     <div className="p-4 rounded-xl bg-white/5 border border-white/10 space-y-3">
                       <div className="flex items-center gap-2">
                         <Smartphone className="w-4 h-4 text-emerald-400" />
@@ -1735,6 +1895,138 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           </div>
         </div>
       </div>
+
+      {/* Backups List Modal */}
+      {isBackupsModalOpen && (
+        <div
+          id="folder-backups-modal-overlay"
+          className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/60 animate-in fade-in duration-150"
+          onClick={() => !restoringBackup && setIsBackupsModalOpen(false)}
+        >
+          <div
+            className="w-full max-w-xl bg-[#13161f] border border-white/15 rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[85vh] animate-in zoom-in-95 duration-150"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div className="p-4 px-5 border-b border-white/10 flex items-center justify-between bg-white/[0.02]">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400">
+                  <History className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-slate-100">
+                    Geçmiş Yedekler (Backup Listesi)
+                  </h3>
+                  <p className="text-[11px] text-slate-400">
+                    Bağlı klasörünüzdeki <code className="text-emerald-300 font-mono">Backup/</code> dizininde bulunan tüm kayıtlı yedekler
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsBackupsModalOpen(false)}
+                disabled={restoringBackup}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-5 overflow-y-auto space-y-3 flex-1 custom-scrollbar">
+              {loadingBackups ? (
+                <div className="py-12 flex flex-col items-center justify-center space-y-2.5 text-slate-400">
+                  <div className="w-7 h-7 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
+                  <span className="text-xs">Backup klasörü taranıyor...</span>
+                </div>
+              ) : folderBackups.length === 0 ? (
+                <div className="py-10 px-4 text-center rounded-xl bg-black/30 border border-white/10 space-y-3">
+                  <div className="w-10 h-10 mx-auto rounded-full bg-white/5 flex items-center justify-center text-slate-400">
+                    <FolderArchive className="w-5 h-5" />
+                  </div>
+                  <div className="space-y-1">
+                    <h4 className="text-xs font-semibold text-slate-200">
+                      Henüz Kayıtlı Yedek Bulunamadı
+                    </h4>
+                    <p className="text-[11px] text-slate-400 max-w-sm mx-auto">
+                      Bağlı klasörünüzde henüz bir yedek bulunmuyor. Dilerseniz hemen yeni bir tam yedek alabilirsiniz.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      setIsBackupsModalOpen(false);
+                      await handleTakeFullBackup();
+                    }}
+                    className="py-2 px-4 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold inline-flex items-center gap-1.5 shadow-lg shadow-blue-600/30 transition-all cursor-pointer"
+                  >
+                    <HardDrive className="w-3.5 h-3.5" />
+                    Şimdi İlk Yedeği Al
+                  </button>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <div className="text-[11px] text-slate-400 font-medium px-1 flex items-center justify-between">
+                    <span>Bulunan Yedekler ({folderBackups.length})</span>
+                    <span className="text-[10px] text-slate-500">Yeniden eskiye sıralı</span>
+                  </div>
+
+                  {folderBackups.map((backup, idx) => (
+                    <div
+                      key={idx}
+                      className="p-3.5 rounded-xl bg-black/40 hover:bg-black/60 border border-white/10 hover:border-emerald-500/40 flex items-center justify-between gap-3 transition-all group"
+                    >
+                      <div className="space-y-1 min-w-0 flex-1">
+                        <div className="flex items-center gap-2">
+                          <Calendar className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                          <span className="text-xs font-bold text-slate-100 truncate">
+                            {backup.dateFormatted}
+                          </span>
+                          {idx === 0 && (
+                            <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                              En Son Yedek
+                            </span>
+                          )}
+                        </div>
+
+                        <div className="flex items-center gap-2 text-[11px] text-slate-400 font-mono truncate">
+                          <span className="text-slate-500">📁 {backup.folderName}/</span>
+                          <span className="text-blue-300 truncate">{backup.zipFileName}</span>
+                        </div>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => handleRestoreBackup(backup)}
+                        disabled={restoringBackup}
+                        className="py-2 px-3.5 rounded-xl bg-emerald-600/20 hover:bg-emerald-600 text-emerald-300 hover:text-white border border-emerald-500/40 text-xs font-semibold flex items-center gap-1.5 shrink-0 transition-all cursor-pointer shadow-sm active:scale-95"
+                      >
+                        <Upload className="w-3.5 h-3.5" />
+                        Geri Yükle
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-3 px-5 border-t border-white/10 bg-white/[0.02] flex items-center justify-between">
+              <span className="text-[11px] text-slate-400">
+                Geri yükleme yapıldığında tüm kütüphane ve Tier List'ler seçilen tarihe döner.
+              </span>
+              <button
+                type="button"
+                onClick={() => setIsBackupsModalOpen(false)}
+                disabled={restoringBackup}
+                className="py-1.5 px-3 rounded-lg bg-white/10 hover:bg-white/15 text-slate-300 text-xs font-medium transition-colors cursor-pointer"
+              >
+                Kapat
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Global In-App Dialog Component */}
       <CustomDialog options={dialogOptions} onClose={() => setDialogOptions(null)} />

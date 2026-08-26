@@ -9,6 +9,7 @@ import {
   Brain,
   Gamepad2,
   Check,
+  FolderX,
 } from 'lucide-react';
 
 interface FilterPanelProps {
@@ -16,6 +17,8 @@ interface FilterPanelProps {
   filters: FilterState;
   onChange: (newFilters: Partial<FilterState>) => void;
   onClose: () => void;
+  activeCategoryName?: string | null;
+  activeSub?: string | null;
 }
 
 const GAME_STATUS_OPTIONS: { label: string; value: GameStatus | 'all' }[] = [
@@ -30,14 +33,18 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
   mainTab,
   filters,
   onChange,
+  activeCategoryName,
+  activeSub,
 }) => {
   const isGame = mainTab === 'game';
+  const isInsideSubfolder = Boolean(activeSub);
 
   const isFiltered =
     filters.minRating > 0 ||
     filters.watchingOnly ||
     filters.followingOnly ||
     filters.ankiFilter !== 'all' ||
+    Boolean(filters.uncategorizedOnly) ||
     (filters.gameStatus && filters.gameStatus !== 'all');
 
   const handleReset = () => {
@@ -47,6 +54,7 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
       followingOnly: false,
       ankiFilter: 'all',
       gameStatus: 'all',
+      uncategorizedOnly: false,
     });
   };
 
@@ -213,6 +221,34 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
             ))}
           </div>
         </div>
+
+        {/* Kategorisiz / Alt Kategorisiz Kartlar (On/Off) */}
+        {!isInsideSubfolder ? (
+          <div className="pt-2 border-t border-white/10">
+            <label className="flex items-center justify-between text-xs text-neutral-300 hover:text-white cursor-pointer select-none py-1 px-1 rounded-lg hover:bg-white/5 transition-colors">
+              <div className="flex items-center gap-2">
+                <FolderX className="w-3.5 h-3.5 text-rose-400 shrink-0" />
+                <span>
+                  {activeCategoryName
+                    ? `Sadece Alt Kategorisiz (${activeCategoryName})`
+                    : 'Sadece Kategorisiz Kartlar'}
+                </span>
+              </div>
+              <input
+                id="filter-uncategorized-checkbox"
+                type="checkbox"
+                checked={Boolean(filters.uncategorizedOnly)}
+                onChange={(e) => onChange({ uncategorizedOnly: e.target.checked })}
+                className="w-4 h-4 rounded border-neutral-600 bg-neutral-800 text-white focus:ring-0 cursor-pointer accent-white"
+              />
+            </label>
+            <p className="text-[10px] text-neutral-500 px-1 mt-0.5">
+              {activeCategoryName
+                ? `"${activeCategoryName}" içinde herhangi bir alt gruba (Yerli/Yabancı vb.) atanmamış doğrudan ana klasördeki kartları listeler.`
+                : 'Herhangi bir kategoriye atanmamış veya silinmiş kategorideki yapımları listeler.'}
+            </p>
+          </div>
+        ) : null}
       </div>
     </div>
   );
