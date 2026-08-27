@@ -83,9 +83,10 @@ export interface FilterState {
 export type AppTheme =
   | 'pure-dark'
   | 'charcoal-gray'
-  | 'dark-slate'
+  | 'nordic-frost'
   | 'crimson-night'
-  | 'nordic-frost';
+  | 'emerald-abyss'
+  | 'amethyst-twilight';
 
 export type SortOption =
   | 'date-desc'
@@ -110,23 +111,23 @@ export interface ViewSettings {
   showQuickAppearanceBar?: boolean; // Show bottom floating appearance bar
 }
 
-export type ToolbarExperimentStyle = 'default' | 'box' | 'glass' | 'floating';
-export type CardVignetteStyle = 'none' | 'bottom' | 'top' | 'both';
-export type CardCornerRadius = 'normal' | 'sharp' | 'soft';
+export type ToolbarExperimentStyle = 'default' | 'box' | 'glass';
+export type CardVignetteStyle = 'none' | 'bottom' | 'corners';
+export type CardCornerRadius = 'normal' | 'sharp';
 export type CardHoverMotion = 'lift' | 'zoom' | 'none';
 export type BgAtmosphereExperiment = 'default' | 'dots';
 export type BadgeExperimentStyle = 'default' | 'neon' | 'minimal';
-export type BadgeDensity = 'full' | 'compact' | 'hover-only';
+export type BadgeDensity = 'full' | 'hover-only';
 
 export interface UiExperimentsState {
   toolbarStyle: ToolbarExperimentStyle;
-  cardGlow: boolean; // Independent toggle for hover blue border glow
+  cardGlow?: boolean; // Independent toggle for hover blue border glow (deprecated)
   cardVignette: CardVignetteStyle; // Independent vignette orientation
-  cardRadius: CardCornerRadius; // 6.1: Keskin / Standart / Kavisli
+  cardRadius: CardCornerRadius; // 6.1: Keskin / Standart
   cardHoverMotion: CardHoverMotion; // 6.2: Yükselme / Büyüme / Sabit
   bgAtmosphere: BgAtmosphereExperiment;
   badgeStyle: BadgeExperimentStyle;
-  badgeDensity: BadgeDensity; // 6.4: Dolu / Sade / Hover
+  badgeDensity: BadgeDensity; // 6.4: Tam Detay / Hover
 }
 
 export type MediaTagField = 'firm' | 'director' | 'actors' | 'genre';

@@ -113,13 +113,13 @@ export const TierListView: React.FC<TierListViewProps> = ({
   const [addRowModal, setAddRowModal] = useState<AddRowModalState | null>(null);
 
   const catItems = useMemo(
-    () => items.filter((it) => it.mainTab === mainTab && it.cat === category.id),
-    [items, mainTab, category.id]
+    () => (items || []).filter((it) => it && it.mainTab === mainTab && it.cat === category?.id),
+    [items, mainTab, category?.id]
   );
 
   const validRowIds = useMemo(
-    () => new Set(category.tierRows.map((r) => r.id)),
-    [category.tierRows]
+    () => new Set((category?.tierRows || []).map((r) => r.id)),
+    [category?.tierRows]
   );
 
   const poolItems = useMemo(
@@ -216,20 +216,26 @@ export const TierListView: React.FC<TierListViewProps> = ({
     // Do not aggressively clear target to prevent flickering between card boundaries
   };
 
-  // Drop on Row background
+  // Drop on Row background or tier row
   const handleRowDrop = (e: React.DragEvent, targetRowId: string | null) => {
     e.preventDefault();
+    e.stopPropagation();
     const currentOverTarget = dragOverTarget;
+    const itemId = e.dataTransfer.getData('text/plain') || draggedItemId;
+
     setDragOverRowId(null);
     setDragOverTarget(null);
 
-    const itemId = e.dataTransfer.getData('text/plain') || draggedItemId;
     if (!itemId) return;
 
-    if (currentOverTarget && currentOverTarget.itemId !== itemId) {
+    if (
+      currentOverTarget &&
+      currentOverTarget.itemId !== itemId &&
+      currentOverTarget.rowId === targetRowId
+    ) {
       onUpdateTierPlacement(
         itemId,
-        currentOverTarget.rowId,
+        targetRowId,
         currentOverTarget.itemId,
         currentOverTarget.position
       );
@@ -250,14 +256,22 @@ export const TierListView: React.FC<TierListViewProps> = ({
     e.stopPropagation();
 
     const currentOverTarget = dragOverTarget;
+    const itemId = e.dataTransfer.getData('text/plain') || draggedItemId;
+
     setDragOverRowId(null);
     setDragOverTarget(null);
 
-    const itemId = e.dataTransfer.getData('text/plain') || draggedItemId;
-    if (!itemId || itemId === targetItem.id) return;
+    if (!itemId) return;
+
+    if (itemId === targetItem.id) {
+      setDraggedItemId(null);
+      return;
+    }
 
     const position =
-      currentOverTarget?.itemId === targetItem.id ? currentOverTarget.position : 'after';
+      currentOverTarget?.itemId === targetItem.id
+        ? currentOverTarget.position
+        : 'after';
 
     onUpdateTierPlacement(itemId, rowId, targetItem.id, position);
     setDraggedItemId(null);
@@ -458,13 +472,42 @@ export const TierListView: React.FC<TierListViewProps> = ({
             <div
               key={row.id}
               id={`tier-row-${row.id}`}
-              className="flex rounded-xl overflow-hidden border border-white/10 bg-[#161616] min-h-[88px] shadow-md transition-all"
+              onDragOver={(e) => handleRowDragOver(e, row.id)}
+              onDragLeave={handleRowDragLeave}
+              onDrop={(e) => handleRowDrop(e, row.id)}
+              className={`flex rounded-xl overflow-hidden border border-white/10 bg-[#161616] min-h-[88px] shadow-md transition-all ${
+                isOverRow
+                  ? 'ring-2 ring-sky-400/60 shadow-lg shadow-sky-500/15'
+                  : ''
+              }`}
             >
-              {/* Left Tier Box */}
+              {/* Left Tier Box (Label) - Fully Droppable */}
               <div
                 id={`tier-label-${row.id}`}
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  e.dataTransfer.dropEffect = 'move';
+                  if (dragOverRowId !== row.id) {
+                    setDragOverRowId(row.id);
+                  }
+                  if (dragOverTarget) {
+                    setDragOverTarget(null);
+                  }
+                }}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  const itemId = e.dataTransfer.getData('text/plain') || draggedItemId;
+                  setDragOverRowId(null);
+                  setDragOverTarget(null);
+                  if (itemId) {
+                    onUpdateTierPlacement(itemId, row.id);
+                  }
+                  setDraggedItemId(null);
+                }}
                 onContextMenu={(e) => handleRowContextMenu(e, row.id)}
-                title="Sağ tık: Satır seçenekleri (Ad, Renk, Sil, Ekle)"
+                title="Sürükle-Bırak: Bu satıra ekle | Sağ tık: Satır seçenekleri"
                 className="w-18 sm:w-20 shrink-0 flex flex-col items-center justify-center p-2 relative select-none font-bold text-center cursor-context-menu border-r border-black/40 transition-transform active:scale-95 group"
                 style={{
                   backgroundColor: row.color,

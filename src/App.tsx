@@ -8,6 +8,7 @@ import {
   TierRow,
   ViewSettings,
   UiExperimentsState,
+  AppTheme,
 } from './types';
 import { INITIAL_DATA } from './data/initialData';
 import {
@@ -18,6 +19,9 @@ import {
   writeDataToFolder,
   loadDataFromLocalStorage,
   saveDataToLocalStorage,
+  loadDataFromIndexedDB,
+  safeLocalStorageSet,
+  safeLocalStorageGet,
   deleteImageFromFolder,
   exportTierListBackup,
   parseTierListBackupFile,
@@ -50,6 +54,7 @@ import {
   RotateCcw,
   Layers,
   FlaskConical,
+  Palette,
 } from 'lucide-react';
 
 export default function App() {
@@ -85,32 +90,45 @@ export default function App() {
   const [hoveredItem, setHoveredItem] = useState<ArchiveItem | null>(null);
   const [previewItem, setPreviewItem] = useState<ArchiveItem | null>(null);
 
-  // UI Experiments State for testing toolbar & visual atmosphere designs
+  // UI Experiments State for visual appearance and atmosphere
   const [uiExperiments, setUiExperiments] = useState<UiExperimentsState>(() => {
-    const saved = localStorage.getItem('yapim_ui_experiments');
+    const saved = safeLocalStorageGet('yapim_ui_experiments');
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
+        const cardVignette =
+          parsed.cardVignette === 'top'
+            ? 'bottom'
+            : parsed.cardVignette || (parsed.cardEffect === 'vignette' ? 'bottom' : 'none');
         return {
           toolbarStyle: parsed.toolbarStyle || 'default',
-          cardEffect: parsed.cardEffect || 'default',
-          bgAtmosphere: parsed.bgAtmosphere || 'default',
+          cardGlow: Boolean(parsed.cardGlow),
+          cardVignette: cardVignette as any,
+          cardRadius: parsed.cardRadius || 'normal',
+          cardHoverMotion: parsed.cardHoverMotion || 'zoom',
+          bgAtmosphere: parsed.bgAtmosphere === 'topglow' ? 'default' : (parsed.bgAtmosphere || 'default'),
           badgeStyle: parsed.badgeStyle || 'default',
+          badgeDensity: parsed.badgeDensity || 'full',
         };
       } catch {}
     }
     return {
       toolbarStyle: 'default',
-      cardEffect: 'default',
+      cardGlow: false,
+      cardVignette: 'none',
+      cardRadius: 'normal',
+      cardHoverMotion: 'zoom',
       bgAtmosphere: 'default',
       badgeStyle: 'default',
+      badgeDensity: 'full',
     };
   });
 
-  const [openUiTestMenu, setOpenUiTestMenu] = useState<'toolbar' | 'card' | 'bg' | 'badge' | null>(null);
+  const [openUiTestMenu, setOpenUiTestMenu] = useState<'theme' | 'toolbar' | 'card' | 'bg' | 'badge' | null>(null);
+  const [highlightQuickBar, setHighlightQuickBar] = useState(false);
 
   useEffect(() => {
-    localStorage.setItem('yapim_ui_experiments', JSON.stringify(uiExperiments));
+    safeLocalStorageSet('yapim_ui_experiments', JSON.stringify(uiExperiments));
   }, [uiExperiments]);
 
   // Filter State
@@ -125,7 +143,7 @@ export default function App() {
 
   // View Settings State with card size slider and theme support
   const [viewSettings, setViewSettings] = useState<ViewSettings>(() => {
-    const saved = localStorage.getItem('yapim_view_settings');
+    const saved = safeLocalStorageGet('yapim_view_settings');
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
@@ -158,7 +176,7 @@ export default function App() {
 
   // Persist viewSettings and set data-theme on document root
   useEffect(() => {
-    localStorage.setItem('yapim_view_settings', JSON.stringify(viewSettings));
+    safeLocalStorageSet('yapim_view_settings', JSON.stringify(viewSettings));
     document.documentElement.setAttribute(
       'data-theme',
       viewSettings.theme || 'deep-slate'
@@ -169,11 +187,23 @@ export default function App() {
   useEffect(() => {
     async function initStorage() {
       try {
-        const local = loadDataFromLocalStorage();
-        if (local && local.categories && local.items) {
-          setAppData(local);
+        // 1. First check IndexedDB (which stores full items, custom posters & modifications)
+        const idbData = await loadDataFromIndexedDB();
+        let currentBestData: AppData | null = null;
+
+        if (idbData && idbData.categories && Array.isArray(idbData.items) && idbData.items.length > 0) {
+          setAppData(idbData);
+          currentBestData = idbData;
+        } else {
+          // Fallback to localStorage
+          const local = loadDataFromLocalStorage();
+          if (local && local.categories && Array.isArray(local.items) && local.items.length > 0) {
+            setAppData(local);
+            currentBestData = local;
+          }
         }
 
+        // 2. Check connected file system directory if available
         const storedHandle = await getStoredDirectoryHandle();
         if (storedHandle) {
           const isAccessible = await checkDirectoryHandleAccessibility(storedHandle);
@@ -182,9 +212,28 @@ export default function App() {
             if (hasPerm) {
               setDirHandle(storedHandle);
               const folderData = await readDataFromFolder(storedHandle);
-              if (folderData && folderData.categories && folderData.items) {
-                setAppData(folderData);
-                saveDataToLocalStorage(folderData);
+              if (folderData && folderData.categories && Array.isArray(folderData.items) && folderData.items.length > 0) {
+                const localUpdated = currentBestData?.lastUpdated ? new Date(currentBestData.lastUpdated).getTime() : 0;
+                const folderUpdated = folderData.lastUpdated ? new Date(folderData.lastUpdated).getTime() : 0;
+                const localItemCount = currentBestData?.items?.length || 0;
+                const folderItemCount = folderData.items?.length || 0;
+
+                // If folder data is strictly newer AND has at least as many items, load it
+                if (folderUpdated > localUpdated && folderItemCount >= localItemCount) {
+                  setAppData(folderData);
+                  saveDataToLocalStorage(folderData);
+                } else if (currentBestData) {
+                  // Otherwise, local/IndexedDB data has newer updates (e.g. recently added/edited cards)
+                  // Preserve local data in state and immediately sync it to disk so the folder is up-to-date!
+                  writeDataToFolder(storedHandle, currentBestData).catch((e) =>
+                    console.warn('Syncing local data to folder on init:', e)
+                  );
+                }
+              } else if (currentBestData) {
+                // Folder is empty or newly created, write local data to it
+                writeDataToFolder(storedHandle, currentBestData).catch((e) =>
+                  console.warn('Initial folder sync:', e)
+                );
               }
             }
           } else {
@@ -219,6 +268,17 @@ export default function App() {
     }
   }, [appData, dirHandle, isDataLoaded]);
 
+  // Flush save on window unload
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      if (appData) {
+        saveDataToLocalStorage(appData);
+      }
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [appData]);
+
   // Close panels
   const closeAllPanels = useCallback(() => {
     setIsFilterOpen(false);
@@ -226,10 +286,10 @@ export default function App() {
   }, []);
 
   // Current category list for active main tab
-  const currentCategories = appData.categories[mainTab] || [];
+  const currentCategories = (appData?.categories && appData.categories[mainTab]) || [];
   const activeCategory =
     activeCatId && activeCatId !== TRACKED_TAB_ID
-      ? currentCategories.find((c) => c.id === activeCatId)
+      ? currentCategories.find((c) => c?.id === activeCatId)
       : null;
 
   // --- 3. Global Keyboard Shortcuts (1: Media Home, 2: Game Home, 3: Tracked, 'W': Add, 'Escape': Smart ESC/Settings, 'Tab': Grid/Tier, 'Space': Fullscreen) ---
@@ -288,6 +348,8 @@ export default function App() {
         setSelectedItem(null);
         setIsAddModalOpen(false);
         setIsSettingsOpen(false);
+        setIsSearchOpen(false);
+        setSearchQuery('');
         setMainTab('media');
         setActiveCatId(null);
         setActiveSub(null);
@@ -302,6 +364,8 @@ export default function App() {
         setSelectedItem(null);
         setIsAddModalOpen(false);
         setIsSettingsOpen(false);
+        setIsSearchOpen(false);
+        setSearchQuery('');
         setMainTab('game');
         setActiveCatId(null);
         setActiveSub(null);
@@ -316,6 +380,8 @@ export default function App() {
         setSelectedItem(null);
         setIsAddModalOpen(false);
         setIsSettingsOpen(false);
+        setIsSearchOpen(false);
+        setSearchQuery('');
         setMainTab('media');
         setActiveCatId(TRACKED_TAB_ID);
         setActiveSub(null);
@@ -397,18 +463,38 @@ export default function App() {
 
   // --- CRUD Operations on Items ---
   const handleAddItem = (newItem: ArchiveItem) => {
-    setAppData((prev) => ({
-      ...prev,
-      items: [newItem, ...prev.items],
-    }));
+    setAppData((prev) => {
+      const updated: AppData = {
+        ...prev,
+        lastUpdated: new Date().toISOString(),
+        items: [newItem, ...prev.items],
+      };
+      saveDataToLocalStorage(updated);
+      if (dirHandle) {
+        writeDataToFolder(dirHandle, updated).catch((err) =>
+          console.warn('Folder save on add item failed:', err)
+        );
+      }
+      return updated;
+    });
     setIsAddModalOpen(false);
   };
 
   const handleSaveItem = (updatedItem: ArchiveItem) => {
-    setAppData((prev) => ({
-      ...prev,
-      items: prev.items.map((it) => (it.id === updatedItem.id ? updatedItem : it)),
-    }));
+    setAppData((prev) => {
+      const updated: AppData = {
+        ...prev,
+        lastUpdated: new Date().toISOString(),
+        items: prev.items.map((it) => (it.id === updatedItem.id ? updatedItem : it)),
+      };
+      saveDataToLocalStorage(updated);
+      if (dirHandle) {
+        writeDataToFolder(dirHandle, updated).catch((err) =>
+          console.warn('Folder save on save item failed:', err)
+        );
+      }
+      return updated;
+    });
     setSelectedItem(null);
   };
 
@@ -420,10 +506,20 @@ export default function App() {
       });
     }
 
-    setAppData((prev) => ({
-      ...prev,
-      items: prev.items.filter((it) => it.id !== itemId),
-    }));
+    setAppData((prev) => {
+      const updated: AppData = {
+        ...prev,
+        lastUpdated: new Date().toISOString(),
+        items: prev.items.filter((it) => it.id !== itemId),
+      };
+      saveDataToLocalStorage(updated);
+      if (dirHandle) {
+        writeDataToFolder(dirHandle, updated).catch((err) =>
+          console.warn('Folder save on delete item failed:', err)
+        );
+      }
+      return updated;
+    });
     setSelectedItem(null);
   };
 
@@ -463,9 +559,9 @@ export default function App() {
       type: 'confirm',
       title: 'Toplu Yapım Sil',
       message: `Seçili ${count} yapım arşivden ve diskteki karşılık gelen afiş görselleri silinecektir. Bu işlem geri alınamaz. Devam etmek istiyor musunuz?`,
-      confirmLabel: 'Evet, Sil',
-      cancelLabel: 'İptal',
-      danger: true,
+      confirmText: 'Evet, Sil',
+      cancelText: 'İptal',
+      isDestructive: true,
       onConfirm: () => {
         if (dirHandle) {
           const itemsToDelete = appData.items.filter((it) => selectedItemIds.has(it.id));
@@ -819,8 +915,8 @@ export default function App() {
         type: 'confirm',
         title: 'Tier List Yedeğini Geri Yükle',
         message: `"${backup.category.name}" kategorisine ait Tier List yedeği bulundu (${backup.items.length} yapım, ${backup.category.tierRows.length} satır).\n\nBu kategorinin Tier List yapısı ve kart sıralamaları geri yüklensin mi?`,
-        confirmLabel: 'Geri Yükle',
-        cancelLabel: 'Vazgeç',
+        confirmText: 'Geri Yükle',
+        cancelText: 'Vazgeç',
         onConfirm: () => {
           // Update category tierRows
           const updatedCats = {
@@ -918,9 +1014,13 @@ export default function App() {
 
   // --- Filter and Search Logic ---
   const filteredItems = useMemo(() => {
-    const validCategoryIds = new Set((appData.categories[mainTab] || []).map((c) => c.id));
+    const rawItems = Array.isArray(appData?.items) ? appData.items : [];
+    const validCategoryIds = new Set(
+      ((appData?.categories && appData.categories[mainTab]) || []).map((c) => c?.id).filter(Boolean)
+    );
 
-    const result = appData.items.filter((item) => {
+    const result = rawItems.filter((item) => {
+      if (!item) return false;
       // 1. Tab match
       if (item.mainTab !== mainTab) return false;
 
@@ -1052,6 +1152,16 @@ export default function App() {
           bg: 'bg-[#181b22]',
           ambient: 'bg-[radial-gradient(ellipse_90%_70%_at_50%_-20%,rgba(96,165,250,0.14),transparent)]',
         };
+      case 'crimson-night':
+        return {
+          bg: 'bg-[#12080a]',
+          ambient: 'bg-[radial-gradient(ellipse_90%_70%_at_50%_-20%,rgba(225,29,72,0.18),transparent)]',
+        };
+      case 'nordic-frost':
+        return {
+          bg: 'bg-[#0b131e]',
+          ambient: 'bg-[radial-gradient(ellipse_90%_70%_at_50%_-20%,rgba(56,189,248,0.16),transparent)]',
+        };
       case 'pure-dark':
       default:
         return {
@@ -1072,18 +1182,10 @@ export default function App() {
       <div className={`fixed inset-0 pointer-events-none ${themeClasses.ambient}`} />
       {uiExperiments.bgAtmosphere === 'dots' && (
         <div
-          className="fixed inset-0 pointer-events-none opacity-30 z-0"
+          className="fixed inset-0 pointer-events-none opacity-40 z-0"
           style={{
-            backgroundImage: 'radial-gradient(rgba(255, 255, 255, 0.15) 1px, transparent 1px)',
-            backgroundSize: '20px 20px',
-          }}
-        />
-      )}
-      {uiExperiments.bgAtmosphere === 'topglow' && (
-        <div
-          className="fixed inset-0 pointer-events-none opacity-60 z-0"
-          style={{
-            background: 'radial-gradient(ellipse 900px 450px at 50% -80px, rgba(59, 130, 246, 0.15), transparent 70%)',
+            backgroundImage: 'radial-gradient(rgba(255, 255, 255, 0.2) 1.2px, transparent 1.2px)',
+            backgroundSize: '22px 22px',
           }}
         />
       )}
@@ -1356,302 +1458,502 @@ export default function App() {
             <Plus className="w-5 h-5 transition-transform duration-200 group-hover:rotate-90" />
           </button>
 
-          {/* Bottom Center Grouped UI Experiment Test Bar */}
-          <div
-            id="ui-test-experiment-bar"
-            onClick={(e) => e.stopPropagation()}
-            className="fixed bottom-5 left-1/2 -translate-x-1/2 z-40 flex flex-col items-center"
-          >
-            {/* Active Category Popover Menu */}
-            {openUiTestMenu && (
-              <div
-                id="ui-test-popover-menu"
-                className="mb-2 bg-neutral-900/95 border border-white/20 backdrop-blur-xl p-3 rounded-2xl shadow-2xl w-72 text-xs animate-in fade-in zoom-in-95 duration-150"
-              >
-                <div className="flex items-center justify-between pb-2 mb-2 border-b border-white/10">
-                  <div className="flex items-center gap-1.5 font-semibold text-white">
-                    <FlaskConical className="w-3.5 h-3.5 text-blue-400" />
-                    <span>
-                      {openUiTestMenu === 'toolbar' && 'Üst Bar / Toolbar'}
-                      {openUiTestMenu === 'card' && 'Kart Görünüm Efekti'}
-                      {openUiTestMenu === 'bg' && 'Arka Plan Doku & Işık'}
-                      {openUiTestMenu === 'badge' && 'Rozet / Etiket Stili'}
-                    </span>
+          {/* Bottom Center Grouped UI Appearance & Atmosphere Bar (Persistent if enabled) */}
+          {viewSettings.showQuickAppearanceBar !== false && (
+            <div
+              id="ui-test-experiment-bar"
+              onClick={(e) => e.stopPropagation()}
+              className="fixed bottom-5 left-1/2 -translate-x-1/2 z-40 flex flex-col items-center"
+            >
+              {/* Active Category Popover Menu */}
+              {openUiTestMenu && (
+                <div
+                  id="ui-test-popover-menu"
+                  className="mb-2 bg-neutral-900/95 border border-white/20 backdrop-blur-xl p-3 rounded-2xl shadow-2xl w-80 text-xs animate-in fade-in zoom-in-95 duration-150 max-h-[70vh] overflow-y-auto custom-scrollbar"
+                >
+                  <div className="flex items-center justify-between pb-2 mb-2 border-b border-white/10">
+                    <div className="flex items-center gap-1.5 font-semibold text-white">
+                      <Palette className="w-3.5 h-3.5 text-blue-400" />
+                      <span>
+                        {openUiTestMenu === 'theme' && 'Renk Teması'}
+                        {openUiTestMenu === 'toolbar' && 'Üst Bar / Toolbar'}
+                        {openUiTestMenu === 'card' && 'Kart Görünüm & Efektleri'}
+                        {openUiTestMenu === 'bg' && 'Arka Plan Zemin Dokusu'}
+                        {openUiTestMenu === 'badge' && 'Rozet & Etiket Ayarları'}
+                      </span>
+                    </div>
+                    <button
+                      onClick={() => setOpenUiTestMenu(null)}
+                      className="text-neutral-400 hover:text-white p-0.5 rounded cursor-pointer"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
                   </div>
+
+                  <div className="space-y-1">
+                    {/* Theme options */}
+                    {openUiTestMenu === 'theme' && (
+                      <>
+                        {[
+                          { id: 'pure-dark', label: 'Saf Siyah (OLED)', desc: 'Zifiri siyah zemin ve sade çizgiler' },
+                          { id: 'charcoal-gray', label: 'Koyu Gri (Charcoal)', desc: 'Mat antrasit/gri zemin' },
+                          { id: 'dark-slate', label: 'Grimsi Gri (Slate)', desc: 'Dengeli derin grimsi zemin' },
+                          { id: 'crimson-night', label: 'Kızıl Gece (Crimson Noir)', desc: 'Kadife siyah & yakut kızıl ambiyans' },
+                          { id: 'nordic-frost', label: 'Kuzey Işıkları (Nordic)', desc: 'Soğuk antrasit & buzul mavisi' },
+                        ].map((opt) => (
+                          <button
+                            key={opt.id}
+                            onClick={() => {
+                              setViewSettings((p) => ({ ...p, theme: opt.id as AppTheme }));
+                            }}
+                            className={`w-full text-left p-2 rounded-xl flex items-center justify-between transition-colors cursor-pointer ${
+                              (viewSettings.theme || 'pure-dark') === opt.id
+                                ? 'bg-blue-600/30 text-blue-200 border border-blue-500/40'
+                                : 'hover:bg-white/5 text-neutral-300'
+                            }`}
+                          >
+                            <div>
+                              <div className="font-medium">{opt.label}</div>
+                              <div className="text-[10px] text-neutral-400 leading-tight">{opt.desc}</div>
+                            </div>
+                            {(viewSettings.theme || 'pure-dark') === opt.id && (
+                              <Check className="w-3.5 h-3.5 text-blue-400 shrink-0 ml-2" />
+                            )}
+                          </button>
+                        ))}
+                      </>
+                    )}
+
+                    {/* Toolbar options */}
+                    {openUiTestMenu === 'toolbar' && (
+                      <>
+                        {[
+                          { id: 'default', label: 'Varsayılan (Sade)', desc: 'Klasik alt çizgili sade üst bar' },
+                          { id: 'box', label: 'Gri Toolbar Kutusu', desc: 'Koyu kutu içine alınmış zarif bar' },
+                          { id: 'glass', label: 'Buzlu Cam (Glassmorphism)', desc: 'Yarı saydam ve arkası bulanık bar' },
+                          { id: 'floating', label: 'Kompakt Yüzen Bar', desc: 'Ada biçimli çerçeveli bar' },
+                        ].map((opt) => (
+                          <button
+                            key={opt.id}
+                            onClick={() => {
+                              setUiExperiments((p) => ({ ...p, toolbarStyle: opt.id as any }));
+                            }}
+                            className={`w-full text-left p-2 rounded-xl flex items-center justify-between transition-colors cursor-pointer ${
+                              uiExperiments.toolbarStyle === opt.id
+                                ? 'bg-blue-600/30 text-blue-200 border border-blue-500/40'
+                                : 'hover:bg-white/5 text-neutral-300'
+                            }`}
+                          >
+                            <div>
+                              <div className="font-medium">{opt.label}</div>
+                              <div className="text-[10px] text-neutral-400 leading-tight">{opt.desc}</div>
+                            </div>
+                            {uiExperiments.toolbarStyle === opt.id && (
+                              <Check className="w-3.5 h-3.5 text-blue-400 shrink-0 ml-2" />
+                            )}
+                          </button>
+                        ))}
+                      </>
+                    )}
+
+                    {/* Card effect options */}
+                    {openUiTestMenu === 'card' && (
+                      <div className="space-y-3 p-1">
+                        {/* 1. Mavi Hover Işığı (Bağımsız Toggle) */}
+                        <div className="p-2.5 rounded-xl bg-white/5 border border-white/10 flex items-center justify-between">
+                          <div>
+                            <div className="font-medium text-slate-200">Mavi Hover Parlaması</div>
+                            <div className="text-[10px] text-slate-400">Üzerine gelince neon mavi çerçeve ışığı</div>
+                          </div>
+                          <label className="relative inline-flex items-center cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={uiExperiments.cardGlow}
+                              onChange={(e) =>
+                                setUiExperiments((p) => ({ ...p, cardGlow: e.target.checked }))
+                              }
+                              className="sr-only peer"
+                            />
+                            <div className="w-9 h-5 bg-neutral-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-600"></div>
+                          </label>
+                        </div>
+
+                        {/* 2. Sinematik Vinyet (Yön Seçenekleri) */}
+                        <div className="space-y-1.5">
+                          <div className="text-[11px] font-semibold text-slate-300 px-1">Sinematik Vinyet Gölgesi</div>
+                          <div className="grid grid-cols-3 gap-1.5">
+                            {[
+                              { id: 'none', label: 'Kapalı' },
+                              { id: 'bottom', label: 'Alttan Vinyet' },
+                              { id: 'corners', label: 'Köşelerden' },
+                            ].map((v) => (
+                              <button
+                                key={v.id}
+                                onClick={() =>
+                                  setUiExperiments((p) => ({ ...p, cardVignette: v.id as any }))
+                                }
+                                className={`p-1.5 rounded-lg text-[11px] font-medium border text-center transition-all cursor-pointer ${
+                                  uiExperiments.cardVignette === v.id
+                                    ? 'bg-blue-600/30 text-blue-200 border-blue-500/50'
+                                    : 'bg-white/5 text-slate-400 border-white/5 hover:bg-white/10 hover:text-slate-200'
+                                }`}
+                              >
+                                {v.label}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* 3. Köşe Yuvarlaklığı (6.1) */}
+                        <div className="space-y-1.5">
+                          <div className="text-[11px] font-semibold text-slate-300 px-1">Kart Köşe Yuvarlaklığı</div>
+                          <div className="grid grid-cols-3 gap-1.5">
+                            {[
+                              { id: 'sharp', label: 'Keskin' },
+                              { id: 'normal', label: 'Standart' },
+                              { id: 'soft', label: 'Yumuşak Kavis' },
+                            ].map((r) => (
+                              <button
+                                key={r.id}
+                                onClick={() =>
+                                  setUiExperiments((p) => ({ ...p, cardRadius: r.id as any }))
+                                }
+                                className={`p-1.5 rounded-lg text-[11px] font-medium border text-center transition-all cursor-pointer ${
+                                  uiExperiments.cardRadius === r.id
+                                    ? 'bg-blue-600/30 text-blue-200 border-blue-500/50'
+                                    : 'bg-white/5 text-slate-400 border-white/5 hover:bg-white/10 hover:text-slate-200'
+                                }`}
+                              >
+                                {r.label}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* 4. Hover Hareketi (6.2) */}
+                        <div className="space-y-1.5">
+                          <div className="text-[11px] font-semibold text-slate-300 px-1">Hover Hareketi</div>
+                          <div className="grid grid-cols-3 gap-1.5">
+                            {[
+                              { id: 'lift', label: 'Yükselme' },
+                              { id: 'zoom', label: 'Büyüme (Zoom)' },
+                              { id: 'none', label: 'Sabit' },
+                            ].map((m) => (
+                              <button
+                                key={m.id}
+                                onClick={() =>
+                                  setUiExperiments((p) => ({ ...p, cardHoverMotion: m.id as any }))
+                                }
+                                className={`p-1.5 rounded-lg text-[11px] font-medium border text-center transition-all cursor-pointer ${
+                                  uiExperiments.cardHoverMotion === m.id
+                                    ? 'bg-blue-600/30 text-blue-200 border-blue-500/50'
+                                    : 'bg-white/5 text-slate-400 border-white/5 hover:bg-white/10 hover:text-slate-200'
+                                }`}
+                              >
+                                {m.label}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Arka plan options */}
+                    {openUiTestMenu === 'bg' && (
+                      <>
+                        {[
+                          { id: 'default', label: 'Varsayılan Düz Zemin', desc: 'Seçili temanın düz arka planı' },
+                          { id: 'dots', label: 'Noktalı Matris (Dot Grid)', desc: 'Zarif minimal noktalı matris arka plan' },
+                        ].map((opt) => (
+                          <button
+                            key={opt.id}
+                            onClick={() => {
+                              setUiExperiments((p) => ({ ...p, bgAtmosphere: opt.id as any }));
+                            }}
+                            className={`w-full text-left p-2 rounded-xl flex items-center justify-between transition-colors cursor-pointer ${
+                              uiExperiments.bgAtmosphere === opt.id
+                                ? 'bg-blue-600/30 text-blue-200 border border-blue-500/40'
+                                : 'hover:bg-white/5 text-neutral-300'
+                            }`}
+                          >
+                            <div>
+                              <div className="font-medium">{opt.label}</div>
+                              <div className="text-[10px] text-neutral-400 leading-tight">{opt.desc}</div>
+                            </div>
+                            {uiExperiments.bgAtmosphere === opt.id && (
+                              <Check className="w-3.5 h-3.5 text-blue-400 shrink-0 ml-2" />
+                            )}
+                          </button>
+                        ))}
+                      </>
+                    )}
+
+                    {/* Badge style options */}
+                    {openUiTestMenu === 'badge' && (
+                      <div className="space-y-3 p-1">
+                        {/* Rozet Stili */}
+                        <div className="space-y-1.5">
+                          <div className="text-[11px] font-semibold text-slate-300 px-1">Rozet Kontur & Çerçeve Stili</div>
+                          {[
+                            { id: 'default', label: 'Standart Rozetler', desc: 'Klasik koyu arka planlı etiketler' },
+                            { id: 'neon', label: 'Canlı Neon Kontur', desc: 'Canlı renkli kenarlık ve parlaklık' },
+                            { id: 'minimal', label: 'Ultra Minimal Şeffaf', desc: 'Hafif saydam ve sade minimalist' },
+                          ].map((opt) => (
+                            <button
+                              key={opt.id}
+                              onClick={() => {
+                                setUiExperiments((p) => ({ ...p, badgeStyle: opt.id as any }));
+                              }}
+                              className={`w-full text-left p-2 rounded-xl flex items-center justify-between transition-colors cursor-pointer ${
+                                uiExperiments.badgeStyle === opt.id
+                                  ? 'bg-blue-600/30 text-blue-200 border border-blue-500/40'
+                                  : 'hover:bg-white/5 text-neutral-300'
+                              }`}
+                            >
+                              <div>
+                                <div className="font-medium">{opt.label}</div>
+                                <div className="text-[10px] text-neutral-400 leading-tight">{opt.desc}</div>
+                              </div>
+                              {uiExperiments.badgeStyle === opt.id && (
+                                <Check className="w-3.5 h-3.5 text-blue-400 shrink-0 ml-2" />
+                              )}
+                            </button>
+                          ))}
+                        </div>
+
+                        {/* Rozet Yoğunluğu (6.4) */}
+                        <div className="space-y-1.5 pt-2 border-t border-white/10">
+                          <div className="text-[11px] font-semibold text-slate-300 px-1">Rozet Yoğunluğu</div>
+                          <div className="grid grid-cols-3 gap-1.5">
+                            {[
+                              { id: 'full', label: 'Tam Detay' },
+                              { id: 'compact', label: 'Sade' },
+                              { id: 'hover-only', label: 'Hoverda' },
+                            ].map((d) => (
+                              <button
+                                key={d.id}
+                                onClick={() =>
+                                  setUiExperiments((p) => ({ ...p, badgeDensity: d.id as any }))
+                                }
+                                className={`p-1.5 rounded-lg text-[11px] font-medium border text-center transition-all cursor-pointer ${
+                                  uiExperiments.badgeDensity === d.id
+                                    ? 'bg-blue-600/30 text-blue-200 border-blue-500/50'
+                                    : 'bg-white/5 text-slate-400 border-white/5 hover:bg-white/10 hover:text-slate-200'
+                                }`}
+                              >
+                                {d.label}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Main Floating Appearance Bar */}
+              <div
+                className={`bg-neutral-900/90 border border-white/20 backdrop-blur-md px-3 py-1.5 rounded-2xl shadow-2xl flex items-center gap-1.5 text-xs select-none transition-all duration-300 ${
+                  highlightQuickBar
+                    ? 'animate-quick-bar-highlight ring-4 ring-blue-500/80 border-blue-400 shadow-[0_0_35px_rgba(59,130,246,0.6)]'
+                    : ''
+                }`}
+              >
+                <span className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider px-1 flex items-center gap-1">
+                  <Palette className="w-3 h-3 text-blue-400" />
+                  Görünüm:
+                </span>
+
+                {/* 1. Tema Seçimi */}
+                <button
+                  type="button"
+                  onClick={() =>
+                    setOpenUiTestMenu((p) => (p === 'theme' ? null : 'theme'))
+                  }
+                  className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-all flex items-center gap-1 cursor-pointer ${
+                    openUiTestMenu === 'theme'
+                      ? 'bg-blue-600 text-white shadow'
+                      : viewSettings.theme && viewSettings.theme !== 'pure-dark'
+                      ? 'bg-blue-600/30 text-blue-300 border border-blue-500/40'
+                      : 'bg-white/5 hover:bg-white/10 text-neutral-300'
+                  }`}
+                >
+                  <span>
+                    Tema
+                    {viewSettings.theme === 'charcoal-gray' && ': Koyu Gri'}
+                    {viewSettings.theme === 'dark-slate' && ': Grimsi'}
+                    {viewSettings.theme === 'crimson-night' && ': Kızıl'}
+                    {viewSettings.theme === 'nordic-frost' && ': Kuzey'}
+                    {(!viewSettings.theme || viewSettings.theme === 'pure-dark') && ': OLED'}
+                  </span>
+                  <ChevronDown
+                    className={`w-3 h-3 transition-transform ${
+                      openUiTestMenu === 'theme' ? 'rotate-180' : ''
+                    }`}
+                  />
+                </button>
+
+                {/* 2. Üst Bar Group (Gri Kutu & Buzlu Cam & Yüzen) */}
+                <button
+                  type="button"
+                  onClick={() =>
+                    setOpenUiTestMenu((p) => (p === 'toolbar' ? null : 'toolbar'))
+                  }
+                  className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-all flex items-center gap-1 cursor-pointer ${
+                    openUiTestMenu === 'toolbar'
+                      ? 'bg-blue-600 text-white shadow'
+                      : uiExperiments.toolbarStyle !== 'default'
+                      ? 'bg-blue-600/30 text-blue-300 border border-blue-500/40'
+                      : 'bg-white/5 hover:bg-white/10 text-neutral-300'
+                  }`}
+                >
+                  <span>
+                    Üst Bar
+                    {uiExperiments.toolbarStyle === 'box' && ': Kutu'}
+                    {uiExperiments.toolbarStyle === 'glass' && ': Cam'}
+                    {uiExperiments.toolbarStyle === 'floating' && ': Yüzen'}
+                  </span>
+                  <ChevronDown
+                    className={`w-3 h-3 transition-transform ${
+                      openUiTestMenu === 'toolbar' ? 'rotate-180' : ''
+                    }`}
+                  />
+                </button>
+
+                {/* 3. Kart Efekti & Dizayn Group */}
+                <button
+                  type="button"
+                  onClick={() =>
+                    setOpenUiTestMenu((p) => (p === 'card' ? null : 'card'))
+                  }
+                  className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-all flex items-center gap-1 cursor-pointer ${
+                    openUiTestMenu === 'card'
+                      ? 'bg-blue-600 text-white shadow'
+                      : uiExperiments.cardGlow || uiExperiments.cardVignette !== 'none' || uiExperiments.cardRadius !== 'normal' || uiExperiments.cardHoverMotion !== 'zoom'
+                      ? 'bg-blue-600/30 text-blue-300 border border-blue-500/40'
+                      : 'bg-white/5 hover:bg-white/10 text-neutral-300'
+                  }`}
+                >
+                  <span>
+                    Kart
+                    {uiExperiments.cardGlow && ' • Işık'}
+                    {uiExperiments.cardVignette !== 'none' && ' • Vinyet'}
+                  </span>
+                  <ChevronDown
+                    className={`w-3 h-3 transition-transform ${
+                      openUiTestMenu === 'card' ? 'rotate-180' : ''
+                    }`}
+                  />
+                </button>
+
+                {/* 4. Arka Plan Doku Group */}
+                <button
+                  type="button"
+                  onClick={() =>
+                    setOpenUiTestMenu((p) => (p === 'bg' ? null : 'bg'))
+                  }
+                  className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-all flex items-center gap-1 cursor-pointer ${
+                    openUiTestMenu === 'bg'
+                      ? 'bg-blue-600 text-white shadow'
+                      : uiExperiments.bgAtmosphere !== 'default'
+                      ? 'bg-blue-600/30 text-blue-300 border border-blue-500/40'
+                      : 'bg-white/5 hover:bg-white/10 text-neutral-300'
+                  }`}
+                >
+                  <span>
+                    Zemin
+                    {uiExperiments.bgAtmosphere === 'dots' && ': Noktalı'}
+                  </span>
+                  <ChevronDown
+                    className={`w-3 h-3 transition-transform ${
+                      openUiTestMenu === 'bg' ? 'rotate-180' : ''
+                    }`}
+                  />
+                </button>
+
+                {/* 5. Rozet Stili Group */}
+                <button
+                  type="button"
+                  onClick={() =>
+                    setOpenUiTestMenu((p) => (p === 'badge' ? null : 'badge'))
+                  }
+                  className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-all flex items-center gap-1 cursor-pointer ${
+                    openUiTestMenu === 'badge'
+                      ? 'bg-blue-600 text-white shadow'
+                      : uiExperiments.badgeStyle !== 'default' || uiExperiments.badgeDensity !== 'full'
+                      ? 'bg-blue-600/30 text-blue-300 border border-blue-500/40'
+                      : 'bg-white/5 hover:bg-white/10 text-neutral-300'
+                  }`}
+                >
+                  <span>
+                    Rozet
+                    {uiExperiments.badgeStyle === 'neon' && ': Neon'}
+                    {uiExperiments.badgeStyle === 'minimal' && ': Sade'}
+                  </span>
+                  <ChevronDown
+                    className={`w-3 h-3 transition-transform ${
+                      openUiTestMenu === 'badge' ? 'rotate-180' : ''
+                    }`}
+                  />
+                </button>
+
+                {/* Reset Button (visible if any experiment is active) */}
+                {(uiExperiments.toolbarStyle !== 'default' ||
+                  uiExperiments.cardGlow ||
+                  uiExperiments.cardVignette !== 'none' ||
+                  uiExperiments.cardRadius !== 'normal' ||
+                  uiExperiments.cardHoverMotion !== 'zoom' ||
+                  uiExperiments.bgAtmosphere !== 'default' ||
+                  uiExperiments.badgeStyle !== 'default' ||
+                  uiExperiments.badgeDensity !== 'full') && (
                   <button
-                    onClick={() => setOpenUiTestMenu(null)}
-                    className="text-neutral-400 hover:text-white p-0.5 rounded cursor-pointer"
+                    type="button"
+                    onClick={() => {
+                      setDialogOptions({
+                        type: 'confirm',
+                        title: 'Görünüm Ayarlarını Sıfırla',
+                        message: 'Tüm arayüz görünüm ve kart efektleri varsayılan ayarlara döndürülecek. Emin misiniz?',
+                        confirmText: 'Evet, Sıfırla',
+                        cancelText: 'Vazgeç',
+                        onConfirm: () => {
+                          setUiExperiments({
+                            toolbarStyle: 'default',
+                            cardGlow: false,
+                            cardVignette: 'none',
+                            cardRadius: 'normal',
+                            cardHoverMotion: 'zoom',
+                            bgAtmosphere: 'default',
+                            badgeStyle: 'default',
+                            badgeDensity: 'full',
+                          });
+                          setOpenUiTestMenu(null);
+                        },
+                      });
+                    }}
+                    title="Görünüm ayarlarını varsayılana sıfırla"
+                    className="px-2 py-1 rounded-lg text-[11px] font-medium bg-red-500/20 hover:bg-red-500/30 text-red-300 transition-colors flex items-center gap-1 cursor-pointer"
                   >
-                    <X className="w-3.5 h-3.5" />
+                    <RotateCcw className="w-3 h-3" />
+                    <span>Sıfırla</span>
                   </button>
-                </div>
+                )}
 
-                <div className="space-y-1">
-                  {/* Toolbar options */}
-                  {openUiTestMenu === 'toolbar' && (
-                    <>
-                      {[
-                        { id: 'default', label: 'Varsayılan (Sade)', desc: 'Klasik alt çizgili sade üst bar' },
-                        { id: 'box', label: 'Gri Toolbar Kutusu', desc: 'Koyu kutu içine alınmış zarif bar' },
-                        { id: 'glass', label: 'Buzlu Cam (Glassmorphism)', desc: 'Yarı saydam ve arkası bulanık bar' },
-                        { id: 'floating', label: 'Kompakt Yüzen Bar', desc: 'Ada biçimli çerçeveli bar' },
-                      ].map((opt) => (
-                        <button
-                          key={opt.id}
-                          onClick={() => {
-                            setUiExperiments((p) => ({ ...p, toolbarStyle: opt.id as any }));
-                          }}
-                          className={`w-full text-left p-2 rounded-xl flex items-center justify-between transition-colors cursor-pointer ${
-                            uiExperiments.toolbarStyle === opt.id
-                              ? 'bg-blue-600/30 text-blue-200 border border-blue-500/40'
-                              : 'hover:bg-white/5 text-neutral-300'
-                          }`}
-                        >
-                          <div>
-                            <div className="font-medium">{opt.label}</div>
-                            <div className="text-[10px] text-neutral-400 leading-tight">{opt.desc}</div>
-                          </div>
-                          {uiExperiments.toolbarStyle === opt.id && (
-                            <Check className="w-3.5 h-3.5 text-blue-400 shrink-0 ml-2" />
-                          )}
-                        </button>
-                      ))}
-                    </>
-                  )}
-
-                  {/* Card effect options */}
-                  {openUiTestMenu === 'card' && (
-                    <>
-                      {[
-                        { id: 'default', label: 'Varsayılan (Sade)', desc: 'Standart mat kart çerçevesi' },
-                        { id: 'glow', label: 'Mavi Hover Parlaması', desc: 'Üzerine gelince neon mavi ışık efekti' },
-                        { id: 'vignette', label: 'Sinematik Vinyet', desc: 'Poster üzerinde yumuşak sinematik kenar gölgesi' },
-                      ].map((opt) => (
-                        <button
-                          key={opt.id}
-                          onClick={() => {
-                            setUiExperiments((p) => ({ ...p, cardEffect: opt.id as any }));
-                          }}
-                          className={`w-full text-left p-2 rounded-xl flex items-center justify-between transition-colors cursor-pointer ${
-                            uiExperiments.cardEffect === opt.id
-                              ? 'bg-blue-600/30 text-blue-200 border border-blue-500/40'
-                              : 'hover:bg-white/5 text-neutral-300'
-                          }`}
-                        >
-                          <div>
-                            <div className="font-medium">{opt.label}</div>
-                            <div className="text-[10px] text-neutral-400 leading-tight">{opt.desc}</div>
-                          </div>
-                          {uiExperiments.cardEffect === opt.id && (
-                            <Check className="w-3.5 h-3.5 text-blue-400 shrink-0 ml-2" />
-                          )}
-                        </button>
-                      ))}
-                    </>
-                  )}
-
-                  {/* Arka plan options */}
-                  {openUiTestMenu === 'bg' && (
-                    <>
-                      {[
-                        { id: 'default', label: 'Varsayılan Zemin', desc: 'Seçili temanın düz arka planı' },
-                        { id: 'dots', label: 'Noktalı Matris (Dot Grid)', desc: 'Zarif minimal noktalı matris arka plan' },
-                        { id: 'topglow', label: 'Üst Spotlight Işık', desc: 'Tepeden vuran yumuşak mavi ortam aydınlatması' },
-                      ].map((opt) => (
-                        <button
-                          key={opt.id}
-                          onClick={() => {
-                            setUiExperiments((p) => ({ ...p, bgAtmosphere: opt.id as any }));
-                          }}
-                          className={`w-full text-left p-2 rounded-xl flex items-center justify-between transition-colors cursor-pointer ${
-                            uiExperiments.bgAtmosphere === opt.id
-                              ? 'bg-blue-600/30 text-blue-200 border border-blue-500/40'
-                              : 'hover:bg-white/5 text-neutral-300'
-                          }`}
-                        >
-                          <div>
-                            <div className="font-medium">{opt.label}</div>
-                            <div className="text-[10px] text-neutral-400 leading-tight">{opt.desc}</div>
-                          </div>
-                          {uiExperiments.bgAtmosphere === opt.id && (
-                            <Check className="w-3.5 h-3.5 text-blue-400 shrink-0 ml-2" />
-                          )}
-                        </button>
-                      ))}
-                    </>
-                  )}
-
-                  {/* Badge style options */}
-                  {openUiTestMenu === 'badge' && (
-                    <>
-                      {[
-                        { id: 'default', label: 'Standart Rozetler', desc: 'Klasik koyu arka planlı etiketler' },
-                        { id: 'neon', label: 'Canlı Neon Kontur', desc: 'Canlı renkli kenarlık ve parlaklık' },
-                        { id: 'minimal', label: 'Ultra Minimal Şeffaf', desc: 'Hafif saydam ve sade minimalist etiketler' },
-                      ].map((opt) => (
-                        <button
-                          key={opt.id}
-                          onClick={() => {
-                            setUiExperiments((p) => ({ ...p, badgeStyle: opt.id as any }));
-                          }}
-                          className={`w-full text-left p-2 rounded-xl flex items-center justify-between transition-colors cursor-pointer ${
-                            uiExperiments.badgeStyle === opt.id
-                              ? 'bg-blue-600/30 text-blue-200 border border-blue-500/40'
-                              : 'hover:bg-white/5 text-neutral-300'
-                          }`}
-                        >
-                          <div>
-                            <div className="font-medium">{opt.label}</div>
-                            <div className="text-[10px] text-neutral-400 leading-tight">{opt.desc}</div>
-                          </div>
-                          {uiExperiments.badgeStyle === opt.id && (
-                            <Check className="w-3.5 h-3.5 text-blue-400 shrink-0 ml-2" />
-                          )}
-                        </button>
-                      ))}
-                    </>
-                  )}
-                </div>
-              </div>
-            )}
-
-            {/* Main Bar */}
-            <div className="bg-neutral-900/90 border border-white/20 backdrop-blur-md px-3 py-1.5 rounded-2xl shadow-2xl flex items-center gap-1.5 text-xs select-none">
-              <span className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider px-1 flex items-center gap-1">
-                <FlaskConical className="w-3 h-3 text-blue-400" />
-                UI Test:
-              </span>
-
-              {/* 1. Üst Bar Group (Gri Kutu & Buzlu Cam & Yüzen) */}
-              <button
-                type="button"
-                onClick={() =>
-                  setOpenUiTestMenu((p) => (p === 'toolbar' ? null : 'toolbar'))
-                }
-                className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-all flex items-center gap-1 cursor-pointer ${
-                  openUiTestMenu === 'toolbar'
-                    ? 'bg-blue-600 text-white shadow'
-                    : uiExperiments.toolbarStyle !== 'default'
-                    ? 'bg-blue-600/30 text-blue-300 border border-blue-500/40'
-                    : 'bg-white/5 hover:bg-white/10 text-neutral-300'
-                }`}
-              >
-                <span>
-                  Üst Bar
-                  {uiExperiments.toolbarStyle === 'box' && ': Kutu'}
-                  {uiExperiments.toolbarStyle === 'glass' && ': Cam'}
-                  {uiExperiments.toolbarStyle === 'floating' && ': Yüzen'}
-                </span>
-                <ChevronDown
-                  className={`w-3 h-3 transition-transform ${
-                    openUiTestMenu === 'toolbar' ? 'rotate-180' : ''
-                  }`}
-                />
-              </button>
-
-              {/* 2. Kart Efekti Group */}
-              <button
-                type="button"
-                onClick={() =>
-                  setOpenUiTestMenu((p) => (p === 'card' ? null : 'card'))
-                }
-                className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-all flex items-center gap-1 cursor-pointer ${
-                  openUiTestMenu === 'card'
-                    ? 'bg-blue-600 text-white shadow'
-                    : uiExperiments.cardEffect !== 'default'
-                    ? 'bg-blue-600/30 text-blue-300 border border-blue-500/40'
-                    : 'bg-white/5 hover:bg-white/10 text-neutral-300'
-                }`}
-              >
-                <span>
-                  Kart
-                  {uiExperiments.cardEffect === 'glow' && ': Işık'}
-                  {uiExperiments.cardEffect === 'vignette' && ': Vinyet'}
-                </span>
-                <ChevronDown
-                  className={`w-3 h-3 transition-transform ${
-                    openUiTestMenu === 'card' ? 'rotate-180' : ''
-                  }`}
-                />
-              </button>
-
-              {/* 3. Arka Plan Doku Group */}
-              <button
-                type="button"
-                onClick={() =>
-                  setOpenUiTestMenu((p) => (p === 'bg' ? null : 'bg'))
-                }
-                className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-all flex items-center gap-1 cursor-pointer ${
-                  openUiTestMenu === 'bg'
-                    ? 'bg-blue-600 text-white shadow'
-                    : uiExperiments.bgAtmosphere !== 'default'
-                    ? 'bg-blue-600/30 text-blue-300 border border-blue-500/40'
-                    : 'bg-white/5 hover:bg-white/10 text-neutral-300'
-                }`}
-              >
-                <span>
-                  Zemin
-                  {uiExperiments.bgAtmosphere === 'dots' && ': Nokta'}
-                  {uiExperiments.bgAtmosphere === 'topglow' && ': Işık'}
-                </span>
-                <ChevronDown
-                  className={`w-3 h-3 transition-transform ${
-                    openUiTestMenu === 'bg' ? 'rotate-180' : ''
-                  }`}
-                />
-              </button>
-
-              {/* 4. Rozet Stili Group */}
-              <button
-                type="button"
-                onClick={() =>
-                  setOpenUiTestMenu((p) => (p === 'badge' ? null : 'badge'))
-                }
-                className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-all flex items-center gap-1 cursor-pointer ${
-                  openUiTestMenu === 'badge'
-                    ? 'bg-blue-600 text-white shadow'
-                    : uiExperiments.badgeStyle !== 'default'
-                    ? 'bg-blue-600/30 text-blue-300 border border-blue-500/40'
-                    : 'bg-white/5 hover:bg-white/10 text-neutral-300'
-                }`}
-              >
-                <span>
-                  Rozet
-                  {uiExperiments.badgeStyle === 'neon' && ': Neon'}
-                  {uiExperiments.badgeStyle === 'minimal' && ': Sade'}
-                </span>
-                <ChevronDown
-                  className={`w-3 h-3 transition-transform ${
-                    openUiTestMenu === 'badge' ? 'rotate-180' : ''
-                  }`}
-                />
-              </button>
-
-              {/* Reset Button (visible if any experiment is active) */}
-              {(uiExperiments.toolbarStyle !== 'default' ||
-                uiExperiments.cardEffect !== 'default' ||
-                uiExperiments.bgAtmosphere !== 'default' ||
-                uiExperiments.badgeStyle !== 'default') && (
+                {/* Close Quick Bar Button */}
                 <button
                   type="button"
                   onClick={() => {
-                    setUiExperiments({
-                      toolbarStyle: 'default',
-                      cardEffect: 'default',
-                      bgAtmosphere: 'default',
-                      badgeStyle: 'default',
-                    });
+                    setViewSettings((p) => ({ ...p, showQuickAppearanceBar: false }));
                     setOpenUiTestMenu(null);
                   }}
-                  title="Tüm UI deneylerini varsayılana sıfırla"
-                  className="px-2 py-1 rounded-lg text-[11px] font-medium bg-red-500/20 hover:bg-red-500/30 text-red-300 transition-colors flex items-center gap-1 cursor-pointer"
+                  title="Hızlı görünüm çubuğunu gizle (Ayarlar > Görünüm'den tekrar açabilirsiniz)"
+                  className="p-1 rounded-lg hover:bg-white/10 text-neutral-400 hover:text-white transition-colors cursor-pointer ml-0.5"
                 >
-                  <RotateCcw className="w-3 h-3" />
-                  <span>Sıfırla</span>
+                  <X className="w-3.5 h-3.5" />
                 </button>
-              )}
+              </div>
             </div>
-          </div>
+          )}
         </>
       )}
 
@@ -1689,9 +1991,15 @@ export default function App() {
           activeMainTab={mainTab}
           dirHandle={dirHandle}
           viewSettings={viewSettings}
-          onUpdateViewSettings={(newSet) =>
-            setViewSettings((prev) => ({ ...prev, ...newSet }))
-          }
+          onUpdateViewSettings={(newSet) => {
+            if (newSet.showQuickAppearanceBar && !viewSettings.showQuickAppearanceBar) {
+              setHighlightQuickBar(true);
+              setTimeout(() => setHighlightQuickBar(false), 2200);
+            }
+            setViewSettings((prev) => ({ ...prev, ...newSet }));
+          }}
+          uiExperiments={uiExperiments}
+          onUpdateUiExperiments={setUiExperiments}
           onConnectFolder={handleConnectFolder}
           onDisconnectFolder={handleDisconnectFolder}
           onUpdateCategories={handleUpdateCategories}

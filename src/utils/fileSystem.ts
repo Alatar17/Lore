@@ -418,13 +418,46 @@ export async function deleteImageFromFolder(
 
 // --- Local Storage Fallback & Migration ---
 
+export function safeLocalStorageSet(key: string, value: string): void {
+  try {
+    localStorage.setItem(key, value);
+  } catch (e) {
+    console.warn(`SafeLocalStorage: failed to set "${key}":`, e);
+    // If quota was exceeded, clear obsolete legacy cache keys and retry once
+    try {
+      localStorage.removeItem('yapim_arsivim_app_data_v3');
+      localStorage.removeItem('yapim_arsivim_app_data_v4');
+      localStorage.setItem(key, value);
+    } catch {}
+  }
+}
+
+export function safeLocalStorageGet(key: string): string | null {
+  try {
+    return localStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+
 export function loadDataFromLocalStorage(): AppData {
   try {
-    const raw = localStorage.getItem(LOCAL_STORAGE_KEY);
+    const raw = safeLocalStorageGet(LOCAL_STORAGE_KEY) || safeLocalStorageGet('yapim_arsivim_app_data_v3');
     if (raw) {
       const parsed = JSON.parse(raw);
-      if (parsed && parsed.categories && parsed.items) {
-        return parsed;
+      if (parsed && typeof parsed === 'object') {
+        const mediaCats = Array.isArray(parsed.categories?.media) ? parsed.categories.media : [];
+        const gameCats = Array.isArray(parsed.categories?.game) ? parsed.categories.game : [];
+        const items = Array.isArray(parsed.items) ? parsed.items.filter(Boolean) : [];
+        return {
+          version: parsed.version || 1,
+          lastUpdated: parsed.lastUpdated || new Date().toISOString(),
+          categories: {
+            media: mediaCats,
+            game: gameCats,
+          },
+          items,
+        };
       }
     }
   } catch (err) {
@@ -434,15 +467,31 @@ export function loadDataFromLocalStorage(): AppData {
 }
 
 export function saveDataToLocalStorage(data: AppData): void {
-  try {
-    // Attempt local storage save (small data)
-    localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(data));
-  } catch (err) {
-    // Quota exceeded, safe to ignore because IndexedDB holds full data
-    console.info('LocalStorage quota exceeded; safely handled by IndexedDB.');
-  }
-  // Always persist in IndexedDB for unlimited custom images
+  // 1. Always persist full data with custom images in IndexedDB (Gigabytes quota)
   saveDataToIndexedDB(data);
+
+  // 2. Save a lightweight version in LocalStorage (without large base64 strings to never exceed 5MB quota)
+  try {
+    const lightweightItems = (data.items || []).map((it) => {
+      if (it.thumbnail && it.thumbnail.startsWith('data:') && it.thumbnail.length > 5000) {
+        // Exclude large base64 thumbnails from localStorage since IndexedDB holds them intact
+        const { thumbnail, ...rest } = it;
+        return rest;
+      }
+      return it;
+    });
+
+    const lightweightData: AppData = {
+      ...data,
+      items: lightweightItems,
+    };
+
+    safeLocalStorageSet(LOCAL_STORAGE_KEY, JSON.stringify(lightweightData));
+    // Clean old bulky legacy key if present
+    localStorage.removeItem('yapim_arsivim_app_data_v3');
+  } catch (err) {
+    console.warn('LocalStorage save failed; safely handled by IndexedDB.');
+  }
 }
 
 // --- Export / Import JSON File ---

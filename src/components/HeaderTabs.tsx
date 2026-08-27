@@ -53,6 +53,8 @@ interface HeaderTabsProps {
   canRedo?: boolean;
   onUndo?: () => void;
   onRedo?: () => void;
+  onExportTierList?: () => void;
+  onImportTierList?: (file: File) => void;
   uiExperiments?: UiExperimentsState;
   onMainTabChange: (tab: MainTabType) => void;
   onCategorySelect: (catId: string | null) => void;
@@ -222,10 +224,10 @@ export const HeaderTabs: React.FC<HeaderTabsProps> = ({
     onSearchChange(val);
   };
 
-  const currentCategoryList = mainTab === 'media' ? categories.media : categories.game;
+  const currentCategoryList = (mainTab === 'media' ? categories?.media : categories?.game) || [];
   const activeCategory =
     activeCatId && activeCatId !== TRACKED_TAB_ID
-      ? currentCategoryList.find((c) => c.id === activeCatId)
+      ? currentCategoryList.find((c) => c?.id === activeCatId)
       : null;
 
   useEffect(() => {

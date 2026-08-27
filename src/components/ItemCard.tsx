@@ -26,6 +26,7 @@ export const ItemCard: React.FC<ItemCardProps> = ({
   isSelected,
   onToggleSelect,
 }) => {
+  if (!item) return null;
   const isGame = item.mainTab === 'game';
   const palette = isGame ? GAME_COLORS : MEDIA_COLORS;
   const baseColor = palette[item.cat] || '#ffffff';
@@ -150,15 +151,18 @@ export const ItemCard: React.FC<ItemCardProps> = ({
           </div>
         )}
 
-        {/* Cinematic Vignette Overlay Effects */}
+        {/* Cinematic Vignette Overlay Effects - Softened, Subtler and Lighter */}
         {cardVignette === 'bottom' && (
-          <div className="absolute inset-0 bg-gradient-to-t from-black/65 via-black/10 to-transparent pointer-events-none z-10" />
+          <div className="absolute inset-0 bg-gradient-to-t from-black/35 via-black/5 to-transparent pointer-events-none z-10" />
         )}
-        {cardVignette === 'top' && (
-          <div className="absolute inset-0 bg-gradient-to-b from-black/65 via-black/10 to-transparent pointer-events-none z-10" />
-        )}
-        {cardVignette === 'both' && (
-          <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-black/50 pointer-events-none z-10" />
+        {cardVignette === 'corners' && (
+          <div
+            className="absolute inset-0 pointer-events-none z-10"
+            style={{
+              background:
+                'radial-gradient(ellipse at center, transparent 45%, rgba(0,0,0,0.30) 100%)',
+            }}
+          />
         )}
 
         {/* Selection Checkbox Overlay */}

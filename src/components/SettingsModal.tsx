@@ -9,6 +9,7 @@ import {
   TagFieldKey,
   MEDIA_TAG_FIELDS,
   GAME_TAG_FIELDS,
+  UiExperimentsState,
 } from '../types';
 import { createDefaultTierRows, INITIAL_DATA } from '../data/initialData';
 import {
@@ -71,6 +72,7 @@ import {
   ArrowDown,
   ChevronLeft,
   ChevronRight,
+  SlidersHorizontal,
 } from 'lucide-react';
 
 interface SettingsModalProps {
@@ -79,6 +81,8 @@ interface SettingsModalProps {
   dirHandle: FileSystemDirectoryHandle | null;
   viewSettings: ViewSettings;
   onUpdateViewSettings: (newSettings: Partial<ViewSettings>) => void;
+  uiExperiments?: UiExperimentsState;
+  onUpdateUiExperiments?: (updater: (prev: UiExperimentsState) => UiExperimentsState) => void;
   onConnectFolder: () => Promise<void>;
   onDisconnectFolder: () => void;
   onUpdateCategories: (mainTab: MainTabType, newCategories: Category[]) => void;
@@ -126,6 +130,24 @@ const THEMES: ThemeOption[] = [
     accentPreview: 'bg-blue-400',
     borderPreview: 'border-blue-500/30',
   },
+  {
+    id: 'crimson-night',
+    name: 'Kızıl Gece (Crimson Noir)',
+    desc: 'Derin kadife siyah zemin üzerinde zarif yakut ve kızıl ambiyans (#12080a)',
+    bgPreview: 'bg-[#12080a]',
+    cardPreview: 'bg-[#1f0f13]',
+    accentPreview: 'bg-rose-500',
+    borderPreview: 'border-rose-500/30',
+  },
+  {
+    id: 'nordic-frost',
+    name: 'Kuzey Işıkları (Nordic Frost)',
+    desc: 'Soğuk antrasit zemin üzerinde ferah buzul mavisi detaylar (#0b131e)',
+    bgPreview: 'bg-[#0b131e]',
+    cardPreview: 'bg-[#142030]',
+    accentPreview: 'bg-sky-400',
+    borderPreview: 'border-sky-500/30',
+  },
 ];
 
 export const SettingsModal: React.FC<SettingsModalProps> = ({
@@ -134,6 +156,17 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   dirHandle,
   viewSettings,
   onUpdateViewSettings,
+  uiExperiments = {
+    toolbarStyle: 'default',
+    cardGlow: false,
+    cardVignette: 'none',
+    cardRadius: 'normal',
+    cardHoverMotion: 'lift',
+    bgAtmosphere: 'default',
+    badgeStyle: 'default',
+    badgeDensity: 'full',
+  },
+  onUpdateUiExperiments,
   onConnectFolder,
   onDisconnectFolder,
   onUpdateCategories,
@@ -867,7 +900,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   : 'border-transparent text-slate-400 hover:text-slate-200'
               }`}
             >
-              <Palette className="w-3.5 h-3.5" /> Temalar
+              <Palette className="w-3.5 h-3.5" /> Görünüm & Atmosfer
             </button>
 
             <button
@@ -1390,79 +1423,125 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               </div>
             )}
 
-            {/* TAB 2: THEMES (TEST) */}
+            {/* TAB 2: APPEARANCE & THEMES */}
             {activeTab === 'themes' && (
-              <div className="space-y-4">
-                <div className="p-3 bg-blue-500/10 border border-blue-500/30 rounded-xl text-xs text-blue-200">
-                  💡 <span className="font-semibold">Tema & Görünüm Ayarları:</span> Farklı renk temalarını deneyebilir, arka plan bulanıklığını açıp kapatabilirsiniz.
-                </div>
-
-                {/* Backdrop Blur Toggle */}
-                <div className="p-4 rounded-xl bg-white/5 border border-white/10 flex items-center justify-between">
-                  <div className="space-y-0.5">
-                    <span className="text-sm font-semibold text-slate-100 flex items-center gap-2">
-                      Arka Plan Bulanıklığı
-                    </span>
-                    <p className="text-xs text-slate-400">
-                      Açıkken pencerelerin arkasını hafif buzlu/bulanık yapar; kapalıyken arkadaki temanın net görünmesini sağlar.
-                    </p>
+              <div className="space-y-6">
+                <div className="p-3.5 bg-blue-500/10 border border-blue-500/30 rounded-xl text-xs text-blue-200 flex items-start gap-2">
+                  <Sparkles className="w-4 h-4 text-blue-400 shrink-0 mt-0.5" />
+                  <div>
+                    <span className="font-semibold text-white">Görünüm & Atmosfer Özelleştirme:</span> Ekran altı hızlı görünüm çubuğunu, pencere buzlu cam efektini ve renk temalarını buradan yönetebilirsiniz.
                   </div>
-
-                  <label className="relative inline-flex items-center cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={viewSettings.backdropBlur !== false}
-                      onChange={(e) => onUpdateViewSettings({ backdropBlur: e.target.checked })}
-                      className="sr-only peer"
-                    />
-                    <div className="w-11 h-6 bg-neutral-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
-                  </label>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  {THEMES.map((th) => {
-                    const isSelected = currentTheme === th.id;
-                    return (
-                      <div
-                        key={th.id}
-                        onClick={() => onUpdateViewSettings({ theme: th.id })}
-                        className={`p-4 rounded-xl border transition-all cursor-pointer space-y-3 relative ${
-                          isSelected
-                            ? 'border-blue-500 bg-white/10 shadow-lg shadow-blue-500/10'
-                            : 'border-white/10 bg-white/5 hover:border-white/20 hover:bg-white/10'
-                        }`}
-                      >
-                        <div className="flex items-center justify-between">
-                          <span className="font-semibold text-sm text-slate-100 flex items-center gap-2">
-                            {th.name}
-                          </span>
-                          {isSelected && (
-                            <span className="w-5 h-5 rounded-full bg-blue-500 text-white flex items-center justify-center">
-                              <Check className="w-3 h-3 stroke-[3]" />
-                            </span>
-                          )}
-                        </div>
-
-                        <p className="text-xs text-slate-400 leading-relaxed">
-                          {th.desc}
+                {/* Section 1: Hızlı Araçlar ve Ekran Ayarları */}
+                <div className="space-y-3">
+                  <h4 className="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
+                    <SlidersHorizontal className="w-3.5 h-3.5 text-blue-400" /> Ekran & Hızlı Deneyim Araçları
+                  </h4>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {/* Floating Appearance Bar Toggle */}
+                    <div className="p-3.5 rounded-xl bg-white/5 border border-white/10 flex items-center justify-between">
+                      <div className="space-y-0.5 pr-2">
+                        <span className="text-xs font-semibold text-slate-100 block">
+                          Ekran Altı Hızlı Görünüm Çubuğu
+                        </span>
+                        <p className="text-[11px] text-slate-400 leading-snug">
+                          Ana ekranın altındaki yüzen hızlı özelleştirme çubuğunu açar veya gizler.
                         </p>
+                      </div>
 
-                        {/* Mini preview bar */}
-                        <div className={`p-2.5 rounded-lg ${th.bgPreview} border ${th.borderPreview} flex items-center gap-2`}>
-                          <div className={`w-8 h-8 rounded ${th.cardPreview} border border-white/10 flex items-center justify-center`}>
-                            <div className={`w-3 h-3 rounded-full ${th.accentPreview}`} />
+                      <label className="relative inline-flex items-center cursor-pointer shrink-0">
+                        <input
+                          type="checkbox"
+                          checked={viewSettings.showQuickAppearanceBar !== false}
+                          onChange={(e) => {
+                            const isChecked = e.target.checked;
+                            onUpdateViewSettings({ showQuickAppearanceBar: isChecked });
+                            if (isChecked) {
+                              // If activated, close settings so bottom appearance popup bar is clearly visible
+                              onClose();
+                            }
+                          }}
+                          className="sr-only peer"
+                        />
+                        <div className="w-10 h-5.5 bg-neutral-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4.5 after:w-4.5 after:transition-all peer-checked:bg-blue-600"></div>
+                      </label>
+                    </div>
+
+                    {/* Backdrop Blur Toggle */}
+                    <div className="p-3.5 rounded-xl bg-white/5 border border-white/10 flex items-center justify-between">
+                      <div className="space-y-0.5 pr-2">
+                        <span className="text-xs font-semibold text-slate-100 block">
+                          Arka Plan Buzlu Cam (Blur)
+                        </span>
+                        <p className="text-[11px] text-slate-400 leading-snug">
+                          Pencerelerin arkasını hafif buzlu/bulanık yaparak derinlik hissi katar.
+                        </p>
+                      </div>
+
+                      <label className="relative inline-flex items-center cursor-pointer shrink-0">
+                        <input
+                          type="checkbox"
+                          checked={viewSettings.backdropBlur !== false}
+                          onChange={(e) => onUpdateViewSettings({ backdropBlur: e.target.checked })}
+                          className="sr-only peer"
+                        />
+                        <div className="w-10 h-5.5 bg-neutral-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4.5 after:w-4.5 after:transition-all peer-checked:bg-blue-600"></div>
+                      </label>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Section 2: Renk Temaları */}
+                <div className="space-y-3">
+                  <h4 className="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
+                    <Palette className="w-3.5 h-3.5 text-blue-400" /> Renk Temaları (5 Tema)
+                  </h4>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {THEMES.map((th) => {
+                      const isSelected = currentTheme === th.id;
+                      return (
+                        <div
+                          key={th.id}
+                          onClick={() => onUpdateViewSettings({ theme: th.id })}
+                          className={`p-3.5 rounded-xl border transition-all cursor-pointer space-y-2.5 relative ${
+                            isSelected
+                              ? 'border-blue-500 bg-white/10 shadow-lg shadow-blue-500/10 ring-1 ring-blue-500/50'
+                              : 'border-white/10 bg-white/5 hover:border-white/20 hover:bg-white/10'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between">
+                            <span className="font-semibold text-sm text-slate-100 flex items-center gap-2">
+                              {th.name}
+                            </span>
+                            {isSelected && (
+                              <span className="w-5 h-5 rounded-full bg-blue-500 text-white flex items-center justify-center">
+                                <Check className="w-3 h-3 stroke-[3]" />
+                              </span>
+                            )}
                           </div>
-                          <div className="flex-1 space-y-1">
-                            <div className="h-2 w-16 rounded bg-white/20" />
-                            <div className="h-1.5 w-10 rounded bg-white/10" />
-                          </div>
-                          <div className={`px-2 py-0.5 rounded text-[10px] font-bold text-white ${th.accentPreview}`}>
-                            Örnek
+
+                          <p className="text-xs text-slate-400 leading-relaxed">
+                            {th.desc}
+                          </p>
+
+                          {/* Mini preview bar */}
+                          <div className={`p-2 rounded-lg ${th.bgPreview} border ${th.borderPreview} flex items-center gap-2`}>
+                            <div className={`w-7 h-7 rounded ${th.cardPreview} border border-white/10 flex items-center justify-center`}>
+                              <div className={`w-2.5 h-2.5 rounded-full ${th.accentPreview}`} />
+                            </div>
+                            <div className="flex-1 space-y-1">
+                              <div className="h-1.5 w-14 rounded bg-white/20" />
+                              <div className="h-1 w-9 rounded bg-white/10" />
+                            </div>
+                            <div className={`px-1.5 py-0.5 rounded text-[9px] font-bold text-white ${th.accentPreview}`}>
+                              Örnek
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    );
-                  })}
+                      );
+                    })}
+                  </div>
                 </div>
               </div>
             )}

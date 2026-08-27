@@ -27,8 +27,8 @@ export const TrackedView: React.FC<TrackedViewProps> = ({
   const [showPromptBox, setShowPromptBox] = useState(false);
   const [copied, setCopied] = useState(false);
 
-  const watchingItems = items.filter((it) => it.watching);
-  const followingItems = items.filter((it) => it.following);
+  const watchingItems = (items || []).filter((it) => it && it.watching);
+  const followingItems = (items || []).filter((it) => it && it.following);
 
   // Card size calculation for CSS Grid auto-fill (1: 120px, 2: 150px, 3: 185px, 4: 230px, 5: 280px)
   const cardMinWidth = React.useMemo(() => {
