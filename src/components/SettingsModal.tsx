@@ -122,13 +122,13 @@ const THEMES: ThemeOption[] = [
     borderPreview: 'border-slate-500/30',
   },
   {
-    id: 'dark-slate',
-    name: 'Grimsi Gri (Medium Slate)',
-    desc: 'Biraz daha açık, dengeli ve derin grimsi zemin (#1a1d24)',
-    bgPreview: 'bg-[#1a1d24]',
-    cardPreview: 'bg-[#242832]',
-    accentPreview: 'bg-blue-400',
-    borderPreview: 'border-blue-500/30',
+    id: 'nordic-frost',
+    name: 'Kuzey Işıkları (Nordic Frost)',
+    desc: 'Soğuk antrasit zemin üzerinde ferah buzul mavisi detaylar (#0b131e)',
+    bgPreview: 'bg-[#0b131e]',
+    cardPreview: 'bg-[#142030]',
+    accentPreview: 'bg-sky-400',
+    borderPreview: 'border-sky-500/30',
   },
   {
     id: 'crimson-night',
@@ -140,13 +140,22 @@ const THEMES: ThemeOption[] = [
     borderPreview: 'border-rose-500/30',
   },
   {
-    id: 'nordic-frost',
-    name: 'Kuzey Işıkları (Nordic Frost)',
-    desc: 'Soğuk antrasit zemin üzerinde ferah buzul mavisi detaylar (#0b131e)',
-    bgPreview: 'bg-[#0b131e]',
-    cardPreview: 'bg-[#142030]',
-    accentPreview: 'bg-sky-400',
-    borderPreview: 'border-sky-500/30',
+    id: 'emerald-abyss',
+    name: 'Zümrüt Derinliği (Emerald Abyss)',
+    desc: 'Büyüleyici derin çam yeşili zemin üzerinde parlak zümrüt detaylar (#071510)',
+    bgPreview: 'bg-[#071510]',
+    cardPreview: 'bg-[#102920]',
+    accentPreview: 'bg-emerald-400',
+    borderPreview: 'border-emerald-500/30',
+  },
+  {
+    id: 'amethyst-twilight',
+    name: 'Ametist Alacakaranlık (Amethyst Twilight)',
+    desc: 'Koyu gece moru zemin üzerinde ışıltılı leylak ve lavanta tonları (#100a1c)',
+    bgPreview: 'bg-[#100a1c]',
+    cardPreview: 'bg-[#211638]',
+    accentPreview: 'bg-purple-400',
+    borderPreview: 'border-purple-500/30',
   },
 ];
 
@@ -1495,7 +1504,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 {/* Section 2: Renk Temaları */}
                 <div className="space-y-3">
                   <h4 className="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
-                    <Palette className="w-3.5 h-3.5 text-blue-400" /> Renk Temaları (5 Tema)
+                    <Palette className="w-3.5 h-3.5 text-blue-400" /> Renk Temaları (6 Tema)
                   </h4>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     {THEMES.map((th) => {

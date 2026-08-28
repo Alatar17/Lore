@@ -337,8 +337,6 @@ export const HeaderTabs: React.FC<HeaderTabsProps> = ({
           ? 'bg-neutral-900/80 p-3.5 rounded-2xl border border-white/10 shadow-lg'
           : uiExperiments?.toolbarStyle === 'glass'
           ? 'bg-white/[0.03] backdrop-blur-xl p-3.5 rounded-2xl border border-white/10 shadow-2xl'
-          : uiExperiments?.toolbarStyle === 'floating'
-          ? 'bg-neutral-900/90 backdrop-blur-md p-2.5 rounded-2xl border border-blue-500/30 shadow-2xl'
           : 'border-b border-white/10'
       }`}
     >

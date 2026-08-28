@@ -30,6 +30,7 @@ interface ItemDetailModalProps {
   item: ArchiveItem;
   categories: Category[];
   allItems?: ArchiveItem[];
+  isReadOnly?: boolean;
   onSave: (updatedItem: ArchiveItem) => void;
   onDelete: (id: string) => void;
   onClose: () => void;
@@ -39,6 +40,7 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
   item,
   categories,
   allItems = [],
+  isReadOnly = false,
   onSave,
   onDelete,
   onClose,
@@ -280,14 +282,17 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
           </div>
 
           <div className="flex items-center gap-2">
-            <button
-              id="delete-item-btn"
-              onClick={handleDelete}
-              title="Yapımı Sil"
-              className="p-1.5 rounded-lg text-slate-400 hover:text-red-400 hover:bg-red-500/10 transition-colors cursor-pointer"
-            >
-              <Trash2 className="w-4 h-4" />
-            </button>
+            {/* Delete button (only on desktop/large screens or non-readonly) */}
+            {!isReadOnly && (
+              <button
+                id="delete-item-btn"
+                onClick={handleDelete}
+                title="Yapımı Sil"
+                className="hidden sm:inline-flex p-1.5 rounded-lg text-slate-400 hover:text-red-400 hover:bg-red-500/10 transition-colors cursor-pointer"
+              >
+                <Trash2 className="w-4 h-4" />
+              </button>
+            )}
             <button
               id="close-detail-modal-btn"
               onClick={onClose}

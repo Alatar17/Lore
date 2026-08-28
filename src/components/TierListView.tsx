@@ -87,6 +87,16 @@ const COLOR_SWATCHES = [
   '#525252', // Dark Gray
 ];
 
+export const SPARKLE_COLORS = [
+  { id: 'amber', name: 'Altın Sarı', bg: 'bg-amber-400', text: 'text-neutral-950', glow: 'shadow-[0_0_8px_rgba(251,191,36,0.9)]', dot: '#fbbf24' },
+  { id: 'cyan', name: 'Buzul Mavisi', bg: 'bg-cyan-400', text: 'text-neutral-950', glow: 'shadow-[0_0_8px_rgba(34,211,238,0.9)]', dot: '#22d3ee' },
+  { id: 'emerald', name: 'Neon Zümrüt', bg: 'bg-emerald-400', text: 'text-neutral-950', glow: 'shadow-[0_0_8px_rgba(52,211,153,0.9)]', dot: '#34d399' },
+  { id: 'rose', name: 'Ateş Kırmızısı', bg: 'bg-rose-500', text: 'text-white', glow: 'shadow-[0_0_8px_rgba(244,63,94,0.9)]', dot: '#f43f5e' },
+  { id: 'fuchsia', name: 'Fuşya Pembe', bg: 'bg-pink-500', text: 'text-white', glow: 'shadow-[0_0_8px_rgba(236,72,153,0.9)]', dot: '#ec4899' },
+  { id: 'purple', name: 'Elektrik Mor', bg: 'bg-purple-500', text: 'text-white', glow: 'shadow-[0_0_8px_rgba(168,85,247,0.9)]', dot: '#a855f7' },
+  { id: 'white', name: 'Kristal Beyaz', bg: 'bg-white', text: 'text-neutral-950', glow: 'shadow-[0_0_8px_rgba(255,255,255,0.9)]', dot: '#ffffff' },
+];
+
 export const TierListView: React.FC<TierListViewProps> = ({
   mainTab,
   category,
@@ -107,6 +117,28 @@ export const TierListView: React.FC<TierListViewProps> = ({
   const [cardContextMenu, setCardContextMenu] = useState<CardContextMenuState | null>(null);
   const [editingRowId, setEditingRowId] = useState<string | null>(null);
   const [editNameText, setEditNameText] = useState('');
+
+  // Star / Sparkle Icon Color Customization State
+  const [sparkleColorIdx, setSparkleColorIdx] = useState<number>(() => {
+    try {
+      const saved = localStorage.getItem('tier_sparkle_color_idx');
+      return saved ? (parseInt(saved, 10) || 0) % SPARKLE_COLORS.length : 0;
+    } catch {
+      return 0;
+    }
+  });
+
+  const cycleSparkleColor = () => {
+    setSparkleColorIdx((prev) => {
+      const next = (prev + 1) % SPARKLE_COLORS.length;
+      try {
+        localStorage.setItem('tier_sparkle_color_idx', next.toString());
+      } catch {}
+      return next;
+    });
+  };
+
+  const currentSparkle = SPARKLE_COLORS[sparkleColorIdx] || SPARKLE_COLORS[0];
 
   // Custom Modal States
   const [confirmModal, setConfirmModal] = useState<ConfirmModalState | null>(null);
@@ -506,9 +538,13 @@ export const TierListView: React.FC<TierListViewProps> = ({
                   }
                   setDraggedItemId(null);
                 }}
-                onContextMenu={(e) => handleRowContextMenu(e, row.id)}
+                onContextMenu={(e) => {
+                  if (window.innerWidth >= 640) {
+                    handleRowContextMenu(e, row.id);
+                  }
+                }}
                 title="Sürükle-Bırak: Bu satıra ekle | Sağ tık: Satır seçenekleri"
-                className="w-18 sm:w-20 shrink-0 flex flex-col items-center justify-center p-2 relative select-none font-bold text-center cursor-context-menu border-r border-black/40 transition-transform active:scale-95 group"
+                className="w-18 sm:w-20 shrink-0 flex flex-col items-center justify-center p-2 relative select-none font-bold text-center sm:cursor-context-menu border-r border-black/40 transition-transform active:scale-95 group"
                 style={{
                   backgroundColor: row.color,
                   color: '#ffffff',
@@ -599,8 +635,8 @@ export const TierListView: React.FC<TierListViewProps> = ({
                         {/* Moved / Added in this session Sparkle Indicator */}
                         {movedItemIds && movedItemIds.has(item.id) && (
                           <div
-                            title="Bu oturumda taşındı / eklendi"
-                            className="absolute top-1 left-1 z-20 w-4 h-4 rounded-full bg-amber-400 text-neutral-950 flex items-center justify-center shadow-[0_0_8px_rgba(251,191,36,0.9)] ring-1 ring-black/70 pointer-events-none"
+                            title={`Bu oturumda taşındı / eklendi (Yıldız Rengi: ${currentSparkle.name})`}
+                            className={`absolute top-1 left-1 z-20 w-4 h-4 rounded-full ${currentSparkle.bg} ${currentSparkle.text} flex items-center justify-center ${currentSparkle.glow} ring-1 ring-black/70 pointer-events-none transition-all duration-200`}
                           >
                             <Sparkles className="w-2.5 h-2.5 fill-current" />
                           </div>
@@ -654,11 +690,17 @@ export const TierListView: React.FC<TierListViewProps> = ({
         id="tier-unranked-pool"
         className="mt-auto sticky bottom-3 z-20 rounded-2xl border border-white/15 bg-[#141414]/95 backdrop-blur-xl p-3 sm:p-4 shadow-2xl space-y-2.5"
       >
-        <div className="flex items-center justify-between px-1">
+        <div className="flex items-center justify-between px-1 flex-wrap gap-2">
           <div className="flex items-center gap-2">
-            <span className="text-xs font-extrabold text-neutral-200 uppercase tracking-wider">
+            {/* Clickable Havuz title to cycle star color (Secret Feature) */}
+            <button
+              id="tier-pool-star-cycle-btn"
+              onClick={cycleSparkleColor}
+              title={`Gizli Özellik: Kartlardaki yıldız/ışıltı rengini değiştirmek için tıkla (Şu an: ${currentSparkle.name})`}
+              className="px-1.5 py-0.5 -ml-1 rounded-md hover:bg-white/10 text-xs font-extrabold text-neutral-200 uppercase tracking-wider transition-colors cursor-pointer select-none"
+            >
               Havuz
-            </span>
+            </button>
             <span className="text-xs text-neutral-400 font-mono">
               ({poolItems.length} yapım henüz sıralanmamış)
             </span>
@@ -747,8 +789,8 @@ export const TierListView: React.FC<TierListViewProps> = ({
                   {/* Moved / Added in this session Sparkle Indicator */}
                   {movedItemIds && movedItemIds.has(item.id) && (
                     <div
-                      title="Bu oturumda taşındı / eklendi"
-                      className="absolute top-1 left-1 z-20 w-4 h-4 rounded-full bg-amber-400 text-neutral-950 flex items-center justify-center shadow-[0_0_8px_rgba(251,191,36,0.9)] ring-1 ring-black/70 pointer-events-none"
+                      title={`Bu oturumda taşındı / eklendi (Yıldız Rengi: ${currentSparkle.name})`}
+                      className={`absolute top-1 left-1 z-20 w-4 h-4 rounded-full ${currentSparkle.bg} ${currentSparkle.text} flex items-center justify-center ${currentSparkle.glow} ring-1 ring-black/70 pointer-events-none transition-all duration-200`}
                     >
                       <Sparkles className="w-2.5 h-2.5 fill-current" />
                     </div>

@@ -38,14 +38,47 @@
     --ambient-bg: none;
   }
 
-  [data-theme="dark-slate"] {
-    --bg-primary: #1f1f23;
-    --bg-surface: #26262c;
-    --bg-surface-elevated: #32323a;
-    --border-subtle: #3d3d47;
-    --border-medium: #4e4e5b;
-    --accent-color: #e2e8f0;
-    --accent-glow: transparent;
+  [data-theme="nordic-frost"] {
+    --bg-primary: #0b131e;
+    --bg-surface: #101c2c;
+    --bg-surface-elevated: #16263b;
+    --border-subtle: #1f344e;
+    --border-medium: #2a466a;
+    --accent-color: #38bdf8;
+    --accent-glow: rgba(56, 189, 248, 0.15);
+    --ambient-bg: none;
+  }
+
+  [data-theme="crimson-night"] {
+    --bg-primary: #12080a;
+    --bg-surface: #1a0c10;
+    --bg-surface-elevated: #261117;
+    --border-subtle: #3d1722;
+    --border-medium: #541d2d;
+    --accent-color: #f43f5e;
+    --accent-glow: rgba(244, 63, 94, 0.15);
+    --ambient-bg: none;
+  }
+
+  [data-theme="emerald-abyss"] {
+    --bg-primary: #071510;
+    --bg-surface: #0b1e17;
+    --bg-surface-elevated: #102920;
+    --border-subtle: #183e30;
+    --border-medium: #225341;
+    --accent-color: #10b981;
+    --accent-glow: rgba(16, 185, 129, 0.15);
+    --ambient-bg: none;
+  }
+
+  [data-theme="amethyst-twilight"] {
+    --bg-primary: #100a1c;
+    --bg-surface: #170f27;
+    --bg-surface-elevated: #211638;
+    --border-subtle: #332053;
+    --border-medium: #452b70;
+    --accent-color: #a855f7;
+    --accent-glow: rgba(168, 85, 247, 0.15);
     --ambient-bg: none;
   }
 

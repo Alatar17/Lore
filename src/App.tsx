@@ -100,21 +100,23 @@ export default function App() {
           parsed.cardVignette === 'top'
             ? 'bottom'
             : parsed.cardVignette || (parsed.cardEffect === 'vignette' ? 'bottom' : 'none');
+        const toolbarStyle = parsed.toolbarStyle === 'floating' ? 'default' : (parsed.toolbarStyle || 'default');
+        const cardRadius = parsed.cardRadius === 'soft' ? 'normal' : (parsed.cardRadius || 'normal');
+        const badgeDensity = parsed.badgeDensity === 'compact' ? 'full' : (parsed.badgeDensity || 'full');
+
         return {
-          toolbarStyle: parsed.toolbarStyle || 'default',
-          cardGlow: Boolean(parsed.cardGlow),
+          toolbarStyle,
           cardVignette: cardVignette as any,
-          cardRadius: parsed.cardRadius || 'normal',
+          cardRadius,
           cardHoverMotion: parsed.cardHoverMotion || 'zoom',
           bgAtmosphere: parsed.bgAtmosphere === 'topglow' ? 'default' : (parsed.bgAtmosphere || 'default'),
           badgeStyle: parsed.badgeStyle || 'default',
-          badgeDensity: parsed.badgeDensity || 'full',
+          badgeDensity,
         };
       } catch {}
     }
     return {
       toolbarStyle: 'default',
-      cardGlow: false,
       cardVignette: 'none',
       cardRadius: 'normal',
       cardHoverMotion: 'zoom',
@@ -147,6 +149,7 @@ export default function App() {
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
+        const theme = parsed.theme === 'dark-slate' ? 'nordic-frost' : (parsed.theme || 'pure-dark');
         return {
           showTitle: true,
           showRating: true,
@@ -156,8 +159,8 @@ export default function App() {
           showFollowing: true,
           showGameStatus: true,
           cardSize: 3,
-          theme: 'pure-dark',
           ...parsed,
+          theme,
         };
       } catch {}
     }
@@ -179,7 +182,7 @@ export default function App() {
     safeLocalStorageSet('yapim_view_settings', JSON.stringify(viewSettings));
     document.documentElement.setAttribute(
       'data-theme',
-      viewSettings.theme || 'deep-slate'
+      viewSettings.theme || 'pure-dark'
     );
   }, [viewSettings]);
 
@@ -1147,20 +1150,25 @@ export default function App() {
           bg: 'bg-[#0f1115]',
           ambient: 'bg-[radial-gradient(ellipse_90%_70%_at_50%_-20%,rgba(100,116,139,0.14),transparent)]',
         };
-      case 'dark-slate':
+      case 'nordic-frost':
         return {
-          bg: 'bg-[#181b22]',
-          ambient: 'bg-[radial-gradient(ellipse_90%_70%_at_50%_-20%,rgba(96,165,250,0.14),transparent)]',
+          bg: 'bg-[#0b131e]',
+          ambient: 'bg-[radial-gradient(ellipse_90%_70%_at_50%_-20%,rgba(56,189,248,0.16),transparent)]',
         };
       case 'crimson-night':
         return {
           bg: 'bg-[#12080a]',
           ambient: 'bg-[radial-gradient(ellipse_90%_70%_at_50%_-20%,rgba(225,29,72,0.18),transparent)]',
         };
-      case 'nordic-frost':
+      case 'emerald-abyss':
         return {
-          bg: 'bg-[#0b131e]',
-          ambient: 'bg-[radial-gradient(ellipse_90%_70%_at_50%_-20%,rgba(56,189,248,0.16),transparent)]',
+          bg: 'bg-[#091410]',
+          ambient: 'bg-[radial-gradient(ellipse_90%_70%_at_50%_-20%,rgba(16,185,129,0.16),transparent)]',
+        };
+      case 'amethyst-twilight':
+        return {
+          bg: 'bg-[#0f0b18]',
+          ambient: 'bg-[radial-gradient(ellipse_90%_70%_at_50%_-20%,rgba(168,85,247,0.16),transparent)]',
         };
       case 'pure-dark':
       default:
@@ -1444,7 +1452,7 @@ export default function App() {
             <BarChart3 className="w-3.5 h-3.5 transition-transform duration-200 group-hover:scale-110" />
           </button>
 
-          {/* Floating Right Bottom Add Button */}
+          {/* Floating Right Bottom Add Button (Only on desktop/tablet, hidden on mobile) */}
           <button
             id="fab-add-item-btn"
             onClick={(e) => {
@@ -1453,7 +1461,7 @@ export default function App() {
               setIsAddModalOpen(true);
             }}
             title={`Yeni Ekle (Kısayol: W)`}
-            className="fixed bottom-6 right-6 z-40 w-11 h-11 rounded-full bg-slate-800/80 hover:bg-blue-600 text-slate-300 hover:text-white shadow-lg shadow-black/40 hover:shadow-blue-600/30 flex items-center justify-center transition-all duration-200 hover:scale-105 active:scale-95 border border-white/10 hover:border-blue-400/40 backdrop-blur-md cursor-pointer group"
+            className="hidden md:flex fixed bottom-6 right-6 z-40 w-11 h-11 rounded-full bg-slate-800/80 hover:bg-blue-600 text-slate-300 hover:text-white shadow-lg shadow-black/40 hover:shadow-blue-600/30 items-center justify-center transition-all duration-200 hover:scale-105 active:scale-95 border border-white/10 hover:border-blue-400/40 backdrop-blur-md cursor-pointer group"
           >
             <Plus className="w-5 h-5 transition-transform duration-200 group-hover:rotate-90" />
           </button>
@@ -1497,9 +1505,10 @@ export default function App() {
                         {[
                           { id: 'pure-dark', label: 'Saf Siyah (OLED)', desc: 'Zifiri siyah zemin ve sade çizgiler' },
                           { id: 'charcoal-gray', label: 'Koyu Gri (Charcoal)', desc: 'Mat antrasit/gri zemin' },
-                          { id: 'dark-slate', label: 'Grimsi Gri (Slate)', desc: 'Dengeli derin grimsi zemin' },
-                          { id: 'crimson-night', label: 'Kızıl Gece (Crimson Noir)', desc: 'Kadife siyah & yakut kızıl ambiyans' },
                           { id: 'nordic-frost', label: 'Kuzey Işıkları (Nordic)', desc: 'Soğuk antrasit & buzul mavisi' },
+                          { id: 'crimson-night', label: 'Kızıl Gece (Crimson Noir)', desc: 'Kadife siyah & yakut kızıl ambiyans' },
+                          { id: 'emerald-abyss', label: 'Zümrüt Derinliği (Emerald)', desc: 'Derin çam yeşili & zümrüt detaylar' },
+                          { id: 'amethyst-twilight', label: 'Ametist Gece (Amethyst)', desc: 'Koyu gece moru & lavanta tonları' },
                         ].map((opt) => (
                           <button
                             key={opt.id}
@@ -1531,7 +1540,6 @@ export default function App() {
                           { id: 'default', label: 'Varsayılan (Sade)', desc: 'Klasik alt çizgili sade üst bar' },
                           { id: 'box', label: 'Gri Toolbar Kutusu', desc: 'Koyu kutu içine alınmış zarif bar' },
                           { id: 'glass', label: 'Buzlu Cam (Glassmorphism)', desc: 'Yarı saydam ve arkası bulanık bar' },
-                          { id: 'floating', label: 'Kompakt Yüzen Bar', desc: 'Ada biçimli çerçeveli bar' },
                         ].map((opt) => (
                           <button
                             key={opt.id}
@@ -1559,26 +1567,7 @@ export default function App() {
                     {/* Card effect options */}
                     {openUiTestMenu === 'card' && (
                       <div className="space-y-3 p-1">
-                        {/* 1. Mavi Hover Işığı (Bağımsız Toggle) */}
-                        <div className="p-2.5 rounded-xl bg-white/5 border border-white/10 flex items-center justify-between">
-                          <div>
-                            <div className="font-medium text-slate-200">Mavi Hover Parlaması</div>
-                            <div className="text-[10px] text-slate-400">Üzerine gelince neon mavi çerçeve ışığı</div>
-                          </div>
-                          <label className="relative inline-flex items-center cursor-pointer">
-                            <input
-                              type="checkbox"
-                              checked={uiExperiments.cardGlow}
-                              onChange={(e) =>
-                                setUiExperiments((p) => ({ ...p, cardGlow: e.target.checked }))
-                              }
-                              className="sr-only peer"
-                            />
-                            <div className="w-9 h-5 bg-neutral-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-600"></div>
-                          </label>
-                        </div>
-
-                        {/* 2. Sinematik Vinyet (Yön Seçenekleri) */}
+                        {/* 1. Sinematik Vinyet (Yön Seçenekleri) */}
                         <div className="space-y-1.5">
                           <div className="text-[11px] font-semibold text-slate-300 px-1">Sinematik Vinyet Gölgesi</div>
                           <div className="grid grid-cols-3 gap-1.5">
@@ -1604,14 +1593,13 @@ export default function App() {
                           </div>
                         </div>
 
-                        {/* 3. Köşe Yuvarlaklığı (6.1) */}
+                        {/* 2. Köşe Yuvarlaklığı */}
                         <div className="space-y-1.5">
                           <div className="text-[11px] font-semibold text-slate-300 px-1">Kart Köşe Yuvarlaklığı</div>
-                          <div className="grid grid-cols-3 gap-1.5">
+                          <div className="grid grid-cols-2 gap-1.5">
                             {[
                               { id: 'sharp', label: 'Keskin' },
                               { id: 'normal', label: 'Standart' },
-                              { id: 'soft', label: 'Yumuşak Kavis' },
                             ].map((r) => (
                               <button
                                 key={r.id}
@@ -1630,7 +1618,7 @@ export default function App() {
                           </div>
                         </div>
 
-                        {/* 4. Hover Hareketi (6.2) */}
+                        {/* 3. Hover Hareketi */}
                         <div className="space-y-1.5">
                           <div className="text-[11px] font-semibold text-slate-300 px-1">Hover Hareketi</div>
                           <div className="grid grid-cols-3 gap-1.5">
@@ -1721,14 +1709,13 @@ export default function App() {
                           ))}
                         </div>
 
-                        {/* Rozet Yoğunluğu (6.4) */}
+                        {/* Rozet Yoğunluğu */}
                         <div className="space-y-1.5 pt-2 border-t border-white/10">
                           <div className="text-[11px] font-semibold text-slate-300 px-1">Rozet Yoğunluğu</div>
-                          <div className="grid grid-cols-3 gap-1.5">
+                          <div className="grid grid-cols-2 gap-1.5">
                             {[
                               { id: 'full', label: 'Tam Detay' },
-                              { id: 'compact', label: 'Sade' },
-                              { id: 'hover-only', label: 'Hoverda' },
+                              { id: 'hover-only', label: 'Yalnızca Hover' },
                             ].map((d) => (
                               <button
                                 key={d.id}
@@ -1782,9 +1769,10 @@ export default function App() {
                   <span>
                     Tema
                     {viewSettings.theme === 'charcoal-gray' && ': Koyu Gri'}
-                    {viewSettings.theme === 'dark-slate' && ': Grimsi'}
-                    {viewSettings.theme === 'crimson-night' && ': Kızıl'}
                     {viewSettings.theme === 'nordic-frost' && ': Kuzey'}
+                    {viewSettings.theme === 'crimson-night' && ': Kızıl'}
+                    {viewSettings.theme === 'emerald-abyss' && ': Zümrüt'}
+                    {viewSettings.theme === 'amethyst-twilight' && ': Ametist'}
                     {(!viewSettings.theme || viewSettings.theme === 'pure-dark') && ': OLED'}
                   </span>
                   <ChevronDown
@@ -1794,7 +1782,7 @@ export default function App() {
                   />
                 </button>
 
-                {/* 2. Üst Bar Group (Gri Kutu & Buzlu Cam & Yüzen) */}
+                {/* 2. Üst Bar Group (Gri Kutu & Buzlu Cam) */}
                 <button
                   type="button"
                   onClick={() =>
@@ -1812,7 +1800,6 @@ export default function App() {
                     Üst Bar
                     {uiExperiments.toolbarStyle === 'box' && ': Kutu'}
                     {uiExperiments.toolbarStyle === 'glass' && ': Cam'}
-                    {uiExperiments.toolbarStyle === 'floating' && ': Yüzen'}
                   </span>
                   <ChevronDown
                     className={`w-3 h-3 transition-transform ${
@@ -1830,14 +1817,13 @@ export default function App() {
                   className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-all flex items-center gap-1 cursor-pointer ${
                     openUiTestMenu === 'card'
                       ? 'bg-blue-600 text-white shadow'
-                      : uiExperiments.cardGlow || uiExperiments.cardVignette !== 'none' || uiExperiments.cardRadius !== 'normal' || uiExperiments.cardHoverMotion !== 'zoom'
+                      : uiExperiments.cardVignette !== 'none' || uiExperiments.cardRadius !== 'normal' || uiExperiments.cardHoverMotion !== 'lift'
                       ? 'bg-blue-600/30 text-blue-300 border border-blue-500/40'
                       : 'bg-white/5 hover:bg-white/10 text-neutral-300'
                   }`}
                 >
                   <span>
                     Kart
-                    {uiExperiments.cardGlow && ' • Işık'}
                     {uiExperiments.cardVignette !== 'none' && ' • Vinyet'}
                   </span>
                   <ChevronDown

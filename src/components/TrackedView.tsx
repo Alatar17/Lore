@@ -51,11 +51,35 @@ export const TrackedView: React.FC<TrackedViewProps> = ({
 
   const buildPromptText = () => {
     const names = followingItems.map((it) => `- ${it.title}`).join('\n');
-    return `Aşağıdaki dizi/anime isimlerinin güncel bölüm/sezon durumunu web'den araştır.
-Her biri için SADECE şunu söyle: en son yayınlanan bölüm/sezon ne zamandı,
-yeni bir bölüm/sezon duyurulmuş mu (duyurulduysa tarihini belirt), yoksa şu an
-bilinen bir plan yok mu. Kısa ve net cevap ver, madde madde, gereksiz açıklama yapma.
+    return `Aşağıdaki yapımların **güncel yayın/devam durumunu web'den araştır**.
 
+Her içerik için şunları öğren:
+
+* En son yayınlanan bölüm, sezon ne?
+* Ne zaman yayınlandı?
+* Şu anda devam ediyor mu, yoksa sona mı erdi?
+* Yeni sezon veya devam filmi için resmî olarak açıklanmış bir plan var mı?
+
+**Kurallar:**
+
+* Bilgileri güncel web kaynaklarından kontrol et.
+* Eski haberleri güncel bilgi gibi verme.
+* Söylenti, tahmin ve fan teorilerini kullanma.
+* Bir devam projesi hakkında resmî açıklama yoksa **"Resmî olarak açıklanmış bir plan yok"** yaz.
+* Bilgiyi doğrulayamıyorsan tahmin etme.
+* Spoiler verme.
+* Konu özeti veya gereksiz açıklama yapma.
+
+Her içerik için kısa ve şu formatta cevap ver:
+
+**[İçerik adı]**
+
+* Son yayınlanan: ...
+* Yayın tarihi: ...
+* Durum: ...
+* Devam planı: ...
+
+**İçerik Listesi:**
 ${names || '- (Takip listesinde henüz yapım yok)'}`;
   };
 
@@ -175,7 +199,7 @@ ${names || '- (Takip listesinde henüz yapım yok)'}`;
               id="prompt-text-area"
               readOnly
               value={buildPromptText()}
-              rows={8}
+              rows={14}
               className="w-full bg-[#121318] text-gray-200 border border-[#2e3342] rounded-lg p-3 text-xs font-mono leading-relaxed focus:outline-none select-all custom-scrollbar"
             />
 

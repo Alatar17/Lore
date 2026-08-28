@@ -51,7 +51,6 @@ export const ItemCard: React.FC<ItemCardProps> = ({
   const showFollowing = viewSettings.showFollowing !== false && !isGame && item.following;
   const showGameStatus = viewSettings.showGameStatus !== false && isGame;
 
-  const cardGlow = Boolean(uiExperiments?.cardGlow);
   const cardVignette = uiExperiments?.cardVignette || 'none';
   const cardRadius = uiExperiments?.cardRadius || 'normal';
   const cardHoverMotion = uiExperiments?.cardHoverMotion || 'lift';
@@ -74,15 +73,11 @@ export const ItemCard: React.FC<ItemCardProps> = ({
     if (isSelectionMode) {
       return 'border-white/20 hover:border-blue-400/50';
     }
-    if (cardGlow) {
-      return 'border-white/10 group-hover:border-blue-400/70 group-hover:shadow-[0_0_24px_rgba(59,130,246,0.35)]';
-    }
     return 'border-white/10 group-hover:shadow-2xl group-hover:border-white/30';
   };
 
   const getRadiusClasses = () => {
     if (cardRadius === 'sharp') return 'rounded-none';
-    if (cardRadius === 'soft') return 'rounded-2xl';
     return 'rounded-xl';
   };
 
@@ -104,12 +99,9 @@ export const ItemCard: React.FC<ItemCardProps> = ({
   };
 
   // Badge density visibility helper
-  const isBadgeVisible = (type: 'year' | 'rating' | 'status') => {
+  const isBadgeVisible = (_type?: 'year' | 'rating' | 'status') => {
     if (badgeDensity === 'hover-only') {
       return 'opacity-0 group-hover:opacity-100 transition-opacity duration-200';
-    }
-    if (badgeDensity === 'compact' && type === 'year') {
-      return 'hidden'; // Hide secondary year in compact mode
     }
     return 'opacity-100';
   };

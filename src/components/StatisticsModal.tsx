@@ -155,7 +155,7 @@ export const StatisticsModal: React.FC<StatisticsModalProps> = ({
     >
       <div
         id="statistics-modal-box"
-        className="relative w-full max-w-4xl bg-[#12151f] border border-white/15 rounded-2xl shadow-2xl overflow-hidden my-auto flex flex-col h-[680px] max-h-[90vh]"
+        className="relative w-full max-w-4xl bg-[#12151f] border border-white/15 rounded-2xl shadow-2xl overflow-hidden my-auto flex flex-col h-[900px] max-h-[96vh]"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header: Centered Media/Game Switcher, Right: Year Selector & Close */}
