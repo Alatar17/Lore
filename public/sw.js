@@ -1,5 +1,5 @@
-// Service Worker for Yapım Arşivim PWA
-const CACHE_NAME = 'yapim-arsivim-cache-v2';
+// Service Worker for Lore PWA
+const CACHE_NAME = 'lore-cache-v3';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',

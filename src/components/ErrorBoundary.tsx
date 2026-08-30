@@ -68,7 +68,7 @@ export class ErrorBoundary extends React.Component<Props, State> {
               </div>
               <div>
                 <h1 className="text-base font-bold text-white leading-tight">
-                  Yapım Arşivim — Başlatma Sorunu Giderildi
+                  Lore — Başlatma Sorunu Giderildi
                 </h1>
                 <p className="text-xs text-slate-400 mt-0.5">
                   Beklenmeyen bir arayüz hatası yakalandı. Verileriniz güvendedir.

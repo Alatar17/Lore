@@ -1,8 +1,8 @@
 {
-  "id": "yapim-arsivim-app",
-  "name": "Yapım Arşivim — Medya ve Oyun Arşivi",
-  "short_name": "Yapım Arşivim",
-  "description": "Kişisel film, dizi, anime, animasyon ve oyun arşiv yöneticisi",
+  "id": "lore-app",
+  "name": "Lore",
+  "short_name": "Lore",
+  "description": "Kişisel film, dizi, anime, animasyon ve oyun kütüphanesi arşivi",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",

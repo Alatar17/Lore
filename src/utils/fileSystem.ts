@@ -914,12 +914,12 @@ export function generatePhoneStandaloneHtml(data: AppData): string {
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="Yapım Arşivim">
+<meta name="apple-mobile-web-app-title" content="Lore">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="theme-color" content="#141416">
-<meta name="application-name" content="Yapım Arşivim">
+<meta name="application-name" content="Lore">
 <meta name="msapplication-navbutton-color" content="#141416">
-<title>Yapım Arşivim</title>
+<title>Lore</title>
 <style>
   :root {
     --bg: #141416;
@@ -1030,7 +1030,7 @@ export function generatePhoneStandaloneHtml(data: AppData): string {
 </head>
 <body>
 <header>
-  <div class="app-title">🎬 Yapım Arşivim <span class="badge-offline">Mobil</span></div>
+  <div class="app-title">🎬 Lore <span class="badge-offline">Mobil</span></div>
   <button class="fs-btn" onclick="toggleFullscreen()" title="Tam Ekran">⛶ Tam Ekran</button>
 </header>
 <div class="main-tabs">
