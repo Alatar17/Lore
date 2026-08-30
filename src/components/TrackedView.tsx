@@ -30,20 +30,20 @@ export const TrackedView: React.FC<TrackedViewProps> = ({
   const watchingItems = (items || []).filter((it) => it && it.watching);
   const followingItems = (items || []).filter((it) => it && it.following);
 
-  // Card size calculation for CSS Grid auto-fill (1: 120px, 2: 150px, 3: 185px, 4: 230px, 5: 280px)
+  // Card size calculation for CSS Grid auto-fill (1: 150px [Küçük], 2: 185px [Standart], 3: 215px [Orta-Büyük], 4: 250px [Büyük], 5: 295px [Ekstra])
   const cardMinWidth = React.useMemo(() => {
-    const size = viewSettings.cardSize || 3;
+    const size = viewSettings.cardSize || 2;
     switch (size) {
       case 1:
-        return 120;
+        return 150; // Küçük
       case 2:
-        return 150;
+        return 185; // Standart
       case 3:
-        return 185;
+        return 215; // Orta-Büyük (Standart ile Büyük arası)
       case 4:
-        return 230;
+        return 250; // Büyük
       case 5:
-        return 280;
+        return 295; // Ekstra
       default:
         return 185;
     }
@@ -107,9 +107,8 @@ ${names || '- (Takip listesinde henüz yapım yok)'}`;
       {/* 1. Bölüm: Şu An İzlenenler */}
       <section>
         <div className="flex items-center gap-2 mb-3.5">
-          <span className="w-2.5 h-2.5 rounded-full bg-cyan-400 animate-pulse"></span>
           <h2 className="text-base font-semibold text-gray-100 flex items-center gap-2">
-            🔵 Şu An İzlenenler
+            Şu An İzlenenler
             <span className="text-xs font-normal text-gray-400">
               ({watchingItems.length})
             </span>
@@ -152,30 +151,26 @@ ${names || '- (Takip listesinde henüz yapım yok)'}`;
       <section>
         <div className="flex items-center justify-between gap-3 mb-3.5 flex-wrap">
           <div className="flex items-center gap-2">
-            <span className="text-amber-400">★</span>
             <h2 className="text-base font-semibold text-gray-100 flex items-center gap-2">
               Takip Edilenler
               <span className="text-xs font-normal text-gray-400">
                 ({followingItems.length})
               </span>
             </h2>
-            <span className="text-xs text-gray-400 hidden sm:inline">
-              (Biten ama yeni sezon / bölüm beklenenler)
-            </span>
           </div>
 
           <button
             id="gen-prompt-btn"
             onClick={() => setShowPromptBox(!showPromptBox)}
             title="Takip listesindeki yapımlar için AI sorgu metni oluştur"
-            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-xs font-medium transition-all ${
+            className={`flex items-center gap-1.5 p-2 sm:px-2.5 sm:py-1 rounded-lg border text-xs font-medium transition-all cursor-pointer ${
               showPromptBox
                 ? 'bg-amber-500/20 border-amber-500 text-amber-300'
                 : 'bg-[#1e212b] border-[#373c4b] text-gray-300 hover:text-white hover:border-gray-500'
             }`}
           >
             <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-            <span>Sorgu Metni Oluştur</span>
+            <span className="hidden sm:inline">Sorgu Metni Oluştur</span>
           </button>
         </div>
 

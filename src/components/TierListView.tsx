@@ -119,6 +119,7 @@ export const TierListView: React.FC<TierListViewProps> = ({
   const [editNameText, setEditNameText] = useState('');
 
   // Star / Sparkle Icon Color Customization State
+  const [mobileActiveRowTooltip, setMobileActiveRowTooltip] = useState<string | null>(null);
   const [sparkleColorIdx, setSparkleColorIdx] = useState<number>(() => {
     try {
       const saved = localStorage.getItem('tier_sparkle_color_idx');
@@ -477,6 +478,10 @@ export const TierListView: React.FC<TierListViewProps> = ({
   const handleCardContextMenu = (e: React.MouseEvent, item: ArchiveItem) => {
     e.preventDefault();
     e.stopPropagation();
+    // Disable quick move context menu on mobile devices
+    if (typeof window !== 'undefined' && window.innerWidth < 640) {
+      return;
+    }
     setRowContextMenu(null);
     setCardContextMenu({
       x: Math.min(e.clientX, window.innerWidth - 220),
@@ -513,7 +518,7 @@ export const TierListView: React.FC<TierListViewProps> = ({
                   : ''
               }`}
             >
-              {/* Left Tier Box (Label) - Fully Droppable */}
+              {/* Left Tier Box (Label) - Fully Droppable & Responsive: Thin colored vertical strip on mobile, wide box on desktop */}
               <div
                 id={`tier-label-${row.id}`}
                 onDragOver={(e) => {
@@ -538,42 +543,60 @@ export const TierListView: React.FC<TierListViewProps> = ({
                   }
                   setDraggedItemId(null);
                 }}
+                onClick={() => {
+                  if (typeof window !== 'undefined' && window.innerWidth < 640) {
+                    setMobileActiveRowTooltip(mobileActiveRowTooltip === row.id ? null : row.id);
+                    setTimeout(() => {
+                      setMobileActiveRowTooltip((curr) => (curr === row.id ? null : curr));
+                    }, 2500);
+                  }
+                }}
                 onContextMenu={(e) => {
                   if (window.innerWidth >= 640) {
                     handleRowContextMenu(e, row.id);
                   }
                 }}
-                title="Sürükle-Bırak: Bu satıra ekle | Sağ tık: Satır seçenekleri"
-                className="w-18 sm:w-20 shrink-0 flex flex-col items-center justify-center p-2 relative select-none font-bold text-center sm:cursor-context-menu border-r border-black/40 transition-transform active:scale-95 group"
+                title={`Sürükle-Bırak: ${row.name} satırına ekle | Sağ tık: Satır seçenekleri`}
+                className="w-2.5 sm:w-20 shrink-0 flex flex-col items-center justify-center sm:p-2 relative select-none font-bold text-center sm:cursor-context-menu border-r border-black/40 transition-transform active:scale-95 group cursor-pointer"
                 style={{
                   backgroundColor: row.color,
                   color: '#ffffff',
                   textShadow: '0 2px 4px rgba(0,0,0,0.85)',
                 }}
               >
-                {editingRowId === row.id ? (
-                  <input
-                    type="text"
-                    value={editNameText}
-                    autoFocus
-                    onChange={(e) => setEditNameText(e.target.value)}
-                    onBlur={() => handleSaveRename(row.id)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') handleSaveRename(row.id);
-                      if (e.key === 'Escape') setEditingRowId(null);
-                    }}
-                    className="w-full text-center bg-black/70 text-white font-bold text-base rounded border border-white/40 p-1 focus:outline-none"
-                    onClick={(e) => e.stopPropagation()}
-                  />
-                ) : (
-                  <span className="text-xl sm:text-2xl font-black tracking-wide break-words max-w-full leading-tight">
-                    {row.name}
-                  </span>
+                {/* Mobile floating name indicator tooltip when touched */}
+                {mobileActiveRowTooltip === row.id && (
+                  <div className="sm:hidden absolute left-3.5 z-30 px-2 py-1 bg-black/95 border border-white/30 text-white rounded-md text-xs font-bold whitespace-nowrap shadow-2xl animate-in fade-in zoom-in-95 pointer-events-none">
+                    {row.name} Satırı
+                  </div>
                 )}
 
-                {/* Subtle right-click indicator on hover */}
-                <div className="absolute bottom-1.5 right-1.5 opacity-0 group-hover:opacity-75 transition-opacity">
-                  <div className="w-2 h-2 rounded-full bg-white/90 shadow" />
+                {/* Desktop Full Tier Name & Rename Editor */}
+                <div className="hidden sm:flex flex-col items-center justify-center w-full">
+                  {editingRowId === row.id ? (
+                    <input
+                      type="text"
+                      value={editNameText}
+                      autoFocus
+                      onChange={(e) => setEditNameText(e.target.value)}
+                      onBlur={() => handleSaveRename(row.id)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') handleSaveRename(row.id);
+                        if (e.key === 'Escape') setEditingRowId(null);
+                      }}
+                      className="w-full text-center bg-black/70 text-white font-bold text-base rounded border border-white/40 p-1 focus:outline-none"
+                      onClick={(e) => e.stopPropagation()}
+                    />
+                  ) : (
+                    <span className="text-xl sm:text-2xl font-black tracking-wide break-words max-w-full leading-tight">
+                      {row.name}
+                    </span>
+                  )}
+
+                  {/* Subtle right-click indicator on hover */}
+                  <div className="absolute bottom-1.5 right-1.5 opacity-0 group-hover:opacity-75 transition-opacity">
+                    <div className="w-2 h-2 rounded-full bg-white/90 shadow" />
+                  </div>
                 </div>
               </div>
 
@@ -599,7 +622,7 @@ export const TierListView: React.FC<TierListViewProps> = ({
                   return (
                     <div
                       key={item.id}
-                      draggable
+                      draggable={typeof window !== 'undefined' && window.innerWidth >= 768}
                       onDragStart={(e) => handleDragStart(e, item.id)}
                       onDragEnd={handleDragEnd}
                       onDragOver={(e) => handleCardDragOver(e, item, row.id)}
@@ -613,7 +636,7 @@ export const TierListView: React.FC<TierListViewProps> = ({
                       }}
                       onMouseEnter={() => onItemHover?.(item)}
                       onMouseLeave={() => onItemHover?.(null)}
-                      className={`group relative w-[72px] sm:w-[84px] aspect-[2/3] max-h-[124px] rounded-lg overflow-visible cursor-grab active:cursor-grabbing transition-all select-none ${
+                      className={`group relative w-[72px] sm:w-[84px] aspect-[2/3] max-h-[124px] rounded-lg overflow-visible cursor-pointer md:cursor-grab md:active:cursor-grabbing transition-all select-none ${
                         isCurrentDragged
                           ? 'opacity-30 scale-95'
                           : 'hover:scale-105 hover:z-20'
@@ -664,14 +687,14 @@ export const TierListView: React.FC<TierListViewProps> = ({
                           </span>
                         </div>
 
-                        {/* Quick Undo to Pool Button */}
+                        {/* Quick Undo to Pool Button (Desktop only) */}
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
                             onUpdateTierPlacement(item.id, null);
                           }}
                           title="Havuza geri çek"
-                          className="absolute top-1 right-1 w-5 h-5 rounded-md bg-black/80 text-white opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity hover:bg-red-600 cursor-pointer shadow z-10"
+                          className="hidden md:flex absolute top-1 right-1 w-5 h-5 rounded-md bg-black/80 text-white opacity-0 group-hover:opacity-100 items-center justify-center transition-opacity hover:bg-red-600 cursor-pointer shadow z-10"
                         >
                           <Undo2 className="w-3 h-3" />
                         </button>
@@ -685,10 +708,10 @@ export const TierListView: React.FC<TierListViewProps> = ({
         })}
       </div>
 
-      {/* Unranked Pool */}
+      {/* Unranked Pool (Mobilde gizli, masaüstünde sabit altta) */}
       <div
         id="tier-unranked-pool"
-        className="mt-auto sticky bottom-3 z-20 rounded-2xl border border-white/15 bg-[#141414]/95 backdrop-blur-xl p-3 sm:p-4 shadow-2xl space-y-2.5"
+        className="hidden sm:block mt-auto sticky bottom-3 z-20 rounded-2xl border border-white/15 bg-[#141414]/95 backdrop-blur-xl p-3 sm:p-4 shadow-2xl space-y-2.5"
       >
         <div className="flex items-center justify-between px-1 flex-wrap gap-2">
           <div className="flex items-center gap-2">
@@ -754,7 +777,7 @@ export const TierListView: React.FC<TierListViewProps> = ({
             return (
               <div
                 key={item.id}
-                draggable
+                draggable={typeof window !== 'undefined' && window.innerWidth >= 768}
                 onDragStart={(e) => handleDragStart(e, item.id)}
                 onDragEnd={handleDragEnd}
                 onDragOver={(e) => handleCardDragOver(e, item, null)}
@@ -768,7 +791,7 @@ export const TierListView: React.FC<TierListViewProps> = ({
                 }}
                 onMouseEnter={() => onItemHover?.(item)}
                 onMouseLeave={() => onItemHover?.(null)}
-                className={`group relative w-[72px] sm:w-[84px] aspect-[2/3] max-h-[124px] rounded-lg overflow-visible cursor-grab active:cursor-grabbing transition-all select-none ${
+                className={`group relative w-[72px] sm:w-[84px] aspect-[2/3] max-h-[124px] rounded-lg overflow-visible cursor-pointer md:cursor-grab md:active:cursor-grabbing transition-all select-none ${
                   isCurrentDragged
                     ? 'opacity-30 scale-95'
                     : 'hover:scale-105 hover:z-20'

@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import {
   AppData,
   Category,
@@ -52,6 +53,7 @@ import {
   Keyboard,
   Check,
   RotateCcw,
+  Tag,
   Tags,
   Edit2,
   Film,
@@ -80,6 +82,8 @@ interface SettingsModalProps {
   activeMainTab: MainTabType;
   dirHandle: FileSystemDirectoryHandle | null;
   viewSettings: ViewSettings;
+  searchQuery?: string;
+  onSearchTag?: (tag: string, mainTab?: MainTabType) => void;
   onUpdateViewSettings: (newSettings: Partial<ViewSettings>) => void;
   uiExperiments?: UiExperimentsState;
   onUpdateUiExperiments?: (updater: (prev: UiExperimentsState) => UiExperimentsState) => void;
@@ -164,6 +168,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   activeMainTab,
   dirHandle,
   viewSettings,
+  searchQuery = '',
+  onSearchTag,
   onUpdateViewSettings,
   uiExperiments = {
     toolbarStyle: 'default',
@@ -184,7 +190,12 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   onReplaceAllData,
   onClose,
 }) => {
-  const [activeTab, setActiveTab] = useState<'categories' | 'tags' | 'themes' | 'shortcuts' | 'storage'>('categories');
+  const [activeTab, setActiveTab] = useState<'categories' | 'tags' | 'themes' | 'shortcuts' | 'storage'>(() => {
+    if (typeof window !== 'undefined' && window.innerWidth < 640) {
+      return 'tags';
+    }
+    return 'categories';
+  });
   const [settingsMainTab, setSettingsMainTab] = useState<MainTabType>(activeMainTab);
   const [tagFieldKey, setTagFieldKey] = useState<TagFieldKey>('firm');
   const [tagSearchQuery, setTagSearchQuery] = useState('');
@@ -294,17 +305,22 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     };
   }, [dirHandle, activeTab, onDisconnectFolder]);
 
-  // Close with Escape key
+  // Close with Escape key (blocked during restoring/importing or active dialog)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      if (restoringBackup || importingZip) {
+        e.preventDefault();
+        e.stopPropagation();
+        return;
+      }
       if (e.key === 'Escape' && !dialogOptions) {
         e.stopPropagation();
         onClose();
       }
     };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [onClose, dialogOptions]);
+    window.addEventListener('keydown', handleKeyDown, true);
+    return () => window.removeEventListener('keydown', handleKeyDown, true);
+  }, [onClose, dialogOptions, restoringBackup, importingZip]);
 
   // Category Actions
   const handleRenameCategory = (catId: string, currentName: string) => {
@@ -879,7 +895,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             <button
               id="tab-btn-categories"
               onClick={() => setActiveTab('categories')}
-              className={`px-3.5 py-2 text-xs font-semibold rounded-t-lg transition-colors border-b-2 flex items-center gap-1.5 whitespace-nowrap cursor-pointer ${
+              className={`hidden sm:flex px-3.5 py-2 text-xs font-semibold rounded-t-lg transition-colors border-b-2 items-center gap-1.5 whitespace-nowrap cursor-pointer ${
                 activeTab === 'categories'
                   ? 'border-blue-500 text-blue-400 bg-white/5'
                   : 'border-transparent text-slate-400 hover:text-slate-200'
@@ -1328,6 +1344,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                       {filteredTags.map((tag) => {
                         const count = tagCounts.get(tag) || 0;
                         const isPopoverOpen = activeTagPopover === tag;
+                        const isTagCurrentlySearched = searchQuery
+                          .split(',')
+                          .map((s) => s.trim().toLowerCase())
+                          .includes(tag.toLowerCase());
 
                         const associatedItems = isPopoverOpen
                           ? appData.items.filter((it) => {
@@ -1340,15 +1360,37 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                         return (
                           <div
                             key={tag}
-                            className="relative flex items-center justify-between p-2.5 rounded-xl bg-white/5 border border-white/10 hover:border-white/20 transition-all group"
+                            onClick={() => {
+                              if (onSearchTag) {
+                                onSearchTag(tag, settingsMainTab);
+                              }
+                            }}
+                            title={`"${tag}" etiketine göre filtrele`}
+                            className={`relative flex items-center justify-between p-2.5 rounded-xl border transition-all group cursor-pointer ${
+                              isTagCurrentlySearched
+                                ? 'bg-blue-600/20 border-blue-500/50 shadow-sm ring-1 ring-blue-500/40 text-blue-200'
+                                : 'bg-white/5 border-white/10 hover:border-blue-500/40 hover:bg-blue-500/5'
+                            }`}
                           >
-                            <div className="flex items-center gap-2 overflow-hidden">
-                              <span className="text-xs font-medium text-slate-200 truncate group-hover:text-blue-300 transition-colors">
+                            <div className="flex items-center gap-2 overflow-hidden flex-1 min-w-0 pr-2">
+                              <Tag
+                                className={`w-3.5 h-3.5 shrink-0 transition-transform group-hover:scale-110 ${
+                                  isTagCurrentlySearched ? 'text-blue-400' : 'text-slate-400 group-hover:text-blue-400'
+                                }`}
+                              />
+                              <span
+                                className={`text-xs font-medium truncate transition-colors ${
+                                  isTagCurrentlySearched
+                                    ? 'text-blue-200 font-semibold'
+                                    : 'text-slate-200 group-hover:text-blue-300'
+                                }`}
+                              >
                                 {tag}
                               </span>
                               <button
                                 type="button"
-                                onClick={() => {
+                                onClick={(e) => {
+                                  e.stopPropagation();
                                   setActiveTagPopover(isPopoverOpen ? null : tag);
                                 }}
                                 className={`text-[10px] px-2 py-0.5 rounded-md shrink-0 font-mono font-semibold transition-all cursor-pointer ${
@@ -1362,7 +1404,11 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                               </button>
                             </div>
 
-                            <div className="flex items-center gap-1 shrink-0">
+                            {/* Actions: Edit & Delete buttons (hidden on mobile, visible on desktop) */}
+                            <div
+                              className="hidden sm:flex items-center gap-1 shrink-0"
+                              onClick={(e) => e.stopPropagation()}
+                            >
                               <button
                                 onClick={() => handleRenameTag(tag)}
                                 title="Etiketi Yeniden Adlandır"
@@ -1434,134 +1480,41 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
             {/* TAB 2: APPEARANCE & THEMES */}
             {activeTab === 'themes' && (
-              <div className="space-y-6">
-                <div className="p-3.5 bg-blue-500/10 border border-blue-500/30 rounded-xl text-xs text-blue-200 flex items-start gap-2">
-                  <Sparkles className="w-4 h-4 text-blue-400 shrink-0 mt-0.5" />
-                  <div>
-                    <span className="font-semibold text-white">Görünüm & Atmosfer Özelleştirme:</span> Ekran altı hızlı görünüm çubuğunu, pencere buzlu cam efektini ve renk temalarını buradan yönetebilirsiniz.
+              <div className="space-y-4">
+                {/* Floating Appearance Bar Toggle */}
+                <div className="p-3.5 rounded-xl bg-white/5 border border-white/10 flex items-center justify-between">
+                  <div className="space-y-0.5 pr-2">
+                    <span className="text-xs font-semibold text-slate-100 block">
+                      Ekran Altı Hızlı Görünüm Çubuğu
+                    </span>
+                    <p className="text-[11px] text-slate-400 leading-snug">
+                      Ana ekranın altındaki yüzen hızlı özelleştirme çubuğunu açar veya gizler.
+                    </p>
                   </div>
-                </div>
 
-                {/* Section 1: Hızlı Araçlar ve Ekran Ayarları */}
-                <div className="space-y-3">
-                  <h4 className="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
-                    <SlidersHorizontal className="w-3.5 h-3.5 text-blue-400" /> Ekran & Hızlı Deneyim Araçları
-                  </h4>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    {/* Floating Appearance Bar Toggle */}
-                    <div className="p-3.5 rounded-xl bg-white/5 border border-white/10 flex items-center justify-between">
-                      <div className="space-y-0.5 pr-2">
-                        <span className="text-xs font-semibold text-slate-100 block">
-                          Ekran Altı Hızlı Görünüm Çubuğu
-                        </span>
-                        <p className="text-[11px] text-slate-400 leading-snug">
-                          Ana ekranın altındaki yüzen hızlı özelleştirme çubuğunu açar veya gizler.
-                        </p>
-                      </div>
-
-                      <label className="relative inline-flex items-center cursor-pointer shrink-0">
-                        <input
-                          type="checkbox"
-                          checked={viewSettings.showQuickAppearanceBar !== false}
-                          onChange={(e) => {
-                            const isChecked = e.target.checked;
-                            onUpdateViewSettings({ showQuickAppearanceBar: isChecked });
-                            if (isChecked) {
-                              // If activated, close settings so bottom appearance popup bar is clearly visible
-                              onClose();
-                            }
-                          }}
-                          className="sr-only peer"
-                        />
-                        <div className="w-10 h-5.5 bg-neutral-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4.5 after:w-4.5 after:transition-all peer-checked:bg-blue-600"></div>
-                      </label>
-                    </div>
-
-                    {/* Backdrop Blur Toggle */}
-                    <div className="p-3.5 rounded-xl bg-white/5 border border-white/10 flex items-center justify-between">
-                      <div className="space-y-0.5 pr-2">
-                        <span className="text-xs font-semibold text-slate-100 block">
-                          Arka Plan Buzlu Cam (Blur)
-                        </span>
-                        <p className="text-[11px] text-slate-400 leading-snug">
-                          Pencerelerin arkasını hafif buzlu/bulanık yaparak derinlik hissi katar.
-                        </p>
-                      </div>
-
-                      <label className="relative inline-flex items-center cursor-pointer shrink-0">
-                        <input
-                          type="checkbox"
-                          checked={viewSettings.backdropBlur !== false}
-                          onChange={(e) => onUpdateViewSettings({ backdropBlur: e.target.checked })}
-                          className="sr-only peer"
-                        />
-                        <div className="w-10 h-5.5 bg-neutral-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4.5 after:w-4.5 after:transition-all peer-checked:bg-blue-600"></div>
-                      </label>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Section 2: Renk Temaları */}
-                <div className="space-y-3">
-                  <h4 className="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
-                    <Palette className="w-3.5 h-3.5 text-blue-400" /> Renk Temaları (6 Tema)
-                  </h4>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    {THEMES.map((th) => {
-                      const isSelected = currentTheme === th.id;
-                      return (
-                        <div
-                          key={th.id}
-                          onClick={() => onUpdateViewSettings({ theme: th.id })}
-                          className={`p-3.5 rounded-xl border transition-all cursor-pointer space-y-2.5 relative ${
-                            isSelected
-                              ? 'border-blue-500 bg-white/10 shadow-lg shadow-blue-500/10 ring-1 ring-blue-500/50'
-                              : 'border-white/10 bg-white/5 hover:border-white/20 hover:bg-white/10'
-                          }`}
-                        >
-                          <div className="flex items-center justify-between">
-                            <span className="font-semibold text-sm text-slate-100 flex items-center gap-2">
-                              {th.name}
-                            </span>
-                            {isSelected && (
-                              <span className="w-5 h-5 rounded-full bg-blue-500 text-white flex items-center justify-center">
-                                <Check className="w-3 h-3 stroke-[3]" />
-                              </span>
-                            )}
-                          </div>
-
-                          <p className="text-xs text-slate-400 leading-relaxed">
-                            {th.desc}
-                          </p>
-
-                          {/* Mini preview bar */}
-                          <div className={`p-2 rounded-lg ${th.bgPreview} border ${th.borderPreview} flex items-center gap-2`}>
-                            <div className={`w-7 h-7 rounded ${th.cardPreview} border border-white/10 flex items-center justify-center`}>
-                              <div className={`w-2.5 h-2.5 rounded-full ${th.accentPreview}`} />
-                            </div>
-                            <div className="flex-1 space-y-1">
-                              <div className="h-1.5 w-14 rounded bg-white/20" />
-                              <div className="h-1 w-9 rounded bg-white/10" />
-                            </div>
-                            <div className={`px-1.5 py-0.5 rounded text-[9px] font-bold text-white ${th.accentPreview}`}>
-                              Örnek
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
+                  <label className="relative inline-flex items-center cursor-pointer shrink-0">
+                    <input
+                      type="checkbox"
+                      checked={viewSettings.showQuickAppearanceBar !== false}
+                      onChange={(e) => {
+                        const isChecked = e.target.checked;
+                        onUpdateViewSettings({ showQuickAppearanceBar: isChecked });
+                        if (isChecked) {
+                          // If activated, close settings so bottom appearance popup bar is clearly visible
+                          onClose();
+                        }
+                      }}
+                      className="sr-only peer"
+                    />
+                    <div className="w-10 h-5.5 bg-neutral-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4.5 after:w-4.5 after:transition-all peer-checked:bg-blue-600"></div>
+                  </label>
                 </div>
               </div>
             )}
 
             {/* TAB 3: SHORTCUTS */}
             {activeTab === 'shortcuts' && (
-              <div className="space-y-4">
-                <div className="p-3 bg-white/5 border border-white/10 rounded-xl text-xs text-slate-300">
-                  ⌨️ <span className="font-semibold text-slate-100">Klavye Kısayolları:</span> Herhangi bir modal veya yazı kutusunda olmadığınızda bu tuşlara basarak hızlı aksiyon alabilirsiniz.
-                </div>
-
+              <div className="space-y-3">
                 <div className="space-y-2">
                   <div className="flex items-center justify-between p-3 rounded-xl bg-white/5 border border-white/10">
                     <div className="space-y-0.5">
@@ -2107,13 +2060,77 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 type="button"
                 onClick={() => setIsBackupsModalOpen(false)}
                 disabled={restoringBackup}
-                className="py-1.5 px-3 rounded-lg bg-white/10 hover:bg-white/15 text-slate-300 text-xs font-medium transition-colors cursor-pointer"
+                className="py-1.5 px-3 rounded-lg bg-white/10 hover:bg-white/15 text-slate-300 text-xs font-medium transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Kapat
               </button>
             </div>
           </div>
         </div>
+      )}
+
+      {/* Full-Screen Blocking Loading Overlay for Backup Creation (Zip Export or Full Folder Backup) */}
+      {(takingFullBackup || exportingZip) && typeof document !== 'undefined' && createPortal(
+        <div
+          id="backup-creating-overlay"
+          className="fixed inset-0 z-[999999] bg-black/85 backdrop-blur-md flex flex-col items-center justify-center p-6 text-center select-none pointer-events-auto cursor-wait animate-in fade-in duration-200"
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+          }}
+        >
+          <div className="relative flex items-center justify-center mb-5">
+            <div className="absolute w-24 h-24 rounded-full border-2 border-blue-500/20 animate-ping opacity-75" />
+            <div className="w-20 h-20 rounded-2xl bg-blue-500/10 border border-blue-500/30 flex items-center justify-center shadow-[0_0_50px_rgba(59,130,246,0.3)]">
+              <div className="w-10 h-10 border-[3px] border-blue-400 border-t-transparent rounded-full animate-spin" />
+            </div>
+          </div>
+
+          <h3 className="text-xl sm:text-2xl font-bold text-white tracking-tight drop-shadow-md mb-2">
+            Yedek Paketi Hazırlanıyor...
+          </h3>
+          <p className="text-xs sm:text-sm text-slate-300 max-w-sm mx-auto leading-relaxed">
+            Yedek paketi hazırlanıyor, lütfen bekleyin... Kütüphane verileri, afişler ve Tier List dizilimleri paketleniyor.
+          </p>
+
+          <div className="mt-5 flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/5 border border-white/10 text-[11px] text-blue-300 font-medium">
+            <span className="w-2 h-2 rounded-full bg-blue-400 animate-pulse" />
+            <span>İşlem tamamlanana kadar lütfen pencereyi kapatmayınız</span>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* Full-Screen Blocking Loading Overlay for Backup Restoration */}
+      {(restoringBackup || importingZip) && typeof document !== 'undefined' && createPortal(
+        <div
+          id="backup-restoring-overlay"
+          className="fixed inset-0 z-[999999] bg-black/85 backdrop-blur-md flex flex-col items-center justify-center p-6 text-center select-none pointer-events-auto cursor-wait animate-in fade-in duration-200"
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+          }}
+        >
+          <div className="relative flex items-center justify-center mb-5">
+            <div className="absolute w-24 h-24 rounded-full border-2 border-emerald-500/20 animate-ping opacity-75" />
+            <div className="w-20 h-20 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center shadow-[0_0_50px_rgba(16,185,129,0.3)]">
+              <div className="w-10 h-10 border-[3px] border-emerald-400 border-t-transparent rounded-full animate-spin" />
+            </div>
+          </div>
+
+          <h3 className="text-xl sm:text-2xl font-bold text-white tracking-tight drop-shadow-md mb-2">
+            Yedek Geri Yükleniyor...
+          </h3>
+          <p className="text-xs sm:text-sm text-slate-300 max-w-sm mx-auto leading-relaxed">
+            Lütfen bekleyiniz, arşiv verileri, afişler ve Tier List dizilimleri yükleniyor...
+          </p>
+
+          <div className="mt-5 flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/5 border border-white/10 text-[11px] text-emerald-300 font-medium">
+            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+            <span>İşlem tamamlanana kadar lütfen pencereyi kapatmayınız</span>
+          </div>
+        </div>,
+        document.body
       )}
 
       {/* Global In-App Dialog Component */}

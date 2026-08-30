@@ -27,6 +27,9 @@ import {
   Download,
   Upload,
   FolderX,
+  ArrowLeft,
+  Check,
+  Star,
 } from 'lucide-react';
 
 export const TRACKED_TAB_ID = '__tracked__';
@@ -42,6 +45,8 @@ interface HeaderTabsProps {
   viewMode: 'grid' | 'tier';
   totalFilteredCount: number;
   searchQuery: string;
+  searchMode?: 'search' | 'tag';
+  onSearchModeChange?: (mode: 'search' | 'tag') => void;
   isSearchOpen: boolean;
   isFilterOpen: boolean;
   isViewOpen: boolean;
@@ -80,6 +85,8 @@ export const HeaderTabs: React.FC<HeaderTabsProps> = ({
   viewMode,
   totalFilteredCount,
   searchQuery,
+  searchMode: searchModeProp,
+  onSearchModeChange,
   isSearchOpen,
   isFilterOpen,
   isViewOpen,
@@ -109,36 +116,53 @@ export const HeaderTabs: React.FC<HeaderTabsProps> = ({
   const searchInputRef = useRef<HTMLInputElement>(null);
   const searchContainerRef = useRef<HTMLDivElement>(null);
   const [openDropdown, setOpenDropdown] = useState<'media' | 'game' | null>(null);
+  const [mobileDropdown, setMobileDropdown] = useState<'media' | 'game' | null>(null);
   const [hoveredCat, setHoveredCat] = useState<Category | null>(null);
   const [hoveredCatTop, setHoveredCatTop] = useState<number>(0);
+  const [isMobileSheetOpen, setIsMobileSheetOpen] = useState(false);
   const hoverTimeoutRef = useRef<any>(null);
   const subMenuTimeoutRef = useRef<any>(null);
 
   // Search Mode: 'search' (Normal title/text search) vs 'tag' (Tag/year chip search)
-  const [searchMode, setSearchMode] = useState<'search' | 'tag'>('search');
+  const [internalSearchMode, setInternalSearchMode] = useState<'search' | 'tag'>('search');
+  const searchMode = searchModeProp !== undefined ? searchModeProp : internalSearchMode;
+  const setSearchMode = (mode: 'search' | 'tag') => {
+    if (onSearchModeChange) {
+      onSearchModeChange(mode);
+    }
+    setInternalSearchMode(mode);
+  };
+
   const [searchTextInput, setSearchTextInput] = useState('');
   const [tagChips, setTagChips] = useState<string[]>([]);
   const [typedTagInput, setTypedTagInput] = useState('');
 
-  // Reset to default 'search' mode whenever search is opened or closed
+  // Sync inputs & chips whenever search state or query changes
   useEffect(() => {
     if (isSearchOpen) {
-      setSearchMode('search');
-      setSearchTextInput(searchQuery);
-      setTagChips([]);
-      setTypedTagInput('');
+      if (searchMode === 'tag') {
+        const chips = searchQuery
+          ? searchQuery.split(',').map((s) => s.trim()).filter(Boolean)
+          : [];
+        setTagChips(chips);
+        setTypedTagInput('');
+        setSearchTextInput('');
+      } else {
+        setSearchTextInput(searchQuery);
+        setTagChips([]);
+        setTypedTagInput('');
+      }
       setTimeout(() => {
         if (searchInputRef.current) {
           searchInputRef.current.focus();
         }
       }, 50);
     } else {
-      setSearchMode('search');
       setSearchTextInput('');
       setTagChips([]);
       setTypedTagInput('');
     }
-  }, [isSearchOpen]);
+  }, [isSearchOpen, searchMode, searchQuery]);
 
   const toggleSearchMode = () => {
     if (searchMode === 'search') {
@@ -244,10 +268,19 @@ export const HeaderTabs: React.FC<HeaderTabsProps> = ({
         setOpenDropdown(null);
         setHoveredCat(null);
       }
+      if (!target.closest('#mobile-category-dropdown-container')) {
+        setMobileDropdown(null);
+      }
       if (isSearchOpen && !searchQuery.trim()) {
-        if (searchContainerRef.current && !searchContainerRef.current.contains(target)) {
-          onToggleSearch();
+        if (
+          target.closest('[data-search-container="true"]') ||
+          target.closest('#mobile-search-toggle-btn') ||
+          target.closest('#mobile-search-header-input') ||
+          target.closest('#search-header-input')
+        ) {
+          return;
         }
+        onToggleSearch();
       }
     };
     document.addEventListener('mousedown', handleDocumentClick);
@@ -328,20 +361,487 @@ export const HeaderTabs: React.FC<HeaderTabsProps> = ({
     onSubgroupSelect(sub);
     setOpenDropdown(null);
     setHoveredCat(null);
+    setMobileDropdown(null);
   };
 
   return (
     <header
-      className={`relative z-30 flex flex-col gap-3 py-3 transition-all duration-300 ${
+      className={`relative z-30 flex flex-col gap-2.5 sm:gap-3 py-2.5 sm:py-3 transition-all duration-300 ${
         uiExperiments?.toolbarStyle === 'box'
-          ? 'bg-neutral-900/80 p-3.5 rounded-2xl border border-white/10 shadow-lg'
+          ? 'bg-neutral-900/80 p-3 sm:p-3.5 rounded-2xl border border-white/10 shadow-lg'
           : uiExperiments?.toolbarStyle === 'glass'
-          ? 'bg-white/[0.03] backdrop-blur-xl p-3.5 rounded-2xl border border-white/10 shadow-2xl'
+          ? 'bg-white/[0.03] backdrop-blur-xl p-3 sm:p-3.5 rounded-2xl border border-white/10 shadow-2xl'
           : 'border-b border-white/10'
       }`}
     >
-      {/* 3-Column Navigation Bar: Left: Breadcrumb + Count | Center: Tabs | Right: Tools */}
-      <div className="grid grid-cols-1 md:grid-cols-3 items-center gap-3 sm:gap-4 min-h-[38px]">
+      {/* ========================================================================= */}
+      {/* 1. MOBILE HEADER (md:hidden)                                              */}
+      {/* ========================================================================= */}
+      <div className="flex flex-col gap-2 md:hidden">
+        {/* Row 1: Left [Medya ▾ | Oyun ▾] Dropdowns --- Right [Search, Filter, View, Settings] */}
+        <div className="flex items-center justify-between gap-2">
+          {/* Left: Medya & Oyun Dropdown Buttons */}
+          <div
+            id="mobile-category-dropdown-container"
+            className="relative flex items-center p-0.5 bg-neutral-900/90 border border-white/15 rounded-xl shrink-0 shadow-sm"
+          >
+            {/* Medya Tab Dropdown Button */}
+            <button
+              type="button"
+              id="mobile-tab-media-btn"
+              onClick={() => {
+                if (mainTab !== 'media') {
+                  onMainTabChange('media');
+                }
+                setMobileDropdown(mobileDropdown === 'media' ? null : 'media');
+              }}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                mainTab === 'media'
+                  ? 'bg-neutral-800 text-white shadow border border-white/20'
+                  : 'text-neutral-400 hover:text-white'
+              }`}
+            >
+              <Film className="w-3.5 h-3.5" />
+              <span>Medya</span>
+              <ChevronDown
+                className={`w-3 h-3 transition-transform duration-150 ${
+                  mobileDropdown === 'media' ? 'rotate-180 text-white' : 'text-neutral-400'
+                }`}
+              />
+            </button>
+
+            {/* Oyun Tab Dropdown Button */}
+            <button
+              type="button"
+              id="mobile-tab-game-btn"
+              onClick={() => {
+                if (mainTab !== 'game') {
+                  onMainTabChange('game');
+                }
+                setMobileDropdown(mobileDropdown === 'game' ? null : 'game');
+              }}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                mainTab === 'game'
+                  ? 'bg-neutral-800 text-white shadow border border-white/20'
+                  : 'text-neutral-400 hover:text-white'
+              }`}
+            >
+              <Gamepad2 className="w-3.5 h-3.5" />
+              <span>Oyun</span>
+              <ChevronDown
+                className={`w-3 h-3 transition-transform duration-150 ${
+                  mobileDropdown === 'game' ? 'rotate-180 text-white' : 'text-neutral-400'
+                }`}
+              />
+            </button>
+
+            {/* Mobile Dropdown Menu Popover */}
+            {mobileDropdown !== null && (
+              <div
+                id="mobile-category-dropdown-menu"
+                className="absolute top-full left-0 mt-2 w-64 max-w-[calc(100vw-2rem)] p-2 bg-[#181818]/98 backdrop-blur-2xl border border-white/20 rounded-2xl shadow-2xl space-y-1 z-50 animate-in fade-in zoom-in-95 duration-150 max-h-[75vh] overflow-y-auto custom-scrollbar"
+                onClick={(e) => e.stopPropagation()}
+              >
+                {/* 1. İzlenen & Takip (Sadece Medya için en tepede özel alan) */}
+                {mobileDropdown === 'media' && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => handleSelectCategoryFromMenu('media', TRACKED_TAB_ID, null)}
+                      className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-semibold transition-colors text-left cursor-pointer ${
+                        mainTab === 'media' && activeCatId === TRACKED_TAB_ID
+                          ? 'bg-amber-500/20 text-amber-200 border border-amber-500/40 shadow-sm'
+                          : 'text-amber-400/90 hover:bg-white/5'
+                      }`}
+                    >
+                      <span className="font-semibold">İzlenen & Takip</span>
+                      <span className="text-[10px] text-amber-300/60 font-medium">Özel Vitrin</span>
+                    </button>
+
+                    {/* Ayraç (İzlenen Takip altındaki çizgi) */}
+                    <div className="my-1 border-t border-white/10" />
+                  </>
+                )}
+
+                {/* 2. Kategoriler Listesi (Dizi, Film, Anime, Animasyon vb.) */}
+                <div className="space-y-1 pt-0.5">
+                  {(mobileDropdown === 'media' ? categories.media : categories.game).length === 0 ? (
+                    <div className="py-2 px-3 text-center text-xs text-neutral-400">
+                      Henüz kategori tanımlanmadı
+                    </div>
+                  ) : (
+                    (mobileDropdown === 'media' ? categories.media : categories.game).map((cat) => {
+                      const isCatActive = mainTab === mobileDropdown && activeCatId === cat.id;
+                      const hasSubs = cat.subgroups && cat.subgroups.length > 0;
+
+                      return (
+                        <div
+                          key={`mob_drop_${cat.id}`}
+                          className={`p-1.5 rounded-xl border transition-all ${
+                            isCatActive
+                              ? 'bg-white/10 border-white/20'
+                              : 'bg-white/[0.03] border-white/5 hover:bg-white/[0.06]'
+                          }`}
+                        >
+                          {/* Category Main Row */}
+                          <button
+                            type="button"
+                            onClick={() => handleSelectCategoryFromMenu(mobileDropdown, cat.id, null)}
+                            className="w-full flex items-center justify-between px-2 py-1 text-xs font-semibold text-neutral-100 hover:text-blue-300 transition-colors text-left cursor-pointer"
+                          >
+                            <span className="truncate">{cat.name}</span>
+                            {isCatActive && activeSub === null && (
+                              <Check className="w-3.5 h-3.5 text-blue-400 shrink-0" />
+                            )}
+                          </button>
+
+                          {/* Category Subgroups Pills (If Any) */}
+                          {hasSubs && (
+                            <div className="flex items-center gap-1 flex-wrap pt-1.5 mt-1 border-t border-white/5 px-1">
+                              {cat.subgroups!.map((sub) => {
+                                const isSubActive = isCatActive && activeSub === sub;
+                                return (
+                                  <button
+                                    key={`mob_sub_${cat.id}_${sub}`}
+                                    type="button"
+                                    onClick={() => handleSelectCategoryFromMenu(mobileDropdown, cat.id, sub)}
+                                    className={`px-2 py-0.5 rounded-md text-[10px] font-semibold transition-all cursor-pointer ${
+                                      isSubActive
+                                        ? 'bg-blue-600 text-white shadow'
+                                        : 'bg-neutral-800 text-neutral-300 hover:text-white border border-white/10'
+                                    }`}
+                                  >
+                                    {sub}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Right: Icon Buttons (Search, Filter, View, Settings) */}
+          <div className="flex items-center gap-1.5 shrink-0">
+            {/* Search Icon */}
+            <button
+              id="mobile-search-toggle-btn"
+              onClick={onToggleSearch}
+              title="Arama"
+              className={`h-8 w-8 rounded-lg border transition-all cursor-pointer flex items-center justify-center ${
+                isSearchOpen || searchQuery.trim()
+                  ? 'bg-blue-600/30 border-blue-500/50 text-blue-200 shadow-sm'
+                  : 'bg-neutral-900/80 hover:bg-neutral-800 border-white/10 text-neutral-300 hover:text-white'
+              }`}
+            >
+              <Search className="w-4 h-4" />
+            </button>
+
+            {/* Filter Icon */}
+            <div className="relative">
+              <button
+                id="mobile-filter-toggle-btn"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onToggleFilter();
+                }}
+                title="Filtrele"
+                className={`h-8 w-8 rounded-lg border transition-all relative cursor-pointer flex items-center justify-center ${
+                  isFilterOpen || activeFiltersCount > 0
+                    ? 'bg-neutral-800 border-white/30 text-white shadow-sm'
+                    : 'bg-neutral-900/80 hover:bg-neutral-800 border-white/10 text-neutral-300 hover:text-white'
+                }`}
+              >
+                <SlidersHorizontal className="w-4 h-4" />
+                {activeFiltersCount > 0 && (
+                  <span className="absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full bg-white text-neutral-950 text-[9px] font-bold flex items-center justify-center shadow">
+                    {activeFiltersCount}
+                  </span>
+                )}
+              </button>
+
+              {isFilterOpen && (
+                <FilterPanel
+                  mainTab={mainTab}
+                  filters={filters}
+                  onChange={onFilterChange}
+                  onClose={onClosePanels}
+                  activeCategoryName={activeCategory?.name || null}
+                  activeSub={activeSub || null}
+                />
+              )}
+            </div>
+
+            {/* View Settings Icon */}
+            <div className="relative">
+              <button
+                id="mobile-view-toggle-btn"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onToggleView();
+                }}
+                title="Görünüm Ayarları"
+                className={`h-8 w-8 rounded-lg border transition-all cursor-pointer flex items-center justify-center ${
+                  isViewOpen
+                    ? 'bg-neutral-800 border-white/30 text-white shadow-sm'
+                    : 'bg-neutral-900/80 hover:bg-neutral-800 border-white/10 text-neutral-300 hover:text-white'
+                }`}
+              >
+                <Eye className="w-4 h-4" />
+              </button>
+
+              {isViewOpen && (
+                <ViewPanel
+                  settings={viewSettings}
+                  mainTab={mainTab}
+                  onChange={onViewSettingsChange}
+                  onClose={onClosePanels}
+                />
+              )}
+            </div>
+
+            {/* Settings Icon */}
+            <button
+              id="mobile-settings-toggle-btn"
+              onClick={(e) => {
+                e.stopPropagation();
+                onOpenSettings();
+              }}
+              title="Ayarlar"
+              className="h-8 w-8 rounded-lg bg-neutral-900/80 hover:bg-neutral-800 border border-white/10 text-neutral-300 hover:text-white transition-all cursor-pointer flex items-center justify-center"
+            >
+              <Settings className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+
+        {/* Row 1.5: Dedicated Mobile Search Input Bar (when Search is Open) */}
+        {isSearchOpen && (
+          <div
+            ref={searchContainerRef}
+            data-search-container="true"
+            className="flex items-center gap-1.5 bg-neutral-900 border border-white/20 rounded-xl px-2.5 h-9 animate-in fade-in"
+          >
+            <button
+              type="button"
+              onClick={toggleSearchMode}
+              title={
+                searchMode === 'search'
+                  ? 'Etiket Arama Moduna Geç (🏷️)'
+                  : 'Normal Arama Moduna Geç (🔍)'
+              }
+              className={`p-1 rounded-md transition-all cursor-pointer flex items-center justify-center shrink-0 ${
+                searchMode === 'tag'
+                  ? 'bg-blue-600/40 text-white border border-blue-400/50'
+                  : 'text-neutral-400 hover:text-white hover:bg-white/10'
+              }`}
+            >
+              {searchMode === 'tag' ? (
+                <Tag className="w-3.5 h-3.5 text-white" />
+              ) : (
+                <Search className="w-3.5 h-3.5 text-neutral-300" />
+              )}
+            </button>
+
+            {/* TAG MODE CHIPS */}
+            {searchMode === 'tag' &&
+              tagChips.map((chip, index) => (
+                <span
+                  key={`m_${chip}_${index}`}
+                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-blue-600/25 border border-blue-500/40 text-blue-300 text-[11px] font-medium shrink-0 animate-in fade-in zoom-in-95 duration-100"
+                >
+                  <span>{chip}</span>
+                  <button
+                    type="button"
+                    onClick={() => handleRemoveTagChip(index)}
+                    className="hover:text-white rounded-full p-0.5 cursor-pointer text-blue-400 hover:bg-blue-500/30"
+                  >
+                    <X className="w-2.5 h-2.5" />
+                  </button>
+                </span>
+              ))}
+
+            {searchMode === 'tag' ? (
+              <input
+                ref={searchInputRef}
+                id="mobile-search-header-input"
+                type="text"
+                value={typedTagInput}
+                onChange={handleTagInputChange}
+                onKeyDown={handleTagKeyDown}
+                placeholder={tagChips.length === 0 ? 'Etiket ara (örn: 2024)...' : '+ etiket...'}
+                className="flex-1 min-w-[80px] bg-transparent text-xs text-neutral-100 placeholder-neutral-500 focus:outline-none py-1"
+              />
+            ) : (
+              <input
+                ref={searchInputRef}
+                id="mobile-search-header-input"
+                type="text"
+                value={searchTextInput}
+                onChange={handleNormalSearchChange}
+                placeholder="Yapım adı ara..."
+                className="flex-1 min-w-[100px] bg-transparent text-xs text-neutral-100 placeholder-neutral-500 focus:outline-none py-1"
+              />
+            )}
+
+            <button
+              type="button"
+              onClick={() => {
+                setSearchTextInput('');
+                setTagChips([]);
+                setTypedTagInput('');
+                setSearchMode('search');
+                onSearchChange('');
+                onToggleSearch();
+              }}
+              className="text-neutral-400 hover:text-white p-1 rounded hover:bg-white/5 text-xs ml-auto cursor-pointer shrink-0"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        )}
+
+        {/* Row 2: Breadcrumb (Left-aligned) + Tier List / Grid View Mode Toggle (Right-aligned) */}
+        <div className="flex items-center justify-between gap-2 pt-0.5">
+          {/* Left Side: Item Count Badge + Breadcrumb */}
+          <div className="flex items-center gap-1.5 min-w-0 flex-1 overflow-x-auto no-scrollbar">
+            {/* Item Count Badge (Clickable for Select Mode) */}
+            <button
+              type="button"
+              id="mobile-item-count-badge"
+              onClick={onToggleSelectionMode}
+              title={isSelectionMode ? 'Toplu Seçim Modundan Çık' : 'Toplu Seçim Modunu Aç'}
+              className={`px-2.5 py-1 rounded-lg border font-bold text-xs shrink-0 transition-all cursor-pointer ${
+                isSelectionMode
+                  ? 'bg-blue-600 border-blue-400 text-white shadow-md'
+                  : 'bg-neutral-900/90 hover:bg-neutral-800 border-white/15 text-neutral-200 shadow-sm'
+              }`}
+            >
+              {totalFilteredCount}
+            </button>
+
+            {/* Breadcrumb Navigation Pill */}
+            <div
+              id="mobile-active-breadcrumb-pill"
+              className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-neutral-900/90 border border-white/10 text-xs text-neutral-300 shrink-0 max-w-[calc(100vw-140px)] overflow-x-auto no-scrollbar"
+            >
+              {/* Main Tab Level (Medya / Oyun) */}
+              <button
+                type="button"
+                onClick={() => {
+                  if (isSearchOpen) onToggleSearch();
+                  onSearchChange('');
+                  setSearchTextInput('');
+                  setTagChips([]);
+                  setTypedTagInput('');
+                  onCategorySelect(null);
+                  onSubgroupSelect(null);
+                }}
+                className="text-neutral-300 hover:text-white font-medium hover:underline cursor-pointer transition-colors shrink-0"
+              >
+                {mainTab === 'media' ? 'Medya' : 'Oyun'}
+              </button>
+
+              {/* Category / Tracked Level */}
+              {activeCatId !== null && (
+                <>
+                  <span className="text-neutral-600 shrink-0">/</span>
+                  {activeCatId === TRACKED_TAB_ID ? (
+                    <span className="text-amber-400 font-bold flex items-center gap-1 shrink-0">
+                      <Star className="w-3 h-3 fill-amber-400/30" />
+                      <span>İzlenen & Takip</span>
+                    </span>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (isSearchOpen) onToggleSearch();
+                        onSearchChange('');
+                        setSearchTextInput('');
+                        setTagChips([]);
+                        setTypedTagInput('');
+                        onSubgroupSelect(null);
+                      }}
+                      className={`font-semibold cursor-pointer transition-colors truncate shrink-0 ${
+                        activeSub
+                          ? 'text-neutral-400 hover:text-white hover:underline'
+                          : 'text-white'
+                      }`}
+                    >
+                      {activeCategory?.name || 'Kategori'}
+                    </button>
+                  )}
+                </>
+              )}
+
+              {/* Subgroup Level */}
+              {activeSub && (
+                <>
+                  <span className="text-neutral-600 shrink-0">/</span>
+                  <span className="text-blue-300 font-semibold truncate shrink-0">{activeSub}</span>
+                </>
+              )}
+            </div>
+
+            {/* Active Uncategorized Indicator */}
+            {filters.uncategorizedOnly && (
+              <div className="flex items-center gap-1 px-2 py-1 rounded-lg bg-rose-500/15 border border-rose-500/30 text-rose-300 text-xs font-semibold shrink-0">
+                <FolderX className="w-3.5 h-3.5 text-rose-400 shrink-0" />
+                <span className="truncate max-w-[70px]">
+                  {activeCategory ? `Alt Kat.` : 'Kat.sız'}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => onFilterChange({ uncategorizedOnly: false })}
+                  className="p-0.5 rounded text-rose-300 hover:text-white cursor-pointer"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* Right Side: View Mode Toggle (Grid / Tier) Dayalı */}
+          {activeCategory && activeCategory.tierEnabled && (
+            <div className="flex items-center p-0.5 bg-neutral-900 rounded-lg border border-white/10 shrink-0 ml-auto">
+              <button
+                id="mobile-viewmode-grid-btn"
+                onClick={() => onViewModeChange('grid')}
+                title="Izgara Görünümü"
+                className={`p-1.5 rounded-md text-xs transition-all cursor-pointer ${
+                  viewMode === 'grid'
+                    ? 'bg-neutral-700 text-white shadow'
+                    : 'text-neutral-400 hover:text-white'
+                }`}
+              >
+                <LayoutGrid className="w-3.5 h-3.5" />
+              </button>
+              <button
+                id="mobile-viewmode-tier-btn"
+                onClick={() => onViewModeChange('tier')}
+                title="Tier List Görünümü"
+                className={`p-1.5 rounded-md text-xs transition-all cursor-pointer ${
+                  viewMode === 'tier'
+                    ? 'bg-neutral-700 text-white shadow'
+                    : 'text-neutral-400 hover:text-white'
+                }`}
+              >
+                <ListOrdered className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* ========================================================================= */}
+      {/* 2. DESKTOP HEADER (hidden md:grid) - 100% UNCHANGED ORIGINAL LAYOUT       */}
+      {/* ========================================================================= */}
+      <div className="hidden md:grid grid-cols-3 items-center gap-3 sm:gap-4 min-h-[38px]">
         {/* 1. LEFT SIDE: Clickable Breadcrumb & Item Count Badge */}
         <div className="flex items-center gap-2 min-w-0 justify-start order-2 md:order-1 flex-wrap">
           {/* Breadcrumb Navigation Pill */}
@@ -391,7 +891,7 @@ export const HeaderTabs: React.FC<HeaderTabsProps> = ({
                   }`}
                 >
                   {activeCatId === TRACKED_TAB_ID
-                    ? '★ İzlenen / Takip'
+                    ? 'İzlenen / Takip'
                     : activeCategory?.name || 'Seçili Kategori'}
                 </button>
               </>
@@ -498,7 +998,7 @@ export const HeaderTabs: React.FC<HeaderTabsProps> = ({
                     }`}
                   >
                     <span className="flex items-center gap-2">
-                      <span className="text-amber-400">★</span> İzlenen & Takip
+                      İzlenen & Takip
                     </span>
                     <span className="text-[10px] text-neutral-500">Özel Vitrin</span>
                   </button>
@@ -788,6 +1288,7 @@ export const HeaderTabs: React.FC<HeaderTabsProps> = ({
           {isSearchOpen ? (
             <div
               ref={searchContainerRef}
+              data-search-container="true"
               className="flex items-center gap-1.5 bg-neutral-900 border border-white/20 rounded-lg px-2 min-w-[220px] max-w-sm sm:max-w-md h-8 animate-in fade-in"
             >
               {/* Mode Toggle Button: Click to switch between Normal Search and Tag Search */}

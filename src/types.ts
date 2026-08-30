@@ -37,6 +37,8 @@ export interface ArchiveItem {
   watching?: boolean;
   following?: boolean;
   dropped?: boolean;
+  expectedDate?: string; // Beklenen Çıkış / Dönem (örn: '2027', '2026 Güz', '2025 Sonu')
+  followNotes?: string; // Takip notları ve gelişmeler (örn: '3. sezon duyuruldu, stüdyo değişti')
 
   // Game specific
   status?: GameStatus;
@@ -96,6 +98,41 @@ export type SortOption =
   | 'title-asc'
   | 'title-desc';
 
+export type FollowIndicatorModel =
+  | 'status-dot'
+  | 'color-shift'
+  | 'underline-accent';
+
+export type FollowIndicatorColor =
+  | 'sky'
+  | 'amber'
+  | 'emerald'
+  | 'purple'
+  | 'rose'
+  | 'white';
+
+export type FollowIndicatorIconType =
+  | 'megaphone'
+  | 'bell'
+  | 'sparkles'
+  | 'info'
+  | 'newspaper'
+  | 'pin'
+  | 'message-square'
+  | 'file-text'
+  | 'flame'
+  | 'zap'
+  | 'radio'
+  | 'compass'
+  | 'calendar'
+  | 'clock'
+  | 'eye'
+  | 'bookmark-check'
+  | 'activity'
+  | 'alert-circle'
+  | 'flag'
+  | 'star';
+
 export interface ViewSettings {
   showTitle: boolean;
   showRating: boolean;
@@ -109,6 +146,9 @@ export interface ViewSettings {
   theme?: AppTheme;
   backdropBlur?: boolean; // Controls background blur for modals and overlays
   showQuickAppearanceBar?: boolean; // Show bottom floating appearance bar
+  followIndicatorModel?: FollowIndicatorModel;
+  followIndicatorColor?: FollowIndicatorColor;
+  followIndicatorIcon?: FollowIndicatorIconType;
 }
 
 export type ToolbarExperimentStyle = 'default' | 'box' | 'glass';
@@ -128,6 +168,9 @@ export interface UiExperimentsState {
   bgAtmosphere: BgAtmosphereExperiment;
   badgeStyle: BadgeExperimentStyle;
   badgeDensity: BadgeDensity; // 6.4: Tam Detay / Hover
+  followIndicatorModel?: FollowIndicatorModel;
+  followIndicatorColor?: FollowIndicatorColor;
+  followIndicatorIcon?: FollowIndicatorIconType;
 }
 
 export type MediaTagField = 'firm' | 'director' | 'actors' | 'genre';

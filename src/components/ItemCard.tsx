@@ -1,7 +1,9 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { ArchiveItem, ViewSettings, UiExperimentsState } from '../types';
 import { MEDIA_COLORS, GAME_COLORS } from '../data/initialData';
-import { Tv, Bookmark, Star, Brain, Check } from 'lucide-react';
+import { Tv, Star, Brain, Check, Calendar, X, BookmarkCheck } from 'lucide-react';
+import { FollowBadge, getFollowColor } from './FollowIndicatorIcon';
 
 interface ItemCardProps {
   item: ArchiveItem;
@@ -42,6 +44,19 @@ export const ItemCard: React.FC<ItemCardProps> = ({
     }
     return '??';
   })();
+
+  const [showAnnouncementModal, setShowAnnouncementModal] = useState(false);
+
+  useEffect(() => {
+    if (!showAnnouncementModal) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setShowAnnouncementModal(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [showAnnouncementModal]);
 
   const showYear = viewSettings.showYear !== false;
   const showRating = viewSettings.showRating !== false;
@@ -90,12 +105,13 @@ export const ItemCard: React.FC<ItemCardProps> = ({
 
   const getBadgeBaseClasses = () => {
     if (badgeStyle === 'neon') {
-      return 'bg-black/90 backdrop-blur-md border border-cyan-400/60 shadow-[0_0_8px_rgba(34,211,238,0.4)]';
+      return 'bg-black/95 sm:bg-black/90 sm:backdrop-blur-md border border-cyan-400/60 shadow-[0_0_8px_rgba(34,211,238,0.4)]';
     }
     if (badgeStyle === 'minimal') {
-      return 'bg-black/40 backdrop-blur-sm border-transparent';
+      return 'bg-black/60 sm:bg-black/40 sm:backdrop-blur-sm border-transparent';
     }
-    return 'bg-black/85 backdrop-blur-md border border-white/15';
+    // 'default': mobilde otomatik minimal şeffaf, sm: ve üstü PC'de standart koyu kutu + kenarlık
+    return 'bg-black/60 sm:bg-black/85 border-transparent sm:border-white/15 sm:backdrop-blur-md';
   };
 
   // Badge density visibility helper
@@ -105,6 +121,10 @@ export const ItemCard: React.FC<ItemCardProps> = ({
     }
     return 'opacity-100';
   };
+
+  const followModel = viewSettings?.followIndicatorModel || uiExperiments?.followIndicatorModel || 'status-dot';
+  const followColor = viewSettings?.followIndicatorColor || uiExperiments?.followIndicatorColor || 'sky';
+  const activeFollowColor = getFollowColor(followColor);
 
   return (
     <div
@@ -192,8 +212,10 @@ export const ItemCard: React.FC<ItemCardProps> = ({
             id={`badge-rating-${item.id}`}
             className={`absolute top-1.5 right-1.5 px-1.5 py-0.5 rounded-md ${
               badgeStyle === 'neon'
-                ? 'bg-black/90 backdrop-blur-md border border-amber-400 shadow-[0_0_8px_rgba(251,191,36,0.6)] text-amber-300'
-                : 'bg-black/85 backdrop-blur-md border border-amber-500/30 text-amber-400'
+                ? 'bg-black/95 sm:bg-black/90 sm:backdrop-blur-md border border-amber-400 shadow-[0_0_8px_rgba(251,191,36,0.6)] text-amber-300'
+                : badgeStyle === 'minimal'
+                ? 'bg-black/60 sm:bg-black/40 sm:backdrop-blur-sm border-transparent text-amber-400'
+                : 'bg-black/60 sm:bg-black/85 border-transparent sm:border sm:border-amber-500/30 text-amber-400 sm:backdrop-blur-md'
             } text-[11px] font-bold flex items-center gap-0.5 shadow-md z-20 ${isBadgeVisible('rating')}`}
           >
             <Star className="w-2.5 h-2.5 fill-amber-400" />
@@ -210,26 +232,33 @@ export const ItemCard: React.FC<ItemCardProps> = ({
                 title="Şu an izleniyor"
                 className={`p-1 rounded-md text-blue-400 shadow-md flex items-center justify-center ${
                   badgeStyle === 'neon'
-                    ? 'bg-black/90 backdrop-blur-md border border-blue-400 shadow-[0_0_8px_rgba(96,165,250,0.5)]'
-                    : 'bg-black/90 backdrop-blur-md border border-blue-500/50'
+                    ? 'bg-black/95 sm:bg-black/90 sm:backdrop-blur-md border border-blue-400 shadow-[0_0_8px_rgba(96,165,250,0.5)]'
+                    : badgeStyle === 'minimal'
+                    ? 'bg-black/60 sm:bg-black/40 sm:backdrop-blur-sm border-transparent'
+                    : 'bg-black/60 sm:bg-black/90 border-transparent sm:border sm:border-blue-500/50 sm:backdrop-blur-md'
                 }`}
               >
                 <Tv className="w-3 h-3" />
               </span>
             )}
-            {showFollowing && (
-              <span
-                id={`badge-following-${item.id}`}
-                title="Takip listesinde"
-                className={`p-1 rounded-md text-amber-400 shadow-md flex items-center justify-center ${
-                  badgeStyle === 'neon'
-                    ? 'bg-black/90 backdrop-blur-md border border-amber-400 shadow-[0_0_8px_rgba(251,191,36,0.5)]'
-                    : 'bg-black/90 backdrop-blur-md border border-amber-500/50'
-                }`}
-              >
-                <Bookmark className="w-3 h-3 fill-amber-400" />
-              </span>
-            )}
+            {showFollowing && (() => {
+              const hasFollowInfo = Boolean(item.expectedDate?.trim() || item.followNotes?.trim());
+              return (
+                <FollowBadge
+                  id={`badge-following-${item.id}`}
+                  hasFollowInfo={hasFollowInfo}
+                  model={followModel}
+                  color={followColor}
+                  badgeStyle={badgeStyle}
+                  onClick={(e) => {
+                    if (hasFollowInfo) {
+                      e.stopPropagation();
+                      setShowAnnouncementModal(true);
+                    }
+                  }}
+                />
+              );
+            })()}
           </div>
         )}
 
@@ -240,8 +269,10 @@ export const ItemCard: React.FC<ItemCardProps> = ({
             title="Anki destesine eklendi"
             className={`absolute bottom-1.5 ${isGame && showGameStatus && item.achPercent !== null && item.achPercent !== undefined ? 'right-12' : 'right-1.5'} p-1 rounded-md text-emerald-400 shadow-md z-20 flex items-center justify-center ${
               badgeStyle === 'neon'
-                ? 'bg-black/90 backdrop-blur-md border border-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.5)]'
-                : 'bg-black/90 backdrop-blur-md border border-emerald-500/50'
+                ? 'bg-black/95 sm:bg-black/90 sm:backdrop-blur-md border border-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.5)]'
+                : badgeStyle === 'minimal'
+                ? 'bg-black/60 sm:bg-black/40 sm:backdrop-blur-sm border-transparent'
+                : 'bg-black/60 sm:bg-black/90 border-transparent sm:border sm:border-emerald-500/50 sm:backdrop-blur-md'
             } ${isBadgeVisible('status')}`}
           >
             <Brain className="w-3 h-3" />
@@ -272,8 +303,10 @@ export const ItemCard: React.FC<ItemCardProps> = ({
                   title="Başarım tamamlanma yüzdesi"
                   className={`px-1.5 py-0.5 rounded-md text-[10px] font-semibold text-emerald-400 shadow-md ${
                     badgeStyle === 'neon'
-                      ? 'bg-black/90 backdrop-blur-md border border-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.5)]'
-                      : 'bg-black/90 backdrop-blur-md border border-emerald-500/40'
+                      ? 'bg-black/95 sm:bg-black/90 sm:backdrop-blur-md border border-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.5)]'
+                      : badgeStyle === 'minimal'
+                      ? 'bg-black/60 sm:bg-black/40 sm:backdrop-blur-sm border-transparent'
+                      : 'bg-black/60 sm:bg-black/90 border-transparent sm:border sm:border-emerald-500/40 sm:backdrop-blur-md'
                   }`}
                 >
                   %{item.achPercent}
@@ -293,6 +326,98 @@ export const ItemCard: React.FC<ItemCardProps> = ({
         >
           {item.title}
         </p>
+      )}
+
+      {/* Spacious Announcement / Follow Details Dialog (No Backdrop Blur, Horizontally Widened, Clear View of Background) */}
+      {showAnnouncementModal && typeof document !== 'undefined' && createPortal(
+        <div
+          id={`announcement-backdrop-${item.id}`}
+          className="fixed inset-0 z-[99999] flex items-center justify-center p-4 sm:p-6 bg-black/50 animate-in fade-in duration-150"
+          onClick={(e) => {
+            e.stopPropagation();
+            setShowAnnouncementModal(false);
+          }}
+        >
+          <div
+            id={`announcement-modal-${item.id}`}
+            className="relative w-full max-w-xl sm:max-w-2xl bg-[#111520] border border-sky-500/35 rounded-2xl p-5 sm:p-7 shadow-2xl text-left space-y-4 sm:space-y-5"
+            onClick={(e) => e.stopPropagation()}
+            style={{ boxShadow: '0 25px 60px -12px rgba(0,0,0,0.95), 0 0 35px rgba(56,189,248,0.18)' }}
+          >
+            {/* Header */}
+            <div className="flex items-start justify-between gap-3 border-b border-white/10 pb-4">
+              <div className="space-y-1">
+                <div className="flex items-center gap-2.5">
+                  <span
+                    className="p-2 rounded-xl border shrink-0 flex items-center justify-center"
+                    style={{
+                      backgroundColor: `${activeFollowColor.hex}18`,
+                      borderColor: `${activeFollowColor.hex}35`,
+                      color: activeFollowColor.hex,
+                    }}
+                  >
+                    <BookmarkCheck className="w-4 h-4" />
+                  </span>
+                  <h3 className="text-base sm:text-lg font-bold text-white tracking-tight line-clamp-1">
+                    {item.title}
+                  </h3>
+                </div>
+                <p className="text-xs text-slate-400 pl-10">
+                  Takip Gelişmeleri & Çıkış Bilgisi
+                </p>
+              </div>
+              <button
+                type="button"
+                id={`btn-close-announcement-${item.id}`}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setShowAnnouncementModal(false);
+                }}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+                title="Kapat (ESC)"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Body */}
+            <div className="space-y-3.5 max-h-[62vh] overflow-y-auto custom-scrollbar pr-1">
+              {item.expectedDate?.trim() && (
+                <div className="p-3.5 sm:p-4 rounded-xl bg-white/[0.04] border border-white/10 flex items-center gap-3.5">
+                  <div className="p-2.5 rounded-lg bg-sky-500/10 text-sky-400 shrink-0">
+                    <Calendar className="w-4 h-4" />
+                  </div>
+                  <div className="min-w-0">
+                    <span className="block text-[10px] uppercase font-bold tracking-wider text-slate-400">
+                      Beklenen Çıkış / Dönem
+                    </span>
+                    <span className="text-sm sm:text-base font-semibold text-slate-100 break-words">
+                      {item.expectedDate}
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              {item.followNotes?.trim() ? (
+                <div className="p-4 sm:p-4.5 rounded-xl bg-white/[0.04] border border-white/10 space-y-2">
+                  <span className="block text-[10px] uppercase font-bold tracking-wider text-slate-400">
+                    Gelişme Notu & Açıklamalar
+                  </span>
+                  <p className="text-xs sm:text-sm text-slate-200 leading-relaxed whitespace-pre-wrap">
+                    {item.followNotes}
+                  </p>
+                </div>
+              ) : (
+                !item.expectedDate?.trim() && (
+                  <p className="text-xs sm:text-sm text-slate-400 italic py-3 text-center">
+                    Henüz kayıtlı bir çıkış tarihi veya gelişme notu bulunmuyor.
+                  </p>
+                )
+              )}
+            </div>
+          </div>
+        </div>,
+        document.body
       )}
     </div>
   );

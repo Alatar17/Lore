@@ -24,6 +24,7 @@ import {
   Trash2,
   Save,
   PauseCircle,
+  Megaphone,
 } from 'lucide-react';
 
 interface ItemDetailModalProps {
@@ -61,6 +62,7 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
     return { ...item, cat, sub };
   });
   const [pasteNotice, setPasteNotice] = useState<string | null>(null);
+  const [showFollowDetails, setShowFollowDetails] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Auto-sync category if categories list updates or current cat becomes invalid
@@ -551,7 +553,8 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
             </label>
             {!isGame ? (
               /* Media Status Options (İzlenen, Takip, Yarım Bırakıldı, Anki) */
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 p-2 rounded-xl bg-white/[0.02] border border-white/5">
+              <>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 p-2 rounded-xl bg-white/[0.02] border border-white/5">
                 <label className="flex items-center gap-2 text-xs text-slate-300 cursor-pointer select-none hover:text-white p-1.5 rounded-lg hover:bg-white/5 transition-colors">
                   <input
                     id="detail-watching-cb"
@@ -564,16 +567,41 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
                   <span className="text-xs">İzlenen</span>
                 </label>
 
-                <label className="flex items-center gap-2 text-xs text-slate-300 cursor-pointer select-none hover:text-white p-1.5 rounded-lg hover:bg-white/5 transition-colors">
+                <label className="flex items-center gap-1.5 text-xs text-slate-300 cursor-pointer select-none hover:text-white p-1.5 rounded-lg hover:bg-white/5 transition-colors">
                   <input
                     id="detail-following-cb"
                     type="checkbox"
                     checked={!!formData.following}
-                    onChange={(e) => handleChange('following', e.target.checked)}
+                    onChange={(e) => {
+                      const checked = e.target.checked;
+                      handleChange('following', checked);
+                      if (checked) {
+                        setShowFollowDetails(true);
+                      }
+                    }}
                     className="w-4 h-4 rounded border-slate-600 bg-slate-800 text-amber-500 focus:ring-0 cursor-pointer"
                   />
                   <Bookmark className="w-3.5 h-3.5 text-amber-400 shrink-0" />
                   <span className="text-xs">Takip</span>
+                  {formData.following && (
+                    <button
+                      type="button"
+                      id="btn-toggle-detail-follow-details"
+                      title={showFollowDetails ? 'Gelişme kutusunu gizle' : 'Takip ve çıkış bilgilerini düzenle'}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        setShowFollowDetails(!showFollowDetails);
+                      }}
+                      className={`ml-auto p-1 rounded-md transition-colors cursor-pointer ${
+                        showFollowDetails
+                          ? 'text-sky-400 bg-sky-500/20'
+                          : 'text-slate-400 hover:text-sky-300 hover:bg-white/10'
+                      }`}
+                    >
+                      <Megaphone className="w-3 h-3" />
+                    </button>
+                  )}
                 </label>
 
                 <label className="flex items-center gap-2 text-xs text-slate-300 cursor-pointer select-none hover:text-white p-1.5 rounded-lg hover:bg-white/5 transition-colors">
@@ -600,6 +628,59 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
                   <span className="text-xs">Anki</span>
                 </label>
               </div>
+
+              {/* Takip Listesi Gelişmeleri & Beklenen Tarih Kutusu (Takip aktifken ve butona tıklandığında açılır, bilgiler asla silinmez) */}
+              {formData.following && showFollowDetails && (
+                <div
+                  id="detail-follow-info-box"
+                  className="mt-2.5 p-3.5 rounded-xl bg-white/[0.03] border border-white/10 space-y-3 transition-all"
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] font-semibold text-slate-200 flex items-center gap-1.5">
+                      <Megaphone className="w-3.5 h-3.5 text-sky-400" />
+                      <span>Takip Notları & Beklenen Çıkış Tarihi</span>
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setShowFollowDetails(false)}
+                      className="text-[10px] text-slate-400 hover:text-white transition-colors cursor-pointer"
+                    >
+                      Gizle
+                    </button>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 items-start">
+                    <div>
+                      <label className="block text-[10px] uppercase tracking-wider text-slate-400 font-semibold mb-1 flex items-center gap-1">
+                        <Calendar className="w-3 h-3 text-sky-400" /> Beklenen Dönem
+                      </label>
+                      <input
+                        id="detail-expected-date-input"
+                        type="text"
+                        value={formData.expectedDate || ''}
+                        onChange={(e) => handleChange('expectedDate', e.target.value)}
+                        placeholder="Örn: 2027 başı, 2026 Güz, TBA..."
+                        className="w-full bg-black/40 text-slate-100 border border-white/10 rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-sky-400/60 transition-colors placeholder:text-neutral-500"
+                      />
+                    </div>
+
+                    <div className="sm:col-span-2">
+                      <label className="block text-[10px] uppercase tracking-wider text-slate-400 font-semibold mb-1">
+                        Gelişme Notu / Açıklama
+                      </label>
+                      <textarea
+                        id="detail-follow-notes-input"
+                        rows={4}
+                        value={formData.followNotes || ''}
+                        onChange={(e) => handleChange('followNotes', e.target.value)}
+                        placeholder="Örn: 3. sezon duyuruldu, stüdyo değişti, prodüksiyon başladı..."
+                        className="w-full bg-black/40 text-slate-100 border border-white/10 rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-sky-400/60 transition-colors resize-y placeholder:text-neutral-500 custom-scrollbar min-h-[85px]"
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+            </>
             ) : (
               /* Game Status Options */
               <div className="grid grid-cols-1 sm:grid-cols-4 gap-2.5 p-2 rounded-xl bg-white/[0.02] border border-white/5 items-center">

@@ -9,6 +9,9 @@ import {
   ViewSettings,
   UiExperimentsState,
   AppTheme,
+  FollowIndicatorModel,
+  FollowIndicatorColor,
+  FollowIndicatorIconType,
 } from './types';
 import { INITIAL_DATA } from './data/initialData';
 import {
@@ -40,6 +43,7 @@ import { StatisticsModal } from './components/StatisticsModal';
 import { ImagePreviewModal } from './components/ImagePreviewModal';
 import { BulkMoveModal } from './components/BulkMoveModal';
 import { CustomDialog, CustomDialogOptions } from './components/CustomDialog';
+import { FOLLOW_MODELS, FOLLOW_COLORS, FollowBadge, getFollowColor } from './components/FollowIndicatorIcon';
 import {
   Plus,
   BarChart3,
@@ -80,6 +84,7 @@ export default function App() {
 
   // Toolbar toggles & inputs
   const [searchQuery, setSearchQuery] = useState('');
+  const [searchMode, setSearchMode] = useState<'search' | 'tag'>('search');
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [isViewOpen, setIsViewOpen] = useState(false);
@@ -92,6 +97,9 @@ export default function App() {
 
   // UI Experiments State for visual appearance and atmosphere
   const [uiExperiments, setUiExperiments] = useState<UiExperimentsState>(() => {
+    const savedModel = (safeLocalStorageGet('yapim_follow_indicator_model') as FollowIndicatorModel) || 'underline-accent';
+    const savedColor = (safeLocalStorageGet('yapim_follow_indicator_color') as FollowIndicatorColor) || 'sky';
+    const savedFollow = (safeLocalStorageGet('yapim_follow_indicator_icon') as FollowIndicatorIconType) || 'megaphone';
     const saved = safeLocalStorageGet('yapim_ui_experiments');
     if (saved) {
       try {
@@ -112,6 +120,9 @@ export default function App() {
           bgAtmosphere: parsed.bgAtmosphere === 'topglow' ? 'default' : (parsed.bgAtmosphere || 'default'),
           badgeStyle: parsed.badgeStyle || 'default',
           badgeDensity,
+          followIndicatorModel: parsed.followIndicatorModel || savedModel,
+          followIndicatorColor: parsed.followIndicatorColor || savedColor,
+          followIndicatorIcon: parsed.followIndicatorIcon || savedFollow,
         };
       } catch {}
     }
@@ -123,10 +134,13 @@ export default function App() {
       bgAtmosphere: 'default',
       badgeStyle: 'default',
       badgeDensity: 'full',
+      followIndicatorModel: savedModel,
+      followIndicatorColor: savedColor,
+      followIndicatorIcon: savedFollow,
     };
   });
 
-  const [openUiTestMenu, setOpenUiTestMenu] = useState<'theme' | 'toolbar' | 'card' | 'bg' | 'badge' | null>(null);
+  const [openUiTestMenu, setOpenUiTestMenu] = useState<'theme' | 'toolbar' | 'card' | 'bg' | 'badge' | 'icon' | null>(null);
   const [highlightQuickBar, setHighlightQuickBar] = useState(false);
 
   useEffect(() => {
@@ -145,6 +159,9 @@ export default function App() {
 
   // View Settings State with card size slider and theme support
   const [viewSettings, setViewSettings] = useState<ViewSettings>(() => {
+    const savedModel = (safeLocalStorageGet('yapim_follow_indicator_model') as FollowIndicatorModel) || 'underline-accent';
+    const savedColor = (safeLocalStorageGet('yapim_follow_indicator_color') as FollowIndicatorColor) || 'sky';
+    const savedFollow = (safeLocalStorageGet('yapim_follow_indicator_icon') as FollowIndicatorIconType) || 'megaphone';
     const saved = safeLocalStorageGet('yapim_view_settings');
     if (saved) {
       try {
@@ -159,8 +176,12 @@ export default function App() {
           showFollowing: true,
           showGameStatus: true,
           cardSize: 3,
+          showQuickAppearanceBar: false,
           ...parsed,
           theme,
+          followIndicatorModel: parsed.followIndicatorModel || savedModel,
+          followIndicatorColor: parsed.followIndicatorColor || savedColor,
+          followIndicatorIcon: parsed.followIndicatorIcon || savedFollow,
         };
       } catch {}
     }
@@ -174,8 +195,24 @@ export default function App() {
       showGameStatus: true,
       cardSize: 3,
       theme: 'pure-dark',
+      showQuickAppearanceBar: false,
+      followIndicatorModel: savedModel,
+      followIndicatorColor: savedColor,
+      followIndicatorIcon: savedFollow,
     };
   });
+
+  const handleSelectFollowModel = (model: FollowIndicatorModel) => {
+    safeLocalStorageSet('yapim_follow_indicator_model', model);
+    setViewSettings((prev) => ({ ...prev, followIndicatorModel: model }));
+    setUiExperiments((prev) => ({ ...prev, followIndicatorModel: model }));
+  };
+
+  const handleSelectFollowColor = (color: FollowIndicatorColor) => {
+    safeLocalStorageSet('yapim_follow_indicator_color', color);
+    setViewSettings((prev) => ({ ...prev, followIndicatorColor: color }));
+    setUiExperiments((prev) => ({ ...prev, followIndicatorColor: color }));
+  };
 
   // Persist viewSettings and set data-theme on document root
   useEffect(() => {
@@ -185,6 +222,26 @@ export default function App() {
       viewSettings.theme || 'pure-dark'
     );
   }, [viewSettings]);
+
+  // Lock document body scroll when any modal or overlay is open to prevent background scrolling & lag
+  const isAnyModalOpen = Boolean(
+    selectedItem ||
+    isAddModalOpen ||
+    isSettingsOpen ||
+    isStatisticsOpen ||
+    previewItem ||
+    isBulkMoveOpen
+  );
+
+  useEffect(() => {
+    if (isAnyModalOpen) {
+      const originalOverflow = document.body.style.overflow;
+      document.body.style.overflow = 'hidden';
+      return () => {
+        document.body.style.overflow = originalOverflow;
+      };
+    }
+  }, [isAnyModalOpen]);
 
   // --- 1. Initial Load: Check IndexedDB / Directory Handle & Permissions ---
   useEffect(() => {
@@ -1122,20 +1179,20 @@ export default function App() {
     return sortArchiveItems(result, viewSettings.sortBy || 'date-desc');
   }, [appData.items, appData.categories, mainTab, activeCatId, activeSub, searchQuery, filters, viewSettings.sortBy]);
 
-  // Card size calculation for CSS Grid auto-fill (1: 120px, 2: 150px, 3: 185px, 4: 230px, 5: 280px)
+  // Card size calculation for CSS Grid auto-fill (1: 150px [Küçük], 2: 185px [Standart], 3: 215px [Orta-Büyük], 4: 250px [Büyük], 5: 295px [Ekstra])
   const cardMinWidth = useMemo(() => {
-    const size = viewSettings.cardSize || 3;
+    const size = viewSettings.cardSize || 2;
     switch (size) {
       case 1:
-        return 120;
+        return 150; // Küçük
       case 2:
-        return 150;
+        return 185; // Standart
       case 3:
-        return 185;
+        return 215; // Orta-Büyük (Standart ile Büyük arası)
       case 4:
-        return 230;
+        return 250; // Büyük
       case 5:
-        return 280;
+        return 295; // Ekstra
       default:
         return 185;
     }
@@ -1208,6 +1265,8 @@ export default function App() {
           viewMode={viewMode}
           totalFilteredCount={filteredItems.length}
           searchQuery={searchQuery}
+          searchMode={searchMode}
+          onSearchModeChange={setSearchMode}
           isSearchOpen={isSearchOpen}
           isFilterOpen={isFilterOpen}
           isViewOpen={isViewOpen}
@@ -1279,6 +1338,8 @@ export default function App() {
               onItemClick={(item) => {
                 if (isSelectionMode) {
                   handleToggleSelectItem(item.id);
+                } else if (window.innerWidth < 768) {
+                  setPreviewItem(item);
                 } else {
                   setSelectedItem(item);
                 }
@@ -1300,7 +1361,13 @@ export default function App() {
               onUpdateCategoryRows={(rows) =>
                 handleUpdateCategoryTierRows(activeCategory.id, rows)
               }
-              onItemClick={(item) => setSelectedItem(item)}
+              onItemClick={(item) => {
+                if (window.innerWidth < 768) {
+                  setPreviewItem(item);
+                } else {
+                  setSelectedItem(item);
+                }
+              }}
               onItemHover={(item) => setHoveredItem(item)}
               onItemPreview={(item) => setPreviewItem(item)}
             />
@@ -1324,6 +1391,8 @@ export default function App() {
                       onClick={() => {
                         if (isSelectionMode) {
                           handleToggleSelectItem(item.id);
+                        } else if (window.innerWidth < 768) {
+                          setPreviewItem(item);
                         } else {
                           setSelectedItem(item);
                         }
@@ -1452,32 +1521,34 @@ export default function App() {
             <BarChart3 className="w-3.5 h-3.5 transition-transform duration-200 group-hover:scale-110" />
           </button>
 
-          {/* Floating Right Bottom Add Button (Only on desktop/tablet, hidden on mobile) */}
-          <button
-            id="fab-add-item-btn"
-            onClick={(e) => {
-              e.stopPropagation();
-              closeAllPanels();
-              setIsAddModalOpen(true);
-            }}
-            title={`Yeni Ekle (Kısayol: W)`}
-            className="hidden md:flex fixed bottom-6 right-6 z-40 w-11 h-11 rounded-full bg-slate-800/80 hover:bg-blue-600 text-slate-300 hover:text-white shadow-lg shadow-black/40 hover:shadow-blue-600/30 items-center justify-center transition-all duration-200 hover:scale-105 active:scale-95 border border-white/10 hover:border-blue-400/40 backdrop-blur-md cursor-pointer group"
-          >
-            <Plus className="w-5 h-5 transition-transform duration-200 group-hover:rotate-90" />
-          </button>
+          {/* Floating Right Bottom Add Button (Only on desktop/tablet, hidden on mobile and hidden on Tracked View) */}
+          {activeCatId !== TRACKED_TAB_ID && (
+            <button
+              id="fab-add-item-btn"
+              onClick={(e) => {
+                e.stopPropagation();
+                closeAllPanels();
+                setIsAddModalOpen(true);
+              }}
+              title={`Yeni Ekle (Kısayol: W)`}
+              className="hidden md:flex fixed bottom-6 right-6 z-40 w-11 h-11 rounded-full bg-slate-800/80 hover:bg-blue-600 text-slate-300 hover:text-white shadow-lg shadow-black/40 hover:shadow-blue-600/30 items-center justify-center transition-all duration-200 hover:scale-105 active:scale-95 border border-white/10 hover:border-blue-400/40 backdrop-blur-md cursor-pointer group"
+            >
+              <Plus className="w-5 h-5 transition-transform duration-200 group-hover:rotate-90" />
+            </button>
+          )}
 
           {/* Bottom Center Grouped UI Appearance & Atmosphere Bar (Persistent if enabled) */}
-          {viewSettings.showQuickAppearanceBar !== false && (
+          {Boolean(viewSettings.showQuickAppearanceBar) && (
             <div
               id="ui-test-experiment-bar"
               onClick={(e) => e.stopPropagation()}
-              className="fixed bottom-5 left-1/2 -translate-x-1/2 z-40 flex flex-col items-center"
+              className="fixed bottom-5 left-1/2 -translate-x-1/2 z-40 flex flex-col items-center pointer-events-auto"
             >
               {/* Active Category Popover Menu */}
               {openUiTestMenu && (
                 <div
                   id="ui-test-popover-menu"
-                  className="mb-2 bg-neutral-900/95 border border-white/20 backdrop-blur-xl p-3 rounded-2xl shadow-2xl w-80 text-xs animate-in fade-in zoom-in-95 duration-150 max-h-[70vh] overflow-y-auto custom-scrollbar"
+                  className="mb-2 bg-neutral-900/95 border border-white/20 backdrop-blur-xl p-3 rounded-2xl shadow-2xl w-[350px] max-w-[92vw] text-xs animate-in fade-in zoom-in-95 duration-150 max-h-[70vh] overflow-y-auto custom-scrollbar"
                 >
                   <div className="flex items-center justify-between pb-2 mb-2 border-b border-white/10">
                     <div className="flex items-center gap-1.5 font-semibold text-white">
@@ -1735,19 +1806,93 @@ export default function App() {
                         </div>
                       </div>
                     )}
+
+                    {/* 6. İkon / Takip Rozeti options */}
+                    {openUiTestMenu === 'icon' && (
+                      <div className="space-y-3 p-1">
+                        {/* Takip Modeli */}
+                        <div className="space-y-1.5">
+                          <div className="text-[11px] font-semibold text-slate-300 px-1">Takip Rozeti Modeli</div>
+                          <div className="grid grid-cols-3 gap-1.5">
+                            {FOLLOW_MODELS.map((mod) => {
+                              const isSelected = (viewSettings.followIndicatorModel || 'underline-accent') === mod.id;
+                              return (
+                                <button
+                                  key={mod.id}
+                                  type="button"
+                                  onClick={() => handleSelectFollowModel(mod.id)}
+                                  className={`p-2 rounded-xl text-[11px] font-medium border text-center transition-all cursor-pointer flex flex-col items-center gap-1.5 ${
+                                    isSelected
+                                      ? 'bg-blue-600/30 text-blue-200 border-blue-500/60 shadow-sm'
+                                      : 'bg-white/5 text-slate-400 border-white/10 hover:bg-white/10 hover:text-slate-200'
+                                  }`}
+                                >
+                                  {/* Live Preview */}
+                                  <div className="flex items-center gap-1 bg-black/60 px-1.5 py-0.5 rounded-md border border-white/10 pointer-events-none">
+                                    <FollowBadge
+                                      hasFollowInfo={true}
+                                      model={mod.id}
+                                      color={viewSettings.followIndicatorColor || 'sky'}
+                                      badgeStyle={uiExperiments.badgeStyle}
+                                    />
+                                  </div>
+                                  <span className="font-semibold text-[11px]">{mod.shortLabel}</span>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+
+                        {/* Vurgu Rengi */}
+                        <div className="space-y-1.5 pt-2 border-t border-white/10">
+                          <div className="flex items-center justify-between px-1">
+                            <span className="text-[11px] font-semibold text-slate-300">Vurgu Rengi</span>
+                            <span className="text-[10px] text-slate-400">
+                              {getFollowColor(viewSettings.followIndicatorColor || 'sky').label}
+                            </span>
+                          </div>
+                          <div className="grid grid-cols-6 gap-1.5">
+                            {FOLLOW_COLORS.map((col) => {
+                              const isSelected = (viewSettings.followIndicatorColor || 'sky') === col.id;
+                              return (
+                                <button
+                                  key={col.id}
+                                  type="button"
+                                  onClick={() => handleSelectFollowColor(col.id)}
+                                  title={col.label}
+                                  className={`h-7 rounded-lg flex items-center justify-center transition-all cursor-pointer border ${
+                                    isSelected
+                                      ? 'border-white ring-2 ring-white/40 scale-105 shadow'
+                                      : 'border-white/10 hover:border-white/30 opacity-75 hover:opacity-100'
+                                  }`}
+                                  style={{ backgroundColor: `${col.hex}30` }}
+                                >
+                                  <div
+                                    className="w-3 h-3 rounded-full flex items-center justify-center"
+                                    style={{ backgroundColor: col.hex }}
+                                  >
+                                    {isSelected && <Check className="w-2 h-2 text-black stroke-[3]" />}
+                                  </div>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
 
               {/* Main Floating Appearance Bar */}
               <div
-                className={`bg-neutral-900/90 border border-white/20 backdrop-blur-md px-3 py-1.5 rounded-2xl shadow-2xl flex items-center gap-1.5 text-xs select-none transition-all duration-300 ${
+                className={`bg-neutral-900/90 border border-white/20 backdrop-blur-md px-2 py-1 sm:px-3 sm:py-1.5 rounded-xl sm:rounded-2xl shadow-2xl flex items-center gap-1 sm:gap-1.5 text-[11px] sm:text-xs select-none whitespace-nowrap w-max max-w-[96vw] overflow-x-auto custom-scrollbar shrink-0 transition-colors duration-150 ${
                   highlightQuickBar
                     ? 'animate-quick-bar-highlight ring-4 ring-blue-500/80 border-blue-400 shadow-[0_0_35px_rgba(59,130,246,0.6)]'
                     : ''
                 }`}
               >
-                <span className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider px-1 flex items-center gap-1">
+                <span className="hidden sm:flex text-[10px] font-bold text-neutral-400 uppercase tracking-wider px-1 items-center gap-1 shrink-0 whitespace-nowrap">
                   <Palette className="w-3 h-3 text-blue-400" />
                   Görünüm:
                 </span>
@@ -1758,22 +1903,24 @@ export default function App() {
                   onClick={() =>
                     setOpenUiTestMenu((p) => (p === 'theme' ? null : 'theme'))
                   }
-                  className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-all flex items-center gap-1 cursor-pointer ${
+                  className={`px-2 sm:px-2.5 py-1 rounded-lg font-medium transition-colors flex items-center gap-1 cursor-pointer whitespace-nowrap shrink-0 ${
                     openUiTestMenu === 'theme'
-                      ? 'bg-blue-600 text-white shadow'
+                      ? 'bg-blue-600 text-white shadow border border-blue-500'
                       : viewSettings.theme && viewSettings.theme !== 'pure-dark'
                       ? 'bg-blue-600/30 text-blue-300 border border-blue-500/40'
-                      : 'bg-white/5 hover:bg-white/10 text-neutral-300'
+                      : 'bg-white/5 hover:bg-white/10 text-neutral-300 border border-transparent'
                   }`}
                 >
                   <span>
                     Tema
-                    {viewSettings.theme === 'charcoal-gray' && ': Koyu Gri'}
-                    {viewSettings.theme === 'nordic-frost' && ': Kuzey'}
-                    {viewSettings.theme === 'crimson-night' && ': Kızıl'}
-                    {viewSettings.theme === 'emerald-abyss' && ': Zümrüt'}
-                    {viewSettings.theme === 'amethyst-twilight' && ': Ametist'}
-                    {(!viewSettings.theme || viewSettings.theme === 'pure-dark') && ': OLED'}
+                    <span className="hidden sm:inline">
+                      {viewSettings.theme === 'charcoal-gray' && ': Koyu Gri'}
+                      {viewSettings.theme === 'nordic-frost' && ': Kuzey'}
+                      {viewSettings.theme === 'crimson-night' && ': Kızıl'}
+                      {viewSettings.theme === 'emerald-abyss' && ': Zümrüt'}
+                      {viewSettings.theme === 'amethyst-twilight' && ': Ametist'}
+                      {(!viewSettings.theme || viewSettings.theme === 'pure-dark') && ': OLED'}
+                    </span>
                   </span>
                   <ChevronDown
                     className={`w-3 h-3 transition-transform ${
@@ -1788,18 +1935,20 @@ export default function App() {
                   onClick={() =>
                     setOpenUiTestMenu((p) => (p === 'toolbar' ? null : 'toolbar'))
                   }
-                  className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-all flex items-center gap-1 cursor-pointer ${
+                  className={`px-2 sm:px-2.5 py-1 rounded-lg font-medium transition-colors flex items-center gap-1 cursor-pointer whitespace-nowrap shrink-0 ${
                     openUiTestMenu === 'toolbar'
-                      ? 'bg-blue-600 text-white shadow'
+                      ? 'bg-blue-600 text-white shadow border border-blue-500'
                       : uiExperiments.toolbarStyle !== 'default'
                       ? 'bg-blue-600/30 text-blue-300 border border-blue-500/40'
-                      : 'bg-white/5 hover:bg-white/10 text-neutral-300'
+                      : 'bg-white/5 hover:bg-white/10 text-neutral-300 border border-transparent'
                   }`}
                 >
                   <span>
                     Üst Bar
-                    {uiExperiments.toolbarStyle === 'box' && ': Kutu'}
-                    {uiExperiments.toolbarStyle === 'glass' && ': Cam'}
+                    <span className="hidden sm:inline">
+                      {uiExperiments.toolbarStyle === 'box' && ': Kutu'}
+                      {uiExperiments.toolbarStyle === 'glass' && ': Cam'}
+                    </span>
                   </span>
                   <ChevronDown
                     className={`w-3 h-3 transition-transform ${
@@ -1814,17 +1963,19 @@ export default function App() {
                   onClick={() =>
                     setOpenUiTestMenu((p) => (p === 'card' ? null : 'card'))
                   }
-                  className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-all flex items-center gap-1 cursor-pointer ${
+                  className={`px-2 sm:px-2.5 py-1 rounded-lg font-medium transition-colors flex items-center gap-1 cursor-pointer whitespace-nowrap shrink-0 ${
                     openUiTestMenu === 'card'
-                      ? 'bg-blue-600 text-white shadow'
-                      : uiExperiments.cardVignette !== 'none' || uiExperiments.cardRadius !== 'normal' || uiExperiments.cardHoverMotion !== 'lift'
+                      ? 'bg-blue-600 text-white shadow border border-blue-500'
+                      : uiExperiments.cardVignette !== 'none' || uiExperiments.cardRadius !== 'normal' || uiExperiments.cardHoverMotion !== 'zoom'
                       ? 'bg-blue-600/30 text-blue-300 border border-blue-500/40'
-                      : 'bg-white/5 hover:bg-white/10 text-neutral-300'
+                      : 'bg-white/5 hover:bg-white/10 text-neutral-300 border border-transparent'
                   }`}
                 >
                   <span>
                     Kart
-                    {uiExperiments.cardVignette !== 'none' && ' • Vinyet'}
+                    <span className="hidden sm:inline">
+                      {uiExperiments.cardVignette !== 'none' && ' • Vinyet'}
+                    </span>
                   </span>
                   <ChevronDown
                     className={`w-3 h-3 transition-transform ${
@@ -1839,17 +1990,19 @@ export default function App() {
                   onClick={() =>
                     setOpenUiTestMenu((p) => (p === 'bg' ? null : 'bg'))
                   }
-                  className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-all flex items-center gap-1 cursor-pointer ${
+                  className={`px-2 sm:px-2.5 py-1 rounded-lg font-medium transition-colors flex items-center gap-1 cursor-pointer whitespace-nowrap shrink-0 ${
                     openUiTestMenu === 'bg'
-                      ? 'bg-blue-600 text-white shadow'
+                      ? 'bg-blue-600 text-white shadow border border-blue-500'
                       : uiExperiments.bgAtmosphere !== 'default'
                       ? 'bg-blue-600/30 text-blue-300 border border-blue-500/40'
-                      : 'bg-white/5 hover:bg-white/10 text-neutral-300'
+                      : 'bg-white/5 hover:bg-white/10 text-neutral-300 border border-transparent'
                   }`}
                 >
                   <span>
                     Zemin
-                    {uiExperiments.bgAtmosphere === 'dots' && ': Noktalı'}
+                    <span className="hidden sm:inline">
+                      {uiExperiments.bgAtmosphere === 'dots' && ': Noktalı'}
+                    </span>
                   </span>
                   <ChevronDown
                     className={`w-3 h-3 transition-transform ${
@@ -1864,22 +2017,59 @@ export default function App() {
                   onClick={() =>
                     setOpenUiTestMenu((p) => (p === 'badge' ? null : 'badge'))
                   }
-                  className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-all flex items-center gap-1 cursor-pointer ${
+                  className={`px-2 sm:px-2.5 py-1 rounded-lg font-medium transition-colors flex items-center gap-1 cursor-pointer whitespace-nowrap shrink-0 ${
                     openUiTestMenu === 'badge'
-                      ? 'bg-blue-600 text-white shadow'
+                      ? 'bg-blue-600 text-white shadow border border-blue-500'
                       : uiExperiments.badgeStyle !== 'default' || uiExperiments.badgeDensity !== 'full'
                       ? 'bg-blue-600/30 text-blue-300 border border-blue-500/40'
-                      : 'bg-white/5 hover:bg-white/10 text-neutral-300'
+                      : 'bg-white/5 hover:bg-white/10 text-neutral-300 border border-transparent'
                   }`}
                 >
                   <span>
                     Rozet
-                    {uiExperiments.badgeStyle === 'neon' && ': Neon'}
-                    {uiExperiments.badgeStyle === 'minimal' && ': Sade'}
+                    <span className="hidden sm:inline">
+                      {uiExperiments.badgeStyle === 'neon' && ': Neon'}
+                      {uiExperiments.badgeStyle === 'minimal' && ': Sade'}
+                    </span>
                   </span>
                   <ChevronDown
                     className={`w-3 h-3 transition-transform ${
                       openUiTestMenu === 'badge' ? 'rotate-180' : ''
+                    }`}
+                  />
+                </button>
+
+                {/* 6. İkon (Takip Rozeti & Renk) Group - Rozet'in hemen sağında */}
+                <button
+                  type="button"
+                  onClick={() =>
+                    setOpenUiTestMenu((p) => (p === 'icon' ? null : 'icon'))
+                  }
+                  className={`px-2 sm:px-2.5 py-1 rounded-lg font-medium transition-colors flex items-center gap-1 sm:gap-1.5 cursor-pointer whitespace-nowrap shrink-0 ${
+                    openUiTestMenu === 'icon'
+                      ? 'bg-blue-600 text-white shadow border border-blue-500'
+                      : (viewSettings.followIndicatorModel && viewSettings.followIndicatorModel !== 'underline-accent') || (viewSettings.followIndicatorColor && viewSettings.followIndicatorColor !== 'sky')
+                      ? 'bg-blue-600/30 text-blue-300 border border-blue-500/40'
+                      : 'bg-white/5 hover:bg-white/10 text-neutral-300 border border-transparent'
+                  }`}
+                >
+                  <span
+                    className="hidden sm:inline-block w-2 h-2 rounded-full shrink-0"
+                    style={{
+                      backgroundColor: getFollowColor(viewSettings.followIndicatorColor || 'sky').hex,
+                    }}
+                  />
+                  <span>
+                    İkon
+                    <span className="hidden sm:inline">
+                      {viewSettings.followIndicatorModel === 'status-dot' && ': Nokta'}
+                      {viewSettings.followIndicatorModel === 'color-shift' && ': Renk'}
+                      {(viewSettings.followIndicatorModel === 'underline-accent' || !viewSettings.followIndicatorModel) && ': Alt Vurgu'}
+                    </span>
+                  </span>
+                  <ChevronDown
+                    className={`w-3 h-3 transition-transform ${
+                      openUiTestMenu === 'icon' ? 'rotate-180' : ''
                     }`}
                   />
                 </button>
@@ -1892,14 +2082,16 @@ export default function App() {
                   uiExperiments.cardHoverMotion !== 'zoom' ||
                   uiExperiments.bgAtmosphere !== 'default' ||
                   uiExperiments.badgeStyle !== 'default' ||
-                  uiExperiments.badgeDensity !== 'full') && (
+                  uiExperiments.badgeDensity !== 'full' ||
+                  (viewSettings.followIndicatorModel && viewSettings.followIndicatorModel !== 'underline-accent') ||
+                  (viewSettings.followIndicatorColor && viewSettings.followIndicatorColor !== 'sky')) && (
                   <button
                     type="button"
                     onClick={() => {
                       setDialogOptions({
                         type: 'confirm',
                         title: 'Görünüm Ayarlarını Sıfırla',
-                        message: 'Tüm arayüz görünüm ve kart efektleri varsayılan ayarlara döndürülecek. Emin misiniz?',
+                        message: 'Tüm arayüz görünüm, rozet ve ikon efektleri varsayılan ayarlara döndürülecek. Emin misiniz?',
                         confirmText: 'Evet, Sıfırla',
                         cancelText: 'Vazgeç',
                         onConfirm: () => {
@@ -1912,16 +2104,21 @@ export default function App() {
                             bgAtmosphere: 'default',
                             badgeStyle: 'default',
                             badgeDensity: 'full',
+                            followIndicatorModel: 'underline-accent',
+                            followIndicatorColor: 'sky',
+                            followIndicatorIcon: 'megaphone',
                           });
+                          handleSelectFollowModel('underline-accent');
+                          handleSelectFollowColor('sky');
                           setOpenUiTestMenu(null);
                         },
                       });
                     }}
                     title="Görünüm ayarlarını varsayılana sıfırla"
-                    className="px-2 py-1 rounded-lg text-[11px] font-medium bg-red-500/20 hover:bg-red-500/30 text-red-300 transition-colors flex items-center gap-1 cursor-pointer"
+                    className="p-1.5 sm:px-2 sm:py-1 rounded-lg text-[11px] font-medium bg-red-500/20 hover:bg-red-500/30 text-red-300 transition-colors flex items-center gap-1 cursor-pointer whitespace-nowrap shrink-0"
                   >
-                    <RotateCcw className="w-3 h-3" />
-                    <span>Sıfırla</span>
+                    <RotateCcw className="w-3 h-3 shrink-0" />
+                    <span className="hidden sm:inline">Sıfırla</span>
                   </button>
                 )}
 
@@ -1933,7 +2130,7 @@ export default function App() {
                     setOpenUiTestMenu(null);
                   }}
                   title="Hızlı görünüm çubuğunu gizle (Ayarlar > Görünüm'den tekrar açabilirsiniz)"
-                  className="p-1 rounded-lg hover:bg-white/10 text-neutral-400 hover:text-white transition-colors cursor-pointer ml-0.5"
+                  className="p-1 rounded-lg hover:bg-white/10 text-neutral-400 hover:text-white transition-colors cursor-pointer ml-0.5 shrink-0"
                 >
                   <X className="w-3.5 h-3.5" />
                 </button>
@@ -1977,6 +2174,17 @@ export default function App() {
           activeMainTab={mainTab}
           dirHandle={dirHandle}
           viewSettings={viewSettings}
+          searchQuery={searchQuery}
+          onSearchTag={(tag, tagMainTab) => {
+            if (tagMainTab && tagMainTab !== mainTab) {
+              setMainTab(tagMainTab);
+              setActiveCatId(null);
+              setActiveSub(null);
+            }
+            setSearchMode('tag');
+            setSearchQuery(tag);
+            setIsSearchOpen(true);
+          }}
           onUpdateViewSettings={(newSet) => {
             if (newSet.showQuickAppearanceBar && !viewSettings.showQuickAppearanceBar) {
               setHighlightQuickBar(true);
@@ -1997,7 +2205,6 @@ export default function App() {
           }}
           onReplaceAllData={(newData) => {
             setAppData(newData);
-            setIsSettingsOpen(false);
           }}
           onClose={() => setIsSettingsOpen(false)}
         />
