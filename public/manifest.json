@@ -1,23 +1,28 @@
 {
-  "name": "Yapım Arşivim",
-  "short_name": "Arşivim",
+  "id": "./",
+  "name": "Yapım Arşivim — Medya ve Oyun Arşivi",
+  "short_name": "Yapım Arşivim",
+  "description": "Kişisel film, dizi, anime, animasyon ve oyun arşiv yöneticisi",
   "start_url": "./",
+  "scope": "./",
   "display": "standalone",
+  "display_override": ["standalone", "minimal-ui", "window-controls-overlay"],
   "background_color": "#121316",
   "theme_color": "#121316",
-  "orientation": "portrait-primary",
+  "orientation": "any",
+  "categories": ["entertainment", "utilities", "productivity"],
   "icons": [
     {
-      "src": "/icon.svg",
-      "sizes": "any",
+      "src": "icon.svg",
+      "sizes": "48x48 72x72 96x96 128x128 192x192 256x256 512x512",
       "type": "image/svg+xml",
-      "purpose": "any maskable"
+      "purpose": "any"
     },
     {
-      "src": "/icon.svg",
+      "src": "icon.svg",
       "sizes": "192x192 512x512",
       "type": "image/svg+xml",
-      "purpose": "any maskable"
+      "purpose": "maskable"
     }
   ]
 }
