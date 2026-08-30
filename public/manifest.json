@@ -1,5 +1,5 @@
 {
-  "id": "./",
+  "id": "yapim-arsivim-app",
   "name": "Yapım Arşivim — Medya ve Oyun Arşivi",
   "short_name": "Yapım Arşivim",
   "description": "Kişisel film, dizi, anime, animasyon ve oyun arşiv yöneticisi",
@@ -13,16 +13,28 @@
   "categories": ["entertainment", "utilities", "productivity"],
   "icons": [
     {
-      "src": "icon.svg",
-      "sizes": "48x48 72x72 96x96 128x128 192x192 256x256 512x512",
-      "type": "image/svg+xml",
+      "src": "pwa-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "icon.svg",
-      "sizes": "192x192 512x512",
-      "type": "image/svg+xml",
+      "src": "pwa-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "pwa-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
       "purpose": "maskable"
+    },
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
     }
   ]
 }

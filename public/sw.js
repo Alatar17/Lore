@@ -1,10 +1,12 @@
 // Service Worker for Yapım Arşivim PWA
-const CACHE_NAME = 'yapim-arsivim-cache-v1';
+const CACHE_NAME = 'yapim-arsivim-cache-v2';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
   './manifest.json',
-  './icon.svg'
+  './icon.svg',
+  './pwa-192x192.png',
+  './pwa-512x512.png'
 ];
 
 self.addEventListener('install', (event) => {
