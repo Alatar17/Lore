@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { ArchiveItem, Category, MainTabType, TierRow } from '../types';
+import { ArchiveItem, Category, MainTabType, TierRow, TierListCardStyle } from '../types';
 import { DEFAULT_TIER_COLORS, MEDIA_COLORS, GAME_COLORS } from '../data/initialData';
 import { downloadTierListAsPng } from '../utils/tierImageExport';
 import {
@@ -18,13 +18,16 @@ import {
   Sparkles,
   Camera,
   Eye,
+  Type,
 } from 'lucide-react';
 
 interface TierListViewProps {
   mainTab: MainTabType;
   category: Category;
+  activeSub?: string | null;
   items: ArchiveItem[];
   movedItemIds?: Set<string>;
+  tierListStyle?: TierListCardStyle;
   onUpdateTierPlacement: (
     itemId: string,
     tierRowId: string | null,
@@ -42,12 +45,6 @@ interface RowContextMenuState {
   x: number;
   y: number;
   rowId: string;
-}
-
-interface CardContextMenuState {
-  x: number;
-  y: number;
-  item: ArchiveItem;
 }
 
 interface DragOverTargetState {
@@ -100,8 +97,10 @@ export const SPARKLE_COLORS = [
 export const TierListView: React.FC<TierListViewProps> = ({
   mainTab,
   category,
+  activeSub,
   items,
   movedItemIds,
+  tierListStyle = 'modern',
   onUpdateTierPlacement,
   onBatchUpdateTierPlacements,
   onUpdateCategoryRows,
@@ -109,12 +108,13 @@ export const TierListView: React.FC<TierListViewProps> = ({
   onItemHover,
   onItemPreview,
 }) => {
+  const isClassic = tierListStyle === 'classic';
+
   const [draggedItemId, setDraggedItemId] = useState<string | null>(null);
   const [dragOverRowId, setDragOverRowId] = useState<string | null>(null);
   const [dragOverTarget, setDragOverTarget] = useState<DragOverTargetState | null>(null);
 
   const [rowContextMenu, setRowContextMenu] = useState<RowContextMenuState | null>(null);
-  const [cardContextMenu, setCardContextMenu] = useState<CardContextMenuState | null>(null);
   const [editingRowId, setEditingRowId] = useState<string | null>(null);
   const [editNameText, setEditNameText] = useState('');
 
@@ -126,6 +126,16 @@ export const TierListView: React.FC<TierListViewProps> = ({
       return saved ? (parseInt(saved, 10) || 0) % SPARKLE_COLORS.length : 0;
     } catch {
       return 0;
+    }
+  });
+
+  // PNG Export: Include titles option state (default to true)
+  const [includeTitlesInPng, setIncludeTitlesInPng] = useState<boolean>(() => {
+    try {
+      const saved = localStorage.getItem('lore_png_include_titles');
+      return saved !== 'false';
+    } catch {
+      return true;
     }
   });
 
@@ -145,10 +155,31 @@ export const TierListView: React.FC<TierListViewProps> = ({
   const [confirmModal, setConfirmModal] = useState<ConfirmModalState | null>(null);
   const [addRowModal, setAddRowModal] = useState<AddRowModalState | null>(null);
 
-  const catItems = useMemo(
-    () => (items || []).filter((it) => it && it.mainTab === mainTab && it.cat === category?.id),
-    [items, mainTab, category?.id]
-  );
+  const catItems = useMemo(() => {
+    return (items || []).filter((it) => {
+      if (!it || it.mainTab !== mainTab || it.cat !== category?.id) return false;
+
+      // 1. If currently viewing a specific subgroup (e.g. Medya > Anime > Dizi)
+      if (activeSub) {
+        return it.sub === activeSub;
+      }
+
+      // 2. If viewing category general and the category has subgroups defined
+      if (category?.subgroups && category.subgroups.length > 0) {
+        const enabledSubs = category.tierSubgroups ?? category.subgroups;
+        // If tierSubgroups is configured, strictly only include items from enabled subgroups
+        if (category.tierSubgroups) {
+          return it.sub ? enabledSubs.includes(it.sub) : false;
+        }
+        // If tierSubgroups is not explicitly customized, check if item's sub is enabled
+        if (it.sub) {
+          return enabledSubs.includes(it.sub);
+        }
+      }
+
+      return true;
+    });
+  }, [items, mainTab, category?.id, category?.subgroups, category?.tierSubgroups, activeSub]);
 
   const validRowIds = useMemo(
     () => new Set((category?.tierRows || []).map((r) => r.id)),
@@ -164,7 +195,6 @@ export const TierListView: React.FC<TierListViewProps> = ({
   useEffect(() => {
     const handleCloseMenus = () => {
       setRowContextMenu(null);
-      setCardContextMenu(null);
     };
     window.addEventListener('click', handleCloseMenus);
     window.addEventListener('scroll', handleCloseMenus, true);
@@ -466,7 +496,6 @@ export const TierListView: React.FC<TierListViewProps> = ({
   const handleRowContextMenu = (e: React.MouseEvent, rowId: string) => {
     e.preventDefault();
     e.stopPropagation();
-    setCardContextMenu(null);
     setRowContextMenu({
       x: Math.min(e.clientX, window.innerWidth - 240),
       y: Math.min(e.clientY, window.innerHeight - 300),
@@ -474,20 +503,10 @@ export const TierListView: React.FC<TierListViewProps> = ({
     });
   };
 
-  // Context Menu Trigger on Card
-  const handleCardContextMenu = (e: React.MouseEvent, item: ArchiveItem) => {
+  // Context Menu Trigger on Card - Prevent default browser and custom context menu
+  const handleCardContextMenu = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    // Disable quick move context menu on mobile devices
-    if (typeof window !== 'undefined' && window.innerWidth < 640) {
-      return;
-    }
-    setRowContextMenu(null);
-    setCardContextMenu({
-      x: Math.min(e.clientX, window.innerWidth - 220),
-      y: Math.min(e.clientY, window.innerHeight - 280),
-      item,
-    });
   };
 
   const activeContextRow = rowContextMenu
@@ -500,7 +519,13 @@ export const TierListView: React.FC<TierListViewProps> = ({
       className="flex flex-col min-h-[calc(100vh-140px)] select-none pb-8"
     >
       {/* Tier Rows Area */}
-      <div className="space-y-2 flex-1 mb-4">
+      <div
+        className={`flex-1 mb-4 ${
+          isClassic
+            ? 'space-y-0 border border-black/80 rounded-none overflow-hidden'
+            : 'space-y-2'
+        }`}
+      >
         {category.tierRows.map((row) => {
           const rowItems = catItems.filter((it) => it.tier === row.id);
           const isOverRow = dragOverRowId === row.id;
@@ -512,7 +537,11 @@ export const TierListView: React.FC<TierListViewProps> = ({
               onDragOver={(e) => handleRowDragOver(e, row.id)}
               onDragLeave={handleRowDragLeave}
               onDrop={(e) => handleRowDrop(e, row.id)}
-              className={`flex rounded-xl overflow-hidden border border-white/10 bg-[#161616] min-h-[88px] shadow-md transition-all ${
+              className={`flex overflow-hidden transition-all ${
+                isClassic
+                  ? 'rounded-none border-b border-black/80 bg-[#141414] min-h-[96px] sm:min-h-[120px]'
+                  : 'rounded-xl border border-white/10 bg-[#161616] min-h-[88px] shadow-md'
+              } ${
                 isOverRow
                   ? 'ring-2 ring-sky-400/60 shadow-lg shadow-sky-500/15'
                   : ''
@@ -556,8 +585,12 @@ export const TierListView: React.FC<TierListViewProps> = ({
                     handleRowContextMenu(e, row.id);
                   }
                 }}
-                title={`Sürükle-Bırak: ${row.name} satırına ekle | Sağ tık: Satır seçenekleri`}
-                className="w-2.5 sm:w-20 shrink-0 flex flex-col items-center justify-center sm:p-2 relative select-none font-bold text-center sm:cursor-context-menu border-r border-black/40 transition-transform active:scale-95 group cursor-pointer"
+                title="Yeniden adlandırmak veya rengi değiştirmek için sağ tıklayın"
+                className={`shrink-0 flex flex-col items-center justify-center sm:p-2 relative select-none font-bold text-center sm:cursor-context-menu border-r border-black/80 group cursor-pointer ${
+                  isClassic
+                    ? 'w-3 sm:w-24 rounded-none'
+                    : 'w-2.5 sm:w-20 rounded-l-xl transition-transform active:scale-95'
+                }`}
                 style={{
                   backgroundColor: row.color,
                   color: '#ffffff',
@@ -606,9 +639,15 @@ export const TierListView: React.FC<TierListViewProps> = ({
                 onDragOver={(e) => handleRowDragOver(e, row.id)}
                 onDragLeave={handleRowDragLeave}
                 onDrop={(e) => handleRowDrop(e, row.id)}
-                className={`flex-1 px-2.5 py-1.5 flex flex-wrap gap-2 items-center content-center min-h-[88px] transition-colors ${
+                className={`flex-1 flex flex-wrap transition-colors ${
+                  isClassic
+                    ? 'p-0 gap-0 items-stretch content-start min-h-[96px] sm:min-h-[120px] bg-[#121212]'
+                    : 'px-2.5 py-1.5 gap-2 items-center content-center min-h-[88px] bg-[#141414]'
+                } ${
                   isOverRow
                     ? 'bg-neutral-800/90 ring-2 ring-inset ring-sky-400/50'
+                    : isClassic
+                    ? 'bg-[#121212]'
                     : 'bg-[#141414]'
                 }`}
               >
@@ -628,20 +667,21 @@ export const TierListView: React.FC<TierListViewProps> = ({
                       onDragOver={(e) => handleCardDragOver(e, item, row.id)}
                       onDragLeave={handleCardDragLeave}
                       onDrop={(e) => handleCardDrop(e, item, row.id)}
-                      onContextMenu={(e) => handleCardContextMenu(e, item)}
+                      onContextMenu={handleCardContextMenu}
                       onClick={() => onItemClick(item)}
-                      onDoubleClick={(e) => {
-                        e.stopPropagation();
-                        onItemPreview?.(item);
-                      }}
                       onMouseEnter={() => onItemHover?.(item)}
                       onMouseLeave={() => onItemHover?.(null)}
-                      className={`group relative w-[72px] sm:w-[84px] aspect-[2/3] max-h-[124px] rounded-lg overflow-visible cursor-pointer md:cursor-grab md:active:cursor-grabbing transition-all select-none ${
+                      className={`group relative aspect-[2/3] max-h-[124px] overflow-visible cursor-pointer md:cursor-grab md:active:cursor-grabbing transition-all select-none ${
+                        isClassic
+                          ? 'w-[70px] sm:w-[80px] md:w-[88px] rounded-none m-0'
+                          : 'w-[72px] sm:w-[84px] rounded-lg'
+                      } ${
                         isCurrentDragged
                           ? 'opacity-30 scale-95'
+                          : isClassic
+                          ? 'hover:z-20 hover:brightness-110'
                           : 'hover:scale-105 hover:z-20'
                       }`}
-                      title={`${item.title}\n• F: Büyük Afişi Göster\n• Çift Tık: Önizleme\n• Sürükle: İki kartın arasına veya istediğin sıraya bırak\n• Sağ tık: Menü\n• Sol tık: Detay`}
                     >
                       {/* Left Insertion Indicator */}
                       {isTargetBefore && (
@@ -654,7 +694,13 @@ export const TierListView: React.FC<TierListViewProps> = ({
                       )}
 
                       {/* Actual Card Body */}
-                      <div className="w-full h-full rounded-lg overflow-hidden border border-white/15 bg-neutral-900 shadow-md flex items-center justify-center text-center relative group-hover:border-white/40">
+                      <div
+                        className={`w-full h-full overflow-hidden bg-neutral-900 shadow-md flex items-center justify-center text-center relative ${
+                          isClassic
+                            ? 'rounded-none border-r border-b border-black/70 group-hover:brightness-110'
+                            : 'rounded-lg border border-white/15 group-hover:border-white/40'
+                        }`}
+                      >
                         {/* Moved / Added in this session Sparkle Indicator */}
                         {movedItemIds && movedItemIds.has(item.id) && (
                           <div
@@ -730,16 +776,56 @@ export const TierListView: React.FC<TierListViewProps> = ({
           </div>
 
           <div className="flex items-center gap-2">
-            {/* PNG Export Button */}
-            <button
-              id="download-tier-png-btn"
-              onClick={() => downloadTierListAsPng(category, catItems, mainTab)}
-              title="Tüm satırları ve havuzu içeren yüksek çözünürlüklü PNG görsel afişini indir"
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-600/20 hover:bg-blue-600/30 text-blue-300 hover:text-white border border-blue-500/30 text-xs font-semibold transition-colors cursor-pointer"
+            {/* PNG Export Button & Title Overlay Toggle (Aynı Kutu İçinde) */}
+            <div
+              id="download-tier-png-container"
+              className="inline-flex items-stretch rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-neutral-300 transition-colors shadow-sm overflow-hidden"
             >
-              <Camera className="w-3.5 h-3.5" />
-              <span>PNG İndir</span>
-            </button>
+              <button
+                id="download-tier-png-btn"
+                type="button"
+                onClick={() =>
+                  downloadTierListAsPng(category, catItems, mainTab, {
+                    scale: 2,
+                    includeTitles: includeTitlesInPng,
+                    isClassic: isClassic,
+                  })
+                }
+                title="Tüm satırları ve havuzu içeren 2X Ultra HD PNG afişini indir"
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-neutral-300 hover:text-white transition-colors cursor-pointer border-r border-white/10"
+              >
+                <Camera className="w-3.5 h-3.5 text-neutral-400" />
+                <span>PNG İndir</span>
+              </button>
+
+              <button
+                id="toggle-png-titles-btn"
+                type="button"
+                onClick={() => {
+                  setIncludeTitlesInPng((prev) => {
+                    const next = !prev;
+                    try {
+                      localStorage.setItem('lore_png_include_titles', String(next));
+                    } catch {
+                      // ignore
+                    }
+                    return next;
+                  });
+                }}
+                title={
+                  includeTitlesInPng
+                    ? 'PNG çıktısına yapım isimlerini dahil et (Şu an: Açık • Kapatmak için tıklayın)'
+                    : 'PNG çıktısına yapım isimlerini dahil et (Şu an: Kapalı • Açmak için tıklayın)'
+                }
+                className={`px-2 py-1.5 flex items-center justify-center transition-colors cursor-pointer ${
+                  includeTitlesInPng
+                    ? 'bg-white/15 text-white shadow-inner'
+                    : 'text-neutral-400 hover:text-neutral-200 hover:bg-white/5'
+                }`}
+              >
+                <Type className={`w-3.5 h-3.5 ${includeTitlesInPng ? 'text-white' : 'text-neutral-400'}`} />
+              </button>
+            </div>
 
             {/* Havuza Topla Button */}
             {catItems.length - poolItems.length > 0 && (
@@ -783,20 +869,21 @@ export const TierListView: React.FC<TierListViewProps> = ({
                 onDragOver={(e) => handleCardDragOver(e, item, null)}
                 onDragLeave={handleCardDragLeave}
                 onDrop={(e) => handleCardDrop(e, item, null)}
-                onContextMenu={(e) => handleCardContextMenu(e, item)}
+                onContextMenu={handleCardContextMenu}
                 onClick={() => onItemClick(item)}
-                onDoubleClick={(e) => {
-                  e.stopPropagation();
-                  onItemPreview?.(item);
-                }}
                 onMouseEnter={() => onItemHover?.(item)}
                 onMouseLeave={() => onItemHover?.(null)}
-                className={`group relative w-[72px] sm:w-[84px] aspect-[2/3] max-h-[124px] rounded-lg overflow-visible cursor-pointer md:cursor-grab md:active:cursor-grabbing transition-all select-none ${
+                className={`group relative aspect-[2/3] max-h-[124px] overflow-visible cursor-pointer md:cursor-grab md:active:cursor-grabbing transition-all select-none ${
+                  isClassic
+                    ? 'w-[70px] sm:w-[80px] md:w-[88px] rounded-none'
+                    : 'w-[72px] sm:w-[84px] rounded-lg'
+                } ${
                   isCurrentDragged
                     ? 'opacity-30 scale-95'
+                    : isClassic
+                    ? 'hover:z-20 hover:brightness-110'
                     : 'hover:scale-105 hover:z-20'
                 }`}
-                title={`${item.title}\n• F: Büyük Afişi Göster\n• Çift Tık: Önizleme\n• Sürükle: Sıralama satırına taşı\n• Sağ tık: Menü\n• Sol tık: Detay`}
               >
                 {/* Left Insertion Indicator */}
                 {isTargetBefore && (
@@ -808,7 +895,13 @@ export const TierListView: React.FC<TierListViewProps> = ({
                   <div className="absolute -right-1.5 top-0 bottom-0 w-1 bg-sky-400 rounded-full shadow-[0_0_8px_rgba(56,189,248,0.9)] z-30 pointer-events-none animate-pulse" />
                 )}
 
-                <div className="w-full h-full rounded-lg overflow-hidden border border-white/15 bg-neutral-800 shadow-md flex items-center justify-center text-center relative group-hover:border-white/40">
+                <div
+                  className={`w-full h-full overflow-hidden bg-neutral-800 shadow-md flex items-center justify-center text-center relative ${
+                    isClassic
+                      ? 'rounded-none border border-black/70 group-hover:brightness-110'
+                      : 'rounded-lg border border-white/15 group-hover:border-white/40'
+                  }`}
+                >
                   {/* Moved / Added in this session Sparkle Indicator */}
                   {movedItemIds && movedItemIds.has(item.id) && (
                     <div
@@ -861,16 +954,6 @@ export const TierListView: React.FC<TierListViewProps> = ({
           className="fixed z-50 w-56 p-1.5 bg-[#1c1c1c] border border-white/15 rounded-xl shadow-2xl text-xs text-neutral-200 animate-in fade-in zoom-in-95 duration-100"
           onClick={(e) => e.stopPropagation()}
         >
-          <div className="px-2.5 py-1.5 border-b border-white/10 font-bold flex items-center gap-2">
-            <span
-              className="w-3.5 h-3.5 rounded-full shrink-0 border border-white/30"
-              style={{ backgroundColor: activeContextRow.color }}
-            />
-            <span className="text-white truncate">
-              {activeContextRow.name} Satırı
-            </span>
-          </div>
-
           <div className="py-1 space-y-0.5">
             {/* Ad Değiştir */}
             <button
@@ -878,7 +961,7 @@ export const TierListView: React.FC<TierListViewProps> = ({
               className="w-full px-2.5 py-1.5 rounded-lg hover:bg-white/10 flex items-center gap-2 text-left transition-colors cursor-pointer"
             >
               <Edit2 className="w-3.5 h-3.5 text-neutral-400" />
-              <span>Satır Adını Değiştir</span>
+              <span>Yeniden Adlandır</span>
             </button>
 
             {/* Renk Paleti */}
@@ -965,90 +1048,6 @@ export const TierListView: React.FC<TierListViewProps> = ({
             >
               <Trash2 className="w-3.5 h-3.5" />
               <span>Satırı Sil</span>
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* --- Context Menu: Card Quick Move (Kart Sağ Tık Menüsü) --- */}
-      {cardContextMenu && (
-        <div
-          id="tier-card-context-menu"
-          style={{ top: cardContextMenu.y, left: cardContextMenu.x }}
-          className="fixed z-50 w-56 p-1.5 bg-[#1c1c1c] border border-white/15 rounded-xl shadow-2xl text-xs text-neutral-200 animate-in fade-in zoom-in-95 duration-100"
-          onClick={(e) => e.stopPropagation()}
-        >
-          <div className="px-2.5 py-1.5 border-b border-white/10 font-bold truncate text-white">
-            {cardContextMenu.item.title}
-          </div>
-
-          <div className="py-1">
-            <span className="text-[10px] uppercase font-semibold text-neutral-400 px-2.5 py-1 block">
-              Hızlıca Taşı:
-            </span>
-            <div className="grid grid-cols-4 gap-1 px-2 mb-2">
-              {category.tierRows.map((r) => (
-                <button
-                  key={r.id}
-                  type="button"
-                  onClick={() => {
-                    onUpdateTierPlacement(cardContextMenu.item.id, r.id);
-                    setCardContextMenu(null);
-                  }}
-                  className={`py-1 text-center rounded text-xs font-bold transition-transform hover:scale-105 cursor-pointer ${
-                    cardContextMenu.item.tier === r.id
-                      ? 'ring-2 ring-white scale-105'
-                      : ''
-                  }`}
-                  style={{
-                    backgroundColor: r.color,
-                    color: '#ffffff',
-                    textShadow: '0 1px 2px rgba(0,0,0,0.8)',
-                  }}
-                >
-                  {r.name}
-                </button>
-              ))}
-            </div>
-
-            {cardContextMenu.item.tier && (
-              <button
-                onClick={() => {
-                  onUpdateTierPlacement(cardContextMenu.item.id, null);
-                  setCardContextMenu(null);
-                }}
-                className="w-full px-2.5 py-1.5 rounded-lg hover:bg-white/10 text-amber-400 flex items-center gap-2 text-left transition-colors cursor-pointer"
-              >
-                <Undo2 className="w-3.5 h-3.5" />
-                <span>Havuza Gönder</span>
-              </button>
-            )}
-
-            <button
-              onClick={() => {
-                onItemPreview?.(cardContextMenu.item);
-                setCardContextMenu(null);
-              }}
-              className="w-full px-2.5 py-1.5 rounded-lg hover:bg-white/10 text-neutral-200 flex items-center justify-between text-left transition-colors cursor-pointer"
-            >
-              <span className="flex items-center gap-2">
-                <Eye className="w-3.5 h-3.5 text-blue-400" />
-                <span>Büyük Afişi Göster</span>
-              </span>
-              <kbd className="px-1.5 py-0.5 rounded bg-black/60 border border-white/20 text-[10px] font-mono font-bold text-neutral-300">
-                F
-              </kbd>
-            </button>
-
-            <button
-              onClick={() => {
-                onItemClick(cardContextMenu.item);
-                setCardContextMenu(null);
-              }}
-              className="w-full px-2.5 py-1.5 rounded-lg hover:bg-white/10 text-neutral-300 flex items-center gap-2 text-left transition-colors cursor-pointer"
-            >
-              <Info className="w-3.5 h-3.5 text-neutral-400" />
-              <span>Kart Detaylarını Aç</span>
             </button>
           </div>
         </div>

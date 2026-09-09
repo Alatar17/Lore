@@ -526,6 +526,7 @@ export function parseUploadedJson(file: File, existingAppData?: AppData): Promis
         // Case 1: Direct array of items (e.g. oyunlar.json)
         if (Array.isArray(json)) {
           const sanitizedItems: ArchiveItem[] = json.map((it: any, index: number) => ({
+            ...it,
             id: it.id || `item_${Date.now()}_${index}`,
             mainTab: it.mainTab === 'game' ? 'game' : 'media',
             cat: it.cat || '',
@@ -533,6 +534,7 @@ export function parseUploadedJson(file: File, existingAppData?: AppData): Promis
             title: it.title || 'İsimsiz Yapım',
             rating: typeof it.rating === 'number' ? it.rating : 0,
             date: it.date || it.watchDate || '',
+            releaseYear: it.releaseYear || undefined,
             desc: it.desc || it.notes || '',
             thumbnail: it.thumbnail || '',
             thumbnailFileName: it.thumbnailFileName || undefined,
@@ -540,6 +542,8 @@ export function parseUploadedJson(file: File, existingAppData?: AppData): Promis
             following: it.following ?? false,
             watching: it.watching ?? false,
             dropped: it.dropped ?? false,
+            expectedDate: it.expectedDate || undefined,
+            followNotes: it.followNotes || undefined,
             status: it.status || undefined,
             achPercent: it.achPercent !== undefined ? it.achPercent : null,
             achMax: it.achMax || undefined,
@@ -549,9 +553,10 @@ export function parseUploadedJson(file: File, existingAppData?: AppData): Promis
             actors: Array.isArray(it.actors) ? it.actors : undefined,
             developer: Array.isArray(it.developer) ? it.developer : undefined,
             genre: Array.isArray(it.genre) ? it.genre : undefined,
+            characters: Array.isArray(it.characters) ? it.characters : undefined,
             anki: it.anki ?? false,
-            createdAt: it.createdAt || Date.now(),
-            updatedAt: it.updatedAt || Date.now(),
+            createdAt: typeof it.createdAt === 'number' ? it.createdAt : (it.createdAt ? Number(it.createdAt) : Date.now()),
+            updatedAt: typeof it.updatedAt === 'number' ? it.updatedAt : (it.updatedAt ? Number(it.updatedAt) : Date.now()),
           }));
 
           const baseCategories = existingAppData?.categories || INITIAL_DATA.categories;
@@ -570,6 +575,7 @@ export function parseUploadedJson(file: File, existingAppData?: AppData): Promis
         // Case 2: Object with items array (and optional categories)
         if (json && typeof json === 'object' && Array.isArray(json.items)) {
           const sanitizedItems: ArchiveItem[] = json.items.map((it: any, index: number) => ({
+            ...it,
             id: it.id || `item_${Date.now()}_${index}`,
             mainTab: it.mainTab === 'game' ? 'game' : 'media',
             cat: it.cat || '',
@@ -577,6 +583,7 @@ export function parseUploadedJson(file: File, existingAppData?: AppData): Promis
             title: it.title || 'İsimsiz Yapım',
             rating: typeof it.rating === 'number' ? it.rating : 0,
             date: it.date || it.watchDate || '',
+            releaseYear: it.releaseYear || undefined,
             desc: it.desc || it.notes || '',
             thumbnail: it.thumbnail || '',
             thumbnailFileName: it.thumbnailFileName || undefined,
@@ -584,6 +591,8 @@ export function parseUploadedJson(file: File, existingAppData?: AppData): Promis
             following: it.following ?? false,
             watching: it.watching ?? false,
             dropped: it.dropped ?? false,
+            expectedDate: it.expectedDate || undefined,
+            followNotes: it.followNotes || undefined,
             status: it.status || undefined,
             achPercent: it.achPercent !== undefined ? it.achPercent : null,
             achMax: it.achMax || undefined,
@@ -593,9 +602,10 @@ export function parseUploadedJson(file: File, existingAppData?: AppData): Promis
             actors: Array.isArray(it.actors) ? it.actors : undefined,
             developer: Array.isArray(it.developer) ? it.developer : undefined,
             genre: Array.isArray(it.genre) ? it.genre : undefined,
+            characters: Array.isArray(it.characters) ? it.characters : undefined,
             anki: it.anki ?? false,
-            createdAt: it.createdAt || Date.now(),
-            updatedAt: it.updatedAt || Date.now(),
+            createdAt: typeof it.createdAt === 'number' ? it.createdAt : (it.createdAt ? Number(it.createdAt) : Date.now()),
+            updatedAt: typeof it.updatedAt === 'number' ? it.updatedAt : (it.updatedAt ? Number(it.updatedAt) : Date.now()),
           }));
 
           const hasCategories = json.categories && typeof json.categories === 'object';

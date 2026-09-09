@@ -12,6 +12,14 @@ import {
   FollowIndicatorModel,
   FollowIndicatorColor,
   FollowIndicatorIconType,
+  RatingIconType,
+  isTierListAvailable,
+  FabPositions,
+  FabPositionProfile,
+  DEFAULT_FAB_POSITIONS,
+  DEFAULT_FAB_PROFILES,
+  areFabPositionsEqual,
+  normalizeFabPositions,
 } from './types';
 import { INITIAL_DATA } from './data/initialData';
 import {
@@ -31,6 +39,7 @@ import {
   checkDirectoryHandleAccessibility,
 } from './utils/fileSystem';
 import { sortArchiveItems } from './utils/sortUtils';
+import { downloadTierListAsPng } from './utils/tierImageExport';
 
 import { HeaderTabs, TRACKED_TAB_ID } from './components/HeaderTabs';
 import { ItemCard } from './components/ItemCard';
@@ -40,13 +49,16 @@ import { ItemDetailModal } from './components/ItemDetailModal';
 import { AddItemModal } from './components/AddItemModal';
 import { SettingsModal } from './components/SettingsModal';
 import { StatisticsModal } from './components/StatisticsModal';
+import { RecentActivityModal } from './components/RecentActivityModal';
 import { ImagePreviewModal } from './components/ImagePreviewModal';
 import { BulkMoveModal } from './components/BulkMoveModal';
 import { CustomDialog, CustomDialogOptions } from './components/CustomDialog';
-import { FOLLOW_MODELS, FOLLOW_COLORS, FollowBadge, getFollowColor } from './components/FollowIndicatorIcon';
+import { FOLLOW_MODELS, FOLLOW_COLORS, FollowBadge, getFollowColor, RATING_ICON_OPTIONS } from './components/FollowIndicatorIcon';
+import { FabPositionEditOverlay } from './components/FabPositionEditOverlay';
 import {
   Plus,
   BarChart3,
+  History,
   CheckSquare,
   Square,
   Trash2,
@@ -90,16 +102,28 @@ export default function App() {
   const [isViewOpen, setIsViewOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isStatisticsOpen, setIsStatisticsOpen] = useState(false);
+  const [isRecentActivityOpen, setIsRecentActivityOpen] = useState(false);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [selectedItem, setSelectedItem] = useState<ArchiveItem | null>(null);
   const [hoveredItem, setHoveredItem] = useState<ArchiveItem | null>(null);
   const [previewItem, setPreviewItem] = useState<ArchiveItem | null>(null);
+  const [settingsInitialTab, setSettingsInitialTab] = useState<
+    'categories' | 'tags' | 'themes' | 'shortcuts' | 'storage' | undefined
+  >(undefined);
+  const [highlightConnectFolder, setHighlightConnectFolder] = useState(false);
+
+  // FAB Position Live Edit Mode States
+  const [isEditingFabMode, setIsEditingFabMode] = useState(false);
+  const [selectedFab, setSelectedFab] = useState<keyof FabPositions | null>(null);
+  const [tempFabPositions, setTempFabPositions] = useState<FabPositions>(DEFAULT_FAB_POSITIONS);
 
   // UI Experiments State for visual appearance and atmosphere
   const [uiExperiments, setUiExperiments] = useState<UiExperimentsState>(() => {
     const savedModel = (safeLocalStorageGet('yapim_follow_indicator_model') as FollowIndicatorModel) || 'underline-accent';
     const savedColor = (safeLocalStorageGet('yapim_follow_indicator_color') as FollowIndicatorColor) || 'sky';
     const savedFollow = (safeLocalStorageGet('yapim_follow_indicator_icon') as FollowIndicatorIconType) || 'megaphone';
+    const rawSavedRating = safeLocalStorageGet('yapim_rating_icon') as RatingIconType | null;
+    const savedRating = (!rawSavedRating || rawSavedRating === 'star') ? 'star-2' : rawSavedRating;
     const saved = safeLocalStorageGet('yapim_ui_experiments');
     if (saved) {
       try {
@@ -116,13 +140,15 @@ export default function App() {
           toolbarStyle,
           cardVignette: cardVignette as any,
           cardRadius,
-          cardHoverMotion: parsed.cardHoverMotion || 'zoom',
+          cardHoverMotion: parsed.cardHoverMotion || 'none',
           bgAtmosphere: parsed.bgAtmosphere === 'topglow' ? 'default' : (parsed.bgAtmosphere || 'default'),
           badgeStyle: parsed.badgeStyle || 'default',
           badgeDensity,
+          tierListStyle: (parsed.tierListStyle === 'classic' ? 'classic' : 'modern') as any,
           followIndicatorModel: parsed.followIndicatorModel || savedModel,
           followIndicatorColor: parsed.followIndicatorColor || savedColor,
           followIndicatorIcon: parsed.followIndicatorIcon || savedFollow,
+          ratingIcon: (parsed.ratingIcon && parsed.ratingIcon !== 'star') ? parsed.ratingIcon : savedRating,
         };
       } catch {}
     }
@@ -130,17 +156,20 @@ export default function App() {
       toolbarStyle: 'default',
       cardVignette: 'none',
       cardRadius: 'normal',
-      cardHoverMotion: 'zoom',
+      cardHoverMotion: 'none',
       bgAtmosphere: 'default',
       badgeStyle: 'default',
       badgeDensity: 'full',
+      tierListStyle: 'modern',
       followIndicatorModel: savedModel,
       followIndicatorColor: savedColor,
       followIndicatorIcon: savedFollow,
+      ratingIcon: savedRating,
     };
   });
 
-  const [openUiTestMenu, setOpenUiTestMenu] = useState<'theme' | 'toolbar' | 'card' | 'bg' | 'badge' | 'icon' | null>(null);
+  const [openUiTestMenu, setOpenUiTestMenu] = useState<'theme' | 'toolbar' | 'card' | 'bg' | 'badge' | 'icon' | 'tierlist' | null>(null);
+  const [showFollowColorPicker, setShowFollowColorPicker] = useState<boolean>(false);
   const [highlightQuickBar, setHighlightQuickBar] = useState(false);
 
   useEffect(() => {
@@ -162,43 +191,69 @@ export default function App() {
     const savedModel = (safeLocalStorageGet('yapim_follow_indicator_model') as FollowIndicatorModel) || 'underline-accent';
     const savedColor = (safeLocalStorageGet('yapim_follow_indicator_color') as FollowIndicatorColor) || 'sky';
     const savedFollow = (safeLocalStorageGet('yapim_follow_indicator_icon') as FollowIndicatorIconType) || 'megaphone';
+    const rawSavedRating = safeLocalStorageGet('yapim_rating_icon') as RatingIconType | null;
+    const savedRating = (!rawSavedRating || rawSavedRating === 'star') ? 'star-2' : rawSavedRating;
     const saved = safeLocalStorageGet('yapim_view_settings');
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
         const theme = parsed.theme === 'dark-slate' ? 'nordic-frost' : (parsed.theme || 'pure-dark');
         return {
-          showTitle: true,
+          showTitle: false,
           showRating: true,
           showYear: true,
           showAnki: false,
           showWatching: true,
           showFollowing: true,
           showGameStatus: true,
-          cardSize: 3,
+          cardSize: 2,
           showQuickAppearanceBar: false,
+          fabPositions: (() => {
+            const norm = normalizeFabPositions(parsed.fabPositions);
+            if (norm.statistics.bottom === 12 && norm.statistics.side === 16 &&
+                norm.recentActivity.bottom === 12 && norm.recentActivity.side === 56 &&
+                norm.addItem.bottom === 12 && norm.addItem.side === 24) {
+              return DEFAULT_FAB_POSITIONS;
+            }
+            return norm;
+          })(),
+          fabProfiles: Array.isArray(parsed.fabProfiles) && parsed.fabProfiles.length > 0
+            ? parsed.fabProfiles.map((p: any) => {
+                const norm = normalizeFabPositions(p.positions);
+                if (p.id === 'default' && norm.statistics.bottom === 12 && norm.statistics.side === 16 &&
+                    norm.recentActivity.bottom === 12 && norm.recentActivity.side === 56 &&
+                    norm.addItem.bottom === 12 && norm.addItem.side === 24) {
+                  return { ...p, positions: DEFAULT_FAB_POSITIONS };
+                }
+                return { ...p, positions: norm };
+              })
+            : DEFAULT_FAB_PROFILES,
           ...parsed,
           theme,
           followIndicatorModel: parsed.followIndicatorModel || savedModel,
           followIndicatorColor: parsed.followIndicatorColor || savedColor,
           followIndicatorIcon: parsed.followIndicatorIcon || savedFollow,
+          ratingIcon: (parsed.ratingIcon && parsed.ratingIcon !== 'star') ? parsed.ratingIcon : savedRating,
         };
       } catch {}
     }
     return {
-      showTitle: true,
+      showTitle: false,
       showRating: true,
       showYear: true,
       showAnki: false,
       showWatching: true,
       showFollowing: true,
       showGameStatus: true,
-      cardSize: 3,
+      cardSize: 2,
       theme: 'pure-dark',
       showQuickAppearanceBar: false,
+      fabPositions: DEFAULT_FAB_POSITIONS,
+      fabProfiles: DEFAULT_FAB_PROFILES,
       followIndicatorModel: savedModel,
       followIndicatorColor: savedColor,
       followIndicatorIcon: savedFollow,
+      ratingIcon: savedRating,
     };
   });
 
@@ -212,6 +267,12 @@ export default function App() {
     safeLocalStorageSet('yapim_follow_indicator_color', color);
     setViewSettings((prev) => ({ ...prev, followIndicatorColor: color }));
     setUiExperiments((prev) => ({ ...prev, followIndicatorColor: color }));
+  };
+
+  const handleSelectRatingIcon = (icon: RatingIconType) => {
+    safeLocalStorageSet('yapim_rating_icon', icon);
+    setViewSettings((prev) => ({ ...prev, ratingIcon: icon }));
+    setUiExperiments((prev) => ({ ...prev, ratingIcon: icon }));
   };
 
   // Persist viewSettings and set data-theme on document root
@@ -229,8 +290,10 @@ export default function App() {
     isAddModalOpen ||
     isSettingsOpen ||
     isStatisticsOpen ||
+    isRecentActivityOpen ||
     previewItem ||
-    isBulkMoveOpen
+    isBulkMoveOpen ||
+    isEditingFabMode
   );
 
   useEffect(() => {
@@ -345,6 +408,25 @@ export default function App() {
     setIsViewOpen(false);
   }, []);
 
+  // Desktop Folder connection guard (Ensures local folder is connected before add/edit on desktop)
+  const requireFolderOnDesktop = (): boolean => {
+    // Mobilde salt okuma yapıldığı için mobil deneyim hiçbir şekilde etkilenmez
+    if (!dirHandle && typeof window !== 'undefined' && window.innerWidth >= 768) {
+      setPreviewItem(null);
+      setSettingsInitialTab('storage');
+      setHighlightConnectFolder(true);
+      setIsSettingsOpen(true);
+      setDialogOptions({
+        type: 'alert',
+        title: 'Klasör Bağlantısı Gerekli',
+        message: 'İşlem yapabilmek için lütfen önce yerel arşiv klasörünüzü bağlayın.',
+        confirmText: 'Tamam',
+      });
+      return false;
+    }
+    return true;
+  };
+
   // Current category list for active main tab
   const currentCategories = (appData?.categories && appData.categories[mainTab]) || [];
   const activeCategory =
@@ -359,21 +441,27 @@ export default function App() {
       // If preview/modal/panel/search is open -> close active window.
       // If no window is open -> open Settings (or close if already open).
       if (e.key === 'Escape') {
+        if (selectedItem || isAddModalOpen) {
+          // Do not close edit or add modal with ESC to prevent accidental data loss!
+          return;
+        }
         e.preventDefault();
         if (previewItem) {
           setPreviewItem(null);
-        } else if (selectedItem) {
-          setSelectedItem(null);
-        } else if (isAddModalOpen) {
-          setIsAddModalOpen(false);
+        } else if (isRecentActivityOpen) {
+          setIsRecentActivityOpen(false);
         } else if (isSettingsOpen) {
           setIsSettingsOpen(false);
+          setHighlightConnectFolder(false);
+          setSettingsInitialTab(undefined);
         } else if (isFilterOpen || isViewOpen) {
           closeAllPanels();
         } else if (isSearchOpen) {
           setIsSearchOpen(false);
           setSearchQuery('');
         } else {
+          setSettingsInitialTab(undefined);
+          setHighlightConnectFolder(false);
           setIsSettingsOpen(true);
         }
         return;
@@ -387,17 +475,6 @@ export default function App() {
         target.tagName === 'SELECT' ||
         target.isContentEditable
       ) {
-        return;
-      }
-
-      // 'F' or 'f' key -> Toggle large poster preview for currently hovered card
-      if (e.key === 'f' || e.key === 'F') {
-        e.preventDefault();
-        if (previewItem) {
-          setPreviewItem(null);
-        } else if (hoveredItem) {
-          setPreviewItem(hoveredItem);
-        }
         return;
       }
 
@@ -453,12 +530,13 @@ export default function App() {
       if (e.key === 'w' || e.key === 'W') {
         e.preventDefault();
         closeAllPanels();
+        if (!requireFolderOnDesktop()) return;
         setIsAddModalOpen(true);
         return;
       }
 
-      // 'Space' key -> Toggle Fullscreen On/Off
-      if (e.code === 'Space' || e.key === ' ') {
+      // 'F' or 'f' key -> Toggle Fullscreen On/Off
+      if (e.key === 'f' || e.key === 'F') {
         e.preventDefault();
         if (!document.fullscreenElement) {
           document.documentElement.requestFullscreen().catch(() => {});
@@ -468,12 +546,29 @@ export default function App() {
         return;
       }
 
-      // 'Tab' key -> Toggle between Grid and Tier List view if tier list is enabled for active category
+      // 'Tab' key -> Toggle between Grid and Tier List view if tier list is enabled for active category and subgroup
       if (e.key === 'Tab') {
-        if (activeCategory && activeCategory.tierEnabled) {
+        if (isTierListAvailable(activeCategory, activeSub)) {
           e.preventDefault();
           setViewMode((prev) => (prev === 'grid' ? 'tier' : 'grid'));
         }
+        return;
+      }
+
+      // 'Q' or 'q' key -> Toggle Statistics Modal (İstatistikler)
+      if (e.key === 'q' || e.key === 'Q') {
+        e.preventDefault();
+        closeAllPanels();
+        setIsStatisticsOpen((prev) => !prev);
+        return;
+      }
+
+      // 'E' or 'e' key -> Toggle Recent Activity Modal (Son Aktiviteler)
+      if (e.key === 'e' || e.key === 'E') {
+        e.preventDefault();
+        closeAllPanels();
+        setIsRecentActivityOpen((prev) => !prev);
+        return;
       }
     };
 
@@ -498,6 +593,8 @@ export default function App() {
         const hasPerm = await verifyPermission(handle, true);
         if (hasPerm) {
           setDirHandle(handle);
+          setHighlightConnectFolder(false);
+          setSettingsInitialTab(undefined);
           await storeDirectoryHandle(handle);
 
           // Try to read existing data or write current data
@@ -523,11 +620,16 @@ export default function App() {
 
   // --- CRUD Operations on Items ---
   const handleAddItem = (newItem: ArchiveItem) => {
+    const itemWithTimestamps: ArchiveItem = {
+      ...newItem,
+      createdAt: newItem.createdAt || Date.now(),
+      updatedAt: newItem.updatedAt || Date.now(),
+    };
     setAppData((prev) => {
       const updated: AppData = {
         ...prev,
         lastUpdated: new Date().toISOString(),
-        items: [newItem, ...prev.items],
+        items: [itemWithTimestamps, ...prev.items],
       };
       saveDataToLocalStorage(updated);
       if (dirHandle) {
@@ -541,11 +643,15 @@ export default function App() {
   };
 
   const handleSaveItem = (updatedItem: ArchiveItem) => {
+    const itemWithTimestamp: ArchiveItem = {
+      ...updatedItem,
+      updatedAt: Date.now(),
+    };
     setAppData((prev) => {
       const updated: AppData = {
         ...prev,
         lastUpdated: new Date().toISOString(),
-        items: prev.items.map((it) => (it.id === updatedItem.id ? updatedItem : it)),
+        items: prev.items.map((it) => (it.id === itemWithTimestamp.id ? itemWithTimestamp : it)),
       };
       saveDataToLocalStorage(updated);
       if (dirHandle) {
@@ -749,6 +855,13 @@ export default function App() {
     setActiveCatId(catId);
     setActiveSub(null);
   };
+
+  // Auto-switch back to Grid mode if Tier List becomes unavailable for current category/subgroup
+  useEffect(() => {
+    if (viewMode === 'tier' && !isTierListAvailable(activeCategory, activeSub)) {
+      setViewMode('grid');
+    }
+  }, [viewMode, activeCategory, activeSub]);
 
   // Reset Tier List history when entering Tier Mode or switching categories
   useEffect(() => {
@@ -966,6 +1079,18 @@ export default function App() {
     exportTierListBackup(mainTab, activeCategory, appData.items);
   };
 
+  const handleExportTierPng = useCallback(() => {
+    if (!activeCategory) return;
+    const catItems = appData.items.filter(
+      (item) => item.cat === activeCategory.id && (!activeSub || item.sub === activeSub)
+    );
+    downloadTierListAsPng(activeCategory, catItems, mainTab, {
+      scale: 2,
+      includeTitles: true,
+      isClassic: uiExperiments.tierListStyle === 'classic',
+    });
+  }, [activeCategory, appData.items, activeSub, mainTab, uiExperiments.tierListStyle]);
+
   const handleImportTierList = async (file: File) => {
     if (!activeCategory) return;
     try {
@@ -1135,12 +1260,18 @@ export default function App() {
           const itemDirectors = (item.director || []).map((d) => d.toLowerCase());
           const itemActors = (item.actors || []).map((a) => a.toLowerCase());
           const itemDevelopers = (item.developer || []).map((d) => d.toLowerCase());
+          const itemYear = item.releaseYear ? item.releaseYear.toString() : '';
+          const itemCharNames = (item.characters || []).map((c) => (c.name || '').toLowerCase());
+          const itemCharActors = (item.characters || [])
+            .map((c) => (c.actor || '').toLowerCase())
+            .filter(Boolean);
 
           // Check if ALL terms match the item (AND logic)
           const matchesAllTerms = terms.every((term) => {
             if (itemTitle.includes(term)) return true;
             if (itemDesc.includes(term)) return true;
             if (itemDate.includes(term)) return true;
+            if (itemYear.includes(term)) return true;
             if (itemCat.includes(term)) return true;
             if (itemSub.includes(term)) return true;
             if (itemStatus.includes(term)) return true;
@@ -1149,6 +1280,8 @@ export default function App() {
             if (itemDirectors.some((d) => d.includes(term))) return true;
             if (itemActors.some((a) => a.includes(term))) return true;
             if (itemDevelopers.some((d) => d.includes(term))) return true;
+            if (itemCharNames.some((n) => n.includes(term))) return true;
+            if (itemCharActors.some((a) => a.includes(term))) return true;
             return false;
           });
 
@@ -1280,6 +1413,7 @@ export default function App() {
           onRedo={handleTierRedo}
           onExportTierList={handleExportTierList}
           onImportTierList={handleImportTierList}
+          onExportTierPng={handleExportTierPng}
           uiExperiments={uiExperiments}
           onMainTabChange={handleMainTabChange}
           onCategorySelect={handleCategorySelect}
@@ -1305,6 +1439,8 @@ export default function App() {
           }}
           onOpenSettings={async () => {
             closeAllPanels();
+            setSettingsInitialTab(undefined);
+            setHighlightConnectFolder(false);
             if (dirHandle) {
               const isAccessible = await checkDirectoryHandleAccessibility(dirHandle);
               if (!isAccessible) {
@@ -1313,10 +1449,6 @@ export default function App() {
               }
             }
             setIsSettingsOpen(true);
-          }}
-          onOpenStatistics={() => {
-            closeAllPanels();
-            setIsStatisticsOpen(true);
           }}
           onFilterChange={(newFilters) =>
             setFilters((prev) => ({ ...prev, ...newFilters }))
@@ -1338,9 +1470,20 @@ export default function App() {
               onItemClick={(item) => {
                 if (isSelectionMode) {
                   handleToggleSelectItem(item.id);
-                } else if (window.innerWidth < 768) {
-                  setPreviewItem(item);
                 } else {
+                  setPreviewItem(item);
+                }
+              }}
+              onItemPreview={(item) => {
+                if (isSelectionMode) {
+                  handleToggleSelectItem(item.id);
+                } else {
+                  setPreviewItem(item);
+                }
+              }}
+              onItemEdit={(item) => {
+                if (!isSelectionMode) {
+                  if (!requireFolderOnDesktop()) return;
                   setSelectedItem(item);
                 }
               }}
@@ -1349,27 +1492,24 @@ export default function App() {
               selectedItemIds={selectedItemIds}
               onToggleSelectItem={handleToggleSelectItem}
             />
-          ) : activeCategory && activeCategory.tierEnabled && viewMode === 'tier' ? (
+          ) : isTierListAvailable(activeCategory, activeSub) && viewMode === 'tier' ? (
             /* B: Tier List View */
             <TierListView
               mainTab={mainTab}
-              category={activeCategory}
+              category={activeCategory!}
+              activeSub={activeSub}
               items={appData.items}
               movedItemIds={movedItemIds}
+              tierListStyle={uiExperiments.tierListStyle || 'modern'}
               onUpdateTierPlacement={handleUpdateTierPlacement}
               onBatchUpdateTierPlacements={handleBatchUpdateTierPlacements}
               onUpdateCategoryRows={(rows) =>
-                handleUpdateCategoryTierRows(activeCategory.id, rows)
+                handleUpdateCategoryTierRows(activeCategory!.id, rows)
               }
               onItemClick={(item) => {
-                if (window.innerWidth < 768) {
-                  setPreviewItem(item);
-                } else {
-                  setSelectedItem(item);
-                }
+                setPreviewItem(item);
               }}
               onItemHover={(item) => setHoveredItem(item)}
-              onItemPreview={(item) => setPreviewItem(item)}
             />
           ) : (
             /* C: Fluid & Dynamic Poster Grid - 3 cards per row on mobile, auto-fill on tablet/desktop */
@@ -1391,9 +1531,20 @@ export default function App() {
                       onClick={() => {
                         if (isSelectionMode) {
                           handleToggleSelectItem(item.id);
-                        } else if (window.innerWidth < 768) {
-                          setPreviewItem(item);
                         } else {
+                          setPreviewItem(item);
+                        }
+                      }}
+                      onPreview={() => {
+                        if (isSelectionMode) {
+                          handleToggleSelectItem(item.id);
+                        } else {
+                          setPreviewItem(item);
+                        }
+                      }}
+                      onEdit={() => {
+                        if (!isSelectionMode) {
+                          if (!requireFolderOnDesktop()) return;
                           setSelectedItem(item);
                         }
                       }}
@@ -1416,7 +1567,10 @@ export default function App() {
                     Bu filtreye veya kategoriye uyan yapım bulunamadı.
                   </p>
                   <button
-                    onClick={() => setIsAddModalOpen(true)}
+                    onClick={() => {
+                      if (!requireFolderOnDesktop()) return;
+                      setIsAddModalOpen(true);
+                    }}
                     className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold shadow-lg shadow-blue-600/30 transition-all cursor-pointer"
                   >
                     + Yeni Yapım Ekle
@@ -1504,41 +1658,179 @@ export default function App() {
         </div>
       )}
 
-      {/* Floating Action Button (FAB) for Adding Items - Sadece Izgara Modunda Görünür */}
-      {viewMode === 'grid' && (
+      {/* Floating Action Buttons (FABs) */}
+      {(viewMode === 'grid' || isEditingFabMode) && (
         <>
-          {/* Floating Left Bottom Minimal Statistics Button */}
-          <button
-            id="fab-statistics-btn"
-            onClick={(e) => {
-              e.stopPropagation();
-              closeAllPanels();
-              setIsStatisticsOpen(true);
-            }}
-            title="İstatistikler & Grafikler (📊)"
-            className="fixed bottom-5 left-5 z-40 w-8 h-8 rounded-full bg-slate-900/80 hover:bg-blue-600 text-slate-400 hover:text-white shadow-md hover:shadow-blue-600/30 flex items-center justify-center transition-all duration-200 hover:scale-105 active:scale-95 border border-white/10 hover:border-blue-400/40 backdrop-blur-md cursor-pointer opacity-70 hover:opacity-100 group"
-          >
-            <BarChart3 className="w-3.5 h-3.5 transition-transform duration-200 group-hover:scale-110" />
-          </button>
+          {(() => {
+            const normPositions = normalizeFabPositions(
+              isEditingFabMode ? tempFabPositions : viewSettings.fabPositions
+            );
 
-          {/* Floating Right Bottom Add Button (Only on desktop/tablet, hidden on mobile and hidden on Tracked View) */}
-          {activeCatId !== TRACKED_TAB_ID && (
-            <button
-              id="fab-add-item-btn"
-              onClick={(e) => {
-                e.stopPropagation();
-                closeAllPanels();
-                setIsAddModalOpen(true);
-              }}
-              title={`Yeni Ekle (Kısayol: W)`}
-              className="hidden md:flex fixed bottom-6 right-6 z-40 w-11 h-11 rounded-full bg-slate-800/80 hover:bg-blue-600 text-slate-300 hover:text-white shadow-lg shadow-black/40 hover:shadow-blue-600/30 items-center justify-center transition-all duration-200 hover:scale-105 active:scale-95 border border-white/10 hover:border-blue-400/40 backdrop-blur-md cursor-pointer group"
-            >
-              <Plus className="w-5 h-5 transition-transform duration-200 group-hover:rotate-90" />
-            </button>
-          )}
+            const statPos = normPositions.statistics;
+            const recentPos = normPositions.recentActivity;
+            const addPos = normPositions.addItem;
 
-          {/* Bottom Center Grouped UI Appearance & Atmosphere Bar (Persistent if enabled) */}
-          {Boolean(viewSettings.showQuickAppearanceBar) && (
+            return (
+              <>
+                {/* 1. Statistics Button */}
+                <div
+                  className={`fixed transition-all duration-150 ${
+                    isEditingFabMode ? 'z-[65]' : 'z-40'
+                  }`}
+                  style={{ bottom: `${statPos.bottom}px`, left: `${statPos.side}px` }}
+                >
+                  <button
+                    id="fab-statistics-btn"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (isEditingFabMode) {
+                        setSelectedFab('statistics');
+                        return;
+                      }
+                      closeAllPanels();
+                      setIsStatisticsOpen((prev) => !prev);
+                    }}
+                    title={
+                      isEditingFabMode
+                        ? `İstatistikler (${statPos.bottom}px x ${statPos.side}px)`
+                        : 'İstatistikler & Grafikler (Kısayol: Q)'
+                    }
+                    className={`relative w-8 h-8 rounded-full flex items-center justify-center transition-all duration-150 backdrop-blur-md cursor-pointer group ${
+                      isEditingFabMode
+                        ? selectedFab === 'statistics'
+                          ? 'bg-blue-600 text-white ring-2 ring-blue-400 ring-offset-1 ring-offset-slate-950 shadow-lg shadow-blue-500/40 opacity-100'
+                          : 'bg-slate-900/90 text-slate-300 ring-1 ring-dashed ring-blue-400/50 hover:ring-blue-400 opacity-80 hover:opacity-100 border border-white/20'
+                        : 'bg-slate-900/80 hover:bg-blue-600 text-slate-400 hover:text-white shadow-md hover:shadow-blue-600/30 hover:scale-105 active:scale-95 border border-white/10 hover:border-blue-400/40 opacity-70 hover:opacity-100'
+                    }`}
+                  >
+                    <BarChart3 className="w-3.5 h-3.5 transition-transform duration-200 group-hover:scale-110" />
+
+                    {isEditingFabMode && (
+                      <span
+                        className={`absolute -top-6 left-1/2 -translate-x-1/2 px-1.5 py-0.5 rounded text-[9px] font-mono whitespace-nowrap pointer-events-none shadow-md ${
+                          selectedFab === 'statistics'
+                            ? 'bg-blue-600 text-white font-bold'
+                            : 'bg-slate-900/95 border border-white/20 text-slate-300'
+                        }`}
+                      >
+                        {statPos.bottom}x{statPos.side}px
+                      </span>
+                    )}
+                  </button>
+                </div>
+
+                {/* 2. Recent Activity Button */}
+                <div
+                  className={`fixed transition-all duration-150 ${
+                    isEditingFabMode ? 'z-[65]' : 'z-40'
+                  }`}
+                  style={{ bottom: `${recentPos.bottom}px`, left: `${recentPos.side}px` }}
+                >
+                  <button
+                    id="fab-recent-activity-btn"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (isEditingFabMode) {
+                        setSelectedFab('recentActivity');
+                        return;
+                      }
+                      closeAllPanels();
+                      setIsRecentActivityOpen((prev) => !prev);
+                    }}
+                    title={
+                      isEditingFabMode
+                        ? `Son Aktiviteler (${recentPos.bottom}px x ${recentPos.side}px)`
+                        : 'Son Aktiviteler (Kısayol: E)'
+                    }
+                    className={`relative w-8 h-8 rounded-full flex items-center justify-center transition-all duration-150 backdrop-blur-md cursor-pointer group ${
+                      isEditingFabMode
+                        ? selectedFab === 'recentActivity'
+                          ? 'bg-blue-600 text-white ring-2 ring-blue-400 ring-offset-1 ring-offset-slate-950 shadow-lg shadow-blue-500/40 opacity-100'
+                          : 'bg-slate-900/90 text-slate-300 ring-1 ring-dashed ring-blue-400/50 hover:ring-blue-400 opacity-80 hover:opacity-100 border border-white/20'
+                        : 'bg-slate-900/80 hover:bg-blue-600 text-slate-400 hover:text-white shadow-md hover:shadow-blue-600/30 hover:scale-105 active:scale-95 border border-white/10 hover:border-blue-400/40 opacity-70 hover:opacity-100'
+                    }`}
+                  >
+                    <History className="w-3.5 h-3.5 transition-transform duration-200 group-hover:scale-110" />
+
+                    {isEditingFabMode && (
+                      <span
+                        className={`absolute -top-6 left-1/2 -translate-x-1/2 px-1.5 py-0.5 rounded text-[9px] font-mono whitespace-nowrap pointer-events-none shadow-md ${
+                          selectedFab === 'recentActivity'
+                            ? 'bg-blue-600 text-white font-bold'
+                            : 'bg-slate-900/95 border border-white/20 text-slate-300'
+                        }`}
+                      >
+                        {recentPos.bottom}x{recentPos.side}px
+                      </span>
+                    )}
+                  </button>
+                </div>
+
+                {/* 3. Add Item Button */}
+                {(isEditingFabMode || activeCatId !== TRACKED_TAB_ID) && (
+                  <div
+                    className={`fixed transition-all duration-150 ${
+                      isEditingFabMode ? 'z-[65] flex' : 'hidden md:flex z-40'
+                    }`}
+                    style={{ bottom: `${addPos.bottom}px`, right: `${addPos.side}px` }}
+                  >
+                    <button
+                      id="fab-add-item-btn"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (isEditingFabMode) {
+                          setSelectedFab('addItem');
+                          return;
+                        }
+                        closeAllPanels();
+                        if (!requireFolderOnDesktop()) return;
+                        setIsAddModalOpen(true);
+                      }}
+                      title={
+                        isEditingFabMode
+                          ? `Yeni Ekle Butonunu Seç (${addPos.bottom}px x ${addPos.side}px)`
+                          : !dirHandle
+                          ? 'Klasör Bağlı Değil — Yapım eklemek için klasör bağlayın (Kısayol: W)'
+                          : 'Yeni Ekle (Kısayol: W)'
+                      }
+                      className={`relative w-11 h-11 rounded-full flex items-center justify-center transition-all duration-150 backdrop-blur-md cursor-pointer group ${
+                        isEditingFabMode
+                          ? selectedFab === 'addItem'
+                            ? 'bg-blue-600 text-white ring-2 ring-blue-400 ring-offset-1 ring-offset-slate-950 shadow-lg shadow-blue-500/40 opacity-100'
+                            : 'bg-slate-800/90 text-slate-200 ring-1 ring-dashed ring-blue-400/50 hover:ring-blue-400 opacity-80 hover:opacity-100 border border-white/20'
+                          : !dirHandle
+                          ? 'bg-amber-500/20 hover:bg-amber-500 text-amber-300 hover:text-white border border-amber-500/50 hover:border-amber-400 shadow-lg shadow-amber-500/20 hover:shadow-amber-500/40 ring-2 ring-amber-400/30 hover:scale-105 active:scale-95'
+                          : 'bg-slate-800/80 hover:bg-blue-600 text-slate-300 hover:text-white shadow-lg shadow-black/40 hover:shadow-blue-600/30 border border-white/10 hover:border-blue-400/40 hover:scale-105 active:scale-95'
+                      }`}
+                    >
+                      <Plus
+                        className={`w-5 h-5 transition-transform duration-200 group-hover:rotate-90 ${
+                          !isEditingFabMode && !dirHandle ? 'text-amber-300 group-hover:text-white' : ''
+                        }`}
+                      />
+
+                      {isEditingFabMode && (
+                        <span
+                          className={`absolute -top-6 left-1/2 -translate-x-1/2 px-1.5 py-0.5 rounded text-[9px] font-mono whitespace-nowrap pointer-events-none shadow-md ${
+                            selectedFab === 'addItem'
+                              ? 'bg-blue-600 text-white font-bold'
+                              : 'bg-slate-900/95 border border-white/20 text-slate-300'
+                          }`}
+                        >
+                          {addPos.bottom}x{addPos.side}px
+                        </span>
+                      )}
+                    </button>
+                  </div>
+                )}
+              </>
+            );
+          })()}
+        </>
+      )}
+
+      {/* Bottom Center Grouped UI Appearance & Atmosphere Bar (Persistent if enabled) */}
+      {Boolean(viewSettings.showQuickAppearanceBar) && (
             <div
               id="ui-test-experiment-bar"
               onClick={(e) => e.stopPropagation()}
@@ -1559,6 +1851,8 @@ export default function App() {
                         {openUiTestMenu === 'card' && 'Kart Görünüm & Efektleri'}
                         {openUiTestMenu === 'bg' && 'Arka Plan Zemin Dokusu'}
                         {openUiTestMenu === 'badge' && 'Rozet & Etiket Ayarları'}
+                        {openUiTestMenu === 'icon' && 'İkon Seçenekleri'}
+                        {openUiTestMenu === 'tierlist' && 'Tier List'}
                       </span>
                     </div>
                     <button
@@ -1807,77 +2101,173 @@ export default function App() {
                       </div>
                     )}
 
-                    {/* 6. İkon / Takip Rozeti options */}
+                    {/* 6. İkon Seçenekleri (Takip Rozeti & Puan İkonu) */}
                     {openUiTestMenu === 'icon' && (
-                      <div className="space-y-3 p-1">
-                        {/* Takip Modeli */}
+                      <div className="space-y-3 p-1 min-w-[260px] sm:min-w-[280px]">
+                        {/* Takip Rozeti İkonu & Renk Seçimi (Kompakt Tek Satır Blok) */}
                         <div className="space-y-1.5">
-                          <div className="text-[11px] font-semibold text-slate-300 px-1">Takip Rozeti Modeli</div>
-                          <div className="grid grid-cols-3 gap-1.5">
-                            {FOLLOW_MODELS.map((mod) => {
-                              const isSelected = (viewSettings.followIndicatorModel || 'underline-accent') === mod.id;
-                              return (
-                                <button
-                                  key={mod.id}
-                                  type="button"
-                                  onClick={() => handleSelectFollowModel(mod.id)}
-                                  className={`p-2 rounded-xl text-[11px] font-medium border text-center transition-all cursor-pointer flex flex-col items-center gap-1.5 ${
-                                    isSelected
-                                      ? 'bg-blue-600/30 text-blue-200 border-blue-500/60 shadow-sm'
-                                      : 'bg-white/5 text-slate-400 border-white/10 hover:bg-white/10 hover:text-slate-200'
-                                  }`}
-                                >
-                                  {/* Live Preview */}
-                                  <div className="flex items-center gap-1 bg-black/60 px-1.5 py-0.5 rounded-md border border-white/10 pointer-events-none">
-                                    <FollowBadge
-                                      hasFollowInfo={true}
-                                      model={mod.id}
-                                      color={viewSettings.followIndicatorColor || 'sky'}
-                                      badgeStyle={uiExperiments.badgeStyle}
-                                    />
-                                  </div>
-                                  <span className="font-semibold text-[11px]">{mod.shortLabel}</span>
-                                </button>
-                              );
-                            })}
+                          <div className="text-[11px] font-semibold text-slate-300 px-1">Takip Rozeti İkonu</div>
+                          <div className="flex items-center gap-2">
+                            {/* 3 Model Butonu - Kompakt */}
+                            <div className="grid grid-cols-3 gap-1.5 flex-1">
+                              {FOLLOW_MODELS.map((mod) => {
+                                const isSelected = (viewSettings.followIndicatorModel || 'underline-accent') === mod.id;
+                                return (
+                                  <button
+                                    key={mod.id}
+                                    type="button"
+                                    onClick={() => handleSelectFollowModel(mod.id)}
+                                    className={`py-1.5 px-1 rounded-xl text-[10px] font-medium border text-center transition-all cursor-pointer flex flex-col items-center justify-center gap-1 ${
+                                      isSelected
+                                        ? 'bg-blue-600/30 text-blue-200 border-blue-500/60 shadow-sm ring-1 ring-blue-500/30'
+                                        : 'bg-white/5 text-slate-400 border-white/10 hover:bg-white/10 hover:text-slate-200'
+                                    }`}
+                                  >
+                                    {/* Live Preview */}
+                                    <div className="flex items-center gap-0.5 bg-black/60 px-1 py-0.5 rounded border border-white/10 pointer-events-none scale-90">
+                                      <FollowBadge
+                                        hasFollowInfo={true}
+                                        model={mod.id}
+                                        color={viewSettings.followIndicatorColor || 'sky'}
+                                        badgeStyle={uiExperiments.badgeStyle}
+                                      />
+                                    </div>
+                                    <span className="font-semibold text-[10px] leading-tight">{mod.shortLabel}</span>
+                                  </button>
+                                );
+                              })}
+                            </div>
+
+                            {/* Sağda Tek Renk Butonu (Tıklanınca Açılan Popover Renk Paleti) */}
+                            <div className="relative shrink-0 flex items-center">
+                              {(() => {
+                                const activeColorObj =
+                                  FOLLOW_COLORS.find(
+                                    (c) => (viewSettings.followIndicatorColor || 'sky') === c.id
+                                  ) || FOLLOW_COLORS[0];
+                                return (
+                                  <>
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setShowFollowColorPicker((prev) => !prev);
+                                      }}
+                                      title={`Renk: ${activeColorObj.label} (Değiştirmek için tıklayın)`}
+                                      className={`h-full px-2.5 py-1.5 rounded-xl border flex flex-col items-center justify-center gap-1 transition-all cursor-pointer shadow-sm ${
+                                        showFollowColorPicker
+                                          ? 'bg-blue-600/20 border-blue-500/60 ring-1 ring-blue-500/40'
+                                          : 'bg-white/5 border-white/15 hover:bg-white/10 hover:border-white/30'
+                                      }`}
+                                    >
+                                      <div
+                                        className="w-4 h-4 rounded-full border border-white/70 shadow-sm flex items-center justify-center transition-transform hover:scale-110"
+                                        style={{ backgroundColor: activeColorObj.hex }}
+                                      />
+                                      <span className="text-[9px] font-semibold text-slate-300 leading-none">Renk</span>
+                                    </button>
+
+                                    {/* Tıklanınca Açılan Popover Renk Paleti */}
+                                    {showFollowColorPicker && (
+                                      <div
+                                        className="absolute bottom-full right-0 mb-2 p-1.5 bg-neutral-900/98 backdrop-blur-xl border border-white/20 rounded-xl shadow-2xl z-50 flex items-center gap-1.5 animate-in fade-in zoom-in-95 duration-150"
+                                        onClick={(e) => e.stopPropagation()}
+                                      >
+                                        {FOLLOW_COLORS.map((col) => {
+                                          const isSelected =
+                                            (viewSettings.followIndicatorColor || 'sky') === col.id;
+                                          return (
+                                            <button
+                                              key={col.id}
+                                              type="button"
+                                              onClick={() => {
+                                                handleSelectFollowColor(col.id);
+                                                setShowFollowColorPicker(false);
+                                              }}
+                                              title={col.label}
+                                              className={`w-6 h-6 rounded-lg flex items-center justify-center transition-all cursor-pointer border ${
+                                                isSelected
+                                                  ? 'border-white ring-2 ring-white/60 scale-110 shadow'
+                                                  : 'border-white/10 hover:border-white/40 hover:scale-105'
+                                              }`}
+                                              style={{ backgroundColor: `${col.hex}30` }}
+                                            >
+                                              <div
+                                                className="w-3 h-3 rounded-full flex items-center justify-center"
+                                                style={{ backgroundColor: col.hex }}
+                                              >
+                                                {isSelected && (
+                                                  <Check className="w-2 h-2 text-black stroke-[3.5]" />
+                                                )}
+                                              </div>
+                                            </button>
+                                          );
+                                        })}
+                                      </div>
+                                    )}
+                                  </>
+                                );
+                              })()}
+                            </div>
                           </div>
                         </div>
 
-                        {/* Vurgu Rengi */}
+                        {/* Puan İkonu (Sarı renk sabit, renk seçeneği yok) */}
                         <div className="space-y-1.5 pt-2 border-t border-white/10">
-                          <div className="flex items-center justify-between px-1">
-                            <span className="text-[11px] font-semibold text-slate-300">Vurgu Rengi</span>
-                            <span className="text-[10px] text-slate-400">
-                              {getFollowColor(viewSettings.followIndicatorColor || 'sky').label}
-                            </span>
-                          </div>
-                          <div className="grid grid-cols-6 gap-1.5">
-                            {FOLLOW_COLORS.map((col) => {
-                              const isSelected = (viewSettings.followIndicatorColor || 'sky') === col.id;
+                          <div className="text-[11px] font-semibold text-slate-300 px-1">Puan İkonu</div>
+                          <div className="grid grid-cols-5 gap-1.5">
+                            {RATING_ICON_OPTIONS.map((opt) => {
+                              const isSelected = (viewSettings.ratingIcon || 'star-2') === opt.id;
+                              const IconComponent = opt.icon;
                               return (
                                 <button
-                                  key={col.id}
+                                  key={opt.id}
                                   type="button"
-                                  onClick={() => handleSelectFollowColor(col.id)}
-                                  title={col.label}
-                                  className={`h-7 rounded-lg flex items-center justify-center transition-all cursor-pointer border ${
+                                  onClick={() => handleSelectRatingIcon(opt.id)}
+                                  title={opt.label}
+                                  className={`p-1.5 rounded-xl border flex flex-col items-center justify-center gap-1 transition-all cursor-pointer ${
                                     isSelected
-                                      ? 'border-white ring-2 ring-white/40 scale-105 shadow'
-                                      : 'border-white/10 hover:border-white/30 opacity-75 hover:opacity-100'
+                                      ? 'bg-amber-400/20 text-amber-300 border-amber-400/70 ring-1 ring-amber-400/40 shadow-sm'
+                                      : 'bg-white/5 text-slate-400 border-white/10 hover:bg-white/10 hover:text-slate-200'
                                   }`}
-                                  style={{ backgroundColor: `${col.hex}30` }}
                                 >
-                                  <div
-                                    className="w-3 h-3 rounded-full flex items-center justify-center"
-                                    style={{ backgroundColor: col.hex }}
-                                  >
-                                    {isSelected && <Check className="w-2 h-2 text-black stroke-[3]" />}
-                                  </div>
+                                  <IconComponent className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
+                                  <span className="text-[10px] font-medium leading-none truncate max-w-full">
+                                    {opt.label}
+                                  </span>
                                 </button>
                               );
                             })}
                           </div>
                         </div>
+                      </div>
+                    )}
+
+                    {/* Tier List options */}
+                    {openUiTestMenu === 'tierlist' && (
+                      <div className="space-y-1.5 p-1">
+                        {[
+                          { id: 'modern', label: 'Modern' },
+                          { id: 'classic', label: 'Klasik' },
+                        ].map((opt) => (
+                          <button
+                            key={opt.id}
+                            type="button"
+                            onClick={() =>
+                              setUiExperiments((p) => ({ ...p, tierListStyle: opt.id as any }))
+                            }
+                            className={`w-full text-left px-3 py-2 rounded-xl flex items-center justify-between transition-colors cursor-pointer ${
+                              (uiExperiments.tierListStyle || 'modern') === opt.id
+                                ? 'bg-blue-600/30 text-blue-200 border border-blue-500/40'
+                                : 'hover:bg-white/5 text-neutral-300'
+                            }`}
+                          >
+                            <span className="font-medium">{opt.label}</span>
+                            {(uiExperiments.tierListStyle || 'modern') === opt.id && (
+                              <Check className="w-3.5 h-3.5 text-blue-400 shrink-0 ml-2" />
+                            )}
+                          </button>
+                        ))}
                       </div>
                     )}
                   </div>
@@ -1966,7 +2356,7 @@ export default function App() {
                   className={`px-2 sm:px-2.5 py-1 rounded-lg font-medium transition-colors flex items-center gap-1 cursor-pointer whitespace-nowrap shrink-0 ${
                     openUiTestMenu === 'card'
                       ? 'bg-blue-600 text-white shadow border border-blue-500'
-                      : uiExperiments.cardVignette !== 'none' || uiExperiments.cardRadius !== 'normal' || uiExperiments.cardHoverMotion !== 'zoom'
+                      : uiExperiments.cardVignette !== 'none' || uiExperiments.cardRadius !== 'normal' || uiExperiments.cardHoverMotion !== 'none'
                       ? 'bg-blue-600/30 text-blue-300 border border-blue-500/40'
                       : 'bg-white/5 hover:bg-white/10 text-neutral-300 border border-transparent'
                   }`}
@@ -2039,37 +2429,48 @@ export default function App() {
                   />
                 </button>
 
-                {/* 6. İkon (Takip Rozeti & Renk) Group - Rozet'in hemen sağında */}
+                {/* 6. İkon Menüsü - Sadece "İkon", kutucuk ve model bilgisi yok */}
                 <button
                   type="button"
                   onClick={() =>
                     setOpenUiTestMenu((p) => (p === 'icon' ? null : 'icon'))
                   }
-                  className={`px-2 sm:px-2.5 py-1 rounded-lg font-medium transition-colors flex items-center gap-1 sm:gap-1.5 cursor-pointer whitespace-nowrap shrink-0 ${
+                  className={`px-2 sm:px-2.5 py-1 rounded-lg font-medium transition-colors flex items-center gap-1 cursor-pointer whitespace-nowrap shrink-0 ${
                     openUiTestMenu === 'icon'
                       ? 'bg-blue-600 text-white shadow border border-blue-500'
-                      : (viewSettings.followIndicatorModel && viewSettings.followIndicatorModel !== 'underline-accent') || (viewSettings.followIndicatorColor && viewSettings.followIndicatorColor !== 'sky')
+                      : (viewSettings.followIndicatorModel && viewSettings.followIndicatorModel !== 'underline-accent') ||
+                        (viewSettings.followIndicatorColor && viewSettings.followIndicatorColor !== 'sky') ||
+                        (viewSettings.ratingIcon && viewSettings.ratingIcon !== 'star-2')
                       ? 'bg-blue-600/30 text-blue-300 border border-blue-500/40'
                       : 'bg-white/5 hover:bg-white/10 text-neutral-300 border border-transparent'
                   }`}
                 >
-                  <span
-                    className="hidden sm:inline-block w-2 h-2 rounded-full shrink-0"
-                    style={{
-                      backgroundColor: getFollowColor(viewSettings.followIndicatorColor || 'sky').hex,
-                    }}
-                  />
-                  <span>
-                    İkon
-                    <span className="hidden sm:inline">
-                      {viewSettings.followIndicatorModel === 'status-dot' && ': Nokta'}
-                      {viewSettings.followIndicatorModel === 'color-shift' && ': Renk'}
-                      {(viewSettings.followIndicatorModel === 'underline-accent' || !viewSettings.followIndicatorModel) && ': Alt Vurgu'}
-                    </span>
-                  </span>
+                  <span>İkon</span>
                   <ChevronDown
                     className={`w-3 h-3 transition-transform ${
                       openUiTestMenu === 'icon' ? 'rotate-180' : ''
+                    }`}
+                  />
+                </button>
+
+                {/* 7. Tier List Stili */}
+                <button
+                  type="button"
+                  onClick={() =>
+                    setOpenUiTestMenu((p) => (p === 'tierlist' ? null : 'tierlist'))
+                  }
+                  className={`px-2 sm:px-2.5 py-1 rounded-lg font-medium transition-colors flex items-center gap-1 cursor-pointer whitespace-nowrap shrink-0 ${
+                    openUiTestMenu === 'tierlist'
+                      ? 'bg-blue-600 text-white shadow border border-blue-500'
+                      : uiExperiments.tierListStyle && uiExperiments.tierListStyle !== 'modern'
+                      ? 'bg-blue-600/30 text-blue-300 border border-blue-500/40'
+                      : 'bg-white/5 hover:bg-white/10 text-neutral-300 border border-transparent'
+                  }`}
+                >
+                  <span>Tier List</span>
+                  <ChevronDown
+                    className={`w-3 h-3 transition-transform ${
+                      openUiTestMenu === 'tierlist' ? 'rotate-180' : ''
                     }`}
                   />
                 </button>
@@ -2079,12 +2480,14 @@ export default function App() {
                   uiExperiments.cardGlow ||
                   uiExperiments.cardVignette !== 'none' ||
                   uiExperiments.cardRadius !== 'normal' ||
-                  uiExperiments.cardHoverMotion !== 'zoom' ||
+                  uiExperiments.cardHoverMotion !== 'none' ||
                   uiExperiments.bgAtmosphere !== 'default' ||
                   uiExperiments.badgeStyle !== 'default' ||
                   uiExperiments.badgeDensity !== 'full' ||
+                  (uiExperiments.tierListStyle && uiExperiments.tierListStyle !== 'modern') ||
                   (viewSettings.followIndicatorModel && viewSettings.followIndicatorModel !== 'underline-accent') ||
-                  (viewSettings.followIndicatorColor && viewSettings.followIndicatorColor !== 'sky')) && (
+                  (viewSettings.followIndicatorColor && viewSettings.followIndicatorColor !== 'sky') ||
+                  (viewSettings.ratingIcon && viewSettings.ratingIcon !== 'star-2')) && (
                   <button
                     type="button"
                     onClick={() => {
@@ -2100,16 +2503,19 @@ export default function App() {
                             cardGlow: false,
                             cardVignette: 'none',
                             cardRadius: 'normal',
-                            cardHoverMotion: 'zoom',
+                            cardHoverMotion: 'none',
                             bgAtmosphere: 'default',
                             badgeStyle: 'default',
                             badgeDensity: 'full',
+                            tierListStyle: 'modern',
                             followIndicatorModel: 'underline-accent',
                             followIndicatorColor: 'sky',
                             followIndicatorIcon: 'megaphone',
+                            ratingIcon: 'star-2',
                           });
                           handleSelectFollowModel('underline-accent');
                           handleSelectFollowColor('sky');
+                          handleSelectRatingIcon('star-2');
                           setOpenUiTestMenu(null);
                         },
                       });
@@ -2137,8 +2543,6 @@ export default function App() {
               </div>
             </div>
           )}
-        </>
-      )}
 
       {/* --- Modals --- */}
 
@@ -2174,6 +2578,8 @@ export default function App() {
           activeMainTab={mainTab}
           dirHandle={dirHandle}
           viewSettings={viewSettings}
+          initialTab={settingsInitialTab}
+          highlightConnectFolder={highlightConnectFolder}
           searchQuery={searchQuery}
           onSearchTag={(tag, tagMainTab) => {
             if (tagMainTab && tagMainTab !== mainTab) {
@@ -2192,6 +2598,12 @@ export default function App() {
             }
             setViewSettings((prev) => ({ ...prev, ...newSet }));
           }}
+          onStartFabPositionEdit={() => {
+            setIsSettingsOpen(false);
+            setTempFabPositions(normalizeFabPositions(viewSettings.fabPositions));
+            setSelectedFab(null);
+            setIsEditingFabMode(true);
+          }}
           uiExperiments={uiExperiments}
           onUpdateUiExperiments={setUiExperiments}
           onConnectFolder={handleConnectFolder}
@@ -2201,12 +2613,17 @@ export default function App() {
             setAppData((prev) => ({ ...prev, items: newItems }));
           }}
           onSelectItem={(item) => {
+            if (!requireFolderOnDesktop()) return;
             setSelectedItem(item);
           }}
           onReplaceAllData={(newData) => {
             setAppData(newData);
           }}
-          onClose={() => setIsSettingsOpen(false)}
+          onClose={() => {
+            setIsSettingsOpen(false);
+            setHighlightConnectFolder(false);
+            setSettingsInitialTab(undefined);
+          }}
         />
       )}
 
@@ -2220,11 +2637,42 @@ export default function App() {
         />
       )}
 
-      {/* 5. Image Large Preview Lightbox Modal (Triggered by 'F' key) */}
+      {/* 4.5. Recent Activity Modal */}
+      {isRecentActivityOpen && (
+        <RecentActivityModal
+          isOpen={isRecentActivityOpen}
+          items={appData.items}
+          categories={appData.categories}
+          onSelectItem={(item) => {
+            // Son aktivitelerde karta tıklandığında düzenleme yerine kart detay penceresi açılır
+            setPreviewItem(item);
+          }}
+          onNavigateToCategory={(targetTab, catId, sub) => {
+            setIsRecentActivityOpen(false);
+            setMainTab(targetTab);
+            setActiveCatId(catId);
+            setActiveSub(sub);
+            setViewMode('grid');
+          }}
+          onClose={() => setIsRecentActivityOpen(false)}
+        />
+      )}
+
+      {/* 5. Image Large Preview Lightbox Modal */}
       {previewItem && (
         <ImagePreviewModal
           item={previewItem}
+          categories={currentCategories}
+          allItems={appData.items}
+          allCategories={[...appData.categories.media, ...appData.categories.game]}
+          viewSettings={viewSettings}
           onClose={() => setPreviewItem(null)}
+          onSelectItem={(newItem) => setPreviewItem(newItem)}
+          onEdit={(itemToEdit) => {
+            if (!requireFolderOnDesktop()) return;
+            setPreviewItem(null);
+            setSelectedItem(itemToEdit);
+          }}
         />
       )}
 
@@ -2245,6 +2693,88 @@ export default function App() {
         <CustomDialog
           options={dialogOptions}
           onClose={() => setDialogOptions(null)}
+        />
+      )}
+
+      {/* 8. Live FAB Position Edit Overlay */}
+      {isEditingFabMode && (
+        <FabPositionEditOverlay
+          isOpen={isEditingFabMode}
+          positions={tempFabPositions}
+          selectedFab={selectedFab}
+          onSelectFab={(fab) => setSelectedFab(fab)}
+          onChangeCoord={(id, axis, value) => {
+            setTempFabPositions((prev) => ({
+              ...prev,
+              [id]: {
+                ...(prev[id] || DEFAULT_FAB_POSITIONS[id]),
+                [axis]: value,
+              },
+            }));
+          }}
+          onApplyPreset={(newPositions) => {
+            setTempFabPositions(newPositions);
+          }}
+          profiles={
+            viewSettings.fabProfiles && viewSettings.fabProfiles.length > 0
+              ? viewSettings.fabProfiles
+              : DEFAULT_FAB_PROFILES
+          }
+          onSaveProfile={(name) => {
+            const currentPositions = normalizeFabPositions(tempFabPositions);
+            const existing =
+              viewSettings.fabProfiles && viewSettings.fabProfiles.length > 0
+                ? viewSettings.fabProfiles
+                : DEFAULT_FAB_PROFILES;
+            if (existing.some((p) => areFabPositionsEqual(p.positions, currentPositions))) {
+              return;
+            }
+            const newProfile: FabPositionProfile = {
+              id: 'fab_prof_' + Date.now(),
+              name,
+              positions: { ...currentPositions },
+              createdAt: Date.now(),
+            };
+            setViewSettings((prev) => ({
+              ...prev,
+              fabProfiles: [...existing, newProfile],
+            }));
+          }}
+          onRenameProfile={(id, newName) => {
+            const existing =
+              viewSettings.fabProfiles && viewSettings.fabProfiles.length > 0
+                ? viewSettings.fabProfiles
+                : DEFAULT_FAB_PROFILES;
+            const updated = existing.map((p) =>
+              p.id === id ? { ...p, name: newName } : p
+            );
+            setViewSettings((prev) => ({
+              ...prev,
+              fabProfiles: updated,
+            }));
+          }}
+          onDeleteProfile={(id) => {
+            const existing =
+              viewSettings.fabProfiles && viewSettings.fabProfiles.length > 0
+                ? viewSettings.fabProfiles
+                : DEFAULT_FAB_PROFILES;
+            const filtered = existing.filter((p) => p.id !== id);
+            setViewSettings((prev) => ({
+              ...prev,
+              fabProfiles: filtered,
+            }));
+          }}
+          onSave={() => {
+            setViewSettings((prev) => ({
+              ...prev,
+              fabPositions: tempFabPositions,
+            }));
+            setIsEditingFabMode(false);
+          }}
+          onCancel={() => {
+            setTempFabPositions(normalizeFabPositions(viewSettings.fabPositions));
+            setIsEditingFabMode(false);
+          }}
         />
       )}
     </div>

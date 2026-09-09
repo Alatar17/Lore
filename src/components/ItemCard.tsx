@@ -1,15 +1,17 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { ArchiveItem, ViewSettings, UiExperimentsState } from '../types';
 import { MEDIA_COLORS, GAME_COLORS } from '../data/initialData';
-import { Tv, Star, Brain, Check, Calendar, X, BookmarkCheck } from 'lucide-react';
-import { FollowBadge, getFollowColor } from './FollowIndicatorIcon';
+import { Tv, Star, Brain, Check, Calendar, X, BookmarkCheck, PauseCircle } from 'lucide-react';
+import { FollowBadge, getFollowColor, RatingBadgeIcon } from './FollowIndicatorIcon';
 
 interface ItemCardProps {
   item: ArchiveItem;
   viewSettings: ViewSettings;
   uiExperiments?: UiExperimentsState;
-  onClick: () => void;
+  onClick?: () => void;
+  onPreview?: () => void;
+  onEdit?: () => void;
   onMouseEnter?: () => void;
   onMouseLeave?: () => void;
   isSelectionMode?: boolean;
@@ -22,6 +24,8 @@ export const ItemCard: React.FC<ItemCardProps> = ({
   viewSettings,
   uiExperiments,
   onClick,
+  onPreview,
+  onEdit,
   onMouseEnter,
   onMouseLeave,
   isSelectionMode,
@@ -64,11 +68,12 @@ export const ItemCard: React.FC<ItemCardProps> = ({
   const showAnki = Boolean(viewSettings.showAnki) && Boolean(item.anki);
   const showWatching = viewSettings.showWatching !== false && !isGame && item.watching;
   const showFollowing = viewSettings.showFollowing !== false && !isGame && item.following;
+  const showDropped = !isGame && Boolean(item.dropped);
   const showGameStatus = viewSettings.showGameStatus !== false && isGame;
 
   const cardVignette = uiExperiments?.cardVignette || 'none';
   const cardRadius = uiExperiments?.cardRadius || 'normal';
-  const cardHoverMotion = uiExperiments?.cardHoverMotion || 'lift';
+  const cardHoverMotion = uiExperiments?.cardHoverMotion || 'none';
   const badgeStyle = uiExperiments?.badgeStyle || 'default';
   const badgeDensity = uiExperiments?.badgeDensity || 'full';
 
@@ -76,8 +81,14 @@ export const ItemCard: React.FC<ItemCardProps> = ({
     if (isSelectionMode) {
       e.stopPropagation();
       onToggleSelect?.();
+      return;
+    }
+
+    // Karta tıklandığında (single click) her zaman gecikmesiz kart detay penceresi açılır
+    if (onPreview) {
+      onPreview();
     } else {
-      onClick();
+      onClick?.();
     }
   };
 
@@ -210,7 +221,32 @@ export const ItemCard: React.FC<ItemCardProps> = ({
         {showRating && item.rating > 0 && (
           <div
             id={`badge-rating-${item.id}`}
-            className={`absolute top-1.5 right-1.5 px-1.5 py-0.5 rounded-md ${
+            title="Düzenle"
+            onClick={(e) => {
+              if (isSelectionMode) return;
+              e.stopPropagation();
+
+              const isTouchOrMobile =
+                typeof window !== 'undefined' &&
+                (window.innerWidth < 768 ||
+                  'ontouchstart' in window ||
+                  (navigator.maxTouchPoints && navigator.maxTouchPoints > 0));
+
+              // Mobilde (dokunmatik ekranlarda) yıldıza basılsa dahi düzenleme penceresi kesinlikle açılmayacak (engellenecek), mobilde sadece detay penceresi çalışacak
+              if (isTouchOrMobile) {
+                if (onPreview) onPreview();
+                else onClick?.();
+                return;
+              }
+
+              // Masaüstünde yıldıza basıldığında düzenleme formu açılır
+              if (onEdit) {
+                onEdit();
+              } else {
+                onClick?.();
+              }
+            }}
+            className={`absolute top-1.5 right-1.5 px-1.5 py-0.5 rounded-md cursor-pointer ${
               badgeStyle === 'neon'
                 ? 'bg-black/95 sm:bg-black/90 sm:backdrop-blur-md border border-amber-400 shadow-[0_0_8px_rgba(251,191,36,0.6)] text-amber-300'
                 : badgeStyle === 'minimal'
@@ -218,13 +254,16 @@ export const ItemCard: React.FC<ItemCardProps> = ({
                 : 'bg-black/60 sm:bg-black/85 border-transparent sm:border sm:border-amber-500/30 text-amber-400 sm:backdrop-blur-md'
             } text-[11px] font-bold flex items-center gap-0.5 shadow-md z-20 ${isBadgeVisible('rating')}`}
           >
-            <Star className="w-2.5 h-2.5 fill-amber-400" />
+            <RatingBadgeIcon
+              type={viewSettings.ratingIcon || uiExperiments?.ratingIcon}
+              className="w-2.5 h-2.5 fill-amber-400 text-amber-400 shrink-0"
+            />
             <span>{item.rating}</span>
           </div>
         )}
 
-        {/* Media Badges (Bottom Left: Watching Tv / Following Bookmark) */}
-        {!isGame && (showWatching || showFollowing) && (
+        {/* Media Badges (Bottom Left: Watching Tv / Following Bookmark / Dropped PauseCircle) */}
+        {!isGame && (showWatching || showFollowing || showDropped) && (
           <div className={`absolute bottom-1.5 left-1.5 flex items-center gap-1 z-20 ${isBadgeVisible('status')}`}>
             {showWatching && (
               <span
@@ -259,61 +298,72 @@ export const ItemCard: React.FC<ItemCardProps> = ({
                 />
               );
             })()}
+            {showDropped && (
+              <span
+                id={`badge-dropped-${item.id}`}
+                title="Yarım Bırakıldı"
+                className={`p-1 rounded-md text-rose-400 shadow-md flex items-center justify-center ${
+                  badgeStyle === 'neon'
+                    ? 'bg-black/95 sm:bg-black/90 sm:backdrop-blur-md border border-rose-400 shadow-[0_0_8px_rgba(244,63,94,0.5)]'
+                    : badgeStyle === 'minimal'
+                    ? 'bg-black/60 sm:bg-black/40 sm:backdrop-blur-sm border-transparent'
+                    : 'bg-black/60 sm:bg-black/90 border-transparent sm:border sm:border-rose-500/50 sm:backdrop-blur-md'
+                }`}
+              >
+                <PauseCircle className="w-3 h-3" />
+              </span>
+            )}
           </div>
         )}
 
-        {/* Anki Badge (Bottom Right if media, or beside achievement on game) */}
-        {showAnki && (
-          <span
-            id={`badge-anki-${item.id}`}
-            title="Anki destesine eklendi"
-            className={`absolute bottom-1.5 ${isGame && showGameStatus && item.achPercent !== null && item.achPercent !== undefined ? 'right-12' : 'right-1.5'} p-1 rounded-md text-emerald-400 shadow-md z-20 flex items-center justify-center ${
-              badgeStyle === 'neon'
-                ? 'bg-black/95 sm:bg-black/90 sm:backdrop-blur-md border border-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.5)]'
-                : badgeStyle === 'minimal'
-                ? 'bg-black/60 sm:bg-black/40 sm:backdrop-blur-sm border-transparent'
-                : 'bg-black/60 sm:bg-black/90 border-transparent sm:border sm:border-emerald-500/50 sm:backdrop-blur-md'
-            } ${isBadgeVisible('status')}`}
-          >
-            <Brain className="w-3 h-3" />
-          </span>
+        {/* Bottom-Right Badges: Anki (Left) and Achievement % (Right) */}
+        {(showAnki || (isGame && showGameStatus && item.achPercent !== null && item.achPercent !== undefined && item.achPercent > 0)) && (
+          <div className={`absolute bottom-1.5 right-1.5 flex items-center gap-1 z-20 ${isBadgeVisible('status')}`}>
+            {showAnki && (
+              <span
+                id={`badge-anki-${item.id}`}
+                title="Anki destesine eklendi"
+                className={`p-1 rounded-md text-emerald-400 shadow-md flex items-center justify-center ${
+                  badgeStyle === 'neon'
+                    ? 'bg-black/95 sm:bg-black/90 sm:backdrop-blur-md border border-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.5)]'
+                    : badgeStyle === 'minimal'
+                    ? 'bg-black/60 sm:bg-black/40 sm:backdrop-blur-sm border-transparent'
+                    : 'bg-black/60 sm:bg-black/90 border-transparent sm:border sm:border-emerald-500/50 sm:backdrop-blur-md'
+                }`}
+              >
+                <Brain className="w-3 h-3" />
+              </span>
+            )}
+
+            {isGame && showGameStatus && item.achPercent !== null && item.achPercent !== undefined && item.achPercent > 0 && (
+              <span
+                id={`badge-ach-${item.id}`}
+                title="Başarım tamamlanma yüzdesi"
+                className={`px-1.5 py-0.5 rounded-md text-[10px] font-semibold text-emerald-400 shadow-md ${
+                  badgeStyle === 'neon'
+                    ? 'bg-black/95 sm:bg-black/90 sm:backdrop-blur-md border border-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.5)]'
+                    : badgeStyle === 'minimal'
+                    ? 'bg-black/60 sm:bg-black/40 sm:backdrop-blur-sm border-transparent'
+                    : 'bg-black/60 sm:bg-black/90 border-transparent sm:border sm:border-emerald-500/40 sm:backdrop-blur-md'
+                }`}
+              >
+                %{item.achPercent}
+              </span>
+            )}
+          </div>
         )}
 
-        {/* Game Badges: Hours on Left, Achievement % on Right */}
-        {isGame && showGameStatus && (
-          <>
-            {/* Hours (Bottom-Left) */}
-            {item.hours !== undefined && item.hours > 0 && (
-              <div className={`absolute bottom-1.5 left-1.5 flex items-center gap-1 z-20 ${isBadgeVisible('status')}`}>
-                <span
-                  id={`badge-hours-${item.id}`}
-                  title="Oynanma süresi"
-                  className={`px-1.5 py-0.5 rounded-md text-[10px] font-semibold text-neutral-300 shadow-md ${getBadgeBaseClasses()}`}
-                >
-                  {item.hours}s
-                </span>
-              </div>
-            )}
-
-            {/* Achievement % (Bottom-Right) */}
-            {item.achPercent !== null && item.achPercent !== undefined && (
-              <div className={`absolute bottom-1.5 right-1.5 flex items-center gap-1 z-20 ${isBadgeVisible('status')}`}>
-                <span
-                  id={`badge-ach-${item.id}`}
-                  title="Başarım tamamlanma yüzdesi"
-                  className={`px-1.5 py-0.5 rounded-md text-[10px] font-semibold text-emerald-400 shadow-md ${
-                    badgeStyle === 'neon'
-                      ? 'bg-black/95 sm:bg-black/90 sm:backdrop-blur-md border border-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.5)]'
-                      : badgeStyle === 'minimal'
-                      ? 'bg-black/60 sm:bg-black/40 sm:backdrop-blur-sm border-transparent'
-                      : 'bg-black/60 sm:bg-black/90 border-transparent sm:border sm:border-emerald-500/40 sm:backdrop-blur-md'
-                  }`}
-                >
-                  %{item.achPercent}
-                </span>
-              </div>
-            )}
-          </>
+        {/* Game Badges: Hours on Left */}
+        {isGame && showGameStatus && item.hours !== undefined && item.hours > 0 && (
+          <div className={`absolute bottom-1.5 left-1.5 flex items-center gap-1 z-20 ${isBadgeVisible('status')}`}>
+            <span
+              id={`badge-hours-${item.id}`}
+              title="Oynanma süresi"
+              className={`px-1.5 py-0.5 rounded-md text-[10px] font-semibold text-neutral-300 shadow-md ${getBadgeBaseClasses()}`}
+            >
+              {item.hours}s
+            </span>
+          </div>
         )}
       </div>
 

@@ -1,13 +1,15 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
-import { ArchiveItem, Category, GameStatus } from '../types';
+import { ArchiveItem, Category, GameStatus, ItemCharacter } from '../types';
 import { MEDIA_COLORS, GAME_COLORS } from '../data/initialData';
 import { optimizeImageFile } from '../utils/imageOptimizer';
 import { TagInputBox } from './TagInputBox';
 import { getFieldScopedTags, getFieldScopedTagCounts } from '../utils/tagUtils';
+import { CustomDialog, DialogOptions } from './CustomDialog';
 import {
   X,
   Upload,
   Calendar,
+  CalendarRange,
   Star,
   Clock,
   Trophy,
@@ -25,6 +27,10 @@ import {
   Save,
   PauseCircle,
   Megaphone,
+  Plus,
+  Image as ImageIcon,
+  Layers,
+  Info,
 } from 'lucide-react';
 
 interface ItemDetailModalProps {
@@ -63,7 +69,74 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
   });
   const [pasteNotice, setPasteNotice] = useState<string | null>(null);
   const [showFollowDetails, setShowFollowDetails] = useState(false);
+  const [showFranchiseTooltip, setShowFranchiseTooltip] = useState(false);
+  const [deleteConfirmDialog, setDeleteConfirmDialog] = useState<DialogOptions | null>(null);
+
+  // Takip kutularında (Beklenen Dönem veya Gelişme Notu) veri olup olmadığını kontrol eder
+  const hasFollowData = !!(
+    (formData.expectedDate && formData.expectedDate.trim().length > 0) ||
+    (formData.followNotes && formData.followNotes.trim().length > 0)
+  );
+
+  // Hatırlanan son izlenme/tamamlanma tarihi (İzleniyor/Oynanıyor seçilip kaldırıldığında tarihi kaybetmemek için)
+  const [rememberedDate, setRememberedDate] = useState<string>(() => {
+    if (item.lastCompletedDate) return item.lastCompletedDate;
+    if (item.date && item.date !== '??' && item.date !== '??.??') return item.date;
+    return '';
+  });
+
+  // Release Year Range / Single Mode State
+  const initialYearStr = formData.releaseYear ? String(formData.releaseYear) : '';
+  const isInitialRange = initialYearStr.includes('-') || initialYearStr.includes('—') || initialYearStr.includes('–');
+  const [isYearRange, setIsYearRange] = useState(isInitialRange);
+  const [startYear, setStartYear] = useState(() => {
+    if (isInitialRange) {
+      const parts = initialYearStr.split(/[-—–]/);
+      return parts[0]?.trim() || '';
+    }
+    return initialYearStr;
+  });
+  const [endYear, setEndYear] = useState(() => {
+    if (isInitialRange) {
+      const parts = initialYearStr.split(/[-—–]/);
+      return parts[1]?.trim() || '';
+    }
+    return '';
+  });
+
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Sync formData when item prop changes (e.g. user selected another item)
+  useEffect(() => {
+    setFormData({ ...item });
+    if (item.lastCompletedDate) {
+      setRememberedDate(item.lastCompletedDate);
+    } else if (item.date && item.date !== '??' && item.date !== '??.??') {
+      setRememberedDate(item.date);
+    }
+    const yearStr = item.releaseYear ? String(item.releaseYear) : '';
+    const isRange = yearStr.includes('-') || yearStr.includes('—') || yearStr.includes('–');
+    setIsYearRange(isRange);
+    if (isRange) {
+      const parts = yearStr.split(/[-—–]/);
+      setStartYear(parts[0]?.trim() || '');
+      setEndYear(parts[1]?.trim() || '');
+    } else {
+      setStartYear(yearStr);
+      setEndYear('');
+    }
+  }, [item]);
+
+  // Series name suggestions for autocomplete
+  const availableSeriesNames = useMemo(() => {
+    const set = new Set<string>();
+    allItems.forEach((i) => {
+      if (i.seriesName && i.seriesName.trim()) {
+        set.add(i.seriesName.trim());
+      }
+    });
+    return Array.from(set).sort((a, b) => a.localeCompare(b, 'tr'));
+  }, [allItems]);
 
   // Auto-sync category if categories list updates or current cat becomes invalid
   useEffect(() => {
@@ -135,6 +208,119 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
     () => getFieldScopedTagCounts(allItems, 'game', 'genre'),
     [allItems]
   );
+
+  // Aggregated actor suggestions from actors tags and existing characters
+  const allActorSuggestions = useMemo(() => {
+    const set = new Set<string>();
+    availableActorsTags.forEach((a) => {
+      if (a && a.trim()) set.add(a.trim());
+    });
+    allItems.forEach((it) => {
+      it.characters?.forEach((c) => {
+        if (c.actor && c.actor.trim()) set.add(c.actor.trim());
+      });
+      it.actors?.forEach((a) => {
+        if (a && a.trim()) set.add(a.trim());
+      });
+    });
+    formData.actors?.forEach((a) => {
+      if (a && a.trim()) set.add(a.trim());
+    });
+    return Array.from(set).sort((a, b) => a.localeCompare(b, 'tr'));
+  }, [availableActorsTags, allItems, formData.actors]);
+
+  const handleAddCharacter = () => {
+    setFormData((prev) => ({
+      ...prev,
+      characters: [...(prev.characters || []), { name: '', actor: '' }],
+    }));
+  };
+
+  const handleUpdateCharacter = (
+    index: number,
+    field: 'name' | 'actor' | 'image',
+    value?: string
+  ) => {
+    setFormData((prev) => {
+      const updated = [...(prev.characters || [])];
+      updated[index] = { ...updated[index], [field]: value };
+      return { ...prev, characters: updated };
+    });
+  };
+
+  const handlePasteCharacterImage = async (index: number) => {
+    try {
+      if (!navigator.clipboard || !navigator.clipboard.read) {
+        setPasteNotice('Lütfen klavyeden Ctrl+V tuşlarına basarak yapıştırın.');
+        setTimeout(() => setPasteNotice(null), 3000);
+        return;
+      }
+      const items = await navigator.clipboard.read();
+      let foundImage = false;
+      for (const clipboardItem of items) {
+        for (const type of clipboardItem.types) {
+          if (type.startsWith('image/')) {
+            const blob = await clipboardItem.getType(type);
+            const optimized = await optimizeImageFile(blob, 1200, 1600, 0.95);
+            handleUpdateCharacter(index, 'image', optimized);
+            foundImage = true;
+            break;
+          }
+        }
+        if (foundImage) break;
+      }
+      if (!foundImage) {
+        setPasteNotice('Panoda kopyalanmış görsel bulunamadı.');
+        setTimeout(() => setPasteNotice(null), 2500);
+      }
+    } catch (err) {
+      console.warn('Pano okuma hatası:', err);
+      setPasteNotice('Panodan okuma başarısız veya izin verilmedi.');
+      setTimeout(() => setPasteNotice(null), 2500);
+    }
+  };
+
+  const handleRemoveCharacter = (index: number) => {
+    setFormData((prev) => {
+      const updated = (prev.characters || []).filter((_, i) => i !== index);
+      return { ...prev, characters: updated };
+    });
+  };
+
+  // Mutually exclusive toggle for media statuses (watching, following, dropped)
+  const handleMediaStatusToggle = (type: 'watching' | 'following' | 'dropped') => {
+    setFormData((prev) => {
+      const isCurrentlyActive = !!prev[type];
+      if (isCurrentlyActive) {
+        // Durum kaldırılıyor (örn: İzleniyor kaldırıldı) -> Eski tarihi hatırla ve geri yükle!
+        const restoredDate = prev.date || rememberedDate || '';
+        return {
+          ...prev,
+          [type]: false,
+          date: restoredDate,
+        };
+      } else {
+        if (type === 'following') {
+          setShowFollowDetails(true);
+        }
+        // Eğer izleniyor veya takip seçiliyorsa geçerli tarihi hafızaya al
+        if (prev.date && prev.date !== '??' && prev.date !== '??.??') {
+          setRememberedDate(prev.date);
+        }
+        return {
+          ...prev,
+          watching: type === 'watching',
+          following: type === 'following',
+          dropped: type === 'dropped',
+          date: prev.date || rememberedDate || '',
+        };
+      }
+    });
+  };
+
+  const isDateDisabled = isGame
+    ? (formData.status === 'Oynanıyor' || formData.status === 'Oynanacak')
+    : (!!formData.watching || !!formData.following);
 
   const applyImageBase64 = async (rawInput: File | Blob | string, name?: string) => {
     try {
@@ -218,17 +404,7 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
     };
   }, []);
 
-  // Close with Escape key
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        e.stopPropagation();
-        onClose();
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [onClose]);
+  // Not: Kullanıcının girdiği verilerin kaza eseri silinmemesi için Escape tuşu ile pencereyi kapatma kaldırılmıştır.
 
   const handleRemoveImage = () => {
     setFormData((prev) => ({ ...prev, thumbnail: undefined, thumbnailFileName: undefined }));
@@ -245,24 +421,80 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
       window.alert('Başlık boş bırakılamaz.');
       return;
     }
+
+    const cleanedCharacters = (formData.characters || [])
+      .map((c) => ({
+        name: c.name.trim(),
+        actor: c.actor?.trim() || undefined,
+        image: c.image || undefined,
+      }))
+      .filter((c) => c.name.length > 0);
+
+    let computedReleaseYear: number | string | undefined = undefined;
+    if (isYearRange) {
+      const s = startYear.trim();
+      const e = endYear.trim();
+      if (s && e) {
+        computedReleaseYear = `${s}–${e}`;
+      } else if (s) {
+        computedReleaseYear = `${s}–`;
+      } else if (e) {
+        computedReleaseYear = e;
+      }
+    } else {
+      const s = startYear.trim();
+      if (s) {
+        computedReleaseYear = !isNaN(Number(s)) ? Number(s) : s;
+      }
+    }
+
+    const trimmedSeries = formData.seriesName?.trim() || undefined;
+    const cleanSeriesOrder =
+      formData.seriesOrder !== undefined && !isNaN(Number(formData.seriesOrder))
+        ? Number(formData.seriesOrder)
+        : undefined;
+
+    const finalLastCompleted =
+      rememberedDate ||
+      (formData.date && formData.date !== '??' && formData.date !== '??.??'
+        ? formData.date
+        : item.lastCompletedDate);
+
     onSave({
       ...formData,
+      date: isDateDisabled ? '' : (formData.date || '??'),
+      lastCompletedDate: finalLastCompleted,
+      characters: cleanedCharacters,
+      releaseYear: computedReleaseYear,
+      seriesName: trimmedSeries,
+      seriesOrder: cleanSeriesOrder,
       updatedAt: Date.now(),
     });
   };
 
   const handleDelete = () => {
-    if (window.confirm(`"${formData.title}" arşivden silinecek. Emin misiniz?`)) {
-      onDelete(formData.id);
-      onClose();
-    }
+    setDeleteConfirmDialog({
+      type: 'confirm',
+      title: 'Yapımı Sil',
+      message: `"${formData.title}" arşivden kalıcı olarak silinecek. Emin misiniz? Bu işlem geri alınamaz.`,
+      confirmText: 'Evet, Sil',
+      cancelText: 'Vazgeç',
+      isDestructive: true,
+      onConfirm: () => {
+        setDeleteConfirmDialog(null);
+        onDelete(formData.id);
+        onClose();
+      },
+      onCancel: () => {
+        setDeleteConfirmDialog(null);
+      },
+    });
   };
 
   return (
     <div
       id="detail-modal-overlay"
       className="fixed inset-0 z-60 bg-black/80 backdrop-blur-xs flex items-center justify-center p-3 sm:p-5 overflow-y-auto"
-      onClick={onClose}
     >
       <div
         id="detail-modal-box"
@@ -440,7 +672,7 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
                       onChange={(e) => handleChange('sub', e.target.value || null)}
                       className="w-full bg-black/30 text-slate-200 border border-white/10 rounded-xl px-2.5 py-1.5 text-xs focus:outline-none focus:border-blue-500 cursor-pointer"
                     >
-                      <option value="" className="bg-slate-900 text-white">Yok / Genel</option>
+                      <option value="" className="bg-slate-900 text-white">Yok</option>
                       {selectedCatObj.subgroups.map((s) => (
                         <option key={s} value={s} className="bg-slate-900 text-white">
                           {s}
@@ -451,17 +683,20 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
                 )}
               </div>
 
-              {/* Rating & Date */}
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label className="block text-[10px] uppercase tracking-wider text-slate-400 font-semibold mb-0.5 flex items-center gap-1">
-                    <Star className="w-3 h-3 text-amber-400 fill-amber-400" /> Puan (1-10)
-                  </label>
+              {/* Rating, Release Year & Date */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 items-start min-w-0">
+                <div className="min-w-0">
+                  <div className="flex items-center gap-1 h-5 mb-1">
+                    <label className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold flex items-center gap-1 truncate">
+                      <Star className="w-3 h-3 text-amber-400 fill-amber-400 shrink-0" />
+                      <span>Puan (1-10)</span>
+                    </label>
+                  </div>
                   <select
                     id="detail-rating-select"
                     value={formData.rating}
                     onChange={(e) => handleChange('rating', Number(e.target.value))}
-                    className="w-full bg-black/30 text-amber-300 font-bold border border-white/10 rounded-xl px-2.5 py-1.5 text-xs focus:outline-none focus:border-blue-500 cursor-pointer"
+                    className="w-full h-8 bg-black/30 text-amber-300 font-bold border border-white/10 rounded-xl px-2.5 text-xs focus:outline-none focus:border-blue-500 cursor-pointer"
                   >
                     {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((num) => (
                       <option key={num} value={num} className="bg-slate-900 text-amber-300">
@@ -471,31 +706,122 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
                   </select>
                 </div>
 
-                <div>
-                  <label className="block text-[10px] uppercase tracking-wider text-slate-400 font-semibold mb-0.5 flex items-center gap-1">
-                    <Calendar className="w-3 h-3 text-neutral-400" /> Tarih
-                  </label>
-                  <div className="flex items-center gap-1">
+                <div className="min-w-0">
+                  <div className="flex items-center gap-1.5 h-5 mb-1">
+                    <label className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold flex items-center gap-1 truncate">
+                      <Calendar className="w-3 h-3 text-neutral-400 shrink-0" />
+                      <span>Yapım Yılı</span>
+                    </label>
+                    <button
+                      type="button"
+                      id="toggle-release-year-range-btn"
+                      onClick={() => {
+                        const next = !isYearRange;
+                        setIsYearRange(next);
+                        if (!next && !startYear && endYear) {
+                          setStartYear(endYear);
+                          setEndYear('');
+                        }
+                      }}
+                      title={isYearRange ? 'Tek Yıl Moduna Dön' : 'Yıl Aralığı Modu'}
+                      className={`p-0.5 rounded transition-colors cursor-pointer flex items-center justify-center ${
+                        isYearRange
+                          ? 'bg-blue-500/25 text-blue-400 border border-blue-500/40'
+                          : 'text-blue-400 hover:text-blue-300 hover:bg-blue-500/10'
+                      }`}
+                    >
+                      <CalendarRange className="w-3.5 h-3.5 text-blue-400" />
+                    </button>
+                  </div>
+
+                  {!isYearRange ? (
+                    <input
+                      id="detail-release-year-input"
+                      type="text"
+                      inputMode="numeric"
+                      placeholder="Örn: 2024"
+                      value={startYear}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setStartYear(val);
+                        const s = val.trim();
+                        handleChange('releaseYear', s ? (!isNaN(Number(s)) ? Number(s) : s) : undefined);
+                      }}
+                      className="w-full h-8 bg-black/30 text-slate-200 font-medium border border-white/10 rounded-xl px-2.5 text-xs focus:outline-none focus:border-blue-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                    />
+                  ) : (
+                    <div className="flex items-center gap-1 min-w-0">
+                      <input
+                        id="detail-release-year-start"
+                        type="text"
+                        inputMode="numeric"
+                        placeholder="Başlangıç"
+                        value={startYear}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setStartYear(val);
+                          const s = val.trim();
+                          const eVal = endYear.trim();
+                          const combined = s ? (eVal ? `${s}–${eVal}` : `${s}–`) : (eVal ? `–${eVal}` : undefined);
+                          handleChange('releaseYear', combined);
+                        }}
+                        className="w-full min-w-0 h-8 bg-black/30 text-slate-200 font-medium border border-white/10 rounded-xl px-1.5 text-xs text-center focus:outline-none focus:border-blue-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                      />
+                      <span className="text-slate-500 font-bold text-xs shrink-0">—</span>
+                      <input
+                        id="detail-release-year-end"
+                        type="text"
+                        placeholder="Bitiş"
+                        value={endYear}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setEndYear(val);
+                          const s = startYear.trim();
+                          const eVal = val.trim();
+                          const combined = s ? (eVal ? `${s}–${eVal}` : `${s}–`) : (eVal ? `–${eVal}` : undefined);
+                          handleChange('releaseYear', combined);
+                        }}
+                        className="w-full min-w-0 h-8 bg-black/30 text-slate-200 font-medium border border-white/10 rounded-xl px-1.5 text-xs text-center focus:outline-none focus:border-blue-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                      />
+                    </div>
+                  )}
+                </div>
+
+                <div className="min-w-0">
+                  <div className="flex items-center gap-1 h-5 mb-1">
+                    <label className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold flex items-center gap-1 truncate">
+                      <Calendar className="w-3 h-3 text-neutral-400 shrink-0" />
+                      <span>{isGame ? 'Tamamlama Tarihi' : 'İzlenme Tarihi'}</span>
+                    </label>
+                  </div>
+                  <div className="flex items-center gap-1 min-w-0">
                     {formData.date === '??' || formData.date === '??.??' ? (
                       <div
-                        className={`flex-1 rounded-xl px-2.5 py-1.5 text-xs font-semibold flex items-center justify-between transition-opacity ${
-                          isGame && formData.status === 'Oynanıyor'
-                            ? 'bg-amber-500/5 text-amber-300/40 border border-amber-500/15 opacity-40 pointer-events-none'
+                        className={`flex-1 min-w-0 h-8 rounded-xl px-2.5 text-xs font-semibold flex items-center justify-between transition-opacity ${
+                          isDateDisabled
+                            ? 'bg-amber-500/5 text-amber-300/40 border border-amber-500/15 opacity-40 pointer-events-none select-none'
                             : 'bg-amber-500/10 text-amber-300 border border-amber-500/30'
                         }`}
                       >
-                        <span>Bilinmiyor (??)</span>
+                        <span className="truncate">{isDateDisabled ? 'Devam Ediyor (Kilitli)' : 'Bilinmiyor (??)'}</span>
                       </div>
                     ) : (
                       <input
                         id="detail-date-input"
-                        type="date"
-                        value={formData.date}
-                        disabled={isGame && formData.status === 'Oynanıyor'}
-                        onChange={(e) => handleChange('date', e.target.value)}
-                        className={`flex-1 border rounded-xl px-2 py-1.5 text-xs focus:outline-none transition-all ${
-                          isGame && formData.status === 'Oynanıyor'
-                            ? 'bg-black/50 text-neutral-500 border-white/5 opacity-40 cursor-not-allowed pointer-events-none select-none'
+                        type={isDateDisabled ? 'text' : 'date'}
+                        value={isDateDisabled ? '' : (formData.date || '')}
+                        disabled={isDateDisabled}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          handleChange('date', val);
+                          if (val && val !== '??' && val !== '??.??') {
+                            setRememberedDate(val);
+                          }
+                        }}
+                        placeholder={isDateDisabled ? (isGame ? 'Oynanıyor (Kilitli)' : 'İzleniyor (Kilitli)') : ''}
+                        className={`flex-1 min-w-0 h-8 border rounded-xl px-2 text-xs focus:outline-none transition-all ${
+                          isDateDisabled
+                            ? 'bg-black/50 text-neutral-500 border-white/5 opacity-50 cursor-not-allowed pointer-events-none select-none placeholder:text-neutral-500 placeholder:italic'
                             : 'bg-black/40 text-neutral-200 border-white/10 focus:border-neutral-400'
                         }`}
                       />
@@ -503,18 +829,19 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
                     <button
                       type="button"
                       id="toggle-unknown-date-btn"
-                      disabled={isGame && formData.status === 'Oynanıyor'}
+                      disabled={isDateDisabled}
                       onClick={() => {
                         if (formData.date === '??' || formData.date === '??.??' || formData.date === '') {
-                          handleChange('date', new Date().toISOString().split('T')[0]);
+                          const today = new Date().toISOString().split('T')[0];
+                          handleChange('date', rememberedDate || today);
                         } else {
                           handleChange('date', '??');
                         }
                       }}
-                      title="Tarih Bilinmiyor (??)"
-                      className={`h-[30px] px-2 rounded-xl border text-xs font-semibold transition-all flex items-center justify-center shrink-0 ${
-                        isGame && formData.status === 'Oynanıyor'
-                          ? 'opacity-40 cursor-not-allowed pointer-events-none bg-white/5 text-neutral-500 border-white/5'
+                      title={isDateDisabled ? 'Yapım tamamlanmadığı için tarih kilitlidir' : 'Tarih Bilinmiyor (??)'}
+                      className={`h-8 w-8 rounded-xl border text-xs font-semibold transition-all flex items-center justify-center shrink-0 ${
+                        isDateDisabled
+                          ? 'opacity-30 cursor-not-allowed pointer-events-none bg-white/5 text-neutral-500 border-white/5'
                           : formData.date === '??' || formData.date === '??.??'
                           ? 'bg-amber-500/20 text-amber-300 border-amber-500/40 cursor-pointer'
                           : 'bg-white/5 text-neutral-400 border-white/10 hover:text-white hover:bg-white/10 cursor-pointer'
@@ -529,7 +856,7 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
               {/* Description & Notes Area (Moved Up to Top Section next to Poster) */}
               <div>
                 <label className="block text-[10px] uppercase tracking-wider text-slate-400 font-semibold mb-0.5">
-                  Açıklama / Notlar
+                  KONUSU
                 </label>
                 <textarea
                   id="detail-desc-textarea"
@@ -560,11 +887,11 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
                     id="detail-watching-cb"
                     type="checkbox"
                     checked={!!formData.watching}
-                    onChange={(e) => handleChange('watching', e.target.checked)}
+                    onChange={() => handleMediaStatusToggle('watching')}
                     className="w-4 h-4 rounded border-slate-600 bg-slate-800 text-cyan-500 focus:ring-0 cursor-pointer"
                   />
                   <Tv className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
-                  <span className="text-xs">İzlenen</span>
+                  <span className="text-xs">İzleniyor...</span>
                 </label>
 
                 <label className="flex items-center gap-1.5 text-xs text-slate-300 cursor-pointer select-none hover:text-white p-1.5 rounded-lg hover:bg-white/5 transition-colors">
@@ -572,13 +899,7 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
                     id="detail-following-cb"
                     type="checkbox"
                     checked={!!formData.following}
-                    onChange={(e) => {
-                      const checked = e.target.checked;
-                      handleChange('following', checked);
-                      if (checked) {
-                        setShowFollowDetails(true);
-                      }
-                    }}
+                    onChange={() => handleMediaStatusToggle('following')}
                     className="w-4 h-4 rounded border-slate-600 bg-slate-800 text-amber-500 focus:ring-0 cursor-pointer"
                   />
                   <Bookmark className="w-3.5 h-3.5 text-amber-400 shrink-0" />
@@ -587,16 +908,26 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
                     <button
                       type="button"
                       id="btn-toggle-detail-follow-details"
-                      title={showFollowDetails ? 'Gelişme kutusunu gizle' : 'Takip ve çıkış bilgilerini düzenle'}
+                      title={
+                        hasFollowData
+                          ? showFollowDetails
+                            ? 'Gelişme kutusunu gizle (Not/tarih mevcut)'
+                            : 'Takip ve çıkış bilgilerini düzenle (Not/tarih mevcut)'
+                          : showFollowDetails
+                          ? 'Gelişme kutusunu gizle'
+                          : 'Takip ve çıkış bilgilerini düzenle'
+                      }
                       onClick={(e) => {
                         e.preventDefault();
                         e.stopPropagation();
                         setShowFollowDetails(!showFollowDetails);
                       }}
-                      className={`ml-auto p-1 rounded-md transition-colors cursor-pointer ${
-                        showFollowDetails
-                          ? 'text-sky-400 bg-sky-500/20'
-                          : 'text-slate-400 hover:text-sky-300 hover:bg-white/10'
+                      className={`ml-auto p-1 rounded-md transition-colors cursor-pointer border ${
+                        hasFollowData
+                          ? 'text-sky-400 bg-sky-500/20 hover:bg-sky-500/30 border-sky-500/40 shadow-xs'
+                          : showFollowDetails
+                          ? 'text-slate-200 bg-white/15 hover:bg-white/20 border-white/10'
+                          : 'text-slate-400 hover:text-white hover:bg-white/10 border-transparent'
                       }`}
                     >
                       <Megaphone className="w-3 h-3" />
@@ -609,7 +940,7 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
                     id="detail-dropped-cb"
                     type="checkbox"
                     checked={!!formData.dropped}
-                    onChange={(e) => handleChange('dropped', e.target.checked)}
+                    onChange={() => handleMediaStatusToggle('dropped')}
                     className="w-4 h-4 rounded border-slate-600 bg-slate-800 text-rose-500 focus:ring-0 cursor-pointer"
                   />
                   <PauseCircle className="w-3.5 h-3.5 text-rose-400 shrink-0" />
@@ -691,7 +1022,28 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
                   <select
                     id="detail-game-status-select"
                     value={formData.status || 'Oynanıyor'}
-                    onChange={(e) => handleChange('status', e.target.value as GameStatus)}
+                    onChange={(e) => {
+                      const next = e.target.value as GameStatus;
+                      setFormData((prev) => {
+                        if (next === 'Tamamlandı') {
+                          const restoredDate = prev.date || rememberedDate || new Date().toISOString().split('T')[0];
+                          return {
+                            ...prev,
+                            status: next,
+                            date: restoredDate,
+                          };
+                        } else {
+                          if (prev.date && prev.date !== '??' && prev.date !== '??.??') {
+                            setRememberedDate(prev.date);
+                          }
+                          return {
+                            ...prev,
+                            status: next,
+                            date: prev.date || rememberedDate || '',
+                          };
+                        }
+                      });
+                    }}
                     className="w-full bg-black/30 text-slate-200 border border-white/10 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:border-blue-500 cursor-pointer"
                   >
                     <option value="Oynanıyor" className="bg-slate-900 text-white">🎮 Oynanıyor</option>
@@ -743,6 +1095,7 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
                     type="number"
                     min="0"
                     value={formData.hours ?? 0}
+                    onFocus={(e) => e.target.select()}
                     onChange={(e) =>
                       handleChange('hours', Number(e.target.value) || 0)
                     }
@@ -841,6 +1194,212 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
               </div>
             )}
           </div>
+
+          {/* Prominent Separator between Tags and Characters */}
+          <div className="border-t-2 border-white/20 my-4" />
+
+          {/* KARAKTERLER & KADRO */}
+          <div className="space-y-3 pt-1">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-1.5 text-xs font-bold text-slate-200">
+                <Users className="w-3.5 h-3.5 text-sky-400" />
+                <span>Karakterler & Kadro</span>
+              </div>
+              <button
+                type="button"
+                id="btn-add-character-row"
+                onClick={handleAddCharacter}
+                className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-sky-500/20 hover:bg-sky-500/30 text-sky-300 font-semibold text-xs border border-sky-500/30 transition-colors cursor-pointer"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>Karakter Ekle</span>
+              </button>
+            </div>
+
+            {/* Global Actor Autocomplete Datalist */}
+            <datalist id="actor-autocomplete-list">
+              {allActorSuggestions.map((act) => (
+                <option key={act} value={act} />
+              ))}
+            </datalist>
+
+            {/* Character Rows List */}
+            {(!formData.characters || formData.characters.length === 0) ? (
+              <div className="p-3.5 rounded-xl bg-white/[0.02] border border-white/5 text-center text-xs text-slate-400">
+                Henüz eklenmiş bir karakter bulunmuyor.
+              </div>
+            ) : (
+              <div className="space-y-2 max-h-[260px] overflow-y-auto custom-scrollbar pr-1">
+                {formData.characters.map((char, index) => (
+                  <div
+                    key={index}
+                    className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 p-2.5 rounded-xl bg-white/[0.03] border border-white/10 group hover:border-white/20 transition-all"
+                  >
+                    {/* Karakter Görseli Seçici / Önizleme / Panodan Yapıştırma */}
+                    <div className="relative shrink-0 flex items-center justify-center">
+                      <input
+                        type="file"
+                        accept="image/*"
+                        id={`detail-char-img-${index}`}
+                        className="hidden"
+                        onChange={async (e) => {
+                          const file = e.target.files?.[0];
+                          if (file) {
+                            try {
+                              const optimized = await optimizeImageFile(file, 1200, 1600, 0.95);
+                              handleUpdateCharacter(index, 'image', optimized);
+                            } catch (err) {
+                              console.error(err);
+                            }
+                          }
+                        }}
+                      />
+                      {char.image ? (
+                        <div className="relative group/cavatar w-9 h-9 rounded-lg overflow-hidden border border-white/25 bg-black/50 shadow shrink-0">
+                          <img
+                            src={char.image}
+                            alt={char.name || 'Karakter'}
+                            className="w-full h-full object-cover"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => handleUpdateCharacter(index, 'image', undefined)}
+                            title="Resmi Kaldır (Sil)"
+                            className="absolute inset-0 bg-black/80 opacity-0 group-hover/cavatar:opacity-100 flex items-center justify-center text-rose-400 hover:text-rose-200 transition-all cursor-pointer"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-1">
+                          <label
+                            htmlFor={`detail-char-img-${index}`}
+                            title="PC'den Karakter Görseli Seç"
+                            className="w-9 h-9 rounded-lg border border-dashed border-white/20 hover:border-sky-400/60 bg-black/30 hover:bg-sky-500/10 flex items-center justify-center text-slate-400 hover:text-sky-300 transition-colors cursor-pointer"
+                          >
+                            <ImageIcon className="w-4 h-4" />
+                          </label>
+                          <button
+                            type="button"
+                            onClick={() => handlePasteCharacterImage(index)}
+                            title="Panodan Görsel Yapıştır (Kopyalanan Resmi Ekle)"
+                            className="w-9 h-9 rounded-lg border border-dashed border-white/20 hover:border-emerald-400/60 bg-black/30 hover:bg-emerald-500/10 flex items-center justify-center text-slate-400 hover:text-emerald-300 transition-colors cursor-pointer"
+                          >
+                            <ClipboardPaste className="w-4 h-4" />
+                          </button>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="flex-1">
+                      <input
+                        type="text"
+                        placeholder="Karakter İsmi (örn: Yuta Okkotsu)"
+                        value={char.name}
+                        onChange={(e) =>
+                          handleUpdateCharacter(index, 'name', e.target.value)
+                        }
+                        className="w-full bg-black/40 text-slate-200 placeholder-slate-500 border border-white/10 rounded-lg px-2.5 py-1.5 text-xs focus:outline-none focus:border-sky-500"
+                      />
+                    </div>
+
+                    <div className="flex-1 flex items-center gap-1">
+                      <span className="text-slate-500 text-xs hidden sm:inline">🎙️</span>
+                      <input
+                        type="text"
+                        list="actor-autocomplete-list"
+                        placeholder="Seslendiren / Oyuncu (örn: Kana Hanazawa)"
+                        value={char.actor || ''}
+                        onChange={(e) =>
+                          handleUpdateCharacter(index, 'actor', e.target.value)
+                        }
+                        className="w-full bg-black/40 text-sky-300 placeholder-slate-500 border border-white/10 rounded-lg px-2.5 py-1.5 text-xs focus:outline-none focus:border-sky-500"
+                      />
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveCharacter(index)}
+                      title="Karakteri Sil"
+                      className="p-1.5 rounded-lg text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 transition-colors self-end sm:self-center cursor-pointer"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Prominent Separator between Characters and Series */}
+          <div className="border-t-2 border-white/20 my-4" />
+
+          {/* SERİ / EVREN BİLGİSİ (Karakterler & Kadro Altında) */}
+          <div className="space-y-3 pt-1">
+            <div className="flex items-center gap-1.5 text-xs font-bold text-slate-200">
+              <Layers className="w-3.5 h-3.5 text-indigo-400" />
+              <span>Seri / Evren Bağlantısı</span>
+              <div className="relative inline-flex items-center group/ftip">
+                <button
+                  type="button"
+                  onClick={() => setShowFranchiseTooltip(!showFranchiseTooltip)}
+                  className="p-0.5 text-slate-400 hover:text-indigo-300 rounded transition-colors cursor-pointer"
+                  title="Bilgi"
+                >
+                  <Info className="w-3.5 h-3.5" />
+                </button>
+                <div
+                  className={`absolute left-6 top-1/2 -translate-y-1/2 z-50 w-64 p-2.5 rounded-xl bg-slate-900/95 border border-indigo-500/30 text-[11px] text-slate-200 font-normal leading-relaxed shadow-xl backdrop-blur-md transition-opacity pointer-events-none ${
+                    showFranchiseTooltip ? 'opacity-100' : 'opacity-0 group-hover/ftip:opacity-100'
+                  }`}
+                >
+                  Aynı evrene veya seriye ait yapımları (örn: film, anime, dizi, oyun) birbirine bağlamak için ortak bir seri adı belirleyin.
+                </div>
+              </div>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 items-center">
+              <div className="sm:col-span-2">
+                <label className="block text-[10px] uppercase tracking-wider text-slate-400 font-semibold mb-1">
+                  Seri / Evren Adı
+                </label>
+                <input
+                  id="detail-series-name-input"
+                  type="text"
+                  list="detail-series-name-suggestions"
+                  value={formData.seriesName || ''}
+                  onChange={(e) => handleChange('seriesName', e.target.value)}
+                  placeholder="Örn: Jujutsu Kaisen, Harry Potter, Witcher..."
+                  className="w-full bg-black/40 text-slate-100 border border-white/10 rounded-xl px-3 py-1.5 text-xs focus:outline-none focus:border-indigo-400 transition-colors placeholder:text-neutral-500"
+                />
+                <datalist id="detail-series-name-suggestions">
+                  {availableSeriesNames.map((name) => (
+                    <option key={name} value={name} />
+                  ))}
+                </datalist>
+              </div>
+              <div>
+                <label className="block text-[10px] uppercase tracking-wider text-slate-400 font-semibold mb-1">
+                  İzleme / Seri Sırası
+                </label>
+                <input
+                  id="detail-series-order-input"
+                  type="number"
+                  step="any"
+                  min="0"
+                  value={formData.seriesOrder ?? ''}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    handleChange(
+                      'seriesOrder',
+                      val !== '' && !isNaN(Number(val)) ? Number(val) : undefined
+                    );
+                  }}
+                  placeholder="Örn: 1, 2, 3..."
+                  className="w-full bg-black/40 text-indigo-300 font-semibold border border-white/10 rounded-xl px-3 py-1.5 text-xs focus:outline-none focus:border-indigo-400 transition-colors placeholder:text-neutral-500"
+                />
+              </div>
+            </div>
+          </div>
         </form>
 
         {/* Footer with Explicit Action Buttons */}
@@ -856,6 +1415,14 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
           </button>
         </div>
       </div>
+
+      {/* Centered In-App Delete Confirmation Modal */}
+      {deleteConfirmDialog && (
+        <CustomDialog
+          options={deleteConfirmDialog}
+          onClose={() => setDeleteConfirmDialog(null)}
+        />
+      )}
     </div>
   );
 };

@@ -1,9 +1,9 @@
 // Helper for compressing/resizing images to high quality WebP/JPEG for fast storage & mobile display
 export async function optimizeImageFile(
   fileOrBase64: File | Blob | string,
-  maxWidth = 800,
-  maxHeight = 1200,
-  quality = 0.88
+  maxWidth = 1200,
+  maxHeight = 1800,
+  quality = 0.92
 ): Promise<string> {
   return new Promise((resolve, reject) => {
     const img = new Image();

@@ -1,6 +1,157 @@
 import React from 'react';
-import { Bookmark, LucideProps } from 'lucide-react';
-import { FollowIndicatorModel, FollowIndicatorColor, FollowIndicatorIconType } from '../types';
+import {
+  Bookmark,
+  LucideProps,
+  Star,
+  Flame,
+  Heart,
+} from 'lucide-react';
+import {
+  FollowIndicatorModel,
+  FollowIndicatorColor,
+  FollowIndicatorIconType,
+  RatingIconType,
+} from '../types';
+
+/* 7 Farklı Gerçek Yıldız Tasarımı (Tümü hakiki geometrik yıldız formundadır) */
+export const Star1Icon: React.FC<LucideProps> = ({ className, ...props }) => (
+  <svg
+    viewBox="0 0 24 24"
+    fill="currentColor"
+    stroke="currentColor"
+    strokeWidth="1"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    className={className}
+    {...props}
+  >
+    <path d="M12 2L14.47 9.53L22 12L14.47 14.47L12 22L9.53 14.47L2 12L9.53 9.53Z" />
+  </svg>
+);
+
+export const Star2Icon: React.FC<LucideProps> = ({ className, ...props }) => (
+  <svg
+    viewBox="0 0 24 24"
+    fill="currentColor"
+    stroke="currentColor"
+    strokeWidth="1"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    className={className}
+    {...props}
+  >
+    <path d="M12 2L15.23 7.55L21.51 8.91L17.23 13.70L17.88 20.09L12 17.50L6.12 20.09L6.77 13.70L2.49 8.91L8.77 7.55Z" />
+  </svg>
+);
+
+export const Star3Icon: React.FC<LucideProps> = ({ className, ...props }) => (
+  <svg
+    viewBox="0 0 24 24"
+    fill="currentColor"
+    stroke="currentColor"
+    strokeWidth="1"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    className={className}
+    {...props}
+  >
+    <path d="M12 2L13.88 9.41L21.51 8.91L15.04 12.99L17.88 20.09L12 15.20L6.12 20.09L8.96 12.99L2.49 8.91L10.12 9.41Z" />
+  </svg>
+);
+
+export const Star4Icon: React.FC<LucideProps> = ({ className, ...props }) => (
+  <svg
+    viewBox="0 0 24 24"
+    fill="currentColor"
+    stroke="currentColor"
+    strokeWidth="1"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    className={className}
+    {...props}
+  >
+    <path d="M12 2L14.88 7L20.66 7L17.77 12L20.66 17L14.89 17L12 22L9.12 17L3.34 17L6.23 12L3.34 7L9.11 7Z" />
+  </svg>
+);
+
+export const Star5Icon: React.FC<LucideProps> = ({ className, ...props }) => (
+  <svg
+    viewBox="0 0 24 24"
+    fill="currentColor"
+    stroke="currentColor"
+    strokeWidth="1"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    className={className}
+    {...props}
+  >
+    <path d="M12 2L13.72 7.84L19.07 4.93L16.16 10.28L22 12L16.16 13.72L19.07 19.07L13.72 16.16L12 22L10.28 16.16L4.93 19.07L7.84 13.72L2 12L7.84 10.28L4.93 4.93L10.28 7.84Z" />
+  </svg>
+);
+
+export const Star6Icon: React.FC<LucideProps> = ({ className, ...props }) => (
+  <svg
+    viewBox="0 0 24 24"
+    fill="currentColor"
+    stroke="currentColor"
+    strokeWidth="1"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    className={className}
+    {...props}
+  >
+    <path d="M12 2L13.81 5.24L17 3.34L16.95 7.05L20.66 7L18.76 10.19L22 12L18.76 13.81L20.66 17L16.95 16.95L17 20.66L13.81 18.76L12 22L10.19 18.76L7 20.66L7.05 16.95L3.34 17L5.24 13.81L2 12L5.24 10.19L3.34 7L7.05 7.05L7 3.34L10.19 5.24Z" />
+  </svg>
+);
+
+export const Star7Icon: React.FC<LucideProps> = ({ className, ...props }) => (
+  <svg
+    viewBox="0 0 24 24"
+    fill="currentColor"
+    stroke="currentColor"
+    strokeWidth="1"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    className={className}
+    {...props}
+  >
+    <path d="M12 2L14 8.5L18.5 7L15.5 11L22 12L15.5 13L18.5 17L14 15.5L12 22L10 15.5L5.5 17L8.5 13L2 12L8.5 11L5.5 7L10 8.5Z" />
+  </svg>
+);
+
+export interface RatingIconOption {
+  id: RatingIconType;
+  label: string;
+  icon: React.ComponentType<LucideProps>;
+}
+
+export const RATING_ICON_OPTIONS: RatingIconOption[] = [
+  { id: 'star', label: 'Yıldız 0', icon: Star },
+  { id: 'flame', label: 'Alev', icon: Flame },
+  { id: 'heart', label: 'Kalp', icon: Heart },
+  { id: 'star-1', label: 'Yıldız 1', icon: Star1Icon },
+  { id: 'star-2', label: 'Yıldız 2', icon: Star2Icon },
+  { id: 'star-3', label: 'Yıldız 3', icon: Star3Icon },
+  { id: 'star-4', label: 'Yıldız 4', icon: Star4Icon },
+  { id: 'star-5', label: 'Yıldız 5', icon: Star5Icon },
+  { id: 'star-6', label: 'Yıldız 6', icon: Star6Icon },
+  { id: 'star-7', label: 'Yıldız 7', icon: Star7Icon },
+];
+
+export const RatingBadgeIcon: React.FC<{
+  type?: RatingIconType;
+  className?: string;
+}> = ({
+  type = 'star-2',
+  className = 'w-2.5 h-2.5 fill-amber-400 text-amber-400',
+}) => {
+  const match =
+    RATING_ICON_OPTIONS.find((opt) => opt.id === (type || 'star-2')) ||
+    RATING_ICON_OPTIONS.find((opt) => opt.id === 'star-2') ||
+    RATING_ICON_OPTIONS[0];
+  const IconComp = match.icon;
+  return <IconComp className={className} />;
+};
 
 export interface FollowModelOption {
   id: FollowIndicatorModel;

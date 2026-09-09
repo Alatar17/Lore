@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
-import { ArchiveItem, Category, GameStatus, MainTabType } from '../types';
+import { ArchiveItem, Category, GameStatus, MainTabType, ItemCharacter } from '../types';
 import { MEDIA_COLORS, GAME_COLORS } from '../data/initialData';
 import { optimizeImageFile } from '../utils/imageOptimizer';
 import { TagInputBox } from './TagInputBox';
@@ -9,6 +9,7 @@ import {
   Upload,
   Plus,
   Calendar,
+  CalendarRange,
   Star,
   Clock,
   Trophy,
@@ -24,6 +25,10 @@ import {
   Tags,
   PauseCircle,
   Megaphone,
+  Trash2,
+  Image as ImageIcon,
+  Layers,
+  Info,
 } from 'lucide-react';
 
 interface AddItemModalProps {
@@ -58,7 +63,7 @@ export const AddItemModal: React.FC<AddItemModalProps> = ({
   const [sub, setSub] = useState<string | null>(validDefaultSub);
   const [rating, setRating] = useState<number>(8);
   const [date, setDate] = useState<string>(
-    new Date().toISOString().split('T')[0]
+    isGame ? '' : new Date().toISOString().split('T')[0]
   );
   const [desc, setDesc] = useState('');
   const [thumbnail, setThumbnail] = useState<string | undefined>(undefined);
@@ -134,11 +139,144 @@ export const AddItemModal: React.FC<AddItemModalProps> = ({
   const [followNotes, setFollowNotes] = useState('');
   const [showFollowDetails, setShowFollowDetails] = useState(false);
 
+  // Takip kutularında (Beklenen Dönem veya Gelişme Notu) veri olup olmadığını kontrol eder
+  const hasFollowData = !!(
+    (expectedDate && expectedDate.trim().length > 0) ||
+    (followNotes && followNotes.trim().length > 0)
+  );
+
+  // Additional New Fields (Release Year & Range)
+  const [isYearRange, setIsYearRange] = useState(false);
+  const [startYear, setStartYear] = useState('');
+  const [endYear, setEndYear] = useState('');
+  const [characters, setCharacters] = useState<ItemCharacter[]>([]);
+
+  // Series / Franchise (Bağlantılı Yapımlar)
+  const [seriesName, setSeriesName] = useState('');
+  const [seriesOrder, setSeriesOrder] = useState<string>('');
+  const [showFranchiseTooltip, setShowFranchiseTooltip] = useState(false);
+
+  // Series name suggestions for autocomplete
+  const availableSeriesNames = useMemo(() => {
+    const set = new Set<string>();
+    allItems.forEach((i) => {
+      if (i.seriesName && i.seriesName.trim()) {
+        set.add(i.seriesName.trim());
+      }
+    });
+    return Array.from(set).sort((a, b) => a.localeCompare(b, 'tr'));
+  }, [allItems]);
+
+  // Actor Autocomplete Suggestions
+  const allActorSuggestions = useMemo(() => {
+    const set = new Set<string>();
+    availableActorsTags.forEach((a) => {
+      if (a && a.trim()) set.add(a.trim());
+    });
+    allItems.forEach((it) => {
+      it.characters?.forEach((c) => {
+        if (c.actor && c.actor.trim()) set.add(c.actor.trim());
+      });
+      it.actors?.forEach((a) => {
+        if (a && a.trim()) set.add(a.trim());
+      });
+    });
+    actors.forEach((a) => {
+      if (a && a.trim()) set.add(a.trim());
+    });
+    return Array.from(set).sort((a, b) => a.localeCompare(b, 'tr'));
+  }, [availableActorsTags, allItems, actors]);
+
+  const handleAddCharacter = () => {
+    setCharacters((prev) => [...prev, { name: '', actor: '' }]);
+  };
+
+  const handleUpdateCharacter = (
+    index: number,
+    field: 'name' | 'actor' | 'image',
+    value?: string
+  ) => {
+    setCharacters((prev) => {
+      const updated = [...prev];
+      updated[index] = { ...updated[index], [field]: value };
+      return updated;
+    });
+  };
+
+  const handlePasteCharacterImage = async (index: number) => {
+    try {
+      if (!navigator.clipboard || !navigator.clipboard.read) {
+        setPasteNotice('Lütfen klavyeden Ctrl+V tuşlarına basarak yapıştırın.');
+        setTimeout(() => setPasteNotice(null), 3000);
+        return;
+      }
+      const items = await navigator.clipboard.read();
+      let foundImage = false;
+      for (const clipboardItem of items) {
+        for (const type of clipboardItem.types) {
+          if (type.startsWith('image/')) {
+            const blob = await clipboardItem.getType(type);
+            const optimized = await optimizeImageFile(blob, 1200, 1600, 0.95);
+            handleUpdateCharacter(index, 'image', optimized);
+            foundImage = true;
+            break;
+          }
+        }
+        if (foundImage) break;
+      }
+      if (!foundImage) {
+        setPasteNotice('Panoda kopyalanmış görsel bulunamadı.');
+        setTimeout(() => setPasteNotice(null), 2500);
+      }
+    } catch (err) {
+      console.warn('Clipboard read error:', err);
+      setPasteNotice('Panodan okuma başarısız veya izin verilmedi.');
+      setTimeout(() => setPasteNotice(null), 2500);
+    }
+  };
+
+  const handleRemoveCharacter = (index: number) => {
+    setCharacters((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  // Mutually exclusive toggle for media statuses
+  const handleMediaStatusToggle = (type: 'watching' | 'following' | 'dropped') => {
+    if (type === 'watching') {
+      const next = !watching;
+      setWatching(next);
+      if (next) {
+        setFollowing(false);
+        setDropped(false);
+        setDate('');
+      }
+    } else if (type === 'following') {
+      const next = !following;
+      setFollowing(next);
+      if (next) {
+        setWatching(false);
+        setDropped(false);
+        setShowFollowDetails(true);
+        setDate('');
+      }
+    } else if (type === 'dropped') {
+      const next = !dropped;
+      setDropped(next);
+      if (next) {
+        setWatching(false);
+        setFollowing(false);
+      }
+    }
+  };
+
   // Game Specific
   const [status, setStatus] = useState<GameStatus>('Oynanıyor');
   const [achPercent, setAchPercent] = useState<number | null>(null);
   const [achMax, setAchMax] = useState<number>(100);
   const [hours, setHours] = useState<number>(0);
+
+  const isDateDisabled = isGame
+    ? status === 'Oynanıyor' || status === 'Oynanacak'
+    : (watching || following);
 
   // Common
   const [anki, setAnki] = useState(false);
@@ -222,23 +360,39 @@ export const AddItemModal: React.FC<AddItemModalProps> = ({
     };
   }, []);
 
-  // Close with Escape key
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        e.stopPropagation();
-        onClose();
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [onClose]);
+  // Not: Escape tuşu ile kazara pencereyi kapatıp verilerin kaybolmasını engellemek için listener kaldırılmıştır.
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim()) {
       window.alert('Lütfen yapım başlığı girin.');
       return;
+    }
+
+    const cleanedCharacters = characters
+      .map((c) => ({
+        name: c.name.trim(),
+        actor: c.actor?.trim() || undefined,
+        image: c.image || undefined,
+      }))
+      .filter((c) => c.name.length > 0);
+
+    let computedReleaseYear: number | string | undefined = undefined;
+    if (isYearRange) {
+      const s = startYear.trim();
+      const e = endYear.trim();
+      if (s && e) {
+        computedReleaseYear = `${s}–${e}`;
+      } else if (s) {
+        computedReleaseYear = `${s}–`;
+      } else if (e) {
+        computedReleaseYear = e;
+      }
+    } else {
+      const s = startYear.trim();
+      if (s) {
+        computedReleaseYear = !isNaN(Number(s)) ? Number(s) : s;
+      }
     }
 
     const newItem: ArchiveItem = {
@@ -248,9 +402,13 @@ export const AddItemModal: React.FC<AddItemModalProps> = ({
       sub: sub || null,
       title: title.trim(),
       rating,
-      date: date || '??',
+      date: isDateDisabled ? '' : (date || '??'),
+      releaseYear: computedReleaseYear,
       desc: desc.trim(),
       thumbnail,
+      characters: cleanedCharacters.length > 0 ? cleanedCharacters : undefined,
+      seriesName: seriesName.trim() || undefined,
+      seriesOrder: seriesOrder !== '' && !isNaN(Number(seriesOrder)) ? Number(seriesOrder) : undefined,
       // Media tags
       firm: !isGame && firm.length > 0 ? firm : undefined,
       director: !isGame && director.length > 0 ? director : undefined,
@@ -285,7 +443,6 @@ export const AddItemModal: React.FC<AddItemModalProps> = ({
     <div
       id="add-modal-overlay"
       className="fixed inset-0 z-50 bg-black/80 backdrop-blur-xs flex items-center justify-center p-3 sm:p-5 overflow-y-auto"
-      onClick={onClose}
     >
       <div
         id="add-modal-box"
@@ -442,7 +599,7 @@ export const AddItemModal: React.FC<AddItemModalProps> = ({
                       onChange={(e) => setSub(e.target.value || null)}
                       className="w-full bg-black/30 text-slate-200 border border-white/10 rounded-xl px-2.5 py-1.5 text-xs focus:outline-none focus:border-blue-500 cursor-pointer"
                     >
-                      <option value="" className="bg-slate-900 text-white">Yok / Genel</option>
+                      <option value="" className="bg-slate-900 text-white">Yok</option>
                       {selectedCatObj.subgroups.map((s) => (
                         <option key={s} value={s} className="bg-slate-900 text-white">
                           {s}
@@ -453,17 +610,20 @@ export const AddItemModal: React.FC<AddItemModalProps> = ({
                 )}
               </div>
 
-              {/* Rating & Date */}
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label className="block text-[10px] uppercase tracking-wider text-slate-400 font-semibold mb-0.5 flex items-center gap-1">
-                    <Star className="w-3 h-3 text-amber-400 fill-amber-400" /> Puan (1-10)
-                  </label>
+              {/* Rating, Release Year & Date */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 items-start min-w-0">
+                <div className="min-w-0">
+                  <div className="flex items-center gap-1 h-5 mb-1">
+                    <label className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold flex items-center gap-1 truncate">
+                      <Star className="w-3 h-3 text-amber-400 fill-amber-400 shrink-0" />
+                      <span>Puan (1-10)</span>
+                    </label>
+                  </div>
                   <select
                     id="add-rating-select"
                     value={rating}
                     onChange={(e) => setRating(Number(e.target.value))}
-                    className="w-full bg-black/30 text-amber-300 font-bold border border-white/10 rounded-xl px-2.5 py-1.5 text-xs focus:outline-none focus:border-blue-500 cursor-pointer"
+                    className="w-full h-8 bg-black/30 text-amber-300 font-bold border border-white/10 rounded-xl px-2.5 text-xs focus:outline-none focus:border-blue-500 cursor-pointer"
                   >
                     {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((num) => (
                       <option key={num} value={num} className="bg-slate-900 text-amber-300">
@@ -473,31 +633,97 @@ export const AddItemModal: React.FC<AddItemModalProps> = ({
                   </select>
                 </div>
 
-                <div>
-                  <label className="block text-[10px] uppercase tracking-wider text-slate-400 font-semibold mb-0.5 flex items-center gap-1">
-                    <Calendar className="w-3 h-3 text-neutral-400" /> Tarih
-                  </label>
-                  <div className="flex items-center gap-1">
+                <div className="min-w-0">
+                  <div className="flex items-center gap-1.5 h-5 mb-1">
+                    <label className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold flex items-center gap-1 truncate">
+                      <Calendar className="w-3 h-3 text-neutral-400 shrink-0" />
+                      <span>Yapım Yılı</span>
+                    </label>
+                    <button
+                      type="button"
+                      id="toggle-add-release-year-range-btn"
+                      onClick={() => {
+                        const next = !isYearRange;
+                        setIsYearRange(next);
+                        if (!next && !startYear && endYear) {
+                          setStartYear(endYear);
+                          setEndYear('');
+                        }
+                      }}
+                      title={isYearRange ? 'Tek Yıl Moduna Dön' : 'Yıl Aralığı Modu'}
+                      className={`p-0.5 rounded transition-colors cursor-pointer flex items-center justify-center ${
+                        isYearRange
+                          ? 'bg-blue-500/25 text-blue-400 border border-blue-500/40'
+                          : 'text-blue-400 hover:text-blue-300 hover:bg-blue-500/10'
+                      }`}
+                    >
+                      <CalendarRange className="w-3.5 h-3.5 text-blue-400" />
+                    </button>
+                  </div>
+
+                  {!isYearRange ? (
+                    <input
+                      id="add-release-year-input"
+                      type="text"
+                      inputMode="numeric"
+                      placeholder="Örn: 2024"
+                      value={startYear}
+                      onChange={(e) => setStartYear(e.target.value)}
+                      className="w-full h-8 bg-black/30 text-slate-200 font-medium border border-white/10 rounded-xl px-2.5 text-xs focus:outline-none focus:border-blue-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                    />
+                  ) : (
+                    <div className="flex items-center gap-1 min-w-0">
+                      <input
+                        id="add-release-year-start"
+                        type="text"
+                        inputMode="numeric"
+                        placeholder="Başlangıç"
+                        value={startYear}
+                        onChange={(e) => setStartYear(e.target.value)}
+                        className="w-full min-w-0 h-8 bg-black/30 text-slate-200 font-medium border border-white/10 rounded-xl px-1.5 text-xs text-center focus:outline-none focus:border-blue-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                      />
+                      <span className="text-slate-500 font-bold text-xs shrink-0">—</span>
+                      <input
+                        id="add-release-year-end"
+                        type="text"
+                        placeholder="Bitiş"
+                        value={endYear}
+                        onChange={(e) => setEndYear(e.target.value)}
+                        className="w-full min-w-0 h-8 bg-black/30 text-slate-200 font-medium border border-white/10 rounded-xl px-1.5 text-xs text-center focus:outline-none focus:border-blue-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                      />
+                    </div>
+                  )}
+                </div>
+
+                <div className="min-w-0">
+                  <div className="flex items-center gap-1 h-5 mb-1">
+                    <label className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold flex items-center gap-1 truncate">
+                      <Calendar className="w-3 h-3 text-neutral-400 shrink-0" />
+                      <span>{isGame ? 'Tamamlama Tarihi' : 'İzlenme Tarihi'}</span>
+                    </label>
+                  </div>
+                  <div className="flex items-center gap-1 min-w-0">
                     {date === '??' || date === '??.??' ? (
                       <div
-                        className={`flex-1 rounded-xl px-2.5 py-1.5 text-xs font-semibold flex items-center justify-between transition-opacity ${
-                          isGame && status === 'Oynanıyor'
-                            ? 'bg-amber-500/5 text-amber-300/40 border border-amber-500/15 opacity-40 pointer-events-none'
+                        className={`flex-1 min-w-0 h-8 rounded-xl px-2.5 text-xs font-semibold flex items-center justify-between transition-opacity ${
+                          isDateDisabled
+                            ? 'bg-amber-500/5 text-amber-300/40 border border-amber-500/15 opacity-40 pointer-events-none select-none'
                             : 'bg-amber-500/10 text-amber-300 border border-amber-500/30'
                         }`}
                       >
-                        <span>Bilinmiyor (??)</span>
+                        <span className="truncate">{isDateDisabled ? 'Devam Ediyor (Kilitli)' : 'Bilinmiyor (??)'}</span>
                       </div>
                     ) : (
                       <input
                         id="add-date-input"
-                        type="date"
-                        value={date}
-                        disabled={isGame && status === 'Oynanıyor'}
+                        type={isDateDisabled ? 'text' : 'date'}
+                        value={isDateDisabled ? '' : date}
+                        disabled={isDateDisabled}
                         onChange={(e) => setDate(e.target.value)}
-                        className={`flex-1 border rounded-xl px-2 py-1.5 text-xs focus:outline-none transition-all ${
-                          isGame && status === 'Oynanıyor'
-                            ? 'bg-black/50 text-neutral-500 border-white/5 opacity-40 cursor-not-allowed pointer-events-none select-none'
+                        placeholder={isDateDisabled ? (isGame ? 'Oynanıyor (Kilitli)' : 'İzleniyor (Kilitli)') : ''}
+                        className={`flex-1 min-w-0 h-8 border rounded-xl px-2 text-xs focus:outline-none transition-all ${
+                          isDateDisabled
+                            ? 'bg-black/50 text-neutral-500 border-white/5 opacity-50 cursor-not-allowed pointer-events-none select-none placeholder:text-neutral-500 placeholder:italic'
                             : 'bg-black/40 text-neutral-200 border-white/10 focus:border-neutral-400'
                         }`}
                       />
@@ -505,7 +731,7 @@ export const AddItemModal: React.FC<AddItemModalProps> = ({
                     <button
                       type="button"
                       id="toggle-add-unknown-date-btn"
-                      disabled={isGame && status === 'Oynanıyor'}
+                      disabled={isDateDisabled}
                       onClick={() => {
                         if (date === '??' || date === '??.??' || date === '') {
                           setDate(new Date().toISOString().split('T')[0]);
@@ -513,10 +739,10 @@ export const AddItemModal: React.FC<AddItemModalProps> = ({
                           setDate('??');
                         }
                       }}
-                      title="Tarih Bilinmiyor (??)"
-                      className={`h-[30px] px-2 rounded-xl border text-xs font-semibold transition-all flex items-center justify-center shrink-0 ${
-                        isGame && status === 'Oynanıyor'
-                          ? 'opacity-40 cursor-not-allowed pointer-events-none bg-white/5 text-neutral-500 border-white/5'
+                      title={isDateDisabled ? 'Yapım tamamlanmadığı için tarih kilitlidir' : 'Tarih Bilinmiyor (??)'}
+                      className={`h-8 w-8 rounded-xl border text-xs font-semibold transition-all flex items-center justify-center shrink-0 ${
+                        isDateDisabled
+                          ? 'opacity-30 cursor-not-allowed pointer-events-none bg-white/5 text-neutral-500 border-white/5'
                           : date === '??' || date === '??.??'
                           ? 'bg-amber-500/20 text-amber-300 border-amber-500/40 cursor-pointer'
                           : 'bg-white/5 text-neutral-400 border-white/10 hover:text-white hover:bg-white/10 cursor-pointer'
@@ -531,7 +757,7 @@ export const AddItemModal: React.FC<AddItemModalProps> = ({
               {/* Description & Notes Area (Top Section next to Poster) */}
               <div>
                 <label className="block text-[10px] uppercase tracking-wider text-slate-400 font-semibold mb-0.5">
-                  Açıklama / Notlar
+                  KONUSU
                 </label>
                 <textarea
                   id="add-desc-textarea"
@@ -562,11 +788,11 @@ export const AddItemModal: React.FC<AddItemModalProps> = ({
                     id="add-watching-cb"
                     type="checkbox"
                     checked={watching}
-                    onChange={(e) => setWatching(e.target.checked)}
+                    onChange={() => handleMediaStatusToggle('watching')}
                     className="w-4 h-4 rounded border-slate-600 bg-slate-800 text-cyan-500 focus:ring-0 cursor-pointer"
                   />
                   <Tv className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
-                  <span className="text-xs">İzlenen</span>
+                  <span className="text-xs">İzleniyor...</span>
                 </label>
 
                 <label className="flex items-center gap-1.5 text-xs text-slate-300 cursor-pointer select-none hover:text-white p-1.5 rounded-lg hover:bg-white/5 transition-colors">
@@ -574,13 +800,7 @@ export const AddItemModal: React.FC<AddItemModalProps> = ({
                     id="add-following-cb"
                     type="checkbox"
                     checked={following}
-                    onChange={(e) => {
-                      const checked = e.target.checked;
-                      setFollowing(checked);
-                      if (checked) {
-                        setShowFollowDetails(true);
-                      }
-                    }}
+                    onChange={() => handleMediaStatusToggle('following')}
                     className="w-4 h-4 rounded border-slate-600 bg-slate-800 text-amber-500 focus:ring-0 cursor-pointer"
                   />
                   <Bookmark className="w-3.5 h-3.5 text-amber-400 shrink-0" />
@@ -589,16 +809,26 @@ export const AddItemModal: React.FC<AddItemModalProps> = ({
                     <button
                       type="button"
                       id="btn-toggle-add-follow-details"
-                      title={showFollowDetails ? 'Gelişme kutusunu gizle' : 'Takip ve çıkış bilgilerini düzenle'}
+                      title={
+                        hasFollowData
+                          ? showFollowDetails
+                            ? 'Gelişme kutusunu gizle (Not/tarih mevcut)'
+                            : 'Takip ve çıkış bilgilerini düzenle (Not/tarih mevcut)'
+                          : showFollowDetails
+                          ? 'Gelişme kutusunu gizle'
+                          : 'Takip ve çıkış bilgilerini düzenle'
+                      }
                       onClick={(e) => {
                         e.preventDefault();
                         e.stopPropagation();
                         setShowFollowDetails(!showFollowDetails);
                       }}
-                      className={`ml-auto p-1 rounded-md transition-colors cursor-pointer ${
-                        showFollowDetails
-                          ? 'text-sky-400 bg-sky-500/20'
-                          : 'text-slate-400 hover:text-sky-300 hover:bg-white/10'
+                      className={`ml-auto p-1 rounded-md transition-colors cursor-pointer border ${
+                        hasFollowData
+                          ? 'text-sky-400 bg-sky-500/20 hover:bg-sky-500/30 border-sky-500/40 shadow-xs'
+                          : showFollowDetails
+                          ? 'text-slate-200 bg-white/15 hover:bg-white/20 border-white/10'
+                          : 'text-slate-400 hover:text-white hover:bg-white/10 border-transparent'
                       }`}
                     >
                       <Megaphone className="w-3 h-3" />
@@ -611,7 +841,7 @@ export const AddItemModal: React.FC<AddItemModalProps> = ({
                     id="add-dropped-cb"
                     type="checkbox"
                     checked={dropped}
-                    onChange={(e) => setDropped(e.target.checked)}
+                    onChange={() => handleMediaStatusToggle('dropped')}
                     className="w-4 h-4 rounded border-slate-600 bg-slate-800 text-rose-500 focus:ring-0 cursor-pointer"
                   />
                   <PauseCircle className="w-3.5 h-3.5 text-rose-400 shrink-0" />
@@ -693,7 +923,13 @@ export const AddItemModal: React.FC<AddItemModalProps> = ({
                   <select
                     id="add-game-status-select"
                     value={status}
-                    onChange={(e) => setStatus(e.target.value as GameStatus)}
+                    onChange={(e) => {
+                      const next = e.target.value as GameStatus;
+                      setStatus(next);
+                      if (next === 'Oynanıyor' || next === 'Oynanacak') {
+                        setDate('');
+                      }
+                    }}
                     className="w-full bg-black/30 text-slate-200 border border-white/10 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:border-blue-500 cursor-pointer"
                   >
                     <option value="Oynanıyor" className="bg-slate-900 text-white">🎮 Oynanıyor</option>
@@ -742,6 +978,7 @@ export const AddItemModal: React.FC<AddItemModalProps> = ({
                     type="number"
                     min="0"
                     value={hours}
+                    onFocus={(e) => e.target.select()}
                     onChange={(e) => setHours(Number(e.target.value) || 0)}
                     className="w-full bg-black/30 text-sky-300 font-semibold border border-white/10 rounded-lg px-2 py-1 text-xs focus:outline-none focus:border-blue-500"
                   />
@@ -837,6 +1074,206 @@ export const AddItemModal: React.FC<AddItemModalProps> = ({
                 />
               </div>
             )}
+          </div>
+
+          {/* Prominent Separator between Tags and Characters */}
+          <div className="border-t-2 border-white/20 my-4" />
+
+          {/* KARAKTERLER & KADRO */}
+          <div className="space-y-3 pt-1">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-1.5 text-xs font-bold text-slate-200">
+                <Users className="w-3.5 h-3.5 text-sky-400" />
+                <span>Karakterler & Kadro</span>
+              </div>
+              <button
+                type="button"
+                id="btn-add-char-row-add-modal"
+                onClick={handleAddCharacter}
+                className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-sky-500/20 hover:bg-sky-500/30 text-sky-300 font-semibold text-xs border border-sky-500/30 transition-colors cursor-pointer"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>Karakter Ekle</span>
+              </button>
+            </div>
+
+            {/* Global Actor Autocomplete Datalist */}
+            <datalist id="add-actor-autocomplete-list">
+              {allActorSuggestions.map((act) => (
+                <option key={act} value={act} />
+              ))}
+            </datalist>
+
+            {/* Character Rows List */}
+            {characters.length === 0 ? (
+              <div className="p-3.5 rounded-xl bg-white/[0.02] border border-white/5 text-center text-xs text-slate-400">
+                Henüz eklenmiş bir karakter bulunmuyor.
+              </div>
+            ) : (
+              <div className="space-y-2 max-h-[260px] overflow-y-auto custom-scrollbar pr-1">
+                {characters.map((char, index) => (
+                  <div
+                    key={index}
+                    className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 p-2.5 rounded-xl bg-white/[0.03] border border-white/10 group hover:border-white/20 transition-all"
+                  >
+                    {/* Karakter Görseli Seçici / Önizleme / Panodan Yapıştırma */}
+                    <div className="relative shrink-0 flex items-center justify-center">
+                      <input
+                        type="file"
+                        accept="image/*"
+                        id={`add-char-img-${index}`}
+                        className="hidden"
+                        onChange={async (e) => {
+                          const file = e.target.files?.[0];
+                          if (file) {
+                            try {
+                              const optimized = await optimizeImageFile(file, 1200, 1600, 0.95);
+                              handleUpdateCharacter(index, 'image', optimized);
+                            } catch (err) {
+                              console.error(err);
+                            }
+                          }
+                        }}
+                      />
+                      {char.image ? (
+                        <div className="relative group/cavatar w-9 h-9 rounded-lg overflow-hidden border border-white/25 bg-black/50 shadow shrink-0">
+                          <img
+                            src={char.image}
+                            alt={char.name || 'Karakter'}
+                            className="w-full h-full object-cover"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => handleUpdateCharacter(index, 'image', undefined)}
+                            title="Resmi Kaldır (Sil)"
+                            className="absolute inset-0 bg-black/80 opacity-0 group-hover/cavatar:opacity-100 flex items-center justify-center text-rose-400 hover:text-rose-200 transition-all cursor-pointer"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-1">
+                          <label
+                            htmlFor={`add-char-img-${index}`}
+                            title="PC'den Karakter Görseli Seç"
+                            className="w-9 h-9 rounded-lg border border-dashed border-white/20 hover:border-sky-400/60 bg-black/30 hover:bg-sky-500/10 flex items-center justify-center text-slate-400 hover:text-sky-300 transition-colors cursor-pointer"
+                          >
+                            <ImageIcon className="w-4 h-4" />
+                          </label>
+                          <button
+                            type="button"
+                            onClick={() => handlePasteCharacterImage(index)}
+                            title="Panodan Görsel Yapıştır (Kopyalanan Resmi Ekle)"
+                            className="w-9 h-9 rounded-lg border border-dashed border-white/20 hover:border-emerald-400/60 bg-black/30 hover:bg-emerald-500/10 flex items-center justify-center text-slate-400 hover:text-emerald-300 transition-colors cursor-pointer"
+                          >
+                            <ClipboardPaste className="w-4 h-4" />
+                          </button>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="flex-1">
+                      <input
+                        type="text"
+                        placeholder="Karakter İsmi (örn: Yuta Okkotsu)"
+                        value={char.name}
+                        onChange={(e) =>
+                          handleUpdateCharacter(index, 'name', e.target.value)
+                        }
+                        className="w-full bg-black/40 text-slate-200 placeholder-slate-500 border border-white/10 rounded-lg px-2.5 py-1.5 text-xs focus:outline-none focus:border-sky-500"
+                      />
+                    </div>
+
+                    <div className="flex-1 flex items-center gap-1">
+                      <span className="text-slate-500 text-xs hidden sm:inline">🎙️</span>
+                      <input
+                        type="text"
+                        list="add-actor-autocomplete-list"
+                        placeholder="Seslendiren / Oyuncu (örn: Kana Hanazawa)"
+                        value={char.actor || ''}
+                        onChange={(e) =>
+                          handleUpdateCharacter(index, 'actor', e.target.value)
+                        }
+                        className="w-full bg-black/40 text-sky-300 placeholder-slate-500 border border-white/10 rounded-lg px-2.5 py-1.5 text-xs focus:outline-none focus:border-sky-500"
+                      />
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveCharacter(index)}
+                      title="Karakteri Sil"
+                      className="p-1.5 rounded-lg text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 transition-colors self-end sm:self-center cursor-pointer"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Prominent Separator between Characters and Series */}
+          <div className="border-t-2 border-white/20 my-4" />
+
+          {/* SERİ / EVREN BİLGİSİ (Karakterler & Kadro Altında) */}
+          <div className="space-y-3 pt-1">
+            <div className="flex items-center gap-1.5 text-xs font-bold text-slate-200">
+              <Layers className="w-3.5 h-3.5 text-indigo-400" />
+              <span>Seri / Evren Bağlantısı</span>
+              <div className="relative inline-flex items-center group/ftip">
+                <button
+                  type="button"
+                  onClick={() => setShowFranchiseTooltip(!showFranchiseTooltip)}
+                  className="p-0.5 text-slate-400 hover:text-indigo-300 rounded transition-colors cursor-pointer"
+                  title="Bilgi"
+                >
+                  <Info className="w-3.5 h-3.5" />
+                </button>
+                <div
+                  className={`absolute left-6 top-1/2 -translate-y-1/2 z-50 w-64 p-2.5 rounded-xl bg-slate-900/95 border border-indigo-500/30 text-[11px] text-slate-200 font-normal leading-relaxed shadow-xl backdrop-blur-md transition-opacity pointer-events-none ${
+                    showFranchiseTooltip ? 'opacity-100' : 'opacity-0 group-hover/ftip:opacity-100'
+                  }`}
+                >
+                  Aynı evrene veya seriye ait yapımları (örn: film, anime, dizi, oyun) birbirine bağlamak için ortak bir seri adı belirleyin.
+                </div>
+              </div>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 items-center">
+              <div className="sm:col-span-2">
+                <label className="block text-[10px] uppercase tracking-wider text-slate-400 font-semibold mb-1">
+                  Seri / Evren Adı
+                </label>
+                <input
+                  id="add-series-name-input"
+                  type="text"
+                  list="add-series-name-suggestions"
+                  value={seriesName}
+                  onChange={(e) => setSeriesName(e.target.value)}
+                  placeholder="Örn: Jujutsu Kaisen, Harry Potter, Witcher..."
+                  className="w-full bg-black/40 text-slate-100 border border-white/10 rounded-xl px-3 py-1.5 text-xs focus:outline-none focus:border-indigo-400 transition-colors placeholder:text-neutral-500"
+                />
+                <datalist id="add-series-name-suggestions">
+                  {availableSeriesNames.map((name) => (
+                    <option key={name} value={name} />
+                  ))}
+                </datalist>
+              </div>
+              <div>
+                <label className="block text-[10px] uppercase tracking-wider text-slate-400 font-semibold mb-1">
+                  İzleme / Seri Sırası
+                </label>
+                <input
+                  id="add-series-order-input"
+                  type="number"
+                  step="any"
+                  min="0"
+                  value={seriesOrder}
+                  onChange={(e) => setSeriesOrder(e.target.value)}
+                  placeholder="Örn: 1, 2, 3..."
+                  className="w-full bg-black/40 text-indigo-300 font-semibold border border-white/10 rounded-xl px-3 py-1.5 text-xs focus:outline-none focus:border-indigo-400 transition-colors placeholder:text-neutral-500"
+                />
+              </div>
+            </div>
           </div>
         </form>
 

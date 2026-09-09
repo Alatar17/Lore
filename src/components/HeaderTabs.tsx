@@ -5,6 +5,7 @@ import {
   MainTabType,
   ViewSettings,
   UiExperimentsState,
+  isTierListAvailable,
 } from '../types';
 import { FilterPanel } from './FilterPanel';
 import { ViewPanel } from './ViewPanel';
@@ -20,7 +21,6 @@ import {
   Gamepad2,
   LayoutGrid,
   ListOrdered,
-  BarChart3,
   Tag,
   Undo2,
   Redo2,
@@ -60,6 +60,7 @@ interface HeaderTabsProps {
   onRedo?: () => void;
   onExportTierList?: () => void;
   onImportTierList?: (file: File) => void;
+  onExportTierPng?: () => void;
   uiExperiments?: UiExperimentsState;
   onMainTabChange: (tab: MainTabType) => void;
   onCategorySelect: (catId: string | null) => void;
@@ -71,7 +72,6 @@ interface HeaderTabsProps {
   onToggleFilter: () => void;
   onToggleView: () => void;
   onOpenSettings: () => void;
-  onOpenStatistics?: () => void;
   onFilterChange: (newFilters: Partial<FilterState>) => void;
   onViewSettingsChange: (newSettings: Partial<ViewSettings>) => void;
   onClosePanels: () => void;
@@ -97,6 +97,7 @@ export const HeaderTabs: React.FC<HeaderTabsProps> = ({
   canRedo,
   onUndo,
   onRedo,
+  onExportTierPng,
   uiExperiments,
   onMainTabChange,
   onCategorySelect,
@@ -108,7 +109,6 @@ export const HeaderTabs: React.FC<HeaderTabsProps> = ({
   onToggleFilter,
   onToggleView,
   onOpenSettings,
-  onOpenStatistics,
   onFilterChange,
   onViewSettingsChange,
   onClosePanels,
@@ -450,12 +450,12 @@ export const HeaderTabs: React.FC<HeaderTabsProps> = ({
                       onClick={() => handleSelectCategoryFromMenu('media', TRACKED_TAB_ID, null)}
                       className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-semibold transition-colors text-left cursor-pointer ${
                         mainTab === 'media' && activeCatId === TRACKED_TAB_ID
-                          ? 'bg-amber-500/20 text-amber-200 border border-amber-500/40 shadow-sm'
-                          : 'text-amber-400/90 hover:bg-white/5'
+                          ? 'bg-neutral-800 text-white border border-white/20'
+                          : 'text-neutral-300 hover:bg-white/5 hover:text-white'
                       }`}
                     >
                       <span className="font-semibold">İzlenen & Takip</span>
-                      <span className="text-[10px] text-amber-300/60 font-medium">Özel Vitrin</span>
+                      <span className="text-[10px] text-neutral-500 font-medium">Özel Vitrin</span>
                     </button>
 
                     {/* Ayraç (İzlenen Takip altındaki çizgi) */}
@@ -543,7 +543,7 @@ export const HeaderTabs: React.FC<HeaderTabsProps> = ({
             </button>
 
             {/* Filter Icon */}
-            <div className="relative">
+            <div className={`relative ${isFilterOpen ? 'z-50' : ''}`}>
               <button
                 id="mobile-filter-toggle-btn"
                 onClick={(e) => {
@@ -578,7 +578,7 @@ export const HeaderTabs: React.FC<HeaderTabsProps> = ({
             </div>
 
             {/* View Settings Icon */}
-            <div className="relative">
+            <div className={`relative ${isViewOpen ? 'z-50' : ''}`}>
               <button
                 id="mobile-view-toggle-btn"
                 onClick={(e) => {
@@ -752,9 +752,8 @@ export const HeaderTabs: React.FC<HeaderTabsProps> = ({
                 <>
                   <span className="text-neutral-600 shrink-0">/</span>
                   {activeCatId === TRACKED_TAB_ID ? (
-                    <span className="text-amber-400 font-bold flex items-center gap-1 shrink-0">
-                      <Star className="w-3 h-3 fill-amber-400/30" />
-                      <span>İzlenen & Takip</span>
+                    <span className="text-white font-semibold shrink-0">
+                      İzlenen & Takip
                     </span>
                   ) : (
                     <button
@@ -807,32 +806,47 @@ export const HeaderTabs: React.FC<HeaderTabsProps> = ({
           </div>
 
           {/* Right Side: View Mode Toggle (Grid / Tier) Dayalı */}
-          {activeCategory && activeCategory.tierEnabled && (
-            <div className="flex items-center p-0.5 bg-neutral-900 rounded-lg border border-white/10 shrink-0 ml-auto">
-              <button
-                id="mobile-viewmode-grid-btn"
-                onClick={() => onViewModeChange('grid')}
-                title="Izgara Görünümü"
-                className={`p-1.5 rounded-md text-xs transition-all cursor-pointer ${
-                  viewMode === 'grid'
-                    ? 'bg-neutral-700 text-white shadow'
-                    : 'text-neutral-400 hover:text-white'
-                }`}
-              >
-                <LayoutGrid className="w-3.5 h-3.5" />
-              </button>
-              <button
-                id="mobile-viewmode-tier-btn"
-                onClick={() => onViewModeChange('tier')}
-                title="Tier List Görünümü"
-                className={`p-1.5 rounded-md text-xs transition-all cursor-pointer ${
-                  viewMode === 'tier'
-                    ? 'bg-neutral-700 text-white shadow'
-                    : 'text-neutral-400 hover:text-white'
-                }`}
-              >
-                <ListOrdered className="w-3.5 h-3.5" />
-              </button>
+          {isTierListAvailable(activeCategory, activeSub) && (
+            <div className="flex items-center gap-1.5 shrink-0 ml-auto">
+              {/* Mobil Minimal PNG İndir İkonu (Grid/Tier ikonlarının solunda, metin yok, isimler dahil) */}
+              {viewMode === 'tier' && onExportTierPng && (
+                <button
+                  id="mobile-download-tier-png-btn"
+                  type="button"
+                  onClick={onExportTierPng}
+                  title="2X Ultra HD PNG İndir"
+                  className="p-1.5 rounded-lg bg-neutral-900/90 hover:bg-neutral-800 border border-white/10 text-neutral-300 hover:text-white transition-all cursor-pointer flex items-center justify-center shadow-sm"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                </button>
+              )}
+
+              <div className="flex items-center p-0.5 bg-neutral-900 rounded-lg border border-white/10">
+                <button
+                  id="mobile-viewmode-grid-btn"
+                  onClick={() => onViewModeChange('grid')}
+                  title="Grid Görünümü"
+                  className={`p-1.5 rounded-md text-xs transition-all cursor-pointer ${
+                    viewMode === 'grid'
+                      ? 'bg-neutral-700 text-white shadow'
+                      : 'text-neutral-400 hover:text-white'
+                  }`}
+                >
+                  <LayoutGrid className="w-3.5 h-3.5" />
+                </button>
+                <button
+                  id="mobile-viewmode-tier-btn"
+                  onClick={() => onViewModeChange('tier')}
+                  title="Tier List Görünümü"
+                  className={`p-1.5 rounded-md text-xs transition-all cursor-pointer ${
+                    viewMode === 'tier'
+                      ? 'bg-neutral-700 text-white shadow'
+                      : 'text-neutral-400 hover:text-white'
+                  }`}
+                >
+                  <ListOrdered className="w-3.5 h-3.5" />
+                </button>
+              </div>
             </div>
           )}
         </div>
@@ -994,7 +1008,7 @@ export const HeaderTabs: React.FC<HeaderTabsProps> = ({
                     className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium transition-colors text-left cursor-pointer ${
                       mainTab === 'media' && activeCatId === TRACKED_TAB_ID
                         ? 'bg-neutral-800 text-white border border-white/20'
-                        : 'text-amber-400/90 hover:bg-white/5'
+                        : 'text-neutral-300 hover:bg-neutral-800/60 hover:text-white'
                     }`}
                   >
                     <span className="flex items-center gap-2">
@@ -1221,7 +1235,7 @@ export const HeaderTabs: React.FC<HeaderTabsProps> = ({
           onClick={(e) => e.stopPropagation()}
         >
           {/* Izgara / Tier List Switcher and Undo / Redo / Export / Import Controls */}
-          {activeCategory && activeCategory.tierEnabled && (
+          {isTierListAvailable(activeCategory, activeSub) && (
             <>
               {/* Undo & Redo (Only in Tier mode, positioned to the left of Izgara/Tier) */}
               {viewMode === 'tier' && (
@@ -1266,7 +1280,7 @@ export const HeaderTabs: React.FC<HeaderTabsProps> = ({
                       : 'text-neutral-400 hover:text-white'
                   }`}
                 >
-                  <LayoutGrid className="w-3.5 h-3.5" /> Izgara
+                  <LayoutGrid className="w-3.5 h-3.5" /> Grid
                 </button>
                 <button
                   id="viewmode-tier-btn"
@@ -1394,7 +1408,7 @@ export const HeaderTabs: React.FC<HeaderTabsProps> = ({
           )}
 
           {/* Filter Popover Button */}
-          <div className="relative">
+          <div className={`relative ${isFilterOpen ? 'z-50' : ''}`}>
             <button
               id="filter-toggle-btn"
               onClick={(e) => {
@@ -1429,7 +1443,7 @@ export const HeaderTabs: React.FC<HeaderTabsProps> = ({
           </div>
 
           {/* View Settings Popover Button */}
-          <div className="relative">
+          <div className={`relative ${isViewOpen ? 'z-50' : ''}`}>
             <button
               id="view-toggle-btn"
               onClick={(e) => {

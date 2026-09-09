@@ -8,6 +8,8 @@ interface TrackedViewProps {
   viewSettings: ViewSettings;
   uiExperiments?: UiExperimentsState;
   onItemClick: (item: ArchiveItem) => void;
+  onItemPreview?: (item: ArchiveItem) => void;
+  onItemEdit?: (item: ArchiveItem) => void;
   onItemHover?: (item: ArchiveItem | null) => void;
   isSelectionMode?: boolean;
   selectedItemIds?: Set<string>;
@@ -19,6 +21,8 @@ export const TrackedView: React.FC<TrackedViewProps> = ({
   viewSettings,
   uiExperiments,
   onItemClick,
+  onItemPreview,
+  onItemEdit,
   onItemHover,
   isSelectionMode,
   selectedItemIds,
@@ -132,6 +136,8 @@ ${names || '- (Takip listesinde henüz yapım yok)'}`;
                 viewSettings={viewSettings}
                 uiExperiments={uiExperiments}
                 onClick={() => onItemClick(item)}
+                onPreview={() => (onItemPreview ? onItemPreview(item) : onItemClick(item))}
+                onEdit={() => (onItemEdit ? onItemEdit(item) : onItemClick(item))}
                 onMouseEnter={() => onItemHover?.(item)}
                 onMouseLeave={() => onItemHover?.(null)}
                 isSelectionMode={isSelectionMode}
@@ -163,14 +169,13 @@ ${names || '- (Takip listesinde henüz yapım yok)'}`;
             id="gen-prompt-btn"
             onClick={() => setShowPromptBox(!showPromptBox)}
             title="Takip listesindeki yapımlar için AI sorgu metni oluştur"
-            className={`flex items-center gap-1.5 p-2 sm:px-2.5 sm:py-1 rounded-lg border text-xs font-medium transition-all cursor-pointer ${
+            className={`p-2 rounded-lg border text-xs font-medium transition-all cursor-pointer flex items-center justify-center ${
               showPromptBox
                 ? 'bg-amber-500/20 border-amber-500 text-amber-300'
                 : 'bg-[#1e212b] border-[#373c4b] text-gray-300 hover:text-white hover:border-gray-500'
             }`}
           >
-            <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-            <span className="hidden sm:inline">Sorgu Metni Oluştur</span>
+            <Sparkles className="w-4 h-4 text-amber-400" />
           </button>
         </div>
 
@@ -237,6 +242,8 @@ ${names || '- (Takip listesinde henüz yapım yok)'}`;
                 viewSettings={viewSettings}
                 uiExperiments={uiExperiments}
                 onClick={() => onItemClick(item)}
+                onPreview={() => (onItemPreview ? onItemPreview(item) : onItemClick(item))}
+                onEdit={() => (onItemEdit ? onItemEdit(item) : onItemClick(item))}
                 onMouseEnter={() => onItemHover?.(item)}
                 onMouseLeave={() => onItemHover?.(null)}
                 isSelectionMode={isSelectionMode}

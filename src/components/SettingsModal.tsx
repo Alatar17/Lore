@@ -11,6 +11,12 @@ import {
   MEDIA_TAG_FIELDS,
   GAME_TAG_FIELDS,
   UiExperimentsState,
+  FabPositions,
+  FabPositionProfile,
+  DEFAULT_FAB_POSITIONS,
+  DEFAULT_FAB_PROFILES,
+  areFabPositionsEqual,
+  normalizeFabPositions,
 } from '../types';
 import { createDefaultTierRows, INITIAL_DATA } from '../data/initialData';
 import {
@@ -75,6 +81,10 @@ import {
   ChevronLeft,
   ChevronRight,
   SlidersHorizontal,
+  Wrench,
+  Bookmark,
+  BarChart3,
+  Pencil,
 } from 'lucide-react';
 
 interface SettingsModalProps {
@@ -85,6 +95,7 @@ interface SettingsModalProps {
   searchQuery?: string;
   onSearchTag?: (tag: string, mainTab?: MainTabType) => void;
   onUpdateViewSettings: (newSettings: Partial<ViewSettings>) => void;
+  onStartFabPositionEdit?: () => void;
   uiExperiments?: UiExperimentsState;
   onUpdateUiExperiments?: (updater: (prev: UiExperimentsState) => UiExperimentsState) => void;
   onConnectFolder: () => Promise<void>;
@@ -94,6 +105,8 @@ interface SettingsModalProps {
   onSelectItem?: (item: ArchiveItem) => void;
   onReplaceAllData: (newData: AppData) => void;
   onClose: () => void;
+  initialTab?: 'categories' | 'tags' | 'themes' | 'shortcuts' | 'storage';
+  highlightConnectFolder?: boolean;
 }
 
 interface ThemeOption {
@@ -171,12 +184,13 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   searchQuery = '',
   onSearchTag,
   onUpdateViewSettings,
+  onStartFabPositionEdit,
   uiExperiments = {
     toolbarStyle: 'default',
     cardGlow: false,
     cardVignette: 'none',
     cardRadius: 'normal',
-    cardHoverMotion: 'lift',
+    cardHoverMotion: 'none',
     bgAtmosphere: 'default',
     badgeStyle: 'default',
     badgeDensity: 'full',
@@ -189,13 +203,22 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   onSelectItem,
   onReplaceAllData,
   onClose,
+  initialTab,
+  highlightConnectFolder,
 }) => {
   const [activeTab, setActiveTab] = useState<'categories' | 'tags' | 'themes' | 'shortcuts' | 'storage'>(() => {
+    if (initialTab) return initialTab;
     if (typeof window !== 'undefined' && window.innerWidth < 640) {
       return 'tags';
     }
     return 'categories';
   });
+
+  useEffect(() => {
+    if (initialTab) {
+      setActiveTab(initialTab);
+    }
+  }, [initialTab]);
   const [settingsMainTab, setSettingsMainTab] = useState<MainTabType>(activeMainTab);
   const [tagFieldKey, setTagFieldKey] = useState<TagFieldKey>('firm');
   const [tagSearchQuery, setTagSearchQuery] = useState('');
@@ -210,6 +233,30 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   const [folderBackups, setFolderBackups] = useState<FolderBackupItem[]>([]);
   const [loadingBackups, setLoadingBackups] = useState(false);
   const [restoringBackup, setRestoringBackup] = useState(false);
+  const [newFabProfileName, setNewFabProfileName] = useState('');
+  const [fabProfileSuccessMsg, setFabProfileSuccessMsg] = useState<string | null>(null);
+  const [fabProfileErrorMsg, setFabProfileErrorMsg] = useState<string | null>(null);
+  const [editingProfileId, setEditingProfileId] = useState<string | null>(null);
+  const [editingProfileName, setEditingProfileName] = useState('');
+
+  // Active Tier List subgroups config popover state
+  const [activeTierSubgroupCatId, setActiveTierSubgroupCatId] = useState<string | null>(null);
+  const tierSubgroupPopoverRef = useRef<HTMLDivElement>(null);
+
+  // Close tier subgroup popover on click outside
+  useEffect(() => {
+    const handleOutsideClick = (e: MouseEvent) => {
+      if (
+        activeTierSubgroupCatId &&
+        tierSubgroupPopoverRef.current &&
+        !tierSubgroupPopoverRef.current.contains(e.target as Node)
+      ) {
+        setActiveTierSubgroupCatId(null);
+      }
+    };
+    document.addEventListener('mousedown', handleOutsideClick);
+    return () => document.removeEventListener('mousedown', handleOutsideClick);
+  }, [activeTierSubgroupCatId]);
 
   // Custom in-app dialog state
   const [dialogOptions, setDialogOptions] = useState<DialogOptions | null>(null);
@@ -354,37 +401,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       );
       onUpdateCategories(settingsMainTab, updated);
     } else {
-      // Disabling tier list: check if placed cards exist
-      const hasPlaced = appData.items.some(
-        (it) => it.mainTab === settingsMainTab && it.cat === cat.id && it.tier
-      );
-      if (hasPlaced) {
-        setDialogOptions({
-          type: 'confirm',
-          title: 'Tier List Devre Dışı Bırakılsın mı?',
-          message: `"${cat.name}" kategorisinde yerleştirilmiş kartlar bulunuyor. Kapatırsanız tüm yerleştirmeler sıfırlanıp havuza geri dönecektir. Devam etmek istiyor musunuz?`,
-          isDestructive: true,
-          confirmText: 'Kapat ve Havuza Al',
-          onConfirm: () => {
-            const updated = cats.map((c) =>
-              c.id === cat.id ? { ...c, tierEnabled: false } : c
-            );
-            onUpdateCategories(settingsMainTab, updated);
-
-            if (onUpdateItems) {
-              const updatedItems = appData.items.map((it) => {
-                if (it.mainTab === settingsMainTab && it.cat === cat.id && it.tier) {
-                  return { ...it, tier: null };
-                }
-                return it;
-              });
-              onUpdateItems(updatedItems);
-            }
-          },
-        });
-        return;
-      }
-
+      // Disabling tier list: do not wipe card placements, keep item.tier preserved in data
       const updated = cats.map((c) =>
         c.id === cat.id ? { ...c, tierEnabled: false } : c
       );
@@ -470,7 +487,11 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               });
               return c;
             }
-            return { ...c, subgroups: [...c.subgroups, name] };
+            return {
+              ...c,
+              subgroups: [...c.subgroups, name],
+              tierSubgroups: c.tierSubgroups ? [...c.tierSubgroups, name] : undefined,
+            };
           }
           return c;
         });
@@ -489,7 +510,11 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       onConfirm: () => {
         const updated = cats.map((c) =>
           c.id === catId
-            ? { ...c, subgroups: c.subgroups.filter((s) => s !== subName) }
+            ? {
+                ...c,
+                subgroups: c.subgroups.filter((s) => s !== subName),
+                tierSubgroups: c.tierSubgroups ? c.tierSubgroups.filter((s) => s !== subName) : undefined,
+              }
             : c
         );
         onUpdateCategories(settingsMainTab, updated);
@@ -863,11 +888,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     <>
       <div
         id="settings-modal-overlay"
-        className={`fixed inset-0 z-50 ${
-          viewSettings.backdropBlur !== false
-            ? 'bg-black/75 backdrop-blur-sm'
-            : 'bg-transparent backdrop-blur-none pointer-events-auto'
-        } flex items-center justify-center p-3 sm:p-6 overflow-y-auto transition-all duration-200`}
+        className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md md:backdrop-blur-none flex items-center justify-center p-3 sm:p-6 overflow-y-auto transition-all duration-200"
         onClick={onClose}
       >
         <div
@@ -925,7 +946,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   : 'border-transparent text-slate-400 hover:text-slate-200'
               }`}
             >
-              <Palette className="w-3.5 h-3.5" /> Görünüm & Atmosfer
+              <Palette className="w-3.5 h-3.5" /> Görünüm
             </button>
 
             <button
@@ -1132,15 +1153,112 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                               </div>
                             )}
 
-                            <label className="flex items-center gap-1.5 text-xs text-slate-300 cursor-pointer select-none hover:text-white">
-                              <input
-                                type="checkbox"
-                                checked={c.tierEnabled}
-                                onChange={() => handleToggleTierList(c)}
-                                className="rounded border-white/20 text-blue-600 focus:ring-0 focus:ring-offset-0 bg-black/40"
-                              />
-                              <span>Tier List Aktif</span>
-                            </label>
+                            <div className="flex items-center gap-1.5">
+                              <label className="flex items-center gap-1.5 text-xs text-slate-300 cursor-pointer select-none hover:text-white">
+                                <input
+                                  type="checkbox"
+                                  checked={c.tierEnabled}
+                                  onChange={() => handleToggleTierList(c)}
+                                  className="rounded border-white/20 text-blue-600 focus:ring-0 focus:ring-offset-0 bg-black/40"
+                                />
+                                <span>Tier List Aktif</span>
+                              </label>
+
+                              {/* Wrench icon: directly to the right of Tier List Aktif, only visible if subgroups exist */}
+                              {c.subgroups && c.subgroups.length > 0 && (
+                                <div className="relative inline-flex items-center">
+                                  <button
+                                    type="button"
+                                    id={`tier-subgroup-wrench-${c.id}`}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setActiveTierSubgroupCatId((prev) => (prev === c.id ? null : c.id));
+                                    }}
+                                    title="Tier List'e Dahil Edilecek Alt Gruplar"
+                                    className={`p-1 rounded-md transition-all cursor-pointer flex items-center justify-center ${
+                                      activeTierSubgroupCatId === c.id
+                                        ? 'bg-blue-600/30 text-blue-300 border border-blue-500/40 shadow-sm'
+                                        : c.tierSubgroups && c.tierSubgroups.length < c.subgroups.length
+                                        ? 'text-amber-400 hover:text-amber-300 hover:bg-amber-400/10'
+                                        : 'text-slate-400 hover:text-white hover:bg-white/10'
+                                    }`}
+                                  >
+                                    <Wrench className="w-3.5 h-3.5" />
+                                  </button>
+
+                                  {/* Compact Popover Dropdown without backdrop darkening/blur */}
+                                  {activeTierSubgroupCatId === c.id && (
+                                    <div
+                                      ref={tierSubgroupPopoverRef}
+                                      id={`tier-subgroup-popover-${c.id}`}
+                                      onClick={(e) => e.stopPropagation()}
+                                      className="absolute top-full right-0 mt-1.5 w-64 p-3 bg-[#161822] border border-white/15 rounded-xl shadow-2xl z-50 animate-in fade-in zoom-in-95 duration-100 text-left"
+                                    >
+                                      {/* Header */}
+                                      <div className="flex items-center justify-between pb-2 mb-2 border-b border-white/10">
+                                        <span className="text-xs font-semibold text-slate-200">
+                                          Tier List'e Dahil Edilecek Alt Gruplar
+                                        </span>
+                                        <button
+                                          type="button"
+                                          onClick={() => setActiveTierSubgroupCatId(null)}
+                                          className="p-0.5 rounded text-slate-400 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+                                        >
+                                          <X className="w-3.5 h-3.5" />
+                                        </button>
+                                      </div>
+
+                                      {/* Subgroups List */}
+                                      <div className="space-y-0.5 max-h-48 overflow-y-auto custom-scrollbar">
+                                        {c.subgroups.map((sub) => {
+                                          const enabledSubs = c.tierSubgroups ?? c.subgroups;
+                                          const isChecked = enabledSubs.includes(sub);
+
+                                          return (
+                                            <label
+                                              key={sub}
+                                              className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-white/5 text-xs text-slate-200 cursor-pointer select-none transition-colors"
+                                            >
+                                              <input
+                                                type="checkbox"
+                                                checked={isChecked}
+                                                onChange={() => {
+                                                  const currentSelected = c.tierSubgroups ?? [...c.subgroups];
+                                                  let updatedSelected: string[];
+                                                  if (currentSelected.includes(sub)) {
+                                                    updatedSelected = currentSelected.filter((s) => s !== sub);
+                                                  } else {
+                                                    updatedSelected = [...currentSelected, sub];
+                                                  }
+                                                  const updatedCats = cats.map((cat) =>
+                                                    cat.id === c.id
+                                                      ? { ...cat, tierSubgroups: updatedSelected }
+                                                      : cat
+                                                  );
+                                                  onUpdateCategories(settingsMainTab, updatedCats);
+                                                }}
+                                                className="rounded border-white/25 text-blue-600 focus:ring-0 focus:ring-offset-0 bg-black/40 w-3.5 h-3.5 cursor-pointer"
+                                              />
+                                              <span className="font-medium truncate">{sub}</span>
+                                            </label>
+                                          );
+                                        })}
+                                      </div>
+
+                                      {/* Security warning notice if at least one subgroup is unchecked */}
+                                      {c.subgroups.some(
+                                        (sub) => !(c.tierSubgroups ?? c.subgroups).includes(sub)
+                                      ) && (
+                                        <div className="mt-2.5 pt-2 border-t border-white/10 flex items-start gap-1.5 text-[11px] text-amber-300/90 leading-snug">
+                                          <span className="shrink-0 text-xs">⚠️</span>
+                                          <span>Mevcut sıralamalarınız silinmez, yalnızca Tier List görünümünden gizlenir.</span>
+                                        </div>
+                                      )}
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+                            </div>
 
                             <button
                               onClick={() => handleDeleteCategory(c)}
@@ -1481,7 +1599,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             {/* TAB 2: APPEARANCE & THEMES */}
             {activeTab === 'themes' && (
               <div className="space-y-4">
-                {/* Floating Appearance Bar Toggle */}
+                {/* 1. Ekran Altı Hızlı Görünüm Çubuğu (En yukarıda) */}
                 <div className="p-3.5 rounded-xl bg-white/5 border border-white/10 flex items-center justify-between">
                   <div className="space-y-0.5 pr-2">
                     <span className="text-xs font-semibold text-slate-100 block">
@@ -1500,7 +1618,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                         const isChecked = e.target.checked;
                         onUpdateViewSettings({ showQuickAppearanceBar: isChecked });
                         if (isChecked) {
-                          // If activated, close settings so bottom appearance popup bar is clearly visible
                           onClose();
                         }
                       }}
@@ -1508,6 +1625,297 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     />
                     <div className="w-10 h-5.5 bg-neutral-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4.5 after:w-4.5 after:transition-all peer-checked:bg-blue-600"></div>
                   </label>
+                </div>
+
+                {/* Altına bir çizgi */}
+                <hr className="border-white/10 my-1" />
+
+                {/* 2. Yüzen Buton (FAB) Konumları */}
+                <div className="space-y-3">
+                  <div>
+                    <span className="text-sm font-bold text-slate-100 block">
+                      Yüzen Buton (FAB) Konumları
+                    </span>
+                    <p className="text-xs text-slate-400 mt-0.5">
+                      İstatistikler, Son Aktiviteler ve Yeni Kart Ekleme butonlarının konumlarını canlı ekranda veya presetlerle yönetin.
+                    </p>
+                  </div>
+
+                  {/* Start Live Screen Edit Button (sade, şık, göz yormayan, başında ikon olmayan) */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onClose();
+                      if (onStartFabPositionEdit) {
+                        onStartFabPositionEdit();
+                      }
+                    }}
+                    className="w-full py-2.5 px-4 rounded-xl bg-white/10 hover:bg-white/15 text-slate-200 hover:text-white text-xs font-semibold border border-white/15 transition-all text-center cursor-pointer active:scale-[0.99]"
+                  >
+                    FAB Buton Konumlarını Canlı Ekranda Düzenle
+                  </button>
+                </div>
+
+                {/* 3. Konum Presetleri */}
+                <div className="p-4 rounded-xl bg-white/5 border border-white/10 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-slate-100">
+                      Konum Presetleri
+                    </span>
+                  </div>
+
+                  {/* Add New Profile / Preset Form */}
+                  <form
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      const trimmed = newFabProfileName.trim();
+                      if (!trimmed) return;
+                      const currentPositions = normalizeFabPositions(viewSettings.fabPositions);
+                      const existing =
+                        viewSettings.fabProfiles && viewSettings.fabProfiles.length > 0
+                          ? viewSettings.fabProfiles
+                          : DEFAULT_FAB_PROFILES;
+                      const isDuplicate = existing.some((p) => areFabPositionsEqual(p.positions, currentPositions));
+                      if (isDuplicate) {
+                        setFabProfileErrorMsg('Bu koordinatlara sahip bir preset zaten mevcut');
+                        setTimeout(() => setFabProfileErrorMsg(null), 3500);
+                        return;
+                      }
+                      const newProfile: FabPositionProfile = {
+                        id: 'fab_prof_' + Date.now(),
+                        name: trimmed,
+                        positions: { ...currentPositions },
+                        createdAt: Date.now(),
+                      };
+                      onUpdateViewSettings({
+                        fabProfiles: [...existing, newProfile],
+                      });
+                      setNewFabProfileName('');
+                      setFabProfileSuccessMsg(`"${trimmed}" preseti kaydedildi`);
+                      setTimeout(() => setFabProfileSuccessMsg(null), 2500);
+                    }}
+                    className="flex items-center gap-2"
+                  >
+                    <input
+                      type="text"
+                      value={newFabProfileName}
+                      onChange={(e) => setNewFabProfileName(e.target.value)}
+                      placeholder="Şu anki konumu adlandırıp kaydet..."
+                      className="flex-1 min-w-0 px-3 py-1.5 rounded-xl bg-black/40 border border-white/15 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-blue-500"
+                    />
+                    <button
+                      type="submit"
+                      disabled={!newFabProfileName.trim()}
+                      className="px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 disabled:opacity-40 text-white text-xs font-bold flex items-center gap-1 shrink-0 transition-all cursor-pointer"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>Kaydet</span>
+                    </button>
+                  </form>
+
+                  {fabProfileErrorMsg && (
+                    <div className="text-xs text-rose-400 font-medium flex items-center gap-1.5 p-2 rounded-lg bg-rose-500/10 border border-rose-500/20">
+                      <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                      <span>{fabProfileErrorMsg}</span>
+                    </div>
+                  )}
+
+                  {fabProfileSuccessMsg && (
+                    <div className="text-xs text-emerald-400 font-medium">
+                      {fabProfileSuccessMsg}
+                    </div>
+                  )}
+
+                  {/* Unified Profiles & Preset Cards */}
+                  <div className="space-y-2 pt-1">
+                    {(() => {
+                      const effectiveProfiles =
+                        viewSettings.fabProfiles && viewSettings.fabProfiles.length > 0
+                          ? viewSettings.fabProfiles
+                          : DEFAULT_FAB_PROFILES;
+                      return effectiveProfiles.map((p) => {
+                        const cur = normalizeFabPositions(viewSettings.fabPositions);
+                        const normP = normalizeFabPositions(p.positions);
+                        const isCurrent = areFabPositionsEqual(cur, normP);
+                        const isEditingThis = editingProfileId === p.id;
+
+                        return (
+                          <div
+                            key={p.id}
+                            className={`p-2.5 rounded-xl border transition-all flex items-center justify-between gap-2.5 ${
+                              isCurrent
+                                ? 'bg-blue-600/15 border-blue-500/50 ring-1 ring-blue-500/30'
+                                : 'bg-black/30 border-white/10 hover:border-white/20'
+                            }`}
+                          >
+                            <div className="min-w-0 flex-1 space-y-1">
+                              {isEditingThis ? (
+                                <div className="flex items-center gap-1.5">
+                                  <input
+                                    type="text"
+                                    value={editingProfileName}
+                                    onChange={(e) => setEditingProfileName(e.target.value)}
+                                    onKeyDown={(e) => {
+                                      if (e.key === 'Enter') {
+                                        const trimmed = editingProfileName.trim();
+                                        if (trimmed) {
+                                          const updated = effectiveProfiles.map((item) =>
+                                            item.id === p.id ? { ...item, name: trimmed } : item
+                                          );
+                                          onUpdateViewSettings({ fabProfiles: updated });
+                                        }
+                                        setEditingProfileId(null);
+                                      }
+                                      if (e.key === 'Escape') setEditingProfileId(null);
+                                    }}
+                                    autoFocus
+                                    className="px-2 py-0.5 rounded bg-black/60 border border-blue-400 text-xs text-white focus:outline-none w-36"
+                                  />
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      const trimmed = editingProfileName.trim();
+                                      if (trimmed) {
+                                        const updated = effectiveProfiles.map((item) =>
+                                          item.id === p.id ? { ...item, name: trimmed } : item
+                                        );
+                                        onUpdateViewSettings({ fabProfiles: updated });
+                                      }
+                                      setEditingProfileId(null);
+                                    }}
+                                    className="p-1 text-emerald-400 hover:text-emerald-300 cursor-pointer"
+                                  >
+                                    <Check className="w-3.5 h-3.5" />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => setEditingProfileId(null)}
+                                    className="p-1 text-slate-400 hover:text-white cursor-pointer"
+                                  >
+                                    <X className="w-3.5 h-3.5" />
+                                  </button>
+                                </div>
+                              ) : (
+                                <div className="flex items-center gap-2">
+                                  <span className="text-xs font-bold text-slate-200 truncate">
+                                    {p.name}
+                                  </span>
+                                  {isCurrent && (
+                                    <span className="text-[9px] px-1.5 py-0.2 rounded bg-blue-500/30 text-blue-300 font-bold">
+                                      Aktif
+                                    </span>
+                                  )}
+                                </div>
+                              )}
+
+                              {/* Coordinates with icons */}
+                              <div className="flex flex-wrap items-center gap-x-2.5 gap-y-0.5 text-[11px] text-slate-300 font-mono">
+                                <span className="flex items-center gap-1" title="İstatistik Konumu">
+                                  <BarChart3 className="w-3 h-3 text-blue-400" />
+                                  <span>{normP.statistics.bottom}x{normP.statistics.side}px</span>
+                                </span>
+                                <span className="flex items-center gap-1" title="Son Aktivite Konumu">
+                                  <History className="w-3 h-3 text-purple-400" />
+                                  <span>{normP.recentActivity.bottom}x{normP.recentActivity.side}px</span>
+                                </span>
+                                <span className="flex items-center gap-1" title="Yeni Kart Ekle Konumu">
+                                  <Plus className="w-3 h-3 text-emerald-400" />
+                                  <span>{normP.addItem.bottom}x{normP.addItem.side}px</span>
+                                </span>
+                              </div>
+                            </div>
+
+                            {/* Actions */}
+                            <div className="flex items-center gap-1.5 shrink-0">
+                              {/* Desktop View (Horizontal) */}
+                              <div className="hidden sm:flex items-center gap-1.5">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    onUpdateViewSettings({
+                                      fabPositions: normP,
+                                    });
+                                  }}
+                                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer ${
+                                    isCurrent
+                                      ? 'bg-blue-600 text-white'
+                                      : 'bg-white/10 hover:bg-white/20 text-slate-200 hover:text-white'
+                                  }`}
+                                >
+                                  Uygula
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setEditingProfileId(p.id);
+                                    setEditingProfileName(p.name);
+                                  }}
+                                  title="Preset'i Yeniden Adlandır"
+                                  className="p-1.5 text-slate-400 hover:text-blue-400 rounded-lg hover:bg-white/5 transition-colors cursor-pointer"
+                                >
+                                  <Pencil className="w-3.5 h-3.5" />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const filtered = effectiveProfiles.filter((item) => item.id !== p.id);
+                                    onUpdateViewSettings({ fabProfiles: filtered });
+                                  }}
+                                  title="Preset'i Sil"
+                                  className="p-1.5 text-slate-400 hover:text-red-400 rounded-lg hover:bg-red-500/10 transition-colors cursor-pointer"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+
+                              {/* Mobile View (Trash top right, pencil below, Uygula pushed to the right) */}
+                              <div className="flex sm:hidden items-center gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    onUpdateViewSettings({
+                                      fabPositions: normP,
+                                    });
+                                  }}
+                                  className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer ${
+                                    isCurrent
+                                      ? 'bg-blue-600 text-white shadow-sm'
+                                      : 'bg-white/10 hover:bg-white/20 text-slate-200 hover:text-white'
+                                  }`}
+                                >
+                                  Uygula
+                                </button>
+                                <div className="flex flex-col items-center gap-0.5">
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      const filtered = effectiveProfiles.filter((item) => item.id !== p.id);
+                                      onUpdateViewSettings({ fabProfiles: filtered });
+                                    }}
+                                    title="Preset'i Sil"
+                                    className="p-1 text-slate-400 hover:text-red-400 rounded hover:bg-red-500/10 transition-colors cursor-pointer"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setEditingProfileId(p.id);
+                                      setEditingProfileName(p.name);
+                                    }}
+                                    title="Preset'i Yeniden Adlandır"
+                                    className="p-1 text-slate-400 hover:text-blue-400 rounded hover:bg-white/5 transition-colors cursor-pointer"
+                                  >
+                                    <Pencil className="w-3.5 h-3.5" />
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      });
+                    })()}
+                  </div>
                 </div>
               </div>
             )}
@@ -1572,27 +1980,47 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                       <p className="text-xs text-slate-400">Uygulamayı tam ekrana geçirir veya tam ekrandan çıkar</p>
                     </div>
                     <kbd className="px-3 py-1.5 rounded-lg bg-black/60 border border-white/20 text-slate-200 text-xs font-mono font-bold shadow-inner">
-                      SPACE
-                    </kbd>
-                  </div>
-
-                  <div className="flex items-center justify-between p-3 rounded-xl bg-white/5 border border-white/10">
-                    <div className="space-y-0.5">
-                      <span className="text-sm font-semibold text-slate-100">Büyük Afiş / Resim Önizleme (Hover)</span>
-                      <p className="text-xs text-slate-400">Fare kartın üzerindeyken büyük görseli açar; F, ESC veya boşluğa tıklayarak kapatılır</p>
-                    </div>
-                    <kbd className="px-3 py-1.5 rounded-lg bg-black/60 border border-white/20 text-slate-200 text-xs font-mono font-bold shadow-inner">
                       F
                     </kbd>
                   </div>
 
                   <div className="flex items-center justify-between p-3 rounded-xl bg-white/5 border border-white/10">
                     <div className="space-y-0.5">
-                      <span className="text-sm font-semibold text-slate-100">Izgara / Tier List Görünüm Değiştir</span>
+                      <span className="text-sm font-semibold text-slate-100">Yapımı Düzenle (Detay Penceresi)</span>
+                      <p className="text-xs text-slate-400">Kart detay penceresi açıkken yapım düzenleme modunu açar</p>
+                    </div>
+                    <kbd className="px-3 py-1.5 rounded-lg bg-black/60 border border-white/20 text-slate-200 text-xs font-mono font-bold shadow-inner">
+                      SPACE
+                    </kbd>
+                  </div>
+
+                  <div className="flex items-center justify-between p-3 rounded-xl bg-white/5 border border-white/10">
+                    <div className="space-y-0.5">
+                      <span className="text-sm font-semibold text-slate-100">Grid / Tier List Görünüm Değiştir</span>
                       <p className="text-xs text-slate-400">Aktif kategoride tier list açıksa görünümler arasında geçiş yapar</p>
                     </div>
                     <kbd className="px-3 py-1.5 rounded-lg bg-black/60 border border-white/20 text-slate-200 text-xs font-mono font-bold shadow-inner">
                       TAB
+                    </kbd>
+                  </div>
+
+                  <div className="flex items-center justify-between p-3 rounded-xl bg-white/5 border border-white/10">
+                    <div className="space-y-0.5">
+                      <span className="text-sm font-semibold text-slate-100">İstatistikler & Grafikler</span>
+                      <p className="text-xs text-slate-400">Genel arşiv istatistikleri ve dağılım grafiklerini açar veya kapatır</p>
+                    </div>
+                    <kbd className="px-3 py-1.5 rounded-lg bg-black/60 border border-white/20 text-slate-200 text-xs font-mono font-bold shadow-inner">
+                      Q
+                    </kbd>
+                  </div>
+
+                  <div className="flex items-center justify-between p-3 rounded-xl bg-white/5 border border-white/10">
+                    <div className="space-y-0.5">
+                      <span className="text-sm font-semibold text-slate-100">Son Aktiviteler</span>
+                      <p className="text-xs text-slate-400">Son eklenen ve güncellenen yapımların işlem günlüğünü açar veya kapatır</p>
+                    </div>
+                    <kbd className="px-3 py-1.5 rounded-lg bg-black/60 border border-white/20 text-slate-200 text-xs font-mono font-bold shadow-inner">
+                      E
                     </kbd>
                   </div>
                 </div>
@@ -1602,6 +2030,25 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             {/* TAB 4: STORAGE & FILE SYSTEM */}
             {activeTab === 'storage' && (
               <div className="space-y-5">
+                {highlightConnectFolder && !dirHandle && (
+                  <div
+                    id="folder-required-banner"
+                    className="p-3.5 sm:p-4 rounded-xl bg-amber-500/15 border border-amber-500/40 flex items-start sm:items-center gap-3 animate-in fade-in zoom-in-95 duration-200 shadow-lg shadow-amber-500/10"
+                  >
+                    <div className="p-2 rounded-lg bg-amber-500/20 text-amber-400 shrink-0">
+                      <AlertCircle className="w-5 h-5 animate-pulse" />
+                    </div>
+                    <div className="flex-1">
+                      <h4 className="text-xs sm:text-sm font-bold text-amber-200">
+                        İşlem yapabilmek için lütfen önce yerel arşiv klasörünüzü bağlayın
+                      </h4>
+                      <p className="text-[11px] sm:text-xs text-amber-300/80 mt-0.5">
+                        Masaüstünde veri ekleme veya düzenleme yapabilmek için yerel arşiv klasörünüzün bağlı olması gerekmektedir.
+                      </p>
+                    </div>
+                  </div>
+                )}
+
                 {/* 1. SEPARATE BOX: LOCAL FOLDER SYNC */}
                 <div className="p-4 rounded-xl bg-white/5 border border-white/10 space-y-3">
                   <div className="flex items-center justify-between">
@@ -1653,9 +2100,16 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                         id="connect-dir-btn"
                         onClick={handleConnect}
                         disabled={connecting}
-                        className="py-2 px-4 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold flex items-center gap-2 shadow-lg shadow-blue-600/30 transition-all cursor-pointer"
+                        className={`py-2 px-4 rounded-xl text-xs font-semibold flex items-center gap-2 transition-all cursor-pointer ${
+                          highlightConnectFolder
+                            ? 'bg-amber-500 hover:bg-amber-400 text-slate-950 ring-4 ring-amber-400/70 shadow-xl shadow-amber-500/50 animate-pulse font-bold scale-[1.03]'
+                            : 'bg-blue-600 hover:bg-blue-500 text-white shadow-lg shadow-blue-600/30'
+                        }`}
                       >
-                        <FolderSync className="w-4 h-4" />
+                        <FolderSync
+                          className={`w-4 h-4 ${highlightConnectFolder ? 'animate-spin' : ''}`}
+                          style={highlightConnectFolder ? { animationDuration: '3s' } : undefined}
+                        />
                         {connecting ? 'Bağlanıyor...' : 'Klasör Seç & Bağla'}
                       </button>
                     )}
@@ -1834,42 +2288,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   </label>
                 </div>
 
-                {/* Advanced Section: JSON, Mobile HTML Export & Reset */}
+                {/* Advanced Section: Mobile HTML Export & Reset */}
                 {showAdvancedStorage && (
                   <div className="space-y-4 pt-1 transition-all">
-                    {/* JSON Arşiv & İçe Aktarma */}
-                    <div className="p-4 rounded-xl bg-white/5 border border-white/10 space-y-3">
-                      <div className="flex items-center gap-2">
-                        <Download className="w-4 h-4 text-blue-400" />
-                        <h4 className="text-sm font-semibold text-slate-100">
-                          JSON Veri İşlemleri (İndir & İçe Aktar)
-                        </h4>
-                      </div>
-                      <p className="text-xs text-slate-300 leading-relaxed">
-                        Arşivinizi ham <code className="text-blue-300 font-mono">.json</code> formatında dışa aktarabilir veya dışarıdan hazırladığınız JSON listelerini (<code className="text-amber-300 font-mono">oyunlar.json</code>, <code className="text-amber-300 font-mono">anime.json</code> vb.) mevcut kütüphanenize doğrudan ekleyebilirsiniz.
-                      </p>
-                      <div className="flex items-center gap-2.5 flex-wrap pt-1">
-                        <button
-                          id="download-json-advanced-btn"
-                          type="button"
-                          onClick={() => downloadJsonFile(appData)}
-                          className="py-2 px-3.5 rounded-xl bg-blue-600/20 hover:bg-blue-600/30 text-blue-300 border border-blue-500/40 text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer"
-                        >
-                          <Download className="w-3.5 h-3.5" />
-                          JSON Arşivi İndir (.json)
-                        </button>
-                        <button
-                          id="upload-json-advanced-btn"
-                          type="button"
-                          onClick={() => fileInputRef.current?.click()}
-                          className="py-2 px-3.5 rounded-xl bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-500/40 text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer"
-                        >
-                          <Upload className="w-3.5 h-3.5" />
-                          JSON Yükle / İçe Aktar (.json)
-                        </button>
-                      </div>
-                    </div>
-
                     <div className="p-4 rounded-xl bg-white/5 border border-white/10 space-y-3">
                       <div className="flex items-center gap-2">
                         <Smartphone className="w-4 h-4 text-emerald-400" />
