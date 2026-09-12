@@ -75,6 +75,8 @@ interface HeaderTabsProps {
   onFilterChange: (newFilters: Partial<FilterState>) => void;
   onViewSettingsChange: (newSettings: Partial<ViewSettings>) => void;
   onClosePanels: () => void;
+  onToggleHideMode?: () => void;
+  isHideModeActive?: boolean;
 }
 
 export const HeaderTabs: React.FC<HeaderTabsProps> = ({
@@ -112,6 +114,8 @@ export const HeaderTabs: React.FC<HeaderTabsProps> = ({
   onFilterChange,
   onViewSettingsChange,
   onClosePanels,
+  onToggleHideMode,
+  isHideModeActive,
 }) => {
   const searchInputRef = useRef<HTMLInputElement>(null);
   const searchContainerRef = useRef<HTMLDivElement>(null);
@@ -122,6 +126,45 @@ export const HeaderTabs: React.FC<HeaderTabsProps> = ({
   const [isMobileSheetOpen, setIsMobileSheetOpen] = useState(false);
   const hoverTimeoutRef = useRef<any>(null);
   const subMenuTimeoutRef = useRef<any>(null);
+
+  // Secret 5-second long-press on Settings icon (toggles Global Hidden Mode)
+  const settingsTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const settingsLongPressRef = useRef<boolean>(false);
+
+  useEffect(() => {
+    return () => {
+      if (settingsTimerRef.current) {
+        clearTimeout(settingsTimerRef.current);
+      }
+    };
+  }, []);
+
+  const handleSettingsPressStart = () => {
+    settingsLongPressRef.current = false;
+    if (settingsTimerRef.current) clearTimeout(settingsTimerRef.current);
+    settingsTimerRef.current = setTimeout(() => {
+      settingsLongPressRef.current = true;
+      if (onToggleHideMode) {
+        onToggleHideMode();
+      }
+    }, 3000);
+  };
+
+  const handleSettingsPressEnd = () => {
+    if (settingsTimerRef.current) {
+      clearTimeout(settingsTimerRef.current);
+      settingsTimerRef.current = null;
+    }
+  };
+
+  const handleSettingsClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (settingsLongPressRef.current) {
+      settingsLongPressRef.current = false;
+      return;
+    }
+    onOpenSettings();
+  };
 
   // Search Mode: 'search' (Normal title/text search) vs 'tag' (Tag/year chip search)
   const [internalSearchMode, setInternalSearchMode] = useState<'search' | 'tag'>('search');
@@ -364,6 +407,11 @@ export const HeaderTabs: React.FC<HeaderTabsProps> = ({
     setMobileDropdown(null);
   };
 
+  const showMobileSecondRow =
+    activeCatId !== null ||
+    isTierListAvailable(activeCategory, activeSub) ||
+    Boolean(filters.uncategorizedOnly);
+
   return (
     <header
       className={`relative z-30 flex flex-col gap-2.5 sm:gap-3 py-2.5 sm:py-3 transition-all duration-300 ${
@@ -375,10 +423,10 @@ export const HeaderTabs: React.FC<HeaderTabsProps> = ({
       }`}
     >
       {/* ========================================================================= */}
-      {/* 1. MOBILE HEADER (md:hidden)                                              */}
+      {/* 1. MOBILE HEADER (md:hidden) - ALTERNATİF 1: ROL AYRIMI MODELİ            */}
       {/* ========================================================================= */}
       <div className="flex flex-col gap-2 md:hidden">
-        {/* Row 1: Left [Medya ▾ | Oyun ▾] Dropdowns --- Right [Search, Filter, View, Settings] */}
+        {/* Row 1: Left [Medya ▾ | Oyun ▾] Dropdowns --- Right [Sayaç (Toplu Seçim), Ayarlar] */}
         <div className="flex items-center justify-between gap-2">
           {/* Left: Medya & Oyun Dropdown Buttons */}
           <div
@@ -395,7 +443,7 @@ export const HeaderTabs: React.FC<HeaderTabsProps> = ({
                 }
                 setMobileDropdown(mobileDropdown === 'media' ? null : 'media');
               }}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+              className={`h-8 flex items-center gap-1.5 px-3 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
                 mainTab === 'media'
                   ? 'bg-neutral-800 text-white shadow border border-white/20'
                   : 'text-neutral-400 hover:text-white'
@@ -420,7 +468,7 @@ export const HeaderTabs: React.FC<HeaderTabsProps> = ({
                 }
                 setMobileDropdown(mobileDropdown === 'game' ? null : 'game');
               }}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+              className={`h-8 flex items-center gap-1.5 px-3 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
                 mainTab === 'game'
                   ? 'bg-neutral-800 text-white shadow border border-white/20'
                   : 'text-neutral-400 hover:text-white'
@@ -526,97 +574,122 @@ export const HeaderTabs: React.FC<HeaderTabsProps> = ({
             )}
           </div>
 
-          {/* Right: Icon Buttons (Search, Filter, View, Settings) */}
-          <div className="flex items-center gap-1.5 shrink-0">
-            {/* Search Icon */}
-            <button
-              id="mobile-search-toggle-btn"
-              onClick={onToggleSearch}
-              title="Arama"
-              className={`h-8 w-8 rounded-lg border transition-all cursor-pointer flex items-center justify-center ${
-                isSearchOpen || searchQuery.trim()
-                  ? 'bg-blue-600/30 border-blue-500/50 text-blue-200 shadow-sm'
-                  : 'bg-neutral-900/80 hover:bg-neutral-800 border-white/10 text-neutral-300 hover:text-white'
-              }`}
-            >
-              <Search className="w-4 h-4" />
-            </button>
-
-            {/* Filter Icon */}
-            <div className={`relative ${isFilterOpen ? 'z-50' : ''}`}>
+          {/* Right: Unified Tool Capsule [ Sayaç | Search Filter View Settings ] */}
+          <div className="flex items-center shrink-0">
+            {/* Unified Tools Capsule */}
+            <div className="flex items-center p-0.5 bg-neutral-900/90 border border-white/15 rounded-xl shadow-sm">
+              {/* Sayaç Rozeti: 1. satırdaki kutunun içinde sabit en solda */}
               <button
-                id="mobile-filter-toggle-btn"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onToggleFilter();
-                }}
-                title="Filtrele"
-                className={`h-8 w-8 rounded-lg border transition-all relative cursor-pointer flex items-center justify-center ${
-                  isFilterOpen || activeFiltersCount > 0
-                    ? 'bg-neutral-800 border-white/30 text-white shadow-sm'
-                    : 'bg-neutral-900/80 hover:bg-neutral-800 border-white/10 text-neutral-300 hover:text-white'
+                type="button"
+                id="mobile-item-count-badge"
+                onClick={onToggleSelectionMode}
+                title={isSelectionMode ? 'Toplu Seçim Modundan Çık' : 'Toplu Seçim Modunu Aç'}
+                className={`h-8 px-2 rounded-lg font-bold text-[11px] shrink-0 transition-all cursor-pointer flex items-center justify-center ${
+                  isSelectionMode
+                    ? 'bg-blue-600 text-white shadow-sm'
+                    : 'text-neutral-300 hover:text-white hover:bg-white/10'
                 }`}
               >
-                <SlidersHorizontal className="w-4 h-4" />
-                {activeFiltersCount > 0 && (
-                  <span className="absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full bg-white text-neutral-950 text-[9px] font-bold flex items-center justify-center shadow">
-                    {activeFiltersCount}
-                  </span>
+                <span>{totalFilteredCount}</span>
+              </button>
+
+              {/* Arama ikonunun solundaki dikey çizgi */}
+              <div className="w-[1px] h-3.5 bg-white/15 mx-0.5" />
+
+              {/* Search Icon Button */}
+              <button
+                id="mobile-search-toggle-btn"
+                onClick={onToggleSearch}
+                title="Arama"
+                className={`h-8 w-8 rounded-lg transition-all cursor-pointer flex items-center justify-center ${
+                  isSearchOpen || searchQuery.trim()
+                    ? 'bg-blue-600/30 text-blue-200 shadow-sm'
+                    : 'text-neutral-400 hover:text-white hover:bg-white/5'
+                }`}
+              >
+                <Search className="w-4 h-4" />
+              </button>
+
+              {/* Filter Icon Button */}
+              <div className={`relative ${isFilterOpen ? 'z-50' : ''}`}>
+                <button
+                  id="mobile-filter-toggle-btn"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onToggleFilter();
+                  }}
+                  title="Filtrele"
+                  className={`h-8 w-8 rounded-lg transition-all relative cursor-pointer flex items-center justify-center ${
+                    isFilterOpen || activeFiltersCount > 0
+                      ? 'bg-neutral-800 text-white shadow-sm'
+                      : 'text-neutral-400 hover:text-white hover:bg-white/5'
+                  }`}
+                >
+                  <SlidersHorizontal className="w-4 h-4" />
+                  {activeFiltersCount > 0 && (
+                    <span className="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 rounded-full bg-white text-neutral-950 text-[10px] font-bold flex items-center justify-center shadow">
+                      {activeFiltersCount}
+                    </span>
+                  )}
+                </button>
+
+                {isFilterOpen && (
+                  <FilterPanel
+                    mainTab={mainTab}
+                    filters={filters}
+                    onChange={onFilterChange}
+                    onClose={onClosePanels}
+                    activeCategoryName={activeCategory?.name || null}
+                    activeSub={activeSub || null}
+                  />
                 )}
-              </button>
+              </div>
 
-              {isFilterOpen && (
-                <FilterPanel
-                  mainTab={mainTab}
-                  filters={filters}
-                  onChange={onFilterChange}
-                  onClose={onClosePanels}
-                  activeCategoryName={activeCategory?.name || null}
-                  activeSub={activeSub || null}
-                />
-              )}
-            </div>
+              {/* View Settings Icon Button */}
+              <div className={`relative ${isViewOpen ? 'z-50' : ''}`}>
+                <button
+                  id="mobile-view-toggle-btn"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onToggleView();
+                  }}
+                  title="Görünüm Ayarları"
+                  className={`h-8 w-8 rounded-lg transition-all cursor-pointer flex items-center justify-center ${
+                    isViewOpen
+                      ? 'bg-neutral-800 text-white shadow-sm'
+                      : 'text-neutral-400 hover:text-white hover:bg-white/5'
+                  }`}
+                >
+                  <Eye className="w-4 h-4" />
+                </button>
 
-            {/* View Settings Icon */}
-            <div className={`relative ${isViewOpen ? 'z-50' : ''}`}>
+                {isViewOpen && (
+                  <ViewPanel
+                    settings={viewSettings}
+                    mainTab={mainTab}
+                    onChange={onViewSettingsChange}
+                    onClose={onClosePanels}
+                  />
+                )}
+              </div>
+
+              {/* Settings Icon Button */}
               <button
-                id="mobile-view-toggle-btn"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onToggleView();
-                }}
-                title="Görünüm Ayarları"
-                className={`h-8 w-8 rounded-lg border transition-all cursor-pointer flex items-center justify-center ${
-                  isViewOpen
-                    ? 'bg-neutral-800 border-white/30 text-white shadow-sm'
-                    : 'bg-neutral-900/80 hover:bg-neutral-800 border-white/10 text-neutral-300 hover:text-white'
-                }`}
+                id="mobile-settings-toggle-btn"
+                type="button"
+                onMouseDown={handleSettingsPressStart}
+                onMouseUp={handleSettingsPressEnd}
+                onMouseLeave={handleSettingsPressEnd}
+                onTouchStart={handleSettingsPressStart}
+                onTouchEnd={handleSettingsPressEnd}
+                onTouchCancel={handleSettingsPressEnd}
+                onClick={handleSettingsClick}
+                title="Ayarlar"
+                className="h-8 w-8 rounded-lg text-neutral-400 hover:text-white hover:bg-white/5 transition-all cursor-pointer flex items-center justify-center select-none"
               >
-                <Eye className="w-4 h-4" />
+                <Settings className="w-4 h-4" />
               </button>
-
-              {isViewOpen && (
-                <ViewPanel
-                  settings={viewSettings}
-                  mainTab={mainTab}
-                  onChange={onViewSettingsChange}
-                  onClose={onClosePanels}
-                />
-              )}
             </div>
-
-            {/* Settings Icon */}
-            <button
-              id="mobile-settings-toggle-btn"
-              onClick={(e) => {
-                e.stopPropagation();
-                onOpenSettings();
-              }}
-              title="Ayarlar"
-              className="h-8 w-8 rounded-lg bg-neutral-900/80 hover:bg-neutral-800 border border-white/10 text-neutral-300 hover:text-white transition-all cursor-pointer flex items-center justify-center"
-            >
-              <Settings className="w-4 h-4" />
-            </button>
           </div>
         </div>
 
@@ -706,56 +779,24 @@ export const HeaderTabs: React.FC<HeaderTabsProps> = ({
           </div>
         )}
 
-        {/* Row 2: Breadcrumb (Left-aligned) + Tier List / Grid View Mode Toggle (Right-aligned) */}
-        <div className="flex items-center justify-between gap-2 pt-0.5">
-          {/* Left Side: Item Count Badge + Breadcrumb */}
-          <div className="flex items-center gap-1.5 min-w-0 flex-1 overflow-x-auto no-scrollbar">
-            {/* Item Count Badge (Clickable for Select Mode) */}
-            <button
-              type="button"
-              id="mobile-item-count-badge"
-              onClick={onToggleSelectionMode}
-              title={isSelectionMode ? 'Toplu Seçim Modundan Çık' : 'Toplu Seçim Modunu Aç'}
-              className={`px-2.5 py-1 rounded-lg border font-bold text-xs shrink-0 transition-all cursor-pointer ${
-                isSelectionMode
-                  ? 'bg-blue-600 border-blue-400 text-white shadow-md'
-                  : 'bg-neutral-900/90 hover:bg-neutral-800 border-white/15 text-neutral-200 shadow-sm'
-              }`}
-            >
-              {totalFilteredCount}
-            </button>
-
-            {/* Breadcrumb Navigation Pill */}
-            <div
-              id="mobile-active-breadcrumb-pill"
-              className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-neutral-900/90 border border-white/10 text-xs text-neutral-300 shrink-0 max-w-[calc(100vw-140px)] overflow-x-auto no-scrollbar"
-            >
-              {/* Main Tab Level (Medya / Oyun) */}
-              <button
-                type="button"
-                onClick={() => {
-                  if (isSearchOpen) onToggleSearch();
-                  onSearchChange('');
-                  setSearchTextInput('');
-                  setTagChips([]);
-                  setTypedTagInput('');
-                  onCategorySelect(null);
-                  onSubgroupSelect(null);
-                }}
-                className="text-neutral-300 hover:text-white font-medium hover:underline cursor-pointer transition-colors shrink-0"
+        {/* Row 2: Conditional Second Row (Breadcrumb & Tier/Grid Controls) */}
+        {showMobileSecondRow && (
+          <div className="flex items-center justify-between gap-2 pt-0.5 animate-in fade-in duration-150">
+            {/* Left Side: Streamlined Location / Breadcrumb + Status Indicators */}
+            <div className="flex items-center gap-1.5 min-w-0 flex-1 overflow-x-auto no-scrollbar">
+              {/* Breadcrumb Navigation Pill */}
+              <div
+                id="mobile-active-breadcrumb-pill"
+                className="flex items-center gap-1 px-2.5 py-1 rounded-xl bg-neutral-900/90 border border-white/15 text-xs text-neutral-300 shrink-0 max-w-[calc(100vw-145px)] overflow-x-auto no-scrollbar shadow-sm"
               >
-                {mainTab === 'media' ? 'Medya' : 'Oyun'}
-              </button>
-
-              {/* Category / Tracked Level */}
-              {activeCatId !== null && (
-                <>
-                  <span className="text-neutral-600 shrink-0">/</span>
-                  {activeCatId === TRACKED_TAB_ID ? (
-                    <span className="text-white font-semibold shrink-0">
-                      İzlenen & Takip
-                    </span>
-                  ) : (
+                {activeCatId === null ? (
+                  /* No Category Selected: Root level (Medya / Oyun) */
+                  <span className="text-white font-semibold text-xs truncate">
+                    {mainTab === 'media' ? 'Medya' : 'Oyun'}
+                  </span>
+                ) : activeCatId === TRACKED_TAB_ID ? (
+                  /* Tracked tab selected: Medya › İzlenen & Takip */
+                  <div className="flex items-center gap-1 min-w-0">
                     <button
                       type="button"
                       onClick={() => {
@@ -764,92 +805,140 @@ export const HeaderTabs: React.FC<HeaderTabsProps> = ({
                         setSearchTextInput('');
                         setTagChips([]);
                         setTypedTagInput('');
+                        onCategorySelect(null);
                         onSubgroupSelect(null);
                       }}
-                      className={`font-semibold cursor-pointer transition-colors truncate shrink-0 ${
-                        activeSub
-                          ? 'text-neutral-400 hover:text-white hover:underline'
-                          : 'text-white'
-                      }`}
+                      title={`Tüm ${mainTab === 'media' ? 'Medya' : 'Oyun'} listesine dön`}
+                      className="text-neutral-400 hover:text-white font-medium cursor-pointer transition-colors shrink-0"
                     >
-                      {activeCategory?.name || 'Kategori'}
+                      {mainTab === 'media' ? 'Medya' : 'Oyun'}
                     </button>
-                  )}
-                </>
-              )}
+                    <span className="text-neutral-500 shrink-0 text-xs font-light">›</span>
+                    <span className="text-white font-semibold text-xs truncate">
+                      İzlenen & Takip
+                    </span>
+                  </div>
+                ) : (
+                  /* Normal Category selected: Medya › Anime › Shounen or Oyun › RPG */
+                  <div className="flex items-center gap-1 min-w-0">
+                    {/* Root (Medya / Oyun) - Clickable to reset to all */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (isSearchOpen) onToggleSearch();
+                        onSearchChange('');
+                        setSearchTextInput('');
+                        setTagChips([]);
+                        setTypedTagInput('');
+                        onCategorySelect(null);
+                        onSubgroupSelect(null);
+                      }}
+                      title={`Tüm ${mainTab === 'media' ? 'Medya' : 'Oyun'} listesine dön`}
+                      className="text-neutral-400 hover:text-white font-medium cursor-pointer transition-colors shrink-0"
+                    >
+                      {mainTab === 'media' ? 'Medya' : 'Oyun'}
+                    </button>
 
-              {/* Subgroup Level */}
-              {activeSub && (
-                <>
-                  <span className="text-neutral-600 shrink-0">/</span>
-                  <span className="text-blue-300 font-semibold truncate shrink-0">{activeSub}</span>
-                </>
+                    <span className="text-neutral-500 shrink-0 text-xs font-light">›</span>
+
+                    {/* Category Level */}
+                    {activeSub ? (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (isSearchOpen) onToggleSearch();
+                          onSearchChange('');
+                          setSearchTextInput('');
+                          setTagChips([]);
+                          setTypedTagInput('');
+                          onSubgroupSelect(null);
+                        }}
+                        className="text-neutral-400 hover:text-white font-medium cursor-pointer transition-colors truncate shrink-0"
+                        title={`${activeCategory?.name || 'Kategori'} geneline dön`}
+                      >
+                        {activeCategory?.name || 'Kategori'}
+                      </button>
+                    ) : (
+                      <span className="text-white font-semibold truncate shrink-0">
+                        {activeCategory?.name || 'Kategori'}
+                      </span>
+                    )}
+
+                    {/* Subgroup Level */}
+                    {activeSub && (
+                      <>
+                        <span className="text-neutral-500 shrink-0 text-xs font-light">›</span>
+                        <span className="text-blue-300 font-semibold truncate shrink-0">{activeSub}</span>
+                      </>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Active Uncategorized Indicator */}
+              {filters.uncategorizedOnly && (
+                <div className="flex items-center gap-1 px-2 py-1 rounded-xl bg-rose-500/15 border border-rose-500/30 text-rose-300 text-xs font-semibold shrink-0">
+                  <FolderX className="w-3.5 h-3.5 text-rose-400 shrink-0" />
+                  <span className="truncate max-w-[70px]">
+                    {activeCategory ? `Alt Kat.` : 'Kat.sız'}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => onFilterChange({ uncategorizedOnly: false })}
+                    className="p-0.5 rounded text-rose-300 hover:text-white cursor-pointer"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </div>
               )}
             </div>
 
-            {/* Active Uncategorized Indicator */}
-            {filters.uncategorizedOnly && (
-              <div className="flex items-center gap-1 px-2 py-1 rounded-lg bg-rose-500/15 border border-rose-500/30 text-rose-300 text-xs font-semibold shrink-0">
-                <FolderX className="w-3.5 h-3.5 text-rose-400 shrink-0" />
-                <span className="truncate max-w-[70px]">
-                  {activeCategory ? `Alt Kat.` : 'Kat.sız'}
-                </span>
-                <button
-                  type="button"
-                  onClick={() => onFilterChange({ uncategorizedOnly: false })}
-                  className="p-0.5 rounded text-rose-300 hover:text-white cursor-pointer"
-                >
-                  <X className="w-3 h-3" />
-                </button>
+            {/* Right Side: Tier List / Grid View Mode Controls */}
+            {isTierListAvailable(activeCategory, activeSub) && (
+              <div className="flex items-center gap-1 shrink-0 ml-auto">
+                {/* Mobil Minimal PNG İndir İkonu */}
+                {viewMode === 'tier' && onExportTierPng && (
+                  <button
+                    id="mobile-download-tier-png-btn"
+                    type="button"
+                    onClick={onExportTierPng}
+                    title="2X Ultra HD PNG İndir"
+                    className="h-7 w-7 rounded-xl bg-neutral-900/90 hover:bg-neutral-800 border border-white/15 text-neutral-300 hover:text-white transition-all cursor-pointer flex items-center justify-center shadow-sm"
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                  </button>
+                )}
+
+                <div className="flex items-center p-0.5 bg-neutral-900/90 rounded-xl border border-white/15 shadow-sm">
+                  <button
+                    id="mobile-viewmode-grid-btn"
+                    onClick={() => onViewModeChange('grid')}
+                    title="Grid Görünümü"
+                    className={`h-6 w-6 rounded-lg text-xs transition-all cursor-pointer flex items-center justify-center ${
+                      viewMode === 'grid'
+                        ? 'bg-neutral-800 text-white shadow'
+                        : 'text-neutral-400 hover:text-white'
+                    }`}
+                  >
+                    <LayoutGrid className="w-3.5 h-3.5" />
+                  </button>
+                  <button
+                    id="mobile-viewmode-tier-btn"
+                    onClick={() => onViewModeChange('tier')}
+                    title="Tier List Görünümü"
+                    className={`h-6 w-6 rounded-lg text-xs transition-all cursor-pointer flex items-center justify-center ${
+                      viewMode === 'tier'
+                        ? 'bg-neutral-800 text-white shadow'
+                        : 'text-neutral-400 hover:text-white'
+                    }`}
+                  >
+                    <ListOrdered className="w-3.5 h-3.5" />
+                  </button>
+                </div>
               </div>
             )}
           </div>
-
-          {/* Right Side: View Mode Toggle (Grid / Tier) Dayalı */}
-          {isTierListAvailable(activeCategory, activeSub) && (
-            <div className="flex items-center gap-1.5 shrink-0 ml-auto">
-              {/* Mobil Minimal PNG İndir İkonu (Grid/Tier ikonlarının solunda, metin yok, isimler dahil) */}
-              {viewMode === 'tier' && onExportTierPng && (
-                <button
-                  id="mobile-download-tier-png-btn"
-                  type="button"
-                  onClick={onExportTierPng}
-                  title="2X Ultra HD PNG İndir"
-                  className="p-1.5 rounded-lg bg-neutral-900/90 hover:bg-neutral-800 border border-white/10 text-neutral-300 hover:text-white transition-all cursor-pointer flex items-center justify-center shadow-sm"
-                >
-                  <Download className="w-3.5 h-3.5" />
-                </button>
-              )}
-
-              <div className="flex items-center p-0.5 bg-neutral-900 rounded-lg border border-white/10">
-                <button
-                  id="mobile-viewmode-grid-btn"
-                  onClick={() => onViewModeChange('grid')}
-                  title="Grid Görünümü"
-                  className={`p-1.5 rounded-md text-xs transition-all cursor-pointer ${
-                    viewMode === 'grid'
-                      ? 'bg-neutral-700 text-white shadow'
-                      : 'text-neutral-400 hover:text-white'
-                  }`}
-                >
-                  <LayoutGrid className="w-3.5 h-3.5" />
-                </button>
-                <button
-                  id="mobile-viewmode-tier-btn"
-                  onClick={() => onViewModeChange('tier')}
-                  title="Tier List Görünümü"
-                  className={`p-1.5 rounded-md text-xs transition-all cursor-pointer ${
-                    viewMode === 'tier'
-                      ? 'bg-neutral-700 text-white shadow'
-                      : 'text-neutral-400 hover:text-white'
-                  }`}
-                >
-                  <ListOrdered className="w-3.5 h-3.5" />
-                </button>
-              </div>
-            </div>
-          )}
-        </div>
+        )}
       </div>
 
       {/* ========================================================================= */}
@@ -1438,6 +1527,7 @@ export const HeaderTabs: React.FC<HeaderTabsProps> = ({
                 onClose={onClosePanels}
                 activeCategoryName={activeCategory?.name || null}
                 activeSub={activeSub || null}
+                isHideModeActive={isHideModeActive}
               />
             )}
           </div>
@@ -1476,12 +1566,16 @@ export const HeaderTabs: React.FC<HeaderTabsProps> = ({
           {/* Settings Modal Trigger (Far Right) */}
           <button
             id="settings-toggle-btn"
-            onClick={(e) => {
-              e.stopPropagation();
-              onOpenSettings();
-            }}
+            type="button"
+            onMouseDown={handleSettingsPressStart}
+            onMouseUp={handleSettingsPressEnd}
+            onMouseLeave={handleSettingsPressEnd}
+            onTouchStart={handleSettingsPressStart}
+            onTouchEnd={handleSettingsPressEnd}
+            onTouchCancel={handleSettingsPressEnd}
+            onClick={handleSettingsClick}
             title="Ayarlar (⚙)"
-            className="h-8 w-8 rounded-lg bg-neutral-900/80 hover:bg-neutral-800 border border-white/10 text-neutral-300 hover:text-white transition-all cursor-pointer flex items-center justify-center"
+            className="h-8 w-8 rounded-lg bg-neutral-900/80 hover:bg-neutral-800 border border-white/10 text-neutral-300 hover:text-white transition-all cursor-pointer flex items-center justify-center select-none"
           >
             <Settings className="w-4 h-4" />
           </button>

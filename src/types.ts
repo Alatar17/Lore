@@ -97,6 +97,7 @@ export interface ArchiveItem {
   // Common
   anki: boolean;
   tier?: string | null; // tier row id or null
+  isHidden?: boolean; // Kart gizleme durumu
   createdAt?: number;
   updatedAt?: number;
 }
@@ -119,6 +120,7 @@ export interface FilterState {
   ankiFilter: 'all' | 'yes' | 'no';
   gameStatus?: GameStatus | 'all';
   uncategorizedOnly?: boolean;
+  hiddenOnly?: boolean;
 }
 
 export type AppTheme =

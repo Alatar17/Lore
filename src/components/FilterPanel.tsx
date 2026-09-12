@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useRef, useEffect } from 'react';
 import { FilterState, GameStatus, MainTabType } from '../types';
 import {
   SlidersHorizontal,
@@ -19,6 +19,7 @@ interface FilterPanelProps {
   onClose: () => void;
   activeCategoryName?: string | null;
   activeSub?: string | null;
+  isHideModeActive?: boolean;
 }
 
 const GAME_STATUS_OPTIONS: { label: string; value: GameStatus | 'all' }[] = [
@@ -35,9 +36,36 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
   onChange,
   activeCategoryName,
   activeSub,
+  isHideModeActive,
 }) => {
   const isGame = mainTab === 'game';
   const isInsideSubfolder = Boolean(activeSub);
+
+  const hiddenTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (hiddenTimerRef.current) {
+        clearTimeout(hiddenTimerRef.current);
+      }
+    };
+  }, []);
+
+  const handleIconPressStart = () => {
+    // If global hide mode is active (cards are hidden), shortcut is strictly disabled!
+    if (isHideModeActive) return;
+    if (hiddenTimerRef.current) clearTimeout(hiddenTimerRef.current);
+    hiddenTimerRef.current = setTimeout(() => {
+      onChange({ hiddenOnly: !filters.hiddenOnly });
+    }, 3000);
+  };
+
+  const handleIconPressEnd = () => {
+    if (hiddenTimerRef.current) {
+      clearTimeout(hiddenTimerRef.current);
+      hiddenTimerRef.current = null;
+    }
+  };
 
   const isFiltered =
     filters.minRating > 0 ||
@@ -45,6 +73,7 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
     filters.followingOnly ||
     filters.ankiFilter !== 'all' ||
     Boolean(filters.uncategorizedOnly) ||
+    (!isHideModeActive && Boolean(filters.hiddenOnly)) ||
     (filters.gameStatus && filters.gameStatus !== 'all');
 
   const handleReset = () => {
@@ -55,6 +84,7 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
       ankiFilter: 'all',
       gameStatus: 'all',
       uncategorizedOnly: false,
+      hiddenOnly: false,
     });
   };
 
@@ -66,8 +96,18 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
     >
       {/* Header */}
       <div className="flex items-center justify-between pb-2.5 mb-3 border-b border-white/10">
-        <div className="flex items-center gap-2">
-          <SlidersHorizontal className="w-4 h-4 text-white" />
+        <div className="flex items-center gap-2 select-none">
+          <span
+            onMouseDown={handleIconPressStart}
+            onMouseUp={handleIconPressEnd}
+            onMouseLeave={handleIconPressEnd}
+            onTouchStart={handleIconPressStart}
+            onTouchEnd={handleIconPressEnd}
+            onTouchCancel={handleIconPressEnd}
+            className="cursor-default flex items-center justify-center"
+          >
+            <SlidersHorizontal className="w-4 h-4 text-white" />
+          </span>
           <span className="font-semibold text-xs text-neutral-200 uppercase tracking-wider">
             Filtreler
           </span>

@@ -58,6 +58,7 @@ import {
   Palette,
   Keyboard,
   Check,
+  Shield,
   RotateCcw,
   Tag,
   Tags,
@@ -207,7 +208,12 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   highlightConnectFolder,
 }) => {
   const [activeTab, setActiveTab] = useState<'categories' | 'tags' | 'themes' | 'shortcuts' | 'storage'>(() => {
-    if (initialTab) return initialTab;
+    if (initialTab) {
+      if (initialTab === 'shortcuts' && typeof window !== 'undefined' && window.innerWidth < 640) {
+        return 'themes';
+      }
+      return initialTab;
+    }
     if (typeof window !== 'undefined' && window.innerWidth < 640) {
       return 'tags';
     }
@@ -216,9 +222,55 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
   useEffect(() => {
     if (initialTab) {
-      setActiveTab(initialTab);
+      if (initialTab === 'shortcuts' && typeof window !== 'undefined' && window.innerWidth < 640) {
+        setActiveTab('themes');
+      } else {
+        setActiveTab(initialTab);
+      }
     }
   }, [initialTab]);
+
+  // Easter Egg / Secret Protocol Info State (4+ clicks then 4s press-and-hold)
+  const [secretClicks, setSecretClicks] = useState<number>(0);
+  const [showSecretModal, setShowSecretModal] = useState<boolean>(false);
+  const secretPressTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const secretClickResetTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (secretPressTimerRef.current) clearTimeout(secretPressTimerRef.current);
+      if (secretClickResetTimerRef.current) clearTimeout(secretClickResetTimerRef.current);
+    };
+  }, []);
+
+  const handleSecretClick = () => {
+    setSecretClicks((prev) => {
+      const next = prev + 1;
+      if (secretClickResetTimerRef.current) clearTimeout(secretClickResetTimerRef.current);
+      secretClickResetTimerRef.current = setTimeout(() => {
+        setSecretClicks(0);
+      }, 5000);
+      return next;
+    });
+  };
+
+  const handleSecretPressStart = () => {
+    if (secretClicks > 3) {
+      if (secretPressTimerRef.current) clearTimeout(secretPressTimerRef.current);
+      secretPressTimerRef.current = setTimeout(() => {
+        setShowSecretModal(true);
+        setSecretClicks(0);
+      }, 3000);
+    }
+  };
+
+  const handleSecretPressEnd = () => {
+    if (secretPressTimerRef.current) {
+      clearTimeout(secretPressTimerRef.current);
+      secretPressTimerRef.current = null;
+    }
+  };
+
   const [settingsMainTab, setSettingsMainTab] = useState<MainTabType>(activeMainTab);
   const [tagFieldKey, setTagFieldKey] = useState<TagFieldKey>('firm');
   const [tagSearchQuery, setTagSearchQuery] = useState('');
@@ -899,8 +951,20 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           {/* Header */}
           <div className="flex items-center justify-between px-5 py-3.5 border-b border-white/10 bg-black/30">
             <h3 className="font-semibold text-base text-slate-100 flex items-center gap-2">
-              <Settings className="w-4 h-4 text-blue-400" />
-              Ayarlar
+              <span
+                onClick={handleSecretClick}
+                onMouseDown={handleSecretPressStart}
+                onMouseUp={handleSecretPressEnd}
+                onMouseLeave={handleSecretPressEnd}
+                onTouchStart={handleSecretPressStart}
+                onTouchEnd={handleSecretPressEnd}
+                onTouchCancel={handleSecretPressEnd}
+                className="cursor-pointer select-none flex items-center gap-2"
+                title=""
+              >
+                <Settings className="w-4 h-4 text-blue-400" />
+                Ayarlar
+              </span>
             </h3>
             <button
               id="close-settings-btn"
@@ -952,7 +1016,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             <button
               id="tab-btn-shortcuts"
               onClick={() => setActiveTab('shortcuts')}
-              className={`px-3.5 py-2 text-xs font-semibold rounded-t-lg transition-colors border-b-2 flex items-center gap-1.5 whitespace-nowrap cursor-pointer ${
+              className={`hidden sm:flex px-3.5 py-2 text-xs font-semibold rounded-t-lg transition-colors border-b-2 items-center gap-1.5 whitespace-nowrap cursor-pointer ${
                 activeTab === 'shortcuts'
                   ? 'border-blue-500 text-blue-400 bg-white/5'
                   : 'border-transparent text-slate-400 hover:text-slate-200'
@@ -2549,6 +2613,112 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           <div className="mt-5 flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/5 border border-white/10 text-[11px] text-emerald-300 font-medium">
             <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
             <span>İşlem tamamlanana kadar lütfen pencereyi kapatmayınız</span>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* Easter Egg / Secret Protocol Informational Modal (PC only trigger) */}
+      {showSecretModal && typeof document !== 'undefined' && createPortal(
+        <div
+          id="secret-protocol-modal"
+          className="fixed inset-0 z-[999999] bg-black/85 backdrop-blur-md flex items-center justify-center p-4 sm:p-6 animate-in fade-in duration-200"
+          onClick={() => setShowSecretModal(false)}
+        >
+          <div
+            className="relative w-full max-w-lg bg-[#0e111a] border border-white/20 rounded-2xl shadow-2xl p-5 sm:p-6 text-slate-200 overflow-hidden flex flex-col space-y-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="flex items-center justify-between pb-3 border-b border-white/10">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 rounded-xl bg-blue-500/10 border border-blue-500/20 text-blue-400">
+                  <Shield className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-base text-white tracking-wide">
+                    Gizli Mod Protokolü & İpuçları
+                  </h3>
+                  <p className="text-[11px] text-slate-400">
+                    Özel arşiv gizleme mekanizması kullanım kılavuzu
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowSecretModal(false)}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Body Info Items */}
+            <div className="space-y-3.5 text-xs text-slate-300 leading-relaxed max-h-[60vh] overflow-y-auto pr-1">
+              <div className="p-3 rounded-xl bg-white/[0.03] border border-white/10 space-y-1.5">
+                <div className="font-semibold text-white flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-blue-400" />
+                  1. Kart Gizleme (Çöp Kutusu)
+                </div>
+                <p>
+                  Kart detay penceresinde sağ üstteki <strong className="text-white">Çöp Kutusu</strong> ikonuna kesintisiz <strong className="text-amber-300">3 saniye</strong> basılı tutulduğunda o kart için gizleme durumu aktif/pasif olur.
+                </p>
+                <p className="text-[11px] text-slate-400">
+                  • <strong className="text-slate-200">Görsel İpucu:</strong> Gizleme aktif olan kartta çöp kutusunun içindeki 2 dikey çizginin boyutu daha kısa ve zarif bir görünüme geçer. Değişikliğin kaydedilmesi için "Kaydet" butonuna basılmalıdır.
+                </p>
+              </div>
+
+              <div className="p-3 rounded-xl bg-white/[0.03] border border-white/10 space-y-1.5">
+                <div className="font-semibold text-white flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-emerald-400" />
+                  2. Genel Gizleme Modu (Ayarlar ⚙)
+                </div>
+                <p>
+                  Üst bardaki en sağdaki <strong className="text-white">Ayarlar (⚙)</strong> ikonuna kesintisiz <strong className="text-amber-300">3 saniye</strong> basılı tutulduğunda gizleme modu açılır veya kapanır. Kullanıcıya hiçbir uyarı mesajı verilmez.
+                </p>
+                <p className="text-[11px] text-slate-400">
+                  • <strong className="text-slate-200">Kalıcı Hafıza:</strong> Gizleme modunu bir kez açtığınızda veya kapattığınızda sistem tercihinizi tarayıcıda hatırlar (sayfa yenilense de durumunuz korunur).
+                </p>
+              </div>
+
+              <div className="p-3 rounded-xl bg-white/[0.03] border border-white/10 space-y-1.5">
+                <div className="font-semibold text-white flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-purple-400" />
+                  3. Gizli Mod Durum Göstergesi (Sol Alttaki Saat)
+                </div>
+                <p>
+                  Sol altta yer alan <strong className="text-white">Son Aktiviteler</strong> butonunun ikonuna bakarak mod anlaşılır:
+                </p>
+                <p className="text-[11px] text-slate-300">
+                  • <strong className="text-emerald-400">Dairesel Oklu Saat (History - Orijinal):</strong> Gizleme modu aktif (kartlar gizli, güvende).<br />
+                  • <strong className="text-amber-400">Yatayda Aynalanmış Saat (History - Flip):</strong> Gizleme modu kapalı (gizlenen kartlar görünür durumda).
+                </p>
+              </div>
+
+              <div className="p-3 rounded-xl bg-white/[0.03] border border-white/10 space-y-1.5">
+                <div className="font-semibold text-white flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-cyan-400" />
+                  4. Yalnızca Gizlileri Listeleme (Filtreler İkonu)
+                </div>
+                <p>
+                  Filtreler penceresinin sol üstündeki ayar ikonuna (<strong className="text-white">SlidersHorizontal</strong>) <strong className="text-amber-300">3 saniye</strong> basılı tutulursa kütüphanede yalnızca gizlenen kartlar listelenir.
+                </p>
+                <p className="text-[11px] text-slate-400">
+                  • <strong className="text-rose-400 font-semibold">Gizleme Modu Koruması:</strong> Gizleme modu aktifken bu filtre tamamen kilitlidir (çalışmaz ve sıfırla seçeneği çıkarmaz). Yalnızca gizleme modu kapatıldığında devreye girer; gizleme modu tekrar açılırsa bu filtre otomatik temizlenir.
+                </p>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="pt-2 border-t border-white/10 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setShowSecretModal(false)}
+                className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-medium text-xs transition-colors cursor-pointer"
+              >
+                Anladım, Kapat
+              </button>
+            </div>
           </div>
         </div>,
         document.body

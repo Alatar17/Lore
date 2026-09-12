@@ -872,76 +872,14 @@ export const ImagePreviewModal: React.FC<ImagePreviewModalProps> = ({
 
             {/* Front Top Badges */}
             <div className="relative z-10 p-3.5 flex items-start justify-between gap-2">
-              {/* Sol Üst: Dikey Hizada Tarih, Durum İkonu ve Varsa Anki Rozeti (Durum ikonuyla birebir aynı boyutta) */}
+              {/* Sol Üst: Yalnızca İzlenme / Tamamlama Tarihi */}
               <div className="flex flex-col items-start gap-1.5">
-                {/* 1. İzlenme Tarihi */}
                 <span className="px-2.5 py-1 rounded-lg bg-black/80 backdrop-blur-md border border-white/20 text-[11px] font-semibold text-slate-200 shadow">
                   {displayDate}
                 </span>
-
-                {/* 2. Durum İkonu (Medya İçin) */}
-                {!isGame && (item.watching || item.following || item.dropped) && (
-                  <div className="flex items-center gap-1">
-                    {item.watching && (
-                      <div
-                        title="İzleniyor"
-                        className="w-6 h-6 rounded-lg bg-cyan-950/85 backdrop-blur-md border border-cyan-400/40 text-cyan-300 shadow flex items-center justify-center"
-                      >
-                        <Tv className="w-3.5 h-3.5 text-cyan-400" />
-                      </div>
-                    )}
-                    {item.following && (
-                      <div
-                        className="w-6 h-6 rounded-lg bg-black/85 backdrop-blur-md border border-white/20 shadow flex items-center justify-center cursor-pointer"
-                        onClick={(e) => {
-                          if (hasFollowInfo) {
-                            e.stopPropagation();
-                            setShowAnnouncementModal(true);
-                          }
-                        }}
-                      >
-                        <FollowBadge
-                          id={`mobile-preview-badge-following-${item.id}`}
-                          hasFollowInfo={hasFollowInfo}
-                          model={followModel.id}
-                          color={followColor.id}
-                          badgeStyle="default"
-                        />
-                      </div>
-                    )}
-                    {item.dropped && (
-                      <div
-                        title="Bırakıldı"
-                        className="w-6 h-6 rounded-lg bg-rose-950/85 backdrop-blur-md border border-rose-400/40 text-rose-300 shadow flex items-center justify-center"
-                      >
-                        <PauseCircle className="w-3.5 h-3.5 text-rose-400" />
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {/* 2. Durum İkonu (Oyun İçin) */}
-                {isGame && item.status && (
-                  <div
-                    title={item.status}
-                    className="w-6 h-6 rounded-lg bg-black/85 backdrop-blur-md border border-white/20 shadow flex items-center justify-center"
-                  >
-                    {renderGameStatusIcon(item.status)}
-                  </div>
-                )}
-
-                {/* 3. Anki İkonu (Varsa, Durum İkonuyla Birebir Aynı Boyutta: w-6 h-6) */}
-                {Boolean(item.anki) && (
-                  <div
-                    title="Anki Destesine Eklendi"
-                    className="w-6 h-6 rounded-lg bg-emerald-950/85 backdrop-blur-md border border-emerald-400/40 text-emerald-300 shadow flex items-center justify-center"
-                  >
-                    <Brain className="w-3.5 h-3.5 text-emerald-400" />
-                  </div>
-                )}
               </div>
 
-              {/* Sağ Üst: Sadece Rating */}
+              {/* Sağ Üst: Yalnızca Puan Derecelendirmesi */}
               <div className="flex flex-col items-end gap-1.5">
                 {item.rating > 0 && (
                   <span className="px-2.5 py-1 rounded-lg bg-black/85 backdrop-blur-md border border-amber-500/50 text-xs font-black text-amber-300 flex items-center gap-1 shadow">
@@ -955,43 +893,128 @@ export const ImagePreviewModal: React.FC<ImagePreviewModalProps> = ({
               </div>
             </div>
 
-            {/* Alt Kısım: Kartın Adı (Ortalanmış ve Daha Büyük) ve Oyun İçin Sol-Alt Saat / Sağ-Alt Başarım */}
-            <div className="relative z-20 mt-auto w-full pt-12 pb-3.5 px-3.5 bg-gradient-to-t from-black/95 via-black/65 to-transparent rounded-b-2xl pointer-events-none flex flex-col items-center">
-              {/* Kart Başlığı: Ortalanmış ve Daha Büyük */}
-              <h3
-                className={`text-lg sm:text-xl font-extrabold text-white leading-snug drop-shadow-lg line-clamp-2 text-center w-full px-2 ${
-                  isGame && ((item.hours !== undefined && item.hours > 0) || (item.achPercent !== null && item.achPercent !== undefined && item.achPercent > 0))
-                    ? 'mb-3'
-                    : ''
-                }`}
-              >
-                {item.title}
-              </h3>
+            {/* Alt Kısım: Kartın Adı (Ortalanmış ve Daha Büyük) ve Alt Rozetler */}
+            {(() => {
+              const hasGameBottomBadges = isGame && Boolean(
+                (item.hours !== undefined && item.hours > 0) ||
+                item.status ||
+                item.anki ||
+                (item.achPercent !== null && item.achPercent !== undefined && item.achPercent > 0)
+              );
+              const hasMediaBottomBadges = !isGame && Boolean(
+                item.watching || item.following || item.dropped || item.anki
+              );
+              const hasBottomBadges = hasGameBottomBadges || hasMediaBottomBadges;
 
-              {/* Oyun Kartları İçin: Sol Altta Oynama Saati, Sağ Altta Başarım Yüzdesi */}
-              {isGame && ((item.hours !== undefined && item.hours > 0) || (item.achPercent !== null && item.achPercent !== undefined && item.achPercent > 0)) && (
-                <div className="w-full flex items-center justify-between pointer-events-auto">
-                  {/* Sol Alt: Oynama Süresi */}
-                  {item.hours !== undefined && item.hours > 0 ? (
-                    <div className="px-2 py-1 rounded-lg bg-black/85 backdrop-blur-md border border-white/20 text-[11px] font-semibold text-slate-200 flex items-center gap-1 shadow">
-                      <Clock className="w-3 h-3 text-slate-400" />
-                      <span>{item.hours}s</span>
+              return (
+                <div className="relative z-20 mt-auto w-full pt-12 pb-3.5 px-3.5 bg-gradient-to-t from-black/95 via-black/65 to-transparent rounded-b-2xl pointer-events-none flex flex-col items-center">
+                  {/* Kart Başlığı: Ortalanmış ve %10 Daha Büyük */}
+                  <h3
+                    className={`text-[20px] sm:text-[22px] font-extrabold text-white leading-snug drop-shadow-lg line-clamp-2 text-center w-full px-2 ${
+                      hasBottomBadges ? 'mb-3' : ''
+                    }`}
+                  >
+                    {item.title}
+                  </h3>
+
+                  {/* Oyun Kartları İçin Alt Panel: Sol Altta Saat + Durum İkonu, Sağ Altta Varsa Anki + Başarım */}
+                  {isGame && hasGameBottomBadges && (
+                    <div className="w-full flex items-center justify-between pointer-events-auto">
+                      {/* Sol Alt: Oynama Saati + Hemen Sağında Durum İkonu */}
+                      <div className="flex items-center gap-1.5">
+                        {item.hours !== undefined && item.hours > 0 && (
+                          <div className="h-[26px] px-2 rounded-lg bg-black/85 backdrop-blur-md border border-white/20 text-[11px] font-semibold text-slate-200 flex items-center gap-1 shadow shrink-0">
+                            <Clock className="w-3 h-3 text-slate-400" />
+                            <span>{item.hours}s</span>
+                          </div>
+                        )}
+                        {item.status && (
+                          <div
+                            title={item.status}
+                            className="w-[26px] h-[26px] rounded-lg bg-black/85 backdrop-blur-md border border-white/20 shadow flex items-center justify-center shrink-0"
+                          >
+                            {renderGameStatusIcon(item.status)}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Sağ Alt: Varsa Anki Rozeti + Hemen Sağında Başarım Yüzdesi */}
+                      <div className="flex items-center gap-1.5">
+                        {Boolean(item.anki) && (
+                          <div
+                            title="Anki Destesine Eklendi"
+                            className="w-[26px] h-[26px] rounded-lg bg-emerald-950/85 backdrop-blur-md border border-emerald-400/40 text-emerald-300 shadow flex items-center justify-center shrink-0"
+                          >
+                            <Brain className="w-3.5 h-3.5 text-emerald-400" />
+                          </div>
+                        )}
+                        {item.achPercent !== null && item.achPercent !== undefined && item.achPercent > 0 && (
+                          <div className="h-[26px] px-2 rounded-lg bg-emerald-950/85 backdrop-blur-md border border-emerald-400/40 text-[11px] font-bold text-emerald-300 shadow flex items-center justify-center shrink-0">
+                            <span>%{item.achPercent}</span>
+                          </div>
+                        )}
+                      </div>
                     </div>
-                  ) : (
-                    <div />
                   )}
 
-                  {/* Sağ Alt: Başarım Yüzdesi (Kupasız, yeşil sade rozet) */}
-                  {item.achPercent !== null && item.achPercent !== undefined && item.achPercent > 0 ? (
-                    <div className="px-2 py-1 rounded-lg bg-emerald-950/85 backdrop-blur-md border border-emerald-400/40 text-[11px] font-bold text-emerald-300 shadow">
-                      <span>%{item.achPercent}</span>
+                  {/* Medya Kartları İçin Alt Panel: Sol Altta Durum Rozetleri, Sağ Altta Varsa Anki Rozeti */}
+                  {!isGame && hasMediaBottomBadges && (
+                    <div className="w-full flex items-center justify-between pointer-events-auto">
+                      {/* Sol Alt: Durum İkonu (İzleniyor / Takip / Bırakıldı) */}
+                      <div className="flex items-center gap-1.5">
+                        {item.watching && (
+                          <div
+                            title="İzleniyor"
+                            className="w-[26px] h-[26px] rounded-lg bg-cyan-950/85 backdrop-blur-md border border-cyan-400/40 text-cyan-300 shadow flex items-center justify-center shrink-0"
+                          >
+                            <Tv className="w-3.5 h-3.5 text-cyan-400" />
+                          </div>
+                        )}
+                        {item.following && (
+                          <div
+                            className="w-[26px] h-[26px] rounded-lg bg-black/85 backdrop-blur-md border border-white/20 shadow flex items-center justify-center cursor-pointer pointer-events-auto shrink-0"
+                            onClick={(e) => {
+                              if (hasFollowInfo) {
+                                e.stopPropagation();
+                                setShowAnnouncementModal(true);
+                              }
+                            }}
+                          >
+                            <FollowBadge
+                              id={`mobile-preview-badge-following-${item.id}`}
+                              hasFollowInfo={hasFollowInfo}
+                              model={followModel.id}
+                              color={followColor.id}
+                              badgeStyle="default"
+                            />
+                          </div>
+                        )}
+                        {item.dropped && (
+                          <div
+                            title="Bırakıldı"
+                            className="w-[26px] h-[26px] rounded-lg bg-rose-950/85 backdrop-blur-md border border-rose-400/40 text-rose-300 shadow flex items-center justify-center shrink-0"
+                          >
+                            <PauseCircle className="w-3.5 h-3.5 text-rose-400" />
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Sağ Alt: Varsa Anki Rozeti */}
+                      <div className="flex items-center gap-1.5">
+                        {Boolean(item.anki) && (
+                          <div
+                            title="Anki Destesine Eklendi"
+                            className="w-[26px] h-[26px] rounded-lg bg-emerald-950/85 backdrop-blur-md border border-emerald-400/40 text-emerald-300 shadow flex items-center justify-center pointer-events-auto shrink-0"
+                          >
+                            <Brain className="w-3.5 h-3.5 text-emerald-400" />
+                          </div>
+                        )}
+                      </div>
                     </div>
-                  ) : (
-                    <div />
                   )}
                 </div>
-              )}
-            </div>
+              );
+            })()}
           </div>
 
           {/* BACK FACE */}

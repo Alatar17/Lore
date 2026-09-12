@@ -59,6 +59,7 @@ import {
   Plus,
   BarChart3,
   History,
+  Clock,
   CheckSquare,
   Square,
   Trash2,
@@ -184,7 +185,26 @@ export default function App() {
     followingOnly: false,
     ankiFilter: 'all',
     uncategorizedOnly: false,
+    hiddenOnly: false,
   });
+
+  // Secret Global Hidden Mode (Default: true / active - remembered in localStorage)
+  const [isHideModeActive, setIsHideModeActive] = useState<boolean>(() => {
+    const saved = safeLocalStorageGet('yapim_hide_mode_active');
+    return saved !== null ? saved === 'true' : true;
+  });
+
+  useEffect(() => {
+    safeLocalStorageSet('yapim_hide_mode_active', String(isHideModeActive));
+  }, [isHideModeActive]);
+
+  // Items visible under current hide mode (for Tier List, Statistics, Recent Activity, and PNG Export)
+  const visibleItems = useMemo(() => {
+    if (isHideModeActive) {
+      return appData.items.filter((it) => !it.isHidden);
+    }
+    return appData.items;
+  }, [appData.items, isHideModeActive]);
 
   // View Settings State with card size slider and theme support
   const [viewSettings, setViewSettings] = useState<ViewSettings>(() => {
@@ -1081,15 +1101,26 @@ export default function App() {
 
   const handleExportTierPng = useCallback(() => {
     if (!activeCategory) return;
-    const catItems = appData.items.filter(
-      (item) => item.cat === activeCategory.id && (!activeSub || item.sub === activeSub)
-    );
+    const enabledSubs = activeCategory.tierSubgroups ?? activeCategory.subgroups;
+    const catItems = visibleItems.filter((item) => {
+      if (item.cat !== activeCategory.id || item.mainTab !== mainTab) return false;
+      if (activeSub) return item.sub === activeSub;
+      if (activeCategory.subgroups && activeCategory.subgroups.length > 0) {
+        if (activeCategory.tierSubgroups) {
+          return item.sub ? enabledSubs.includes(item.sub) : false;
+        }
+        if (item.sub) {
+          return enabledSubs.includes(item.sub);
+        }
+      }
+      return true;
+    });
     downloadTierListAsPng(activeCategory, catItems, mainTab, {
       scale: 2,
       includeTitles: true,
       isClassic: uiExperiments.tierListStyle === 'classic',
     });
-  }, [activeCategory, appData.items, activeSub, mainTab, uiExperiments.tierListStyle]);
+  }, [activeCategory, visibleItems, activeSub, mainTab, uiExperiments.tierListStyle]);
 
   const handleImportTierList = async (file: File) => {
     if (!activeCategory) return;
@@ -1206,6 +1237,16 @@ export default function App() {
 
     const result = rawItems.filter((item) => {
       if (!item) return false;
+
+      // 0. Secret Hidden Item Logic
+      if (isHideModeActive) {
+        // Mode is active: Strictly hide all items marked as isHidden
+        if (item.isHidden) return false;
+      } else {
+        // Mode is inactive (revealed): If hiddenOnly filter is set, show only hidden items
+        if (filters.hiddenOnly && !item.isHidden) return false;
+      }
+
       // 1. Tab match
       if (item.mainTab !== mainTab) return false;
 
@@ -1310,7 +1351,7 @@ export default function App() {
 
     // Apply Sorting: Default to 'date-desc' (Last Watched/Finished first, ?? dates safely placed at the end)
     return sortArchiveItems(result, viewSettings.sortBy || 'date-desc');
-  }, [appData.items, appData.categories, mainTab, activeCatId, activeSub, searchQuery, filters, viewSettings.sortBy]);
+  }, [appData.items, appData.categories, mainTab, activeCatId, activeSub, searchQuery, filters, viewSettings.sortBy, isHideModeActive]);
 
   // Card size calculation for CSS Grid auto-fill (1: 150px [Küçük], 2: 185px [Standart], 3: 215px [Orta-Büyük], 4: 250px [Büyük], 5: 295px [Ekstra])
   const cardMinWidth = useMemo(() => {
@@ -1437,6 +1478,16 @@ export default function App() {
             setIsViewOpen((prev) => !prev);
             setIsFilterOpen(false);
           }}
+          isHideModeActive={isHideModeActive}
+          onToggleHideMode={() => {
+            setIsHideModeActive((prev) => {
+              const next = !prev;
+              if (next) {
+                setFilters((f) => (f.hiddenOnly ? { ...f, hiddenOnly: false } : f));
+              }
+              return next;
+            });
+          }}
           onOpenSettings={async () => {
             closeAllPanels();
             setSettingsInitialTab(undefined);
@@ -1498,7 +1549,7 @@ export default function App() {
               mainTab={mainTab}
               category={activeCategory!}
               activeSub={activeSub}
-              items={appData.items}
+              items={visibleItems}
               movedItemIds={movedItemIds}
               tierListStyle={uiExperiments.tierListStyle || 'modern'}
               onUpdateTierPlacement={handleUpdateTierPlacement}
@@ -1750,7 +1801,11 @@ export default function App() {
                         : 'bg-slate-900/80 hover:bg-blue-600 text-slate-400 hover:text-white shadow-md hover:shadow-blue-600/30 hover:scale-105 active:scale-95 border border-white/10 hover:border-blue-400/40 opacity-70 hover:opacity-100'
                     }`}
                   >
-                    <History className="w-3.5 h-3.5 transition-transform duration-200 group-hover:scale-110" />
+                    <History
+                      className={`w-3.5 h-3.5 transition-transform duration-200 group-hover:scale-110 ${
+                        isHideModeActive ? '' : '-scale-x-100'
+                      }`}
+                    />
 
                     {isEditingFabMode && (
                       <span
@@ -1983,8 +2038,8 @@ export default function App() {
                           </div>
                         </div>
 
-                        {/* 3. Hover Hareketi */}
-                        <div className="space-y-1.5">
+                        {/* 3. Hover Hareketi (Yalnızca Masaüstünde) */}
+                        <div className="space-y-1.5 hidden sm:block">
                           <div className="text-[11px] font-semibold text-slate-300 px-1">Hover Hareketi</div>
                           <div className="grid grid-cols-3 gap-1.5">
                             {[
@@ -2074,8 +2129,8 @@ export default function App() {
                           ))}
                         </div>
 
-                        {/* Rozet Yoğunluğu */}
-                        <div className="space-y-1.5 pt-2 border-t border-white/10">
+                        {/* Rozet Yoğunluğu (Yalnızca Masaüstünde) */}
+                        <div className="space-y-1.5 pt-2 border-t border-white/10 hidden sm:block">
                           <div className="text-[11px] font-semibold text-slate-300 px-1">Rozet Yoğunluğu</div>
                           <div className="grid grid-cols-2 gap-1.5">
                             {[
@@ -2630,7 +2685,7 @@ export default function App() {
       {/* 4. Statistics Modal */}
       {isStatisticsOpen && (
         <StatisticsModal
-          items={appData.items}
+          items={visibleItems}
           categories={appData.categories}
           initialTab={mainTab}
           onClose={() => setIsStatisticsOpen(false)}
@@ -2641,7 +2696,7 @@ export default function App() {
       {isRecentActivityOpen && (
         <RecentActivityModal
           isOpen={isRecentActivityOpen}
-          items={appData.items}
+          items={visibleItems}
           categories={appData.categories}
           onSelectItem={(item) => {
             // Son aktivitelerde karta tıklandığında düzenleme yerine kart detay penceresi açılır

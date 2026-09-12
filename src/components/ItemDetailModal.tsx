@@ -4,6 +4,7 @@ import { MEDIA_COLORS, GAME_COLORS } from '../data/initialData';
 import { optimizeImageFile } from '../utils/imageOptimizer';
 import { TagInputBox } from './TagInputBox';
 import { getFieldScopedTags, getFieldScopedTagCounts } from '../utils/tagUtils';
+import { safeLocalStorageGet, safeLocalStorageSet } from '../utils/fileSystem';
 import { CustomDialog, DialogOptions } from './CustomDialog';
 import {
   X,
@@ -462,6 +463,7 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
 
     onSave({
       ...formData,
+      isHidden: formData.isHidden,
       date: isDateDisabled ? '' : (formData.date || '??'),
       lastCompletedDate: finalLastCompleted,
       characters: cleanedCharacters,
@@ -470,6 +472,45 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
       seriesOrder: cleanSeriesOrder,
       updatedAt: Date.now(),
     });
+  };
+
+  const trashTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const longPressTriggeredRef = useRef<boolean>(false);
+
+  useEffect(() => {
+    return () => {
+      if (trashTimerRef.current) {
+        clearTimeout(trashTimerRef.current);
+      }
+    };
+  }, []);
+
+  const handleTrashPressStart = () => {
+    longPressTriggeredRef.current = false;
+    if (trashTimerRef.current) clearTimeout(trashTimerRef.current);
+    trashTimerRef.current = setTimeout(() => {
+      longPressTriggeredRef.current = true;
+      setFormData((prev) => ({
+        ...prev,
+        isHidden: !prev.isHidden,
+      }));
+    }, 3000);
+  };
+
+  const handleTrashPressEnd = () => {
+    if (trashTimerRef.current) {
+      clearTimeout(trashTimerRef.current);
+      trashTimerRef.current = null;
+    }
+  };
+
+  const handleClickDelete = (e: React.MouseEvent) => {
+    e.preventDefault();
+    if (longPressTriggeredRef.current) {
+      longPressTriggeredRef.current = false;
+      return;
+    }
+    handleDelete();
   };
 
   const handleDelete = () => {
@@ -520,11 +561,40 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
             {!isReadOnly && (
               <button
                 id="delete-item-btn"
-                onClick={handleDelete}
-                title="Yapımı Sil"
-                className="hidden sm:inline-flex p-1.5 rounded-lg text-slate-400 hover:text-red-400 hover:bg-red-500/10 transition-colors cursor-pointer"
+                type="button"
+                onMouseDown={handleTrashPressStart}
+                onMouseUp={handleTrashPressEnd}
+                onMouseLeave={handleTrashPressEnd}
+                onTouchStart={handleTrashPressStart}
+                onTouchEnd={handleTrashPressEnd}
+                onTouchCancel={handleTrashPressEnd}
+                onClick={handleClickDelete}
+                title="Yapımı Sil (Gizleme: 3 sn basılı tutun)"
+                className="inline-flex p-1.5 rounded-lg text-slate-400 hover:text-red-400 hover:bg-red-500/10 transition-colors cursor-pointer select-none"
               >
-                <Trash2 className="w-4 h-4" />
+                {formData.isHidden ? (
+                  /* Karar Verilen Tasarım: Kısa Çizgiler (Hafif ve Zarif) */
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    className="w-4 h-4"
+                  >
+                    <path d="M3 6h18" />
+                    <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" />
+                    <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
+                    <line x1="10" x2="10" y1="12.5" y2="15.5" />
+                    <line x1="14" x2="14" y1="12.5" y2="15.5" />
+                  </svg>
+                ) : (
+                  <Trash2 className="w-4 h-4" />
+                )}
               </button>
             )}
             <button
