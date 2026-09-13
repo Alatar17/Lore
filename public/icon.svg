@@ -1,169 +1,154 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
   <defs>
-    <!-- Background Gradient -->
-    <linearGradient id="bgGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#151924"/>
-      <stop offset="45%" stop-color="#0e111a"/>
-      <stop offset="100%" stop-color="#07080d"/>
+    <!-- Matte Charcoal / Slate Background -->
+    <linearGradient id="bgClassic" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#22252c"/>
+      <stop offset="50%" stop-color="#191b22"/>
+      <stop offset="100%" stop-color="#121318"/>
     </linearGradient>
 
-    <!-- Outer Rim Light -->
-    <linearGradient id="rimLight" x1="15%" y1="0%" x2="85%" y2="100%">
-      <stop offset="0%" stop-color="#60a5fa" stop-opacity="0.45"/>
-      <stop offset="35%" stop-color="#a855f7" stop-opacity="0.3"/>
-      <stop offset="70%" stop-color="#38bdf8" stop-opacity="0.15"/>
-      <stop offset="100%" stop-color="#ffffff" stop-opacity="0.04"/>
+    <!-- Subtle Rim Accent (Warm Titanium/Graphite) -->
+    <linearGradient id="rimClassic" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#4a4f5d" stop-opacity="0.6"/>
+      <stop offset="100%" stop-color="#2a2d36" stop-opacity="0.3"/>
     </linearGradient>
 
-    <!-- Ambient Glow Gradient -->
-    <radialGradient id="centerAura" cx="50%" cy="50%" r="50%">
-      <stop offset="0%" stop-color="#6366f1" stop-opacity="0.28"/>
-      <stop offset="40%" stop-color="#8b5cf6" stop-opacity="0.18"/>
-      <stop offset="75%" stop-color="#06b6d4" stop-opacity="0.08"/>
-      <stop offset="100%" stop-color="#000000" stop-opacity="0"/>
-    </radialGradient>
-
-    <!-- Clapperboard Metallic Shading -->
-    <linearGradient id="clapperBody" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#242938"/>
-      <stop offset="50%" stop-color="#181c27"/>
-      <stop offset="100%" stop-color="#11131c"/>
+    <!-- Classic Clapperboard Body -->
+    <linearGradient id="clapperMatte" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#2e323d"/>
+      <stop offset="100%" stop-color="#20232b"/>
     </linearGradient>
 
-    <linearGradient id="clapperStick" x1="0%" y1="0%" x2="100%" y2="0%">
-      <stop offset="0%" stop-color="#1e2230"/>
-      <stop offset="100%" stop-color="#2a3044"/>
+    <linearGradient id="stickMatte" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#252832"/>
+      <stop offset="100%" stop-color="#343846"/>
     </linearGradient>
 
-    <linearGradient id="stripeWhite" x1="0%" y1="0%" x2="0%" y2="100%">
-      <stop offset="0%" stop-color="#ffffff"/>
-      <stop offset="100%" stop-color="#cbd5e1"/>
+    <!-- Classic Off-White Stripes (Ivory / Matte White) -->
+    <linearGradient id="stripeClassic" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#f1f3f5"/>
+      <stop offset="100%" stop-color="#d1d5db"/>
     </linearGradient>
 
-    <!-- Gamepad Shading -->
-    <linearGradient id="padBody" x1="20%" y1="0%" x2="80%" y2="100%">
-      <stop offset="0%" stop-color="#2c3244"/>
-      <stop offset="40%" stop-color="#1f2433"/>
-      <stop offset="100%" stop-color="#131620"/>
+    <!-- Classic Gamepad Body (Matte Slate Graphite with warm subtle tone) -->
+    <linearGradient id="padMatte" x1="20%" y1="0%" x2="80%" y2="100%">
+      <stop offset="0%" stop-color="#383d4a"/>
+      <stop offset="40%" stop-color="#2b2f3a"/>
+      <stop offset="100%" stop-color="#1e2129"/>
     </linearGradient>
 
-    <linearGradient id="padBorder" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#38bdf8" stop-opacity="0.75"/>
-      <stop offset="50%" stop-color="#a855f7" stop-opacity="0.6"/>
-      <stop offset="100%" stop-color="#ec4899" stop-opacity="0.45"/>
+    <!-- Subtle Warm Brass / Titanium Accent for D-pad & Buttons -->
+    <linearGradient id="accentClassic" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#d4af37"/>
+      <stop offset="100%" stop-color="#aa8524"/>
     </linearGradient>
 
-    <linearGradient id="stickGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#1b1e2a"/>
-      <stop offset="100%" stop-color="#0d0f15"/>
+    <linearGradient id="buttonMatte" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#474c5a"/>
+      <stop offset="100%" stop-color="#2b2f3a"/>
     </linearGradient>
 
-    <!-- Soft Drop Shadow Filters -->
-    <filter id="shadowDepth" x="-20%" y="-20%" width="140%" height="140%">
-      <feDropShadow dx="0" dy="14" stdDeviation="16" flood-color="#000000" flood-opacity="0.65"/>
+    <!-- Deep Natural Drop Shadows (No glowing aura) -->
+    <filter id="naturalShadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="16" stdDeviation="18" flood-color="#000000" flood-opacity="0.6"/>
     </filter>
 
-    <filter id="padGlow" x="-20%" y="-20%" width="140%" height="140%">
-      <feDropShadow dx="0" dy="8" stdDeviation="12" flood-color="#000000" flood-opacity="0.75"/>
+    <filter id="padNaturalShadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="12" stdDeviation="14" flood-color="#000000" flood-opacity="0.65"/>
     </filter>
 
     <clipPath id="clapperTopClip">
-      <rect x="0" y="0" width="220" height="42" rx="8"/>
+      <rect x="0" y="0" width="220" height="40" rx="6"/>
     </clipPath>
 
-    <clipPath id="clapperBottomStickClip">
-      <rect x="0" y="0" width="220" height="38" rx="6"/>
+    <clipPath id="clapperBottomClip">
+      <rect x="0" y="0" width="220" height="34" rx="4"/>
     </clipPath>
   </defs>
 
   <!-- Base App Squircle Canvas -->
-  <rect x="20" y="20" width="472" height="472" rx="112" fill="url(#bgGradient)"/>
-  <rect x="20" y="20" width="472" height="472" rx="112" fill="none" stroke="url(#rimLight)" stroke-width="4"/>
-
-  <!-- Radial Aura Glow behind icons -->
-  <circle cx="256" cy="256" r="210" fill="url(#centerAura)"/>
+  <rect x="20" y="20" width="472" height="472" rx="112" fill="url(#bgClassic)"/>
+  <rect x="20" y="20" width="472" height="472" rx="112" fill="none" stroke="url(#rimClassic)" stroke-width="3"/>
 
   <!-- ======================================================== -->
-  <!-- 1. CINEMA CLAPPERBOARD (Top-Left Dynamic Composition)     -->
+  <!-- 1. CLASSIC CINEMA CLAPPERBOARD (Matte Slate / Ivory)    -->
   <!-- ======================================================== -->
-  <g id="cinemaClapper" filter="url(#shadowDepth)" transform="translate(105, 95)">
-    <!-- Clapper Slate Body (Lower board) -->
-    <rect x="20" y="70" width="240" height="175" rx="16" fill="url(#clapperBody)" stroke="#3b4256" stroke-width="2.5"/>
+  <g id="cinemaClapper" filter="url(#naturalShadow)" transform="translate(108, 98)">
+    <!-- Clapper Slate Body -->
+    <rect x="20" y="66" width="240" height="175" rx="14" fill="url(#clapperMatte)" stroke="#3e4352" stroke-width="2"/>
     
-    <!-- Film Strip / Perforation Accent on left edge of slate -->
-    <g opacity="0.45">
-      <rect x="32" y="86" width="14" height="18" rx="3.5" fill="#94a3b8"/>
-      <rect x="32" y="118" width="14" height="18" rx="3.5" fill="#94a3b8"/>
-      <rect x="32" y="150" width="14" height="18" rx="3.5" fill="#94a3b8"/>
-      <rect x="32" y="182" width="14" height="18" rx="3.5" fill="#94a3b8"/>
-      <rect x="32" y="214" width="14" height="18" rx="3.5" fill="#94a3b8"/>
+    <!-- Film Perforations Accent (Natural slate tones) -->
+    <g opacity="0.35">
+      <rect x="34" y="82" width="12" height="16" rx="3" fill="#9ca3af"/>
+      <rect x="34" y="112" width="12" height="16" rx="3" fill="#9ca3af"/>
+      <rect x="34" y="142" width="12" height="16" rx="3" fill="#9ca3af"/>
+      <rect x="34" y="172" width="12" height="16" rx="3" fill="#9ca3af"/>
+      <rect x="34" y="202" width="12" height="16" rx="3" fill="#9ca3af"/>
     </g>
 
-    <!-- Minimalist Cine Slate Lines (Pure aesthetic, no text) -->
-    <rect x="62" y="94" width="80" height="4" rx="2" fill="#475569" opacity="0.5"/>
-    <rect x="62" y="110" width="55" height="3.5" rx="2" fill="#475569" opacity="0.35"/>
-    <rect x="62" y="140" width="68" height="3.5" rx="2" fill="#475569" opacity="0.25"/>
+    <!-- Minimal Clean Slate Dividers (No text) -->
+    <line x1="62" y1="88" x2="242" y2="88" stroke="#3b404e" stroke-width="2"/>
+    <line x1="62" y1="130" x2="242" y2="130" stroke="#3b404e" stroke-width="2"/>
+    <line x1="150" y1="88" x2="150" y2="130" stroke="#3b404e" stroke-width="2"/>
 
-    <!-- Fixed Lower Clapper Strip (Hinged base) -->
-    <g transform="translate(20, 36)">
-      <rect x="0" y="0" width="240" height="36" rx="6" fill="url(#clapperStick)"/>
-      <g clip-path="url(#clapperBottomStickClip)">
-        <!-- Crisp diagonal stripes -->
-        <polygon points="35,0 55,0 25,38 5,38" fill="url(#stripeWhite)"/>
-        <polygon points="85,0 105,0 75,38 55,38" fill="url(#stripeWhite)"/>
-        <polygon points="135,0 155,0 125,38 105,38" fill="url(#stripeWhite)"/>
-        <polygon points="185,0 205,0 175,38 155,38" fill="url(#stripeWhite)"/>
+    <!-- Fixed Lower Clapper Strip -->
+    <g transform="translate(20, 32)">
+      <rect x="0" y="0" width="240" height="34" rx="4" fill="url(#stickMatte)"/>
+      <g clip-path="url(#clapperBottomClip)">
+        <polygon points="35,0 55,0 25,34 5,34" fill="url(#stripeClassic)"/>
+        <polygon points="85,0 105,0 75,34 55,34" fill="url(#stripeClassic)"/>
+        <polygon points="135,0 155,0 125,34 105,34" fill="url(#stripeClassic)"/>
+        <polygon points="185,0 205,0 175,34 155,34" fill="url(#stripeClassic)"/>
       </g>
     </g>
 
-    <!-- Top Hinged Clapper Stick (Angled open ~14 degrees for dynamic cinema look) -->
-    <g transform="translate(18, 38) rotate(-14)">
-      <rect x="0" y="-36" width="242" height="36" rx="8" fill="url(#clapperStick)" stroke="#475569" stroke-width="1.5"/>
+    <!-- Top Hinged Clapper Stick (Opened at a classic ~13 degree angle) -->
+    <g transform="translate(18, 34) rotate(-13)">
+      <rect x="0" y="-36" width="242" height="36" rx="6" fill="url(#stickMatte)" stroke="#454b5a" stroke-width="1.5"/>
       <g clip-path="url(#clapperTopClip)" transform="translate(0, -36)">
-        <polygon points="35,0 55,0 25,42 5,42" fill="url(#stripeWhite)"/>
-        <polygon points="85,0 105,0 75,42 55,42" fill="url(#stripeWhite)"/>
-        <polygon points="135,0 155,0 125,42 105,42" fill="url(#stripeWhite)"/>
-        <polygon points="185,0 205,0 175,42 155,42" fill="url(#stripeWhite)"/>
+        <polygon points="35,0 55,0 25,40 5,40" fill="url(#stripeClassic)"/>
+        <polygon points="85,0 105,0 75,40 55,40" fill="url(#stripeClassic)"/>
+        <polygon points="135,0 155,0 125,40 105,40" fill="url(#stripeClassic)"/>
+        <polygon points="185,0 205,0 175,40 155,40" fill="url(#stripeClassic)"/>
       </g>
     </g>
 
-    <!-- Mechanical Hinge Bolt (Left pivot) -->
-    <circle cx="28" cy="46" r="10" fill="#334155" stroke="#94a3b8" stroke-width="2"/>
-    <circle cx="28" cy="46" r="5" fill="#cbd5e1"/>
-    <circle cx="27" cy="44.5" r="1.5" fill="#ffffff"/>
+    <!-- Classic Metallic Pivot Hinge -->
+    <circle cx="28" cy="42" r="9" fill="#2d313c" stroke="#6b7280" stroke-width="2"/>
+    <circle cx="28" cy="42" r="4" fill="#9ca3af"/>
+    <circle cx="27" cy="40.5" r="1.2" fill="#ffffff" opacity="0.6"/>
   </g>
 
   <!-- ======================================================== -->
-  <!-- 2. GAMEPAD CONTROLLER (Overlapping Foreground Focus)       -->
+  <!-- 2. CLASSIC GAME CONTROLLER (Understated, Retro-Modern)    -->
   <!-- ======================================================== -->
-  <g id="gamepad" filter="url(#padGlow)" transform="translate(178, 222)">
-    <!-- Controller Outer Silhouette & Grips -->
+  <g id="gamepad" filter="url(#padNaturalShadow)" transform="translate(176, 218)">
+    <!-- Controller Body -->
     <path d="M 52 50 
-             C 52 24, 76 12, 114 12 
-             L 166 12 
-             C 204 12, 228 24, 228 50 
+             C 52 24, 76 14, 114 14 
+             L 166 14 
+             C 204 14, 228 24, 228 50 
              C 228 78, 214 116, 186 128 
              C 174 133, 160 126, 146 112 
              C 140 106, 134 104, 140 104 
              C 146 104, 140 106, 134 112 
              C 120 126, 106 133, 94 128 
              C 66 116, 52 78, 52 50 Z" 
-          fill="url(#padBody)" 
-          stroke="url(#padBorder)" 
-          stroke-width="4.5" 
+          fill="url(#padMatte)" 
+          stroke="#4b5161" 
+          stroke-width="3" 
           stroke-linejoin="round"/>
 
-    <!-- Subtle Ergonomic Grip Highlights -->
-    <path d="M 64 54 C 64 78, 74 106, 92 116" fill="none" stroke="#38bdf8" stroke-width="2.5" stroke-linecap="round" opacity="0.4"/>
-    <path d="M 216 54 C 216 78, 206 106, 188 116" fill="none" stroke="#ec4899" stroke-width="2.5" stroke-linecap="round" opacity="0.4"/>
+    <!-- Subtle Grip Contour Lines (No neon) -->
+    <path d="M 66 56 C 66 78, 76 102, 92 112" fill="none" stroke="#252832" stroke-width="2" stroke-linecap="round"/>
+    <path d="M 214 56 C 214 78, 204 102, 188 112" fill="none" stroke="#252832" stroke-width="2" stroke-linecap="round"/>
 
-    <!-- Modern Central Light Bar / Touchpad Strip -->
-    <rect x="122" y="24" width="36" height="7" rx="3.5" fill="#38bdf8" opacity="0.85"/>
-    <circle cx="140" cy="38" r="3" fill="#64748b" opacity="0.7"/>
+    <!-- Classic Central Option / Start Buttons -->
+    <rect x="126" y="24" width="10" height="4" rx="2" fill="#20232a"/>
+    <rect x="144" y="24" width="10" height="4" rx="2" fill="#20232a"/>
 
-    <!-- Directional Pad (D-Pad, Left side) -->
+    <!-- Classic Cross D-Pad (Left) -->
     <g transform="translate(86, 44)">
-      <!-- Cross Base -->
       <path d="M 12 0 
                L 22 0 
                L 22 12 
@@ -176,46 +161,45 @@
                L 0 22 
                L 0 12 
                L 12 12 Z" 
-            fill="#181c28" 
-            stroke="#475569" 
-            stroke-width="2" 
+            fill="#20232b" 
+            stroke="#454b59" 
+            stroke-width="1.8" 
             stroke-linejoin="round"/>
-      <!-- Directional Arrow Indents -->
-      <polygon points="17,3 14,7 20,7" fill="#94a3b8"/>
-      <polygon points="17,31 14,27 20,27" fill="#94a3b8"/>
-      <polygon points="3,17 7,14 7,20" fill="#94a3b8"/>
-      <polygon points="31,17 27,14 27,20" fill="#94a3b8"/>
-      <!-- Center Well -->
-      <circle cx="17" cy="17" r="3.5" fill="#0f1118"/>
+      <!-- Tactile arrows -->
+      <polygon points="17,3 14,7 20,7" fill="#6b7280"/>
+      <polygon points="17,31 14,27 20,27" fill="#6b7280"/>
+      <polygon points="3,17 7,14 7,20" fill="#6b7280"/>
+      <polygon points="31,17 27,14 27,20" fill="#6b7280"/>
+      <circle cx="17" cy="17" r="3" fill="#181a20"/>
     </g>
 
-    <!-- Action Buttons (Right side - 4 Diamond arrangement with glowing jewel colors) -->
+    <!-- Classic Action Buttons (Right - Muted retro/classic jewel palette) -->
     <g transform="translate(174, 44)">
-      <!-- Top Button (Y / Violet) -->
-      <circle cx="17" cy="3" r="6.5" fill="#a855f7" stroke="#e9d5ff" stroke-width="1.5"/>
-      <!-- Right Button (B / Coral Pink) -->
-      <circle cx="31" cy="17" r="6.5" fill="#f43f5e" stroke="#ffe4e6" stroke-width="1.5"/>
-      <!-- Bottom Button (A / Electric Cyan) -->
-      <circle cx="17" cy="31" r="6.5" fill="#06b6d4" stroke="#cffafe" stroke-width="1.5"/>
-      <!-- Left Button (X / Emerald Green) -->
-      <circle cx="3" cy="17" r="6.5" fill="#10b981" stroke="#d1fae5" stroke-width="1.5"/>
+      <!-- Top Button (Ruby Wine) -->
+      <circle cx="17" cy="3" r="6" fill="#882d38" stroke="#4a1c22" stroke-width="1.2"/>
+      <circle cx="16" cy="2" r="1.5" fill="#ffffff" opacity="0.4"/>
+      <!-- Right Button (Amber Gold) -->
+      <circle cx="31" cy="17" r="6" fill="#b8860b" stroke="#684c06" stroke-width="1.2"/>
+      <circle cx="30" cy="16" r="1.5" fill="#ffffff" opacity="0.4"/>
+      <!-- Bottom Button (Classic Slate Blue) -->
+      <circle cx="17" cy="31" r="6" fill="#3b5978" stroke="#1d2e40" stroke-width="1.2"/>
+      <circle cx="16" cy="30" r="1.5" fill="#ffffff" opacity="0.4"/>
+      <!-- Left Button (Forest Sage) -->
+      <circle cx="3" cy="17" r="6" fill="#2e6f40" stroke="#143b1f" stroke-width="1.2"/>
+      <circle cx="2" cy="16" r="1.5" fill="#ffffff" opacity="0.4"/>
     </g>
 
-    <!-- Dual Analog Thumbsticks -->
-    <!-- Left Thumbstick -->
+    <!-- Classic Analog Sticks (Muted Charcoal & Ring) -->
     <g transform="translate(108, 76)">
-      <circle cx="16" cy="16" r="16" fill="#151822" stroke="#334155" stroke-width="2"/>
-      <circle cx="16" cy="16" r="12" fill="url(#stickGradient)"/>
-      <circle cx="16" cy="16" r="9" fill="none" stroke="#06b6d4" stroke-width="1.5" opacity="0.75"/>
-      <circle cx="14" cy="14" r="2.5" fill="#ffffff" opacity="0.4"/>
+      <circle cx="16" cy="16" r="15" fill="#1b1e26" stroke="#373c49" stroke-width="1.8"/>
+      <circle cx="16" cy="16" r="11" fill="#242833"/>
+      <circle cx="16" cy="16" r="8" fill="none" stroke="#4b5161" stroke-width="1.2"/>
     </g>
 
-    <!-- Right Thumbstick -->
     <g transform="translate(156, 76)">
-      <circle cx="16" cy="16" r="16" fill="#151822" stroke="#334155" stroke-width="2"/>
-      <circle cx="16" cy="16" r="12" fill="url(#stickGradient)"/>
-      <circle cx="16" cy="16" r="9" fill="none" stroke="#a855f7" stroke-width="1.5" opacity="0.75"/>
-      <circle cx="14" cy="14" r="2.5" fill="#ffffff" opacity="0.4"/>
+      <circle cx="16" cy="16" r="15" fill="#1b1e26" stroke="#373c49" stroke-width="1.8"/>
+      <circle cx="16" cy="16" r="11" fill="#242833"/>
+      <circle cx="16" cy="16" r="8" fill="none" stroke="#4b5161" stroke-width="1.2"/>
     </g>
   </g>
 </svg>
