@@ -1,205 +1,185 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
   <defs>
-    <!-- Matte Charcoal / Slate Background -->
+    <!-- Full-bleed Single Matte Charcoal / Slate Background (NO inner frames) -->
     <linearGradient id="bgClassic" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#22252c"/>
-      <stop offset="50%" stop-color="#191b22"/>
-      <stop offset="100%" stop-color="#121318"/>
+      <stop offset="0%" stop-color="#1f2229"/>
+      <stop offset="50%" stop-color="#16181e"/>
+      <stop offset="100%" stop-color="#0f1014"/>
     </linearGradient>
 
-    <!-- Subtle Rim Accent (Warm Titanium/Graphite) -->
-    <linearGradient id="rimClassic" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#4a4f5d" stop-opacity="0.6"/>
-      <stop offset="100%" stop-color="#2a2d36" stop-opacity="0.3"/>
-    </linearGradient>
-
-    <!-- Classic Clapperboard Body -->
+    <!-- Classic Clapperboard Body Shading -->
     <linearGradient id="clapperMatte" x1="0%" y1="0%" x2="0%" y2="100%">
-      <stop offset="0%" stop-color="#2e323d"/>
-      <stop offset="100%" stop-color="#20232b"/>
+      <stop offset="0%" stop-color="#343946"/>
+      <stop offset="100%" stop-color="#232630"/>
     </linearGradient>
 
     <linearGradient id="stickMatte" x1="0%" y1="0%" x2="100%" y2="0%">
-      <stop offset="0%" stop-color="#252832"/>
-      <stop offset="100%" stop-color="#343846"/>
+      <stop offset="0%" stop-color="#2a2e3a"/>
+      <stop offset="100%" stop-color="#3d4354"/>
     </linearGradient>
 
-    <!-- Classic Off-White Stripes (Ivory / Matte White) -->
+    <!-- Classic Off-White / Ivory Stripes -->
     <linearGradient id="stripeClassic" x1="0%" y1="0%" x2="0%" y2="100%">
-      <stop offset="0%" stop-color="#f1f3f5"/>
+      <stop offset="0%" stop-color="#f8fafc"/>
       <stop offset="100%" stop-color="#d1d5db"/>
     </linearGradient>
 
-    <!-- Classic Gamepad Body (Matte Slate Graphite with warm subtle tone) -->
-    <linearGradient id="padMatte" x1="20%" y1="0%" x2="80%" y2="100%">
-      <stop offset="0%" stop-color="#383d4a"/>
-      <stop offset="40%" stop-color="#2b2f3a"/>
-      <stop offset="100%" stop-color="#1e2129"/>
+    <!-- Classic Gamepad Body (Larger, prominent) -->
+    <linearGradient id="padMatte" x1="15%" y1="0%" x2="85%" y2="100%">
+      <stop offset="0%" stop-color="#3e4453"/>
+      <stop offset="40%" stop-color="#2f3442"/>
+      <stop offset="100%" stop-color="#20232d"/>
     </linearGradient>
 
-    <!-- Subtle Warm Brass / Titanium Accent for D-pad & Buttons -->
-    <linearGradient id="accentClassic" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#d4af37"/>
-      <stop offset="100%" stop-color="#aa8524"/>
-    </linearGradient>
-
-    <linearGradient id="buttonMatte" x1="0%" y1="0%" x2="0%" y2="100%">
-      <stop offset="0%" stop-color="#474c5a"/>
-      <stop offset="100%" stop-color="#2b2f3a"/>
-    </linearGradient>
-
-    <!-- Deep Natural Drop Shadows (No glowing aura) -->
+    <!-- Deep Natural Drop Shadows for realistic separation -->
     <filter id="naturalShadow" x="-20%" y="-20%" width="140%" height="140%">
-      <feDropShadow dx="0" dy="16" stdDeviation="18" flood-color="#000000" flood-opacity="0.6"/>
+      <feDropShadow dx="0" dy="16" stdDeviation="16" flood-color="#000000" flood-opacity="0.7"/>
     </filter>
 
     <filter id="padNaturalShadow" x="-20%" y="-20%" width="140%" height="140%">
-      <feDropShadow dx="0" dy="12" stdDeviation="14" flood-color="#000000" flood-opacity="0.65"/>
+      <feDropShadow dx="0" dy="14" stdDeviation="16" flood-color="#000000" flood-opacity="0.75"/>
     </filter>
 
     <clipPath id="clapperTopClip">
-      <rect x="0" y="0" width="220" height="40" rx="6"/>
+      <rect x="0" y="0" width="310" height="52" rx="8"/>
     </clipPath>
 
     <clipPath id="clapperBottomClip">
-      <rect x="0" y="0" width="220" height="34" rx="4"/>
+      <rect x="0" y="0" width="310" height="46" rx="6"/>
     </clipPath>
   </defs>
 
-  <!-- Base App Squircle Canvas -->
-  <rect x="20" y="20" width="472" height="472" rx="112" fill="url(#bgClassic)"/>
-  <rect x="20" y="20" width="472" height="472" rx="112" fill="none" stroke="url(#rimClassic)" stroke-width="3"/>
+  <!-- Single Full-Bleed Background (No inner squares, no card inside card) -->
+  <rect width="512" height="512" fill="url(#bgClassic)"/>
 
   <!-- ======================================================== -->
-  <!-- 1. CLASSIC CINEMA CLAPPERBOARD (Matte Slate / Ivory)    -->
+  <!-- 1. CINEMA CLAPPERBOARD (Enlarged, fills top-center)       -->
   <!-- ======================================================== -->
-  <g id="cinemaClapper" filter="url(#naturalShadow)" transform="translate(108, 98)">
+  <g id="cinemaClapper" filter="url(#naturalShadow)" transform="translate(90, 52)">
     <!-- Clapper Slate Body -->
-    <rect x="20" y="66" width="240" height="175" rx="14" fill="url(#clapperMatte)" stroke="#3e4352" stroke-width="2"/>
+    <rect x="15" y="78" width="310" height="230" rx="18" fill="url(#clapperMatte)" stroke="#474e60" stroke-width="2.5"/>
     
-    <!-- Film Perforations Accent (Natural slate tones) -->
+    <!-- Film Perforations Accent (Natural slate tones, larger) -->
     <g opacity="0.35">
-      <rect x="34" y="82" width="12" height="16" rx="3" fill="#9ca3af"/>
-      <rect x="34" y="112" width="12" height="16" rx="3" fill="#9ca3af"/>
-      <rect x="34" y="142" width="12" height="16" rx="3" fill="#9ca3af"/>
-      <rect x="34" y="172" width="12" height="16" rx="3" fill="#9ca3af"/>
-      <rect x="34" y="202" width="12" height="16" rx="3" fill="#9ca3af"/>
+      <rect x="32" y="98" width="16" height="22" rx="4" fill="#9ca3af"/>
+      <rect x="32" y="136" width="16" height="22" rx="4" fill="#9ca3af"/>
+      <rect x="32" y="174" width="16" height="22" rx="4" fill="#9ca3af"/>
+      <rect x="32" y="212" width="16" height="22" rx="4" fill="#9ca3af"/>
+      <rect x="32" y="250" width="16" height="22" rx="4" fill="#9ca3af"/>
     </g>
 
-    <!-- Minimal Clean Slate Dividers (No text) -->
-    <line x1="62" y1="88" x2="242" y2="88" stroke="#3b404e" stroke-width="2"/>
-    <line x1="62" y1="130" x2="242" y2="130" stroke="#3b404e" stroke-width="2"/>
-    <line x1="150" y1="88" x2="150" y2="130" stroke="#3b404e" stroke-width="2"/>
+    <!-- Clean Slate Dividers (Pure minimal geometry, no text) -->
+    <line x1="68" y1="110" x2="310" y2="110" stroke="#474e60" stroke-width="2.5"/>
+    <line x1="68" y1="165" x2="310" y2="165" stroke="#474e60" stroke-width="2.5"/>
+    <line x1="180" y1="110" x2="180" y2="165" stroke="#474e60" stroke-width="2.5"/>
 
     <!-- Fixed Lower Clapper Strip -->
-    <g transform="translate(20, 32)">
-      <rect x="0" y="0" width="240" height="34" rx="4" fill="url(#stickMatte)"/>
+    <g transform="translate(15, 36)">
+      <rect x="0" y="0" width="310" height="46" rx="6" fill="url(#stickMatte)"/>
       <g clip-path="url(#clapperBottomClip)">
-        <polygon points="35,0 55,0 25,34 5,34" fill="url(#stripeClassic)"/>
-        <polygon points="85,0 105,0 75,34 55,34" fill="url(#stripeClassic)"/>
-        <polygon points="135,0 155,0 125,34 105,34" fill="url(#stripeClassic)"/>
-        <polygon points="185,0 205,0 175,34 155,34" fill="url(#stripeClassic)"/>
+        <polygon points="45,0 72,0 32,46 5,46" fill="url(#stripeClassic)"/>
+        <polygon points="110,0 137,0 97,46 70,46" fill="url(#stripeClassic)"/>
+        <polygon points="175,0 202,0 162,46 135,46" fill="url(#stripeClassic)"/>
+        <polygon points="240,0 267,0 227,46 200,46" fill="url(#stripeClassic)"/>
       </g>
     </g>
 
-    <!-- Top Hinged Clapper Stick (Opened at a classic ~13 degree angle) -->
-    <g transform="translate(18, 34) rotate(-13)">
-      <rect x="0" y="-36" width="242" height="36" rx="6" fill="url(#stickMatte)" stroke="#454b5a" stroke-width="1.5"/>
-      <g clip-path="url(#clapperTopClip)" transform="translate(0, -36)">
-        <polygon points="35,0 55,0 25,40 5,40" fill="url(#stripeClassic)"/>
-        <polygon points="85,0 105,0 75,40 55,40" fill="url(#stripeClassic)"/>
-        <polygon points="135,0 155,0 125,40 105,40" fill="url(#stripeClassic)"/>
-        <polygon points="185,0 205,0 175,40 155,40" fill="url(#stripeClassic)"/>
+    <!-- Top Hinged Clapper Stick (Dynamic angle) -->
+    <g transform="translate(13, 38) rotate(-14)">
+      <rect x="0" y="-48" width="312" height="48" rx="8" fill="url(#stickMatte)" stroke="#555d72" stroke-width="2"/>
+      <g clip-path="url(#clapperTopClip)" transform="translate(0, -48)">
+        <polygon points="45,0 72,0 32,52 5,52" fill="url(#stripeClassic)"/>
+        <polygon points="110,0 137,0 97,52 70,52" fill="url(#stripeClassic)"/>
+        <polygon points="175,0 202,0 162,52 135,52" fill="url(#stripeClassic)"/>
+        <polygon points="240,0 267,0 227,52 200,52" fill="url(#stripeClassic)"/>
       </g>
     </g>
 
-    <!-- Classic Metallic Pivot Hinge -->
-    <circle cx="28" cy="42" r="9" fill="#2d313c" stroke="#6b7280" stroke-width="2"/>
-    <circle cx="28" cy="42" r="4" fill="#9ca3af"/>
-    <circle cx="27" cy="40.5" r="1.2" fill="#ffffff" opacity="0.6"/>
+    <!-- Metallic Pivot Hinge -->
+    <circle cx="26" cy="48" r="11" fill="#2d313c" stroke="#717888" stroke-width="2.5"/>
+    <circle cx="26" cy="48" r="5" fill="#a1a7b5"/>
   </g>
 
   <!-- ======================================================== -->
-  <!-- 2. CLASSIC GAME CONTROLLER (Understated, Retro-Modern)    -->
+  <!-- 2. CLASSIC GAME CONTROLLER (Scaled up, front & center)    -->
   <!-- ======================================================== -->
-  <g id="gamepad" filter="url(#padNaturalShadow)" transform="translate(176, 218)">
-    <!-- Controller Body -->
-    <path d="M 52 50 
-             C 52 24, 76 14, 114 14 
-             L 166 14 
-             C 204 14, 228 24, 228 50 
-             C 228 78, 214 116, 186 128 
-             C 174 133, 160 126, 146 112 
-             C 140 106, 134 104, 140 104 
-             C 146 104, 140 106, 134 112 
-             C 120 126, 106 133, 94 128 
-             C 66 116, 52 78, 52 50 Z" 
+  <g id="gamepad" filter="url(#padNaturalShadow)" transform="translate(86, 215)">
+    <!-- Controller Body (Wide & bold) -->
+    <path d="M 68 65 
+             C 68 32, 98 18, 148 18 
+             L 214 18 
+             C 264 18, 294 32, 294 65 
+             C 294 102, 276 152, 240 168 
+             C 224 174, 206 166, 188 147 
+             C 180 139, 172 136, 181 136 
+             C 190 136, 182 139, 174 147 
+             C 156 166, 138 174, 122 168 
+             C 86 152, 68 102, 68 65 Z" 
           fill="url(#padMatte)" 
-          stroke="#4b5161" 
-          stroke-width="3" 
+          stroke="#555d72" 
+          stroke-width="3.5" 
           stroke-linejoin="round"/>
 
-    <!-- Subtle Grip Contour Lines (No neon) -->
-    <path d="M 66 56 C 66 78, 76 102, 92 112" fill="none" stroke="#252832" stroke-width="2" stroke-linecap="round"/>
-    <path d="M 214 56 C 214 78, 204 102, 188 112" fill="none" stroke="#252832" stroke-width="2" stroke-linecap="round"/>
+    <!-- Subtle Ergonomic Grip Contours -->
+    <path d="M 86 72 C 86 102, 98 134, 120 148" fill="none" stroke="#262a35" stroke-width="3" stroke-linecap="round"/>
+    <path d="M 276 72 C 276 102, 264 134, 242 148" fill="none" stroke="#262a35" stroke-width="3" stroke-linecap="round"/>
 
-    <!-- Classic Central Option / Start Buttons -->
-    <rect x="126" y="24" width="10" height="4" rx="2" fill="#20232a"/>
-    <rect x="144" y="24" width="10" height="4" rx="2" fill="#20232a"/>
+    <!-- Center Control Indicators -->
+    <rect x="162" y="32" width="14" height="5" rx="2.5" fill="#262a35"/>
+    <rect x="186" y="32" width="14" height="5" rx="2.5" fill="#262a35"/>
 
-    <!-- Classic Cross D-Pad (Left) -->
-    <g transform="translate(86, 44)">
-      <path d="M 12 0 
-               L 22 0 
-               L 22 12 
-               L 34 12 
-               L 34 22 
-               L 22 22 
-               L 22 34 
-               L 12 34 
-               L 12 22 
-               L 0 22 
-               L 0 12 
-               L 12 12 Z" 
-            fill="#20232b" 
-            stroke="#454b59" 
-            stroke-width="1.8" 
+    <!-- D-Pad (Left) -->
+    <g transform="translate(112, 58)">
+      <path d="M 15 0 
+               L 28 0 
+               L 28 15 
+               L 43 15 
+               L 43 28 
+               L 28 28 
+               L 28 43 
+               L 15 43 
+               L 15 28 
+               L 0 28 
+               L 0 15 
+               L 15 15 Z" 
+            fill="#232732" 
+            stroke="#4f5669" 
+            stroke-width="2" 
             stroke-linejoin="round"/>
-      <!-- Tactile arrows -->
-      <polygon points="17,3 14,7 20,7" fill="#6b7280"/>
-      <polygon points="17,31 14,27 20,27" fill="#6b7280"/>
-      <polygon points="3,17 7,14 7,20" fill="#6b7280"/>
-      <polygon points="31,17 27,14 27,20" fill="#6b7280"/>
-      <circle cx="17" cy="17" r="3" fill="#181a20"/>
+      <polygon points="21.5,4 17,9 26,9" fill="#717888"/>
+      <polygon points="21.5,39 17,34 26,34" fill="#717888"/>
+      <polygon points="4,21.5 9,17 9,26" fill="#717888"/>
+      <polygon points="39,21.5 34,17 34,26" fill="#717888"/>
+      <circle cx="21.5" cy="21.5" r="4" fill="#181a22"/>
     </g>
 
-    <!-- Classic Action Buttons (Right - Muted retro/classic jewel palette) -->
-    <g transform="translate(174, 44)">
-      <!-- Top Button (Ruby Wine) -->
-      <circle cx="17" cy="3" r="6" fill="#882d38" stroke="#4a1c22" stroke-width="1.2"/>
-      <circle cx="16" cy="2" r="1.5" fill="#ffffff" opacity="0.4"/>
-      <!-- Right Button (Amber Gold) -->
-      <circle cx="31" cy="17" r="6" fill="#b8860b" stroke="#684c06" stroke-width="1.2"/>
-      <circle cx="30" cy="16" r="1.5" fill="#ffffff" opacity="0.4"/>
-      <!-- Bottom Button (Classic Slate Blue) -->
-      <circle cx="17" cy="31" r="6" fill="#3b5978" stroke="#1d2e40" stroke-width="1.2"/>
-      <circle cx="16" cy="30" r="1.5" fill="#ffffff" opacity="0.4"/>
-      <!-- Left Button (Forest Sage) -->
-      <circle cx="3" cy="17" r="6" fill="#2e6f40" stroke="#143b1f" stroke-width="1.2"/>
-      <circle cx="2" cy="16" r="1.5" fill="#ffffff" opacity="0.4"/>
+    <!-- Classic Action Buttons (Right) -->
+    <g transform="translate(225, 58)">
+      <!-- Top (Ruby Wine) -->
+      <circle cx="22" cy="4" r="8" fill="#882d38" stroke="#4a1c22" stroke-width="1.5"/>
+      <circle cx="20.5" cy="2.5" r="2" fill="#ffffff" opacity="0.4"/>
+      <!-- Right (Amber Gold) -->
+      <circle cx="40" cy="22" r="8" fill="#b8860b" stroke="#684c06" stroke-width="1.5"/>
+      <circle cx="38.5" cy="20.5" r="2" fill="#ffffff" opacity="0.4"/>
+      <!-- Bottom (Classic Slate Blue) -->
+      <circle cx="22" cy="40" r="8" fill="#3b5978" stroke="#1d2e40" stroke-width="1.5"/>
+      <circle cx="20.5" cy="38.5" r="2" fill="#ffffff" opacity="0.4"/>
+      <!-- Left (Forest Sage) -->
+      <circle cx="4" cy="22" r="8" fill="#2e6f40" stroke="#143b1f" stroke-width="1.5"/>
+      <circle cx="2.5" cy="20.5" r="2" fill="#ffffff" opacity="0.4"/>
     </g>
 
-    <!-- Classic Analog Sticks (Muted Charcoal & Ring) -->
-    <g transform="translate(108, 76)">
-      <circle cx="16" cy="16" r="15" fill="#1b1e26" stroke="#373c49" stroke-width="1.8"/>
-      <circle cx="16" cy="16" r="11" fill="#242833"/>
-      <circle cx="16" cy="16" r="8" fill="none" stroke="#4b5161" stroke-width="1.2"/>
+    <!-- Analog Sticks (Left & Right) -->
+    <g transform="translate(142, 100)">
+      <circle cx="20" cy="20" r="20" fill="#20242e" stroke="#474e60" stroke-width="2"/>
+      <circle cx="20" cy="20" r="14" fill="#2a2f3d"/>
+      <circle cx="20" cy="20" r="10" fill="none" stroke="#555d72" stroke-width="1.5"/>
     </g>
 
-    <g transform="translate(156, 76)">
-      <circle cx="16" cy="16" r="15" fill="#1b1e26" stroke="#373c49" stroke-width="1.8"/>
-      <circle cx="16" cy="16" r="11" fill="#242833"/>
-      <circle cx="16" cy="16" r="8" fill="none" stroke="#4b5161" stroke-width="1.2"/>
+    <g transform="translate(200, 100)">
+      <circle cx="20" cy="20" r="20" fill="#20242e" stroke="#474e60" stroke-width="2"/>
+      <circle cx="20" cy="20" r="14" fill="#2a2f3d"/>
+      <circle cx="20" cy="20" r="10" fill="none" stroke="#555d72" stroke-width="1.5"/>
     </g>
   </g>
 </svg>
