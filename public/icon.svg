@@ -52,6 +52,8 @@
   <!-- Single Full-Bleed Background (No inner squares, no card inside card) -->
   <rect width="512" height="512" fill="url(#bgClassic)"/>
 
+  <!-- Logo Graphics Group (Scaled down exactly 10% centered) -->
+  <g transform="translate(25.6, 25.6) scale(0.9)">
   <!-- ======================================================== -->
   <!-- 1. CINEMA CLAPPERBOARD (Enlarged, fills top-center)       -->
   <!-- ======================================================== -->
@@ -181,5 +183,6 @@
       <circle cx="20" cy="20" r="14" fill="#2a2f3d"/>
       <circle cx="20" cy="20" r="10" fill="none" stroke="#555d72" stroke-width="1.5"/>
     </g>
+  </g>
   </g>
 </svg>
