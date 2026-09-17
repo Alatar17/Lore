@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { ArchiveItem, Category, GameStatus, ItemCharacter, ViewSettings } from '../types';
 import {
@@ -71,51 +71,99 @@ export const ImagePreviewModal: React.FC<ImagePreviewModalProps> = ({
   const [showAnnouncementModal, setShowAnnouncementModal] = useState(false);
   const [isFollowHovered, setIsFollowHovered] = useState(false);
   const [showSeriesPopover, setShowSeriesPopover] = useState(false);
-  const [mobilePopoverTop, setMobilePopoverTop] = useState<number>(74);
+  const [desktopPopoverStyle, setDesktopPopoverStyle] = useState<React.CSSProperties>({});
 
   const desktopSeriesRef = useRef<HTMLDivElement>(null);
   const mobileSeriesRef = useRef<HTMLDivElement>(null);
+  const desktopSeriesPopoverRef = useRef<HTMLDivElement>(null);
+  const mobileSeriesPopoverRef = useRef<HTMLDivElement>(null);
+  const desktopModalCardRef = useRef<HTMLDivElement>(null);
 
   const followModel = getFollowModel(viewSettings?.followIndicatorModel);
   const followColor = getFollowColor(viewSettings?.followIndicatorColor);
   const hasFollowInfo = Boolean(item.expectedDate?.trim() || item.followNotes?.trim());
 
-  // Dynamically position mobile series popover below the trigger icon so it never covers it
+  // Dynamic collision detection & positioning for desktop series popover
+  const computeDesktopPopoverPosition = useCallback((): React.CSSProperties | null => {
+    const btn = desktopSeriesRef.current;
+    const card = desktopModalCardRef.current;
+    if (!btn || !card) return null;
+
+    const btnRect = btn.getBoundingClientRect();
+    const cardRect = card.getBoundingClientRect();
+
+    // Desired popover width on desktop
+    const popoverWidth = Math.min(420, Math.max(340, cardRect.width - 40));
+    
+    // Calculate default left position: aligned with button's left edge
+    let leftPos = btnRect.left - cardRect.left;
+
+    // If it overflows the right edge of the card, shift it left so it docks comfortably inside the card
+    if (leftPos + popoverWidth > cardRect.width - 16) {
+      leftPos = cardRect.width - popoverWidth - 16;
+    }
+
+    // Ensure it doesn't overflow the left edge of the card
+    if (leftPos < 16) {
+      leftPos = 16;
+    }
+
+    // Top position: comfortably below the trigger button
+    const topPos = (btnRect.bottom - cardRect.top) + 8;
+
+    return {
+      position: 'absolute',
+      top: `${topPos}px`,
+      left: `${leftPos}px`,
+      width: `${popoverWidth}px`,
+      maxHeight: `calc(${cardRect.height}px - ${topPos + 20}px)`,
+    };
+  }, []);
+
   useEffect(() => {
-    if (showSeriesPopover && mobileSeriesRef.current) {
-      const updateMobilePosition = () => {
-        if (mobileSeriesRef.current) {
-          const rect = mobileSeriesRef.current.getBoundingClientRect();
-          const calculatedTop = Math.max(56, Math.round(rect.bottom + 4));
-          setMobilePopoverTop(calculatedTop);
+    if (showSeriesPopover) {
+      const update = () => {
+        const style = computeDesktopPopoverPosition();
+        if (style) {
+          setDesktopPopoverStyle(style);
         }
       };
-
-      updateMobilePosition();
-      window.addEventListener('resize', updateMobilePosition);
-      window.addEventListener('scroll', updateMobilePosition, true);
-      return () => {
-        window.removeEventListener('resize', updateMobilePosition);
-        window.removeEventListener('scroll', updateMobilePosition, true);
-      };
+      update();
+      window.addEventListener('resize', update);
+      return () => window.removeEventListener('resize', update);
     }
-  }, [showSeriesPopover]);
+  }, [showSeriesPopover, computeDesktopPopoverPosition]);
 
   // Close series popover on outside click
   useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      const target = e.target as Node;
-      const insideDesktop = desktopSeriesRef.current?.contains(target);
-      const insideMobile = mobileSeriesRef.current?.contains(target);
-      if (!insideDesktop && !insideMobile) {
-        setShowSeriesPopover(false);
+    const handleClickOutside = (e: MouseEvent | TouchEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (!target) return;
+
+      // If clicked inside any series popover element or series button, do not close
+      if (
+        target.closest?.('#series-connected-popover-desktop') ||
+        target.closest?.('#series-connected-popover-mobile') ||
+        target.closest?.('#series-connected-icon-desktop-btn') ||
+        target.closest?.('#series-connected-icon-mobile-btn') ||
+        desktopSeriesRef.current?.contains(target) ||
+        mobileSeriesRef.current?.contains(target) ||
+        desktopSeriesPopoverRef.current?.contains(target) ||
+        mobileSeriesPopoverRef.current?.contains(target)
+      ) {
+        return;
       }
+
+      setShowSeriesPopover(false);
     };
+
     if (showSeriesPopover) {
       document.addEventListener('mousedown', handleClickOutside);
+      document.addEventListener('touchstart', handleClickOutside);
     }
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('touchstart', handleClickOutside);
     };
   }, [showSeriesPopover]);
 
@@ -162,6 +210,8 @@ export const ImagePreviewModal: React.FC<ImagePreviewModalProps> = ({
           setShowAnnouncementModal(false);
         } else if (selectedCharacter) {
           setSelectedCharacter(null);
+        } else if (showSeriesPopover) {
+          setShowSeriesPopover(false);
         } else {
           onClose();
         }
@@ -186,7 +236,7 @@ export const ImagePreviewModal: React.FC<ImagePreviewModalProps> = ({
 
     window.addEventListener('keydown', handleKeyDown, true);
     return () => window.removeEventListener('keydown', handleKeyDown, true);
-  }, [onClose, onEdit, item, selectedCharacter, showAnnouncementModal]);
+  }, [onClose, onEdit, item, selectedCharacter, showAnnouncementModal, showSeriesPopover]);
 
   // Format watch/completion date as DD.MM.YYYY
   const displayDate = (() => {
@@ -241,33 +291,29 @@ export const ImagePreviewModal: React.FC<ImagePreviewModalProps> = ({
   // Series Connected Popover
   const renderSeriesPopover = (isMobile: boolean) => (
     <div
+      ref={isMobile ? mobileSeriesPopoverRef : desktopSeriesPopoverRef}
       id={`series-connected-popover-${isMobile ? 'mobile' : 'desktop'}`}
-      style={
+      style={!isMobile ? desktopPopoverStyle : undefined}
+      className={`z-50 bg-[#121624]/98 border border-indigo-500/50 shadow-2xl backdrop-blur-2xl animate-in duration-200 ${
         isMobile
-          ? {
-              top: `${mobilePopoverTop}px`,
-              maxHeight: `calc(100vh - ${mobilePopoverTop + 16}px)`,
-            }
-          : undefined
-      }
-      className={`z-60 bg-[#141824]/98 border border-indigo-500/50 rounded-2xl shadow-2xl backdrop-blur-xl p-3.5 animate-in fade-in zoom-in-95 duration-150 ${
-        isMobile
-          ? 'fixed left-3 right-3 max-w-[calc(100vw-24px)] sm:max-w-[360px] mx-auto shadow-indigo-950/50'
-          : 'absolute left-0 top-full mt-2.5 w-88 sm:w-[420px]'
+          ? 'absolute top-0 inset-x-0 max-h-[540px] rounded-2xl p-2.5 sm:p-3 flex flex-col fade-in zoom-in-95'
+          : 'absolute rounded-2xl p-3.5 sm:p-4 flex flex-col fade-in zoom-in-95'
       }`}
       onClick={(e) => e.stopPropagation()}
+      onMouseDown={(e) => e.stopPropagation()}
+      onTouchStart={(e) => e.stopPropagation()}
     >
       {/* Popover Header */}
-      <div className="flex items-center justify-between pb-2.5 mb-2.5 border-b border-white/10">
-        <div className="flex items-center gap-2.5 min-w-0">
-          <div className="p-2 rounded-xl bg-indigo-500/20 text-indigo-400 border border-indigo-500/30 shrink-0">
+      <div className="flex items-center justify-between pb-2.5 mb-2.5 border-b border-white/10 shrink-0">
+        <div className="flex items-center gap-2 min-w-0">
+          <div className="p-1.5 sm:p-2 rounded-xl bg-indigo-500/20 text-indigo-400 border border-indigo-500/30 shrink-0">
             <Layers className="w-4 h-4" />
           </div>
           <div className="min-w-0">
-            <h4 className="text-sm font-bold text-white truncate">
+            <h4 className="text-xs sm:text-sm font-bold text-white truncate">
               {item.seriesName}
             </h4>
-            <p className="text-[11px] text-slate-400 font-medium">
+            <p className="text-[10px] sm:text-[11px] text-slate-400 font-medium">
               {seriesItems.length} Yapım
             </p>
           </div>
@@ -283,7 +329,9 @@ export const ImagePreviewModal: React.FC<ImagePreviewModalProps> = ({
       </div>
 
       {/* Items List */}
-      <div className="space-y-2 max-h-76 overflow-y-auto custom-scrollbar pr-1">
+      <div className={`overflow-y-auto custom-scrollbar pr-0.5 ${
+        isMobile ? 'space-y-1.5 max-h-[460px]' : 'space-y-2 max-h-[400px] pr-1'
+      }`}>
         {seriesItems.map((sItem) => {
           const isCurrent = sItem.id === item.id;
           const catList = allCategories && allCategories.length > 0 ? allCategories : categories;
@@ -296,20 +344,24 @@ export const ImagePreviewModal: React.FC<ImagePreviewModalProps> = ({
               onClick={(e) => {
                 e.stopPropagation();
                 if (!isCurrent) {
-                  setShowSeriesPopover(false);
                   onSelectItem?.(sItem);
+                  setShowSeriesPopover(false);
                 }
               }}
-              className={`flex items-center gap-3 p-2.5 sm:p-3 rounded-xl border transition-all ${
+              className={`flex items-center rounded-xl border transition-all ${
+                isMobile ? 'gap-2 p-2' : 'gap-3 p-2.5 sm:p-3'
+              } ${
                 isCurrent
                   ? 'bg-indigo-600/25 border-indigo-400/70 ring-1 ring-indigo-400/50 shadow-md shadow-indigo-950/40 select-none'
                   : 'bg-white/[0.03] hover:bg-white/[0.09] border-white/10 hover:border-indigo-400/50 cursor-pointer group/sitem'
               }`}
             >
-              {/* Order Number (Pure Number, no # sign) - Çok az küçültülmüş, dengeli */}
-              <div className="flex flex-col items-center justify-center shrink-0 w-5">
+              {/* Order Number (Pure Number, no # sign) */}
+              <div className={`flex flex-col items-center justify-center shrink-0 ${isMobile ? 'w-4' : 'w-5'}`}>
                 <span
-                  className={`text-[11px] font-bold px-1.5 py-0.5 rounded-md min-w-[20px] text-center ${
+                  className={`font-bold rounded-md text-center ${
+                    isMobile ? 'text-[10px] px-1 py-0.5 min-w-[18px]' : 'text-[11px] px-1.5 py-0.5 min-w-[20px]'
+                  } ${
                     isCurrent
                       ? 'bg-indigo-500 text-white shadow'
                       : 'bg-white/10 text-slate-300 group-hover/sitem:bg-indigo-500/80 group-hover/sitem:text-white'
@@ -319,8 +371,10 @@ export const ImagePreviewModal: React.FC<ImagePreviewModalProps> = ({
                 </span>
               </div>
 
-              {/* Thumbnail Poster (Bigger, comfortable) */}
-              <div className="w-12 h-16 rounded-lg overflow-hidden border border-white/15 bg-black/40 shrink-0 flex items-center justify-center shadow">
+              {/* Thumbnail Poster */}
+              <div className={`rounded-lg overflow-hidden border border-white/15 bg-black/40 shrink-0 flex items-center justify-center shadow ${
+                isMobile ? 'w-10 h-14' : 'w-12 h-16'
+              }`}>
                 {sItem.thumbnail ? (
                   <img
                     src={sItem.thumbnail}
@@ -328,42 +382,51 @@ export const ImagePreviewModal: React.FC<ImagePreviewModalProps> = ({
                     className="w-full h-full object-cover"
                   />
                 ) : (
-                  <span className="text-[10px] font-bold text-slate-500 text-center px-1">
+                  <span className="text-[9px] font-bold text-slate-500 text-center px-1">
                     {sItem.title.slice(0, 4)}
                   </span>
                 )}
               </div>
 
-              {/* Title & Category / Year - Bir tık büyütülmüş başlık ve kategori, ayraç tire (-) */}
+              {/* Title & Category / Year */}
               <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-1.5 mb-1">
-                  <span className="text-[13px] sm:text-[15px] font-bold text-slate-100 truncate group-hover/sitem:text-indigo-200 transition-colors">
+                <div className="flex items-center gap-1.5 mb-0.5">
+                  <span className={`font-bold text-slate-100 truncate group-hover/sitem:text-indigo-200 transition-colors ${
+                    isMobile ? 'text-[12px] leading-tight' : 'text-[13px] sm:text-[15px]'
+                  }`}>
                     {sItem.title}
                   </span>
                 </div>
                 <div className="flex items-center gap-1.5 text-xs text-slate-400 flex-wrap">
-                  <span className="px-2 py-0.5 rounded-md bg-white/5 border border-white/10 text-slate-200 text-[11px] sm:text-xs font-semibold">
+                  <span className={`rounded-md bg-white/5 border border-white/10 text-slate-200 font-semibold ${
+                    isMobile ? 'px-1.5 py-0.5 text-[10px]' : 'px-2 py-0.5 text-[11px] sm:text-xs'
+                  }`}>
                     {sItem.mainTab === 'game' ? '🎮 ' : '🎬 '}
                     {sCatName}
                     {sItem.sub ? ` - ${sItem.sub}` : ''}
                   </span>
                   {sItem.releaseYear && (
-                    <span className="text-slate-400 text-[11px]">
+                    <span className={`text-slate-400 ${isMobile ? 'text-[10px]' : 'text-[11px]'}`}>
                       {formatReleaseYear(sItem.releaseYear)}
                     </span>
                   )}
                 </div>
               </div>
 
-              {/* Star Rating Docked to Far Right - Kibar, orantılı ve tatlı boyut */}
+              {/* Star Rating Docked to Far Right */}
               <div className="shrink-0 pl-1 flex items-center justify-end">
                 {sItem.rating > 0 ? (
-                  <div className="flex items-center gap-1 px-2 py-0.5 rounded-lg bg-amber-500/10 border border-amber-500/25 text-amber-300 font-bold text-xs shadow-xs">
-                    <RatingBadgeIcon type={viewSettings?.ratingIcon || 'star-2'} className="w-3.5 h-3.5 fill-amber-400 text-amber-400 shrink-0" />
+                  <div className={`flex items-center rounded-lg bg-amber-500/10 border border-amber-500/25 text-amber-300 font-bold shadow-xs ${
+                    isMobile ? 'gap-0.5 px-1.5 py-0.5 text-[10px]' : 'gap-1 px-2 py-0.5 text-xs'
+                  }`}>
+                    <RatingBadgeIcon
+                      type={viewSettings?.ratingIcon || 'star-2'}
+                      className={`fill-amber-400 text-amber-400 shrink-0 ${isMobile ? 'w-3 h-3' : 'w-3.5 h-3.5'}`}
+                    />
                     <span>{sItem.rating}</span>
                   </div>
                 ) : (
-                  <span className="text-slate-600 text-[11px] px-1.5">—</span>
+                  <span className="text-slate-600 text-[10px] px-1">—</span>
                 )}
               </div>
             </div>
@@ -381,6 +444,7 @@ export const ImagePreviewModal: React.FC<ImagePreviewModalProps> = ({
     >
       {/* ===================== DESKTOP VIEW (MD and Above: 2-Sütunlu Geniş Panel) ===================== */}
       <div
+        ref={desktopModalCardRef}
         id="item-detail-desktop-card"
         onClick={(e) => e.stopPropagation()}
         className="hidden md:flex relative w-full max-w-6xl h-[88vh] max-h-[820px] rounded-2xl overflow-hidden bg-[#10141f] border border-white/15 shadow-2xl shadow-black/90 animate-in zoom-in-95 duration-200"
@@ -627,9 +691,21 @@ export const ImagePreviewModal: React.FC<ImagePreviewModalProps> = ({
                   id="series-connected-icon-desktop-btn"
                   onClick={(e) => {
                     e.stopPropagation();
-                    setShowSeriesPopover(!showSeriesPopover);
+                    if (!showSeriesPopover) {
+                      const style = computeDesktopPopoverPosition();
+                      if (style) {
+                        setDesktopPopoverStyle(style);
+                      }
+                      setShowSeriesPopover(true);
+                    } else {
+                      setShowSeriesPopover(false);
+                    }
                   }}
-                  className="relative p-2 rounded-xl bg-indigo-500/20 hover:bg-indigo-500/35 border border-indigo-500/50 hover:border-indigo-400 text-indigo-300 hover:text-white transition-all cursor-pointer group animate-series-icon-pop flex items-center justify-center shrink-0 shadow-lg"
+                  className={`relative p-2 rounded-xl border transition-all cursor-pointer group flex items-center justify-center shrink-0 shadow-lg ${
+                    showSeriesPopover
+                      ? 'bg-indigo-600 text-white border-indigo-400 shadow-indigo-500/30'
+                      : 'bg-indigo-500/20 hover:bg-indigo-500/35 border-indigo-500/50 hover:border-indigo-400 text-indigo-300 hover:text-white animate-series-icon-pop'
+                  }`}
                   title={`${item.seriesName} Serisi (${seriesItems.length} Yapım) - İlişkili yapımları görüntüle`}
                   aria-label="Bağlantılı Yapımlar"
                 >
@@ -638,8 +714,6 @@ export const ImagePreviewModal: React.FC<ImagePreviewModalProps> = ({
                     {seriesItems.length}
                   </span>
                 </button>
-
-                {showSeriesPopover && renderSeriesPopover(false)}
               </div>
             )}
           </div>
@@ -770,6 +844,9 @@ export const ImagePreviewModal: React.FC<ImagePreviewModalProps> = ({
             )}
           </div>
         </div>
+
+        {/* Series Popover with collision detection on desktop */}
+        {showSeriesPopover && desktopPopoverStyle.top && renderSeriesPopover(false)}
       </div>
 
       {/* ===================== MOBILE VIEW (3D Flip Kart Deneyimi) ===================== */}
@@ -787,13 +864,13 @@ export const ImagePreviewModal: React.FC<ImagePreviewModalProps> = ({
                 id="series-connected-icon-mobile-btn"
                 onClick={(e) => {
                   e.stopPropagation();
-                  if (!showSeriesPopover && mobileSeriesRef.current) {
-                    const rect = mobileSeriesRef.current.getBoundingClientRect();
-                    setMobilePopoverTop(Math.max(56, Math.round(rect.bottom + 4)));
-                  }
                   setShowSeriesPopover(!showSeriesPopover);
                 }}
-                className="relative p-2 rounded-full bg-black/70 hover:bg-indigo-600/30 border border-indigo-500/50 hover:border-indigo-400 text-indigo-300 hover:text-white transition-all cursor-pointer flex items-center justify-center shadow-lg animate-series-icon-pop"
+                className={`relative p-2 rounded-full border transition-all cursor-pointer flex items-center justify-center shadow-lg animate-series-icon-pop ${
+                  showSeriesPopover
+                    ? 'bg-indigo-600 text-white border-indigo-400 shadow-indigo-500/40'
+                    : 'bg-black/70 hover:bg-indigo-600/30 border-indigo-500/50 hover:border-indigo-400 text-indigo-300 hover:text-white'
+                }`}
                 title={`${item.seriesName} Serisi (${seriesItems.length} Yapım)`}
                 aria-label="Bağlantılı Yapımlar"
               >
@@ -802,8 +879,6 @@ export const ImagePreviewModal: React.FC<ImagePreviewModalProps> = ({
                   {seriesItems.length}
                 </span>
               </button>
-
-              {showSeriesPopover && renderSeriesPopover(true)}
             </div>
           )}
 
@@ -1155,6 +1230,9 @@ export const ImagePreviewModal: React.FC<ImagePreviewModalProps> = ({
             </div>
           </div>
         </div>
+
+        {/* Mobile Series Popover: Aligned with top edge of card, fitted inside the card container */}
+        {showSeriesPopover && renderSeriesPopover(true)}
       </div>
 
       {/* ===================== KARAKTER DETAY LIGHTBOX (Sinematik Açılır Pencere) ===================== */}

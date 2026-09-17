@@ -45,6 +45,12 @@ export const ViewPanel: React.FC<ViewPanelProps> = ({ settings, mainTab, onChang
             <option value="date-asc" className="bg-neutral-900 text-white">
               İzleme / Bitirme Tarihi (Eskiden Yeniye)
             </option>
+            <option value="release-desc" className="bg-neutral-900 text-white">
+              Yapım Yılı (Yeniden Eskiye)
+            </option>
+            <option value="release-asc" className="bg-neutral-900 text-white">
+              Yapım Yılı (Eskiden Yeniye)
+            </option>
             <option value="rating-desc" className="bg-neutral-900 text-white">
               Puan (Yüksekten Düşüğe)
             </option>

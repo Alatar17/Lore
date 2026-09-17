@@ -2674,7 +2674,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   2. Genel Gizleme Modu (Ayarlar ⚙)
                 </div>
                 <p>
-                  Üst bardaki en sağdaki <strong className="text-white">Ayarlar (⚙)</strong> ikonuna kesintisiz <strong className="text-amber-300">3 saniye</strong> basılı tutulduğunda gizleme modu açılır veya kapanır. Kullanıcıya hiçbir uyarı mesajı verilmez.
+                  Üst bardaki en sağdaki <strong className="text-white">Ayarlar (⚙)</strong> ikonuna kesintisiz <strong className="text-amber-300">2 saniye</strong> basılı tutulduğunda gizleme modu açılır veya kapanır. Kullanıcıya hiçbir uyarı mesajı verilmez.
                 </p>
                 <p className="text-[11px] text-slate-400">
                   • <strong className="text-slate-200">Kalıcı Hafıza:</strong> Gizleme modunu bir kez açtığınızda veya kapattığınızda sistem tercihinizi tarayıcıda hatırlar (sayfa yenilense de durumunuz korunur).
@@ -2705,6 +2705,19 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 </p>
                 <p className="text-[11px] text-slate-400">
                   • <strong className="text-rose-400 font-semibold">Gizleme Modu Koruması:</strong> Gizleme modu aktifken bu filtre tamamen kilitlidir (çalışmaz ve sıfırla seçeneği çıkarmaz). Yalnızca gizleme modu kapatıldığında devreye girer; gizleme modu tekrar açılırsa bu filtre otomatik temizlenir.
+                </p>
+              </div>
+
+              <div className="p-3 rounded-xl bg-white/[0.03] border border-white/10 space-y-1.5">
+                <div className="font-semibold text-white flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-indigo-400" />
+                  5. Mobil Hızlı ZIP Yükleme (Görünüm 👁)
+                </div>
+                <p>
+                  Mobilde üst bardaki <strong className="text-white">Görünüm (👁)</strong> ikonuna kesintisiz <strong className="text-amber-300">1 saniye</strong> basılı tutulduğunda dosya seçici açılarak doğrudan <strong className="text-white">.zip</strong> arşiv yedeği yükleme işlemi başlatılır.
+                </p>
+                <p className="text-[11px] text-slate-400">
+                  • <strong className="text-slate-200">Sadece Mobil:</strong> Bu pratik kısayol yalnızca mobil ve dokunmatik cihazlarda aktiftir.
                 </p>
               </div>
             </div>

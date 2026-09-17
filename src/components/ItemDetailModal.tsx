@@ -321,7 +321,7 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
 
   const isDateDisabled = isGame
     ? (formData.status === 'Oynanıyor' || formData.status === 'Oynanacak')
-    : (!!formData.watching || !!formData.following);
+    : !!formData.watching;
 
   const applyImageBase64 = async (rawInput: File | Blob | string, name?: string) => {
     try {

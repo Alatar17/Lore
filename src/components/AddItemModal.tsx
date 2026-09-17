@@ -276,7 +276,7 @@ export const AddItemModal: React.FC<AddItemModalProps> = ({
 
   const isDateDisabled = isGame
     ? status === 'Oynanıyor' || status === 'Oynanacak'
-    : (watching || following);
+    : watching;
 
   // Common
   const [anki, setAnki] = useState(false);

@@ -121,6 +121,7 @@ export interface FilterState {
   gameStatus?: GameStatus | 'all';
   uncategorizedOnly?: boolean;
   hiddenOnly?: boolean;
+  seriesOnly?: boolean;
 }
 
 export type AppTheme =
@@ -134,6 +135,8 @@ export type AppTheme =
 export type SortOption =
   | 'date-desc'
   | 'date-asc'
+  | 'release-desc'
+  | 'release-asc'
   | 'rating-desc'
   | 'rating-asc'
   | 'title-asc'

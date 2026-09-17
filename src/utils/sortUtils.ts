@@ -3,6 +3,8 @@ import { ArchiveItem } from '../types';
 export type SortOption =
   | 'date-desc'       // İzleme / Bitirme Tarihi (Yeniden Eskiye) -> DEFAULT
   | 'date-asc'        // İzleme / Bitirme Tarihi (Eskiden Yeniye)
+  | 'release-desc'     // Yapım Yılı (Yeniden Eskiye)
+  | 'release-asc'      // Yapım Yılı (Eskiden Yeniye)
   | 'rating-desc'      // Puan (Yüksekten Düşüğe)
   | 'rating-asc'       // Puan (Düşükten Yükseğe)
   | 'title-asc'        // İsim (A-Z)
@@ -46,9 +48,70 @@ export function parseDateValue(dateStr?: string | null): number | null {
   return isNaN(d.getTime()) ? null : d.getTime();
 }
 
+export interface ParsedReleaseYear {
+  start: number | null;
+  end: number | null;
+}
+
+/**
+ * Parses release year for single films/games (e.g. 2024) or series ranges (e.g. '2008–2013', '2022–').
+ * In ongoing series (e.g. '2022–'), end is treated as 9999 for sorting purposes.
+ */
+export function parseReleaseYear(releaseYear?: number | string | null): ParsedReleaseYear {
+  if (releaseYear === undefined || releaseYear === null) {
+    return { start: null, end: null };
+  }
+
+  if (typeof releaseYear === 'number') {
+    if (isNaN(releaseYear) || releaseYear <= 0) return { start: null, end: null };
+    return { start: releaseYear, end: releaseYear };
+  }
+
+  const str = String(releaseYear).trim();
+  if (!str || str.includes('?')) {
+    return { start: null, end: null };
+  }
+
+  // Check for range separators: '-', '–' (en-dash), '—' (em-dash)
+  const rangeMatch = str.match(/^(\d{4})\s*[-–—]\s*(\d{4})?$/);
+  if (rangeMatch) {
+    const start = parseInt(rangeMatch[1], 10);
+    // If end is present (e.g. 2008–2013), use it. If not (e.g. 2022–), treat as ongoing (9999)
+    const end = rangeMatch[2] ? parseInt(rangeMatch[2], 10) : 9999;
+    return {
+      start: isNaN(start) ? null : start,
+      end: isNaN(end) ? null : end,
+    };
+  }
+
+  // Also handle any string with 4-digit numbers: e.g. "2021 - 2026" or similar
+  const fourDigitNumbers = str.match(/\b\d{4}\b/g);
+  if (fourDigitNumbers && fourDigitNumbers.length > 0) {
+    const start = parseInt(fourDigitNumbers[0], 10);
+    let end = start;
+    if (fourDigitNumbers.length > 1) {
+      end = parseInt(fourDigitNumbers[1], 10);
+    } else if (/[-–—]\s*$/.test(str)) {
+      // Ongoing series: e.g. "2022 -"
+      end = 9999;
+    }
+    return {
+      start: isNaN(start) ? null : start,
+      end: isNaN(end) ? null : end,
+    };
+  }
+
+  // Fallback single number parse
+  const parsedNum = parseInt(str, 10);
+  if (!isNaN(parsedNum) && parsedNum > 1800 && parsedNum < 3000) {
+    return { start: parsedNum, end: parsedNum };
+  }
+
+  return { start: null, end: null };
+}
+
 /**
  * Checks if an item is currently active (Watching or Playing).
- * These items should always appear at the very top (highest priority).
  */
 export function isItemActive(item: ArchiveItem): boolean {
   if (item.mainTab === 'game') {
@@ -58,30 +121,10 @@ export function isItemActive(item: ArchiveItem): boolean {
 }
 
 /**
- * Sorts archive items according to selected SortOption.
- * Priority rules:
- * 1. Currently Active items (Watching / Playing) ALWAYS appear at the very top.
- * 2. In 'date-desc' (Default):
- *    - Finished/watched items with known dates are sorted newest to oldest.
- *    - Unknown dates ('??', '??.??') are placed at the end safely.
+ * Sorts archive items strictly according to selected SortOption.
  */
 export function sortArchiveItems(items: ArchiveItem[], sortOption: SortOption = 'date-desc'): ArchiveItem[] {
   return [...items].sort((a, b) => {
-    // Top Priority: Active watching / playing items ALWAYS go first
-    const activeA = isItemActive(a);
-    const activeB = isItemActive(b);
-
-    if (activeA && !activeB) return -1;
-    if (!activeA && activeB) return 1;
-
-    // If both are active, sort by latest update / title
-    if (activeA && activeB) {
-      const fallbackA = a.updatedAt || a.createdAt || 0;
-      const fallbackB = b.updatedAt || b.createdAt || 0;
-      if (fallbackA !== fallbackB) return fallbackB - fallbackA;
-      return a.title.localeCompare(b.title, 'tr', { sensitivity: 'base' });
-    }
-
     switch (sortOption) {
       case 'date-desc': {
         const timeA = parseDateValue(a.date);
@@ -122,6 +165,56 @@ export function sortArchiveItems(items: ArchiveItem[], sortOption: SortOption = 
         if (timeA !== timeB) {
           return timeA - timeB; // Oldest first
         }
+        return a.title.localeCompare(b.title, 'tr', { sensitivity: 'base' });
+      }
+
+      case 'release-desc': {
+        const yearA = parseReleaseYear(a.releaseYear);
+        const yearB = parseReleaseYear(b.releaseYear);
+
+        // Unknown release years go to the bottom
+        if (yearA.start === null && yearB.start === null) {
+          return a.title.localeCompare(b.title, 'tr', { sensitivity: 'base' });
+        }
+        if (yearA.start === null) return 1;
+        if (yearB.start === null) return -1;
+
+        // Yaklaşım A: Başlangıç/Prömiyer yılına göre sıralama (Yeniden Eskiye)
+        if (yearA.start !== yearB.start) {
+          return yearB.start - yearA.start;
+        }
+
+        // Eşitlik durumunda bitiş yılına göre (Devam edenler veya daha geç bitenler önce)
+        if (yearA.end !== null && yearB.end !== null && yearA.end !== yearB.end) {
+          return yearB.end - yearA.end;
+        }
+
+        // İkincil sıralama: İsim alfabetik (A-Z)
+        return a.title.localeCompare(b.title, 'tr', { sensitivity: 'base' });
+      }
+
+      case 'release-asc': {
+        const yearA = parseReleaseYear(a.releaseYear);
+        const yearB = parseReleaseYear(b.releaseYear);
+
+        // Unknown release years go to the bottom
+        if (yearA.start === null && yearB.start === null) {
+          return a.title.localeCompare(b.title, 'tr', { sensitivity: 'base' });
+        }
+        if (yearA.start === null) return 1;
+        if (yearB.start === null) return -1;
+
+        // Yaklaşım A: Başlangıç/Prömiyer yılına göre sıralama (Eskiden Yeniye)
+        if (yearA.start !== yearB.start) {
+          return yearA.start - yearB.start;
+        }
+
+        // Eşitlik durumunda bitiş yılına göre (Daha erken bitenler önce)
+        if (yearA.end !== null && yearB.end !== null && yearA.end !== yearB.end) {
+          return yearA.end - yearB.end;
+        }
+
+        // İkincil sıralama: İsim alfabetik (A-Z)
         return a.title.localeCompare(b.title, 'tr', { sensitivity: 'base' });
       }
 

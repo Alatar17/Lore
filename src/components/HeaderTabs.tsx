@@ -30,6 +30,7 @@ import {
   ArrowLeft,
   Check,
   Star,
+  Layers,
 } from 'lucide-react';
 
 export const TRACKED_TAB_ID = '__tracked__';
@@ -77,6 +78,7 @@ interface HeaderTabsProps {
   onClosePanels: () => void;
   onToggleHideMode?: () => void;
   isHideModeActive?: boolean;
+  onUploadZip?: () => void;
 }
 
 export const HeaderTabs: React.FC<HeaderTabsProps> = ({
@@ -116,6 +118,7 @@ export const HeaderTabs: React.FC<HeaderTabsProps> = ({
   onClosePanels,
   onToggleHideMode,
   isHideModeActive,
+  onUploadZip,
 }) => {
   const searchInputRef = useRef<HTMLInputElement>(null);
   const searchContainerRef = useRef<HTMLDivElement>(null);
@@ -127,14 +130,21 @@ export const HeaderTabs: React.FC<HeaderTabsProps> = ({
   const hoverTimeoutRef = useRef<any>(null);
   const subMenuTimeoutRef = useRef<any>(null);
 
-  // Secret 5-second long-press on Settings icon (toggles Global Hidden Mode)
+  // Secret 2-second long-press on Settings icon (toggles Global Hidden Mode)
   const settingsTimerRef = useRef<NodeJS.Timeout | null>(null);
   const settingsLongPressRef = useRef<boolean>(false);
+
+  // Mobile View icon long-press (1 second) to trigger external ZIP backup upload
+  const viewTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const viewLongPressRef = useRef<boolean>(false);
 
   useEffect(() => {
     return () => {
       if (settingsTimerRef.current) {
         clearTimeout(settingsTimerRef.current);
+      }
+      if (viewTimerRef.current) {
+        clearTimeout(viewTimerRef.current);
       }
     };
   }, []);
@@ -147,7 +157,7 @@ export const HeaderTabs: React.FC<HeaderTabsProps> = ({
       if (onToggleHideMode) {
         onToggleHideMode();
       }
-    }, 3000);
+    }, 2000);
   };
 
   const handleSettingsPressEnd = () => {
@@ -164,6 +174,33 @@ export const HeaderTabs: React.FC<HeaderTabsProps> = ({
       return;
     }
     onOpenSettings();
+  };
+
+  const handleMobileViewPressStart = () => {
+    viewLongPressRef.current = false;
+    if (viewTimerRef.current) clearTimeout(viewTimerRef.current);
+    viewTimerRef.current = setTimeout(() => {
+      viewLongPressRef.current = true;
+      if (onUploadZip) {
+        onUploadZip();
+      }
+    }, 1000);
+  };
+
+  const handleMobileViewPressEnd = () => {
+    if (viewTimerRef.current) {
+      clearTimeout(viewTimerRef.current);
+      viewTimerRef.current = null;
+    }
+  };
+
+  const handleMobileViewClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (viewLongPressRef.current) {
+      viewLongPressRef.current = false;
+      return;
+    }
+    onToggleView();
   };
 
   // Search Mode: 'search' (Normal title/text search) vs 'tag' (Tag/year chip search)
@@ -336,6 +373,7 @@ export const HeaderTabs: React.FC<HeaderTabsProps> = ({
     (filters.followingOnly ? 1 : 0) +
     (filters.ankiFilter !== 'all' ? 1 : 0) +
     (filters.uncategorizedOnly ? 1 : 0) +
+    (filters.seriesOnly ? 1 : 0) +
     (filters.gameStatus && filters.gameStatus !== 'all' ? 1 : 0);
 
   // Pure Hover handlers for Main Dropdown buttons with snappy 120ms delay
@@ -410,7 +448,8 @@ export const HeaderTabs: React.FC<HeaderTabsProps> = ({
   const showMobileSecondRow =
     activeCatId !== null ||
     isTierListAvailable(activeCategory, activeSub) ||
-    Boolean(filters.uncategorizedOnly);
+    Boolean(filters.uncategorizedOnly) ||
+    Boolean(filters.seriesOnly);
 
   return (
     <header
@@ -578,20 +617,14 @@ export const HeaderTabs: React.FC<HeaderTabsProps> = ({
           <div className="flex items-center shrink-0">
             {/* Unified Tools Capsule */}
             <div className="flex items-center p-0.5 bg-neutral-900/90 border border-white/15 rounded-xl shadow-sm">
-              {/* Sayaç Rozeti: 1. satırdaki kutunun içinde sabit en solda */}
-              <button
-                type="button"
+              {/* Sayaç Rozeti: 1. satırdaki kutunun içinde sabit en solda (Mobilde Salt Okunur) */}
+              <div
                 id="mobile-item-count-badge"
-                onClick={onToggleSelectionMode}
-                title={isSelectionMode ? 'Toplu Seçim Modundan Çık' : 'Toplu Seçim Modunu Aç'}
-                className={`h-8 px-2 rounded-lg font-bold text-[11px] shrink-0 transition-all cursor-pointer flex items-center justify-center ${
-                  isSelectionMode
-                    ? 'bg-blue-600 text-white shadow-sm'
-                    : 'text-neutral-300 hover:text-white hover:bg-white/10'
-                }`}
+                title={`Toplam ${totalFilteredCount} yapım`}
+                className="h-8 px-2 rounded-lg font-bold text-[11px] shrink-0 flex items-center justify-center text-neutral-300 select-none cursor-default"
               >
                 <span>{totalFilteredCount}</span>
-              </button>
+              </div>
 
               {/* Arama ikonunun solundaki dikey çizgi */}
               <div className="w-[1px] h-3.5 bg-white/15 mx-0.5" />
@@ -649,12 +682,16 @@ export const HeaderTabs: React.FC<HeaderTabsProps> = ({
               <div className={`relative ${isViewOpen ? 'z-50' : ''}`}>
                 <button
                   id="mobile-view-toggle-btn"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onToggleView();
-                  }}
-                  title="Görünüm Ayarları"
-                  className={`h-8 w-8 rounded-lg transition-all cursor-pointer flex items-center justify-center ${
+                  type="button"
+                  onTouchStart={handleMobileViewPressStart}
+                  onTouchEnd={handleMobileViewPressEnd}
+                  onTouchCancel={handleMobileViewPressEnd}
+                  onMouseDown={handleMobileViewPressStart}
+                  onMouseUp={handleMobileViewPressEnd}
+                  onMouseLeave={handleMobileViewPressEnd}
+                  onClick={handleMobileViewClick}
+                  title="Görünüm Ayarları (1 sn basılı tut: ZIP Yükle)"
+                  className={`h-8 w-8 rounded-lg transition-all cursor-pointer flex items-center justify-center select-none ${
                     isViewOpen
                       ? 'bg-neutral-800 text-white shadow-sm'
                       : 'text-neutral-400 hover:text-white hover:bg-white/5'
@@ -891,6 +928,21 @@ export const HeaderTabs: React.FC<HeaderTabsProps> = ({
                   </button>
                 </div>
               )}
+
+              {/* Active Series Indicator */}
+              {filters.seriesOnly && (
+                <div className="flex items-center gap-1 px-2 py-1 rounded-xl bg-indigo-500/15 border border-indigo-500/30 text-indigo-300 text-xs font-semibold shrink-0">
+                  <Layers className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
+                  <span className="truncate max-w-[70px]">Seri</span>
+                  <button
+                    type="button"
+                    onClick={() => onFilterChange({ seriesOnly: false })}
+                    className="p-0.5 rounded text-indigo-300 hover:text-white cursor-pointer"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </div>
+              )}
             </div>
 
             {/* Right Side: Tier List / Grid View Mode Controls */}
@@ -1043,6 +1095,28 @@ export const HeaderTabs: React.FC<HeaderTabsProps> = ({
                 onClick={() => onFilterChange({ uncategorizedOnly: false })}
                 title="Kategorisiz filtresini kaldır"
                 className="p-0.5 ml-0.5 rounded hover:bg-rose-500/25 text-rose-300 hover:text-white cursor-pointer transition-colors"
+              >
+                <X className="w-3 h-3" />
+              </button>
+            </div>
+          )}
+
+          {/* Active Series/Universe Filter Indicator Pill */}
+          {filters.seriesOnly && (
+            <div
+              id="active-series-indicator"
+              className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-indigo-500/15 border border-indigo-500/30 text-indigo-300 text-xs font-semibold animate-in fade-in"
+            >
+              <Layers className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
+              <span className="truncate max-w-[130px] sm:max-w-none">
+                Seri / Evren Bağlantılı
+              </span>
+              <button
+                type="button"
+                id="remove-series-filter-btn"
+                onClick={() => onFilterChange({ seriesOnly: false })}
+                title="Seri filtresini kaldır"
+                className="p-0.5 ml-0.5 rounded hover:bg-indigo-500/25 text-indigo-300 hover:text-white cursor-pointer transition-colors"
               >
                 <X className="w-3 h-3" />
               </button>

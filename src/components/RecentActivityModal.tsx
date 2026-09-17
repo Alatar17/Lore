@@ -75,13 +75,13 @@ export const RecentActivityModal: React.FC<RecentActivityModalProps> = ({
   onSelectItem,
   onNavigateToCategory,
 }) => {
-  const [filterTab, setFilterTab] = useState<'all' | 'added' | 'updated'>('all');
+  const [filterTab, setFilterTab] = useState<'all' | 'added' | 'updated'>('added');
   const [scopeFilter, setScopeFilter] = useState<'all' | 'media' | 'game'>('all');
 
-  // Reset to 'all' whenever the modal opens
+  // Reset to 'added' whenever the modal opens
   useEffect(() => {
     if (isOpen) {
-      setFilterTab('all');
+      setFilterTab('added');
       setScopeFilter('all');
     }
   }, [isOpen]);

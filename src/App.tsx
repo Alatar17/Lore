@@ -37,6 +37,7 @@ import {
   exportTierListBackup,
   parseTierListBackupFile,
   checkDirectoryHandleAccessibility,
+  importAppDataFromZip,
 } from './utils/fileSystem';
 import { sortArchiveItems } from './utils/sortUtils';
 import { downloadTierListAsPng } from './utils/tierImageExport';
@@ -186,6 +187,7 @@ export default function App() {
     ankiFilter: 'all',
     uncategorizedOnly: false,
     hiddenOnly: false,
+    seriesOnly: false,
   });
 
   // Secret Global Hidden Mode (Default: true / active - remembered in localStorage)
@@ -845,6 +847,39 @@ export default function App() {
   const tierHistoryRef = React.useRef<ArchiveItem[][]>([]);
   const tierHistoryIndexRef = React.useRef<number>(-1);
 
+  // Mobile fast ZIP backup upload ref and handler
+  const mobileZipInputRef = React.useRef<HTMLInputElement>(null);
+
+  const handleMobileZipUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      const data = await importAppDataFromZip(file, dirHandle);
+      setDialogOptions({
+        type: 'confirm',
+        title: 'ZIP Yedek Paketi Yükle',
+        message: `"${file.name}" dosyasından ${data.items?.length || 0} yapım, afişler ve Tier List dizilimleri çözüldü. Bu yedek mevcut arşive yüklensin mi?`,
+        confirmText: 'Yedeği Yükle',
+        onConfirm: () => {
+          setAppData(data);
+          setDialogOptions({
+            type: 'alert',
+            title: 'Yükleme Tamamlandı',
+            message: 'ZIP yedek paketi başarıyla yüklendi! Tüm yapımlar, afişler ve ayarlar aktarıldı.',
+          });
+        },
+      });
+    } catch (err: any) {
+      setDialogOptions({
+        type: 'alert',
+        title: 'ZIP İçe Aktarma Hatası',
+        message: 'ZIP içe aktarma hatası: ' + (err.message || err),
+      });
+    } finally {
+      if (e.target) e.target.value = '';
+    }
+  };
+
   // Helper to compare whether two item states have identical tier placements & order in the active category
   const areCategoryPlacementsEqual = (
     a: ArchiveItem[],
@@ -1247,8 +1282,8 @@ export default function App() {
         if (filters.hiddenOnly && !item.isHidden) return false;
       }
 
-      // 1. Tab match
-      if (item.mainTab !== mainTab) return false;
+      // 1. Tab match: When seriesOnly filter is active, show both media and game items together (e.g. Cuphead, Cyberpunk, Witcher)
+      if (!filters.seriesOnly && item.mainTab !== mainTab) return false;
 
       // Uncategorized check (empty cat, invalid/deleted cat, or explicitly uncategorized)
       const isUncategorized =
@@ -1268,8 +1303,8 @@ export default function App() {
           // If no category is selected (overall media/game pool), match completely uncategorized items
           if (!isUncategorized) return false;
         }
-      } else {
-        // Normal Category Filtering (when uncategorizedOnly is false)
+      } else if (!filters.seriesOnly) {
+        // Normal Category Filtering (when uncategorizedOnly and seriesOnly are false)
         // Tracked View
         if (mainTab === 'media' && activeCatId === TRACKED_TAB_ID) {
           if (!item.watching && !item.following && !(item as any).isWatching && !(item as any).isFollowing) return false;
@@ -1277,6 +1312,14 @@ export default function App() {
           // Category match
           if (item.cat !== activeCatId) return false;
           // Subgroup match
+          if (activeSub && item.sub !== activeSub) return false;
+        }
+      } else {
+        // When seriesOnly is active: if user explicitly selected a category or tracked view, apply it; otherwise show all series across media and games
+        if (activeCatId === TRACKED_TAB_ID) {
+          if (!item.watching && !item.following && !(item as any).isWatching && !(item as any).isFollowing) return false;
+        } else if (activeCatId) {
+          if (item.cat !== activeCatId) return false;
           if (activeSub && item.sub !== activeSub) return false;
         }
       }
@@ -1306,6 +1349,7 @@ export default function App() {
           const itemCharActors = (item.characters || [])
             .map((c) => (c.actor || '').toLowerCase())
             .filter(Boolean);
+          const itemSeries = (item.seriesName || '').toLowerCase();
 
           // Check if ALL terms match the item (AND logic)
           const matchesAllTerms = terms.every((term) => {
@@ -1316,6 +1360,7 @@ export default function App() {
             if (itemCat.includes(term)) return true;
             if (itemSub.includes(term)) return true;
             if (itemStatus.includes(term)) return true;
+            if (itemSeries.includes(term)) return true;
             if (itemGenres.some((g) => g.includes(term))) return true;
             if (itemFirms.some((f) => f.includes(term))) return true;
             if (itemDirectors.some((d) => d.includes(term))) return true;
@@ -1337,12 +1382,15 @@ export default function App() {
       if (filters.watchingOnly && !item.watching && !(item as any).isWatching) return false;
       if (filters.followingOnly && !item.following && !(item as any).isFollowing) return false;
 
-      // 6. Game status filter
+      // 6. Series / Franchise filter
+      if (filters.seriesOnly && (!item.seriesName || !item.seriesName.trim())) return false;
+
+      // 7. Game status filter
       if (item.mainTab === 'game' && filters.gameStatus && filters.gameStatus !== 'all') {
         if (item.status !== filters.gameStatus) return false;
       }
 
-      // 7. Anki filter
+      // 8. Anki filter
       if (filters.ankiFilter === 'yes' && !item.anki) return false;
       if (filters.ankiFilter === 'no' && item.anki) return false;
 
@@ -1508,6 +1556,7 @@ export default function App() {
             setViewSettings((prev) => ({ ...prev, ...newSettings }))
           }
           onClosePanels={closeAllPanels}
+          onUploadZip={() => mobileZipInputRef.current?.click()}
         />
 
         {/* Main Content Area */}
@@ -2832,6 +2881,15 @@ export default function App() {
           }}
         />
       )}
+
+      {/* Hidden input for mobile fast ZIP backup upload */}
+      <input
+        type="file"
+        ref={mobileZipInputRef}
+        onChange={handleMobileZipUpload}
+        accept=".zip"
+        className="hidden"
+      />
     </div>
   );
 }

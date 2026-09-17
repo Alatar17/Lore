@@ -10,6 +10,7 @@ import {
   Gamepad2,
   Check,
   FolderX,
+  Layers,
 } from 'lucide-react';
 
 interface FilterPanelProps {
@@ -72,6 +73,7 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
     filters.watchingOnly ||
     filters.followingOnly ||
     filters.ankiFilter !== 'all' ||
+    Boolean(filters.seriesOnly) ||
     Boolean(filters.uncategorizedOnly) ||
     (!isHideModeActive && Boolean(filters.hiddenOnly)) ||
     (filters.gameStatus && filters.gameStatus !== 'all');
@@ -83,6 +85,7 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
       followingOnly: false,
       ankiFilter: 'all',
       gameStatus: 'all',
+      seriesOnly: false,
       uncategorizedOnly: false,
       hiddenOnly: false,
     });
@@ -233,6 +236,23 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
             </select>
           </div>
         )}
+
+        {/* Seri / Evren Bağlantısı */}
+        <div className="pt-2 border-t border-white/10">
+          <label className="flex items-center justify-between text-xs text-neutral-300 hover:text-white cursor-pointer select-none py-1 px-1 rounded-lg hover:bg-white/5 transition-colors">
+            <div className="flex items-center gap-2">
+              <Layers className="w-3.5 h-3.5 text-indigo-400" />
+              <span>Seri / Evren Bağlantılı</span>
+            </div>
+            <input
+              id="filter-series-checkbox"
+              type="checkbox"
+              checked={Boolean(filters.seriesOnly)}
+              onChange={(e) => onChange({ seriesOnly: e.target.checked })}
+              className="w-4 h-4 rounded border-neutral-600 bg-neutral-800 text-white focus:ring-0 cursor-pointer accent-white"
+            />
+          </label>
+        </div>
 
         {/* Anki Filtresi */}
         <div className="pt-2 border-t border-white/10">
