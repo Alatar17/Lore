@@ -67,7 +67,32 @@ export const ImagePreviewModal: React.FC<ImagePreviewModalProps> = ({
   const catObj = categories.find((c) => c.id === item.cat);
 
   const [isFlipped, setIsFlipped] = useState(false);
-  const [selectedCharacter, setSelectedCharacter] = useState<ItemCharacter | null>(null);
+  const [selectedCharIndex, setSelectedCharIndex] = useState<number | null>(null);
+  const selectedCharacter = selectedCharIndex !== null && item.characters && item.characters[selectedCharIndex] ? item.characters[selectedCharIndex] : null;
+
+  // Touch & swipe handling for character lightbox
+  const touchStartXRef = useRef<number | null>(null);
+  const touchStartYRef = useRef<number | null>(null);
+  const wasSwipeRef = useRef<boolean>(false);
+
+  const goToNextCharacter = useCallback(() => {
+    const chars = item.characters || [];
+    if (chars.length <= 1) return;
+    setSelectedCharIndex((prev) => {
+      if (prev === null) return 0;
+      return (prev + 1) % chars.length;
+    });
+  }, [item.characters]);
+
+  const goToPrevCharacter = useCallback(() => {
+    const chars = item.characters || [];
+    if (chars.length <= 1) return;
+    setSelectedCharIndex((prev) => {
+      if (prev === null) return chars.length - 1;
+      return (prev - 1 + chars.length) % chars.length;
+    });
+  }, [item.characters]);
+
   const [showAnnouncementModal, setShowAnnouncementModal] = useState(false);
   const [isFollowHovered, setIsFollowHovered] = useState(false);
   const [showSeriesPopover, setShowSeriesPopover] = useState(false);
@@ -170,7 +195,7 @@ export const ImagePreviewModal: React.FC<ImagePreviewModalProps> = ({
   // Reset states when item changes
   useEffect(() => {
     setIsFlipped(false);
-    setSelectedCharacter(null);
+    setSelectedCharIndex(null);
     setShowAnnouncementModal(false);
     setShowSeriesPopover(false);
   }, [item.id]);
@@ -208,14 +233,30 @@ export const ImagePreviewModal: React.FC<ImagePreviewModalProps> = ({
         e.stopPropagation();
         if (showAnnouncementModal) {
           setShowAnnouncementModal(false);
-        } else if (selectedCharacter) {
-          setSelectedCharacter(null);
+        } else if (selectedCharIndex !== null) {
+          setSelectedCharIndex(null);
         } else if (showSeriesPopover) {
           setShowSeriesPopover(false);
         } else {
           onClose();
         }
         return;
+      }
+
+      // Sol / Sağ ok tuşları ile karakterler arası geçiş (ek klavye desteği)
+      if (selectedCharIndex !== null && item.characters && item.characters.length > 1) {
+        if (e.key === 'ArrowRight') {
+          e.preventDefault();
+          e.stopPropagation();
+          goToNextCharacter();
+          return;
+        }
+        if (e.key === 'ArrowLeft') {
+          e.preventDefault();
+          e.stopPropagation();
+          goToPrevCharacter();
+          return;
+        }
       }
 
       // Space key -> Open Edit Modal for this item if not editing an input
@@ -236,7 +277,7 @@ export const ImagePreviewModal: React.FC<ImagePreviewModalProps> = ({
 
     window.addEventListener('keydown', handleKeyDown, true);
     return () => window.removeEventListener('keydown', handleKeyDown, true);
-  }, [onClose, onEdit, item, selectedCharacter, showAnnouncementModal, showSeriesPopover]);
+  }, [onClose, onEdit, item, selectedCharIndex, showAnnouncementModal, showSeriesPopover, goToNextCharacter, goToPrevCharacter]);
 
   // Format watch/completion date as DD.MM.YYYY
   const displayDate = (() => {
@@ -804,7 +845,7 @@ export const ImagePreviewModal: React.FC<ImagePreviewModalProps> = ({
                 {item.characters?.map((c, i) => (
                   <div
                     key={i}
-                    onClick={() => setSelectedCharacter(c)}
+                    onClick={() => setSelectedCharIndex(i)}
                     className="p-2 rounded-xl bg-white/[0.03] border border-white/10 flex items-center gap-2.5 hover:bg-white/[0.07] hover:border-white/20 transition-all cursor-pointer group"
                     title="Karakter detayını görüntüle"
                   >
@@ -1179,17 +1220,17 @@ export const ImagePreviewModal: React.FC<ImagePreviewModalProps> = ({
                   <Users className="w-3 h-3 text-sky-400" /> Karakterler & Kadro
                 </span>
                 {hasCharacters ? (
-                  <div className="space-y-1.5">
+                  <div className="grid grid-cols-2 gap-1.5 sm:gap-2">
                     {item.characters?.map((c, i) => (
                       <div
                         key={i}
-                        className="p-2 rounded-lg bg-white/[0.04] border border-white/10 flex items-center gap-2 text-xs transition-colors cursor-pointer"
+                        className="p-1.5 rounded-lg bg-white/[0.04] border border-white/10 flex items-center gap-1.5 sm:gap-2 text-xs transition-colors cursor-pointer min-w-0"
                       >
                         {/* YALNIZCA RESME TIKLANIRSA: Lightbox açılır ve kart KESİNLİKLE DÖNMEZ (e.stopPropagation) */}
                         <div
                           onClick={(e) => {
                             e.stopPropagation();
-                            setSelectedCharacter(c);
+                            setSelectedCharIndex(i);
                           }}
                           className="shrink-0 cursor-pointer active:scale-95 transition-transform"
                           title="Büyük resmi aç"
@@ -1207,14 +1248,14 @@ export const ImagePreviewModal: React.FC<ImagePreviewModalProps> = ({
                           )}
                         </div>
 
-                        {/* İSİM VE SESLENDİRMEN METNİNE TIKLANIRSA: Kart ön yüze döner (flip) */}
-                        <div className="flex-1 min-w-0 flex items-center justify-between gap-1.5">
-                          <span className="font-bold text-slate-200 truncate">
+                        {/* İSİM VE OYUNCU (Karakter adının altında, emoji olmadan yer alır) */}
+                        <div className="flex-1 min-w-0 flex flex-col justify-center overflow-hidden">
+                          <span className="font-bold text-slate-200 text-[11px] truncate leading-tight">
                             {c.name}
                           </span>
                           {c.actor && (
-                            <span className="text-[10px] text-sky-300 font-medium bg-sky-500/20 px-1.5 py-0.5 rounded shrink-0">
-                              🎙️ {c.actor}
+                            <span className="text-[10px] text-sky-300/90 truncate leading-tight mt-0.5" title={c.actor}>
+                              {c.actor}
                             </span>
                           )}
                         </div>
@@ -1236,39 +1277,86 @@ export const ImagePreviewModal: React.FC<ImagePreviewModalProps> = ({
       </div>
 
       {/* ===================== KARAKTER DETAY LIGHTBOX (Sinematik Açılır Pencere) ===================== */}
-      {selectedCharacter && (
+      {selectedCharacter && typeof document !== 'undefined' && createPortal(
         <div
           id="character-lightbox-overlay"
-          onClick={(e) => {
-            e.stopPropagation();
-            setSelectedCharacter(null);
+          onTouchStart={(e) => {
+            touchStartXRef.current = e.touches[0].clientX;
+            touchStartYRef.current = e.touches[0].clientY;
+            wasSwipeRef.current = false;
           }}
-          className="fixed inset-0 z-[70] flex items-center justify-center p-3 sm:p-6 bg-black/90 backdrop-blur-md animate-in fade-in duration-200"
+          onTouchMove={(e) => {
+            if (touchStartXRef.current === null || touchStartYRef.current === null) return;
+            const diffX = e.touches[0].clientX - touchStartXRef.current;
+            const diffY = e.touches[0].clientY - touchStartYRef.current;
+            if (Math.abs(diffX) > 15 && Math.abs(diffX) > Math.abs(diffY)) {
+              wasSwipeRef.current = true;
+            }
+          }}
+          onTouchEnd={(e) => {
+            if (touchStartXRef.current === null) return;
+            const touchEndX = e.changedTouches[0].clientX;
+            const touchEndY = e.changedTouches[0].clientY;
+            const diffX = touchEndX - touchStartXRef.current;
+            const diffY = touchEndY - (touchStartYRef.current ?? 0);
+            touchStartXRef.current = null;
+            touchStartYRef.current = null;
+
+            if (Math.abs(diffX) > 35 && Math.abs(diffX) > Math.abs(diffY)) {
+              wasSwipeRef.current = true;
+              if (diffX < 0) {
+                // Sola kaydırma (Swipe Left) -> Sonraki karakter
+                goToNextCharacter();
+              } else {
+                // Sağa kaydırma (Swipe Right) -> Önceki karakter
+                goToPrevCharacter();
+              }
+            }
+          }}
+          onClick={(e) => {
+            if (wasSwipeRef.current) {
+              wasSwipeRef.current = false;
+              return;
+            }
+            e.stopPropagation();
+            e.preventDefault();
+            setSelectedCharIndex(null);
+          }}
+          className="fixed inset-0 z-[99999] flex items-center justify-center p-3 sm:p-6 bg-black/90 backdrop-blur-md animate-in fade-in duration-200 cursor-pointer select-none"
         >
           <div
             id="character-lightbox-card"
-            onClick={(e) => e.stopPropagation()}
-            className="relative w-auto max-w-lg max-h-[90vh] rounded-2xl bg-[#111420] border border-white/20 shadow-2xl p-5 sm:p-6 flex flex-col items-center text-center space-y-4 animate-in zoom-in-95 duration-200 overflow-hidden"
-          >
-            <button
-              id="close-character-lightbox-btn"
-              onClick={(e) => {
+            onClick={(e) => {
+              if (wasSwipeRef.current) {
+                wasSwipeRef.current = false;
                 e.stopPropagation();
-                setSelectedCharacter(null);
+                return;
+              }
+              e.stopPropagation();
+            }}
+            className="relative w-auto max-w-lg max-h-[90vh] rounded-2xl bg-[#111420] border border-white/20 shadow-2xl p-5 sm:p-6 flex flex-col items-center text-center space-y-4 animate-in zoom-in-95 duration-200 overflow-hidden cursor-default"
+          >
+            {/* Karakter Görseli (Tıklanınca Kapanır, Sola/Sağa Kaydırınca Resim Değişir) */}
+            <div
+              id="character-lightbox-image-clickable"
+              onClick={(e) => {
+                if (wasSwipeRef.current) {
+                  wasSwipeRef.current = false;
+                  e.stopPropagation();
+                  return;
+                }
+                e.stopPropagation();
+                e.preventDefault();
+                setSelectedCharIndex(null);
               }}
-              className="absolute top-3 right-3 z-20 p-2 rounded-full bg-black/70 hover:bg-white/20 text-slate-300 hover:text-white transition-colors cursor-pointer border border-white/10"
-              title="Kapat (ESC)"
+              className="max-w-full max-h-[64vh] rounded-xl overflow-hidden border border-white/15 bg-black/60 shadow-2xl flex items-center justify-center relative p-0.5 cursor-pointer hover:border-white/30 active:scale-[0.99] transition-all"
+              title="Kapatmak için dokunun"
             >
-              <X className="w-4 h-4" />
-            </button>
-
-            {/* Karakter Görseli (Orijinal En/Boy Oranında Gösterilir, Kırpma Yok) */}
-            <div className="max-w-full max-h-[64vh] rounded-xl overflow-hidden border border-white/15 bg-black/60 shadow-2xl flex items-center justify-center relative p-0.5">
               {selectedCharacter.image ? (
                 <img
                   src={selectedCharacter.image}
                   alt={selectedCharacter.name}
-                  className="max-w-full max-h-[62vh] w-auto h-auto object-contain rounded-lg"
+                  className="max-w-full max-h-[62vh] w-auto h-auto object-contain rounded-lg pointer-events-none"
                 />
               ) : (
                 <div className="w-48 h-48 flex flex-col items-center justify-center text-slate-500 gap-2 p-4">
@@ -1291,7 +1379,8 @@ export const ImagePreviewModal: React.FC<ImagePreviewModalProps> = ({
               )}
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* ===================== ANNOUNCEMENT / FOLLOW DETAILS DIALOG ===================== */}
