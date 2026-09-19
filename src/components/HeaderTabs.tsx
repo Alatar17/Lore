@@ -6,6 +6,8 @@ import {
   ViewSettings,
   UiExperimentsState,
   isTierListAvailable,
+  PcSyncStatus,
+  MobileSyncStatus,
 } from '../types';
 import { FilterPanel } from './FilterPanel';
 import { ViewPanel } from './ViewPanel';
@@ -31,6 +33,8 @@ import {
   Check,
   Star,
   Layers,
+  RotateCw,
+  CloudUpload,
 } from 'lucide-react';
 
 export const TRACKED_TAB_ID = '__tracked__';
@@ -79,6 +83,10 @@ interface HeaderTabsProps {
   onToggleHideMode?: () => void;
   isHideModeActive?: boolean;
   onUploadZip?: () => void;
+  pcSyncStatus?: PcSyncStatus;
+  onTriggerPcSync?: () => void;
+  mobileSyncStatus?: MobileSyncStatus;
+  onTriggerMobileSync?: () => void;
 }
 
 export const HeaderTabs: React.FC<HeaderTabsProps> = ({
@@ -119,6 +127,10 @@ export const HeaderTabs: React.FC<HeaderTabsProps> = ({
   onToggleHideMode,
   isHideModeActive,
   onUploadZip,
+  pcSyncStatus = 'idle',
+  onTriggerPcSync,
+  mobileSyncStatus = 'idle',
+  onTriggerMobileSync,
 }) => {
   const searchInputRef = useRef<HTMLInputElement>(null);
   const searchContainerRef = useRef<HTMLDivElement>(null);
@@ -216,10 +228,16 @@ export const HeaderTabs: React.FC<HeaderTabsProps> = ({
   const [searchTextInput, setSearchTextInput] = useState('');
   const [tagChips, setTagChips] = useState<string[]>([]);
   const [typedTagInput, setTypedTagInput] = useState('');
+  const lastEmittedQueryRef = useRef<string>('');
 
   // Sync inputs & chips whenever search state or query changes
   useEffect(() => {
     if (isSearchOpen) {
+      // If the query change was emitted internally from user typing in this component, do NOT re-split or wipe input
+      if (searchQuery === lastEmittedQueryRef.current) {
+        return;
+      }
+
       if (searchMode === 'tag') {
         const chips = searchQuery
           ? searchQuery.split(',').map((s) => s.trim()).filter(Boolean)
@@ -241,6 +259,7 @@ export const HeaderTabs: React.FC<HeaderTabsProps> = ({
       setSearchTextInput('');
       setTagChips([]);
       setTypedTagInput('');
+      lastEmittedQueryRef.current = '';
     }
   }, [isSearchOpen, searchMode, searchQuery]);
 
@@ -255,7 +274,9 @@ export const HeaderTabs: React.FC<HeaderTabsProps> = ({
       setTagChips(initialChips);
       setTypedTagInput('');
       setSearchTextInput('');
-      onSearchChange(initialChips.join(', '));
+      const q = initialChips.join(', ');
+      lastEmittedQueryRef.current = q;
+      onSearchChange(q);
     } else {
       // Switch to Normal search mode
       const combined = [...tagChips, typedTagInput.trim()].filter(Boolean).join(' ');
@@ -263,6 +284,7 @@ export const HeaderTabs: React.FC<HeaderTabsProps> = ({
       setSearchTextInput(combined);
       setTagChips([]);
       setTypedTagInput('');
+      lastEmittedQueryRef.current = combined;
       onSearchChange(combined);
     }
     setTimeout(() => {
@@ -278,6 +300,7 @@ export const HeaderTabs: React.FC<HeaderTabsProps> = ({
     const combined = typedTagInput.trim()
       ? [...updated, typedTagInput.trim()].join(', ')
       : updated.join(', ');
+    lastEmittedQueryRef.current = combined;
     onSearchChange(combined);
   };
 
@@ -289,7 +312,9 @@ export const HeaderTabs: React.FC<HeaderTabsProps> = ({
         if (!tagChips.some((c) => c.toLowerCase() === val.toLowerCase())) {
           const updated = [...tagChips, val];
           setTagChips(updated);
-          onSearchChange(updated.join(', '));
+          const q = updated.join(', ');
+          lastEmittedQueryRef.current = q;
+          onSearchChange(q);
         }
         setTypedTagInput('');
       }
@@ -311,13 +336,16 @@ export const HeaderTabs: React.FC<HeaderTabsProps> = ({
       });
       setTagChips(updated);
       setTypedTagInput('');
-      onSearchChange(updated.join(', '));
+      const q = updated.join(', ');
+      lastEmittedQueryRef.current = q;
+      onSearchChange(q);
     } else {
       setTypedTagInput(val);
-      // Live filter with current tagChips + whatever is being actively typed
+      // Live filter with current tagChips + whatever is being actively typed without converting to chip
       const live = val.trim()
         ? [...tagChips, val.trim()].join(', ')
         : tagChips.join(', ');
+      lastEmittedQueryRef.current = live;
       onSearchChange(live);
     }
   };
@@ -325,6 +353,7 @@ export const HeaderTabs: React.FC<HeaderTabsProps> = ({
   const handleNormalSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = e.target.value;
     setSearchTextInput(val);
+    lastEmittedQueryRef.current = val;
     onSearchChange(val);
   };
 
@@ -617,14 +646,36 @@ export const HeaderTabs: React.FC<HeaderTabsProps> = ({
           <div className="flex items-center shrink-0">
             {/* Unified Tools Capsule */}
             <div className="flex items-center p-0.5 bg-neutral-900/90 border border-white/15 rounded-xl shadow-sm">
-              {/* Sayaç Rozeti: 1. satırdaki kutunun içinde sabit en solda (Mobilde Salt Okunur) */}
-              <div
+              {/* Sayaç Rozeti: 1. satırdaki kutunun içinde sabit en solda (Mobilde Tıklanabilir GitHub Senkronizasyon Rozeti) */}
+              <button
                 id="mobile-item-count-badge"
-                title={`Toplam ${totalFilteredCount} yapım`}
-                className="h-8 px-2 rounded-lg font-bold text-[11px] shrink-0 flex items-center justify-center text-neutral-300 select-none cursor-default"
+                type="button"
+                onClick={onTriggerMobileSync}
+                title={
+                  mobileSyncStatus === 'has-update'
+                    ? `GitHub’da yeni güncelleme var! (Toplam ${totalFilteredCount} yapım - Çekmek için dokunun)`
+                    : mobileSyncStatus === 'syncing'
+                    ? 'GitHub’dan veriler indiriliyor...'
+                    : mobileSyncStatus === 'synced'
+                    ? 'Veriler başarıyla güncellendi!'
+                    : mobileSyncStatus === 'error'
+                    ? 'GitHub bağlantı hatası (Tekrar denemek için dokunun)'
+                    : `Toplam ${totalFilteredCount} yapım (GitHub’dan kontrol etmek için dokunun)`
+                }
+                className={`h-8 px-2.5 rounded-lg font-bold text-[11px] shrink-0 flex items-center justify-center transition-all cursor-pointer select-none active:scale-95 ${
+                  mobileSyncStatus === 'has-update'
+                    ? 'bg-rose-500/25 border border-rose-500/50 text-rose-300 animate-pulse shadow-sm shadow-rose-500/30'
+                    : mobileSyncStatus === 'syncing'
+                    ? 'bg-blue-500/25 border border-blue-500/50 text-blue-300 animate-pulse'
+                    : mobileSyncStatus === 'synced'
+                    ? 'bg-emerald-500/25 border border-emerald-500/50 text-emerald-300'
+                    : mobileSyncStatus === 'error'
+                    ? 'bg-amber-500/25 border border-amber-500/50 text-amber-300'
+                    : 'text-neutral-300 hover:text-white hover:bg-white/5'
+                }`}
               >
                 <span>{totalFilteredCount}</span>
-              </div>
+              </button>
 
               {/* Arama ikonunun solundaki dikey çizgi */}
               <div className="w-[1px] h-3.5 bg-white/15 mx-0.5" />
@@ -1078,6 +1129,42 @@ export const HeaderTabs: React.FC<HeaderTabsProps> = ({
           >
             {totalFilteredCount}
           </button>
+
+          {/* PC GitHub Sync Status Icon (Sayaç rozetinin hemen sağında, daire/arkaplan yok, sadece yalın ikon, eşitliyken gizli) */}
+          {pcSyncStatus && pcSyncStatus !== 'idle' && (
+            <button
+              id="desktop-github-sync-btn"
+              type="button"
+              onClick={onTriggerPcSync}
+              disabled={pcSyncStatus === 'syncing'}
+              title={
+                pcSyncStatus === 'unsynced'
+                  ? 'GitHub’a aktarılmamış değişiklikler var (Eşitlemek için tıklayın)'
+                  : pcSyncStatus === 'syncing'
+                  ? 'GitHub ile eşitleniyor...'
+                  : pcSyncStatus === 'synced'
+                  ? 'GitHub ile eşitlendi!'
+                  : 'GitHub eşitleme hatası (Tekrar denemek için tıklayın)'
+              }
+              className={`p-1 transition-all duration-200 cursor-pointer select-none flex items-center justify-center ${
+                pcSyncStatus === 'unsynced'
+                  ? 'text-rose-500 hover:text-rose-400 hover:scale-125 active:scale-90 animate-pulse'
+                  : pcSyncStatus === 'syncing'
+                  ? 'text-sky-400 animate-pulse scale-110 cursor-wait'
+                  : pcSyncStatus === 'synced'
+                  ? 'text-emerald-400 scale-110'
+                  : 'text-amber-400 hover:text-amber-300'
+              }`}
+            >
+              {pcSyncStatus === 'syncing' ? (
+                <RotateCw className="w-4 h-4 animate-spin text-sky-400" />
+              ) : pcSyncStatus === 'synced' ? (
+                <Check className="w-4 h-4 text-emerald-400 animate-in zoom-in-75 duration-150 stroke-[2.5]" />
+              ) : (
+                <CloudUpload className="w-4 h-4 text-rose-500 hover:text-rose-400" />
+              )}
+            </button>
+          )}
 
           {/* Active Uncategorized Filter Indicator Pill */}
           {filters.uncategorizedOnly && (

@@ -86,7 +86,17 @@ import {
   Bookmark,
   BarChart3,
   Pencil,
+  GitBranch,
+  KeyRound,
+  ExternalLink,
+  HelpCircle,
 } from 'lucide-react';
+import {
+  GitHubSyncConfig,
+  parseOwnerAndRepo,
+  testGitHubConnection,
+  saveGitHubSyncConfig,
+} from '../utils/githubSync';
 
 interface SettingsModalProps {
   appData: AppData;
@@ -108,6 +118,10 @@ interface SettingsModalProps {
   onClose: () => void;
   initialTab?: 'categories' | 'tags' | 'themes' | 'shortcuts' | 'storage';
   highlightConnectFolder?: boolean;
+  githubConfig?: GitHubSyncConfig;
+  onSaveGitHubConfig?: (config: GitHubSyncConfig) => void;
+  onTriggerPcSync?: () => Promise<void>;
+  onTriggerMobileSync?: () => Promise<void>;
 }
 
 interface ThemeOption {
@@ -206,6 +220,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   onClose,
   initialTab,
   highlightConnectFolder,
+  githubConfig,
+  onSaveGitHubConfig,
+  onTriggerPcSync,
+  onTriggerMobileSync,
 }) => {
   const [activeTab, setActiveTab] = useState<'categories' | 'tags' | 'themes' | 'shortcuts' | 'storage'>(() => {
     if (initialTab) {
@@ -312,6 +330,75 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
   // Custom in-app dialog state
   const [dialogOptions, setDialogOptions] = useState<DialogOptions | null>(null);
+
+  // GitHub Sync State
+  const [ghOwner, setGhOwner] = useState(githubConfig?.owner || '');
+  const [ghRepo, setGhRepo] = useState(githubConfig?.repo || '');
+  const [ghBranch, setGhBranch] = useState(githubConfig?.branch || 'main');
+  const [ghFilePath, setGhFilePath] = useState(githubConfig?.filePath || 'yapim-arsivim-data.json');
+  const [ghToken, setGhToken] = useState(githubConfig?.token || '');
+  const [showGhToken, setShowGhToken] = useState(false);
+  const [testingGh, setTestingGh] = useState(false);
+  const [ghTestResult, setGhTestResult] = useState<{ success: boolean; message: string } | null>(null);
+  const [ghActionLoading, setGhActionLoading] = useState(false);
+  const [showGhHelp, setShowGhHelp] = useState(false);
+
+  useEffect(() => {
+    if (githubConfig) {
+      setGhOwner(githubConfig.owner || '');
+      setGhRepo(githubConfig.repo || '');
+      setGhBranch(githubConfig.branch || 'main');
+      setGhFilePath(githubConfig.filePath || 'yapim-arsivim-data.json');
+      setGhToken(githubConfig.token || '');
+    }
+  }, [githubConfig]);
+
+  const handleSaveGhConfig = () => {
+    const rawRepo = ghRepo.trim();
+    const rawOwner = ghOwner.trim();
+    const parsed = parseOwnerAndRepo(rawRepo.includes('/') ? rawRepo : (rawOwner ? `${rawOwner}/${rawRepo}` : rawRepo));
+    const newConfig: GitHubSyncConfig = {
+      owner: parsed.owner || rawOwner,
+      repo: parsed.repo || rawRepo,
+      branch: ghBranch.trim() || 'main',
+      filePath: ghFilePath.trim() || 'yapim-arsivim-data.json',
+      token: ghToken.trim(),
+      lastSyncedAt: githubConfig?.lastSyncedAt,
+      lastSyncedCommitSha: githubConfig?.lastSyncedCommitSha,
+    };
+    saveGitHubSyncConfig(newConfig);
+    if (onSaveGitHubConfig) {
+      onSaveGitHubConfig(newConfig);
+    }
+    setDialogOptions({
+      type: 'alert',
+      title: 'GitHub Ayarları Kaydedildi',
+      message: 'GitHub senkronizasyon ayarlarınız başarıyla tarayıcıya kaydedildi.',
+    });
+  };
+
+  const handleTestGhConnection = async () => {
+    setTestingGh(true);
+    setGhTestResult(null);
+    try {
+      const rawRepo = ghRepo.trim();
+      const rawOwner = ghOwner.trim();
+      const parsed = parseOwnerAndRepo(rawRepo.includes('/') ? rawRepo : (rawOwner ? `${rawOwner}/${rawRepo}` : rawRepo));
+      const cfg: GitHubSyncConfig = {
+        owner: parsed.owner || rawOwner,
+        repo: parsed.repo || rawRepo,
+        branch: ghBranch.trim() || 'main',
+        filePath: ghFilePath.trim() || 'yapim-arsivim-data.json',
+        token: ghToken.trim(),
+      };
+      const res = await testGitHubConnection(cfg);
+      setGhTestResult(res);
+    } catch (err: any) {
+      setGhTestResult({ success: false, message: err.message || 'Bağlantı hatası' });
+    } finally {
+      setTestingGh(false);
+    }
+  };
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const zipFileInputRef = useRef<HTMLInputElement>(null);
@@ -2352,9 +2439,219 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   </label>
                 </div>
 
-                {/* Advanced Section: Mobile HTML Export & Reset */}
+                {/* Advanced Section: GitHub Sync, Mobile HTML Export & Reset */}
                 {showAdvancedStorage && (
                   <div className="space-y-4 pt-1 transition-all">
+                    {/* GITHUB ONE-WAY SYNC (PC ➔ GitHub ➔ Mobil) */}
+                    <div className="p-4 rounded-xl bg-white/5 border border-white/10 space-y-4">
+                      <div className="flex items-center justify-between border-b border-white/10 pb-3 flex-wrap gap-2">
+                        <div className="flex items-center gap-2">
+                          <div className="p-1.5 rounded-lg bg-blue-500/10 border border-blue-500/20 text-blue-400">
+                            <GitBranch className="w-4 h-4" />
+                          </div>
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <h4 className="text-sm font-bold text-slate-100">
+                                GitHub Senkronizasyonu
+                              </h4>
+                              <span className="text-[10px] font-semibold text-slate-400 font-mono hidden sm:inline">
+                                (PC ➔ GitHub ➔ Mobil)
+                              </span>
+                            </div>
+                            <p className="text-[11px] text-slate-400">
+                              Tek yönlü bulut köprüsü: PC yazar, GitHub saklar, Mobil okur.
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          {ghOwner && ghRepo && ghToken ? (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
+                              <Check className="w-3 h-3" /> Hazır
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/15 text-amber-300 border border-amber-500/30">
+                              Yapılandırma Gerekli
+                            </span>
+                          )}
+
+                          <button
+                            type="button"
+                            onClick={() => setShowGhHelp(true)}
+                            className="py-1 px-2.5 rounded-lg bg-blue-500/10 hover:bg-blue-500/20 border border-blue-500/30 text-blue-300 text-[11px] font-medium flex items-center gap-1.5 transition-colors cursor-pointer"
+                          >
+                            <HelpCircle className="w-3.5 h-3.5 text-blue-400" />
+                            <span>Nasıl Kurulur?</span>
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Configuration Form */}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        {/* Repo field */}
+                        <div className="space-y-1">
+                          <label className="text-[11px] font-semibold text-slate-300 flex items-center justify-between">
+                            <span>GitHub Deposu (Kullanıcı/Depo)</span>
+                            <span className="text-[10px] text-slate-500 font-normal">Örn: kullanici/lore-arsiv</span>
+                          </label>
+                          <input
+                            id="gh-repo-input"
+                            type="text"
+                            value={ghRepo}
+                            onChange={(e) => setGhRepo(e.target.value)}
+                            placeholder="kullanici/depo-adi"
+                            className="w-full px-3 py-2 rounded-xl bg-black/40 border border-white/10 focus:border-blue-500 text-xs text-white placeholder-slate-500 font-mono outline-none transition-colors"
+                          />
+                        </div>
+
+                        {/* Token field */}
+                        <div className="space-y-1">
+                          <label className="text-[11px] font-semibold text-slate-300 flex items-center justify-between">
+                            <span>Personal Access Token (PAT)</span>
+                            <span className="text-[10px] text-slate-500 font-normal">repo yetkili token</span>
+                          </label>
+                          <div className="relative">
+                            <input
+                              id="gh-token-input"
+                              type={showGhToken ? 'text' : 'password'}
+                              value={ghToken}
+                              onChange={(e) => setGhToken(e.target.value)}
+                              placeholder="ghp_xxxxxxxxxxxxxxxxxxxx"
+                              className="w-full pl-3 pr-9 py-2 rounded-xl bg-black/40 border border-white/10 focus:border-blue-500 text-xs text-white placeholder-slate-500 font-mono outline-none transition-colors"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => setShowGhToken((p) => !p)}
+                              className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white p-1 text-[11px] cursor-pointer"
+                              title={showGhToken ? 'Gizle' : 'Göster'}
+                            >
+                              {showGhToken ? 'Gizle' : 'Göster'}
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Branch (optional advanced) */}
+                        <div className="space-y-1">
+                          <label className="text-[11px] font-semibold text-slate-300">
+                            Dal (Branch)
+                          </label>
+                          <input
+                            id="gh-branch-input"
+                            type="text"
+                            value={ghBranch}
+                            onChange={(e) => setGhBranch(e.target.value)}
+                            placeholder="main"
+                            className="w-full px-3 py-2 rounded-xl bg-black/40 border border-white/10 focus:border-blue-500 text-xs text-white font-mono outline-none transition-colors"
+                          />
+                        </div>
+
+                        {/* File Path */}
+                        <div className="space-y-1">
+                          <label className="text-[11px] font-semibold text-slate-300">
+                            Depodaki JSON Dosya Adı
+                          </label>
+                          <input
+                            id="gh-filepath-input"
+                            type="text"
+                            value={ghFilePath}
+                            onChange={(e) => setGhFilePath(e.target.value)}
+                            placeholder="yapim-arsivim-data.json"
+                            className="w-full px-3 py-2 rounded-xl bg-black/40 border border-white/10 focus:border-blue-500 text-xs text-white font-mono outline-none transition-colors"
+                          />
+                        </div>
+                      </div>
+
+                      {/* Test Result Message Box */}
+                      {ghTestResult && (
+                        <div
+                          className={`p-3 rounded-xl border text-xs flex items-start gap-2 animate-in fade-in duration-150 ${
+                            ghTestResult.success
+                              ? 'bg-emerald-950/30 border-emerald-500/40 text-emerald-200'
+                              : 'bg-rose-950/30 border-rose-500/40 text-rose-200'
+                          }`}
+                        >
+                          <div className="mt-0.5 shrink-0">
+                            {ghTestResult.success ? (
+                              <Check className="w-4 h-4 text-emerald-400" />
+                            ) : (
+                              <AlertCircle className="w-4 h-4 text-rose-400" />
+                            )}
+                          </div>
+                          <div className="space-y-0.5">
+                            <span className="font-bold">
+                              {ghTestResult.success ? 'Bağlantı Başarılı!' : 'Bağlantı Hatası'}
+                            </span>
+                            <p className="text-[11px] opacity-90 leading-relaxed">
+                              {ghTestResult.message}
+                            </p>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Action Buttons */}
+                      <div className="flex items-center gap-2 pt-1 flex-wrap">
+                        <button
+                          id="save-gh-config-btn"
+                          type="button"
+                          onClick={handleSaveGhConfig}
+                          className="py-2 px-4 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold flex items-center gap-1.5 shadow-md shadow-blue-600/30 transition-all cursor-pointer active:scale-95"
+                        >
+                          <Check className="w-3.5 h-3.5" />
+                          <span>Ayarları Kaydet</span>
+                        </button>
+
+                        <button
+                          id="test-gh-config-btn"
+                          type="button"
+                          onClick={handleTestGhConnection}
+                          disabled={testingGh || !ghRepo || !ghToken}
+                          className="py-2 px-3.5 rounded-xl bg-white/10 hover:bg-white/15 text-slate-200 border border-white/10 text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                        >
+                          <FolderSync className={`w-3.5 h-3.5 ${testingGh ? 'animate-spin' : ''}`} />
+                          <span>{testingGh ? 'Test Ediliyor...' : 'Bağlantıyı Test Et'}</span>
+                        </button>
+
+                        {onTriggerPcSync && (
+                          <button
+                            id="manual-push-gh-btn"
+                            type="button"
+                            onClick={async () => {
+                              setGhActionLoading(true);
+                              try {
+                                await onTriggerPcSync();
+                              } finally {
+                                setGhActionLoading(false);
+                              }
+                            }}
+                            disabled={ghActionLoading || !ghRepo || !ghToken}
+                            className="py-2 px-3.5 rounded-xl bg-rose-600/20 hover:bg-rose-600/30 text-rose-300 border border-rose-500/40 text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer disabled:opacity-40"
+                          >
+                            <Upload className="w-3.5 h-3.5 text-rose-400" />
+                            <span>PC ➔ GitHub'a Gönder</span>
+                          </button>
+                        )}
+
+                        {onTriggerMobileSync && (
+                          <button
+                            id="manual-pull-gh-btn"
+                            type="button"
+                            onClick={async () => {
+                              setGhActionLoading(true);
+                              try {
+                                await onTriggerMobileSync();
+                              } finally {
+                                setGhActionLoading(false);
+                              }
+                            }}
+                            disabled={ghActionLoading || !ghRepo}
+                            className="py-2 px-3.5 rounded-xl bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-500/40 text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer disabled:opacity-40"
+                          >
+                            <Download className="w-3.5 h-3.5 text-emerald-400" />
+                            <span>GitHub'dan Güncelle (Çek)</span>
+                          </button>
+                        )}
+                      </div>
+                    </div>
                     <div className="p-4 rounded-xl bg-white/5 border border-white/10 space-y-3">
                       <div className="flex items-center gap-2">
                         <Smartphone className="w-4 h-4 text-emerald-400" />
@@ -2728,6 +3025,139 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 type="button"
                 onClick={() => setShowSecretModal(false)}
                 className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-medium text-xs transition-colors cursor-pointer"
+              >
+                Anladım, Kapat
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* GitHub Senkronizasyonu "Nasıl Kurulur?" Rehberi Modalı */}
+      {showGhHelp && createPortal(
+        <div
+          id="gh-help-modal-overlay"
+          className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-3 sm:p-5 animate-in fade-in duration-200"
+          onClick={() => setShowGhHelp(false)}
+        >
+          <div
+            id="gh-help-modal-container"
+            className="bg-neutral-900 border border-white/10 rounded-2xl max-w-2xl w-full max-h-[92vh] flex flex-col shadow-2xl overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div className="p-4 sm:p-5 border-b border-white/10 flex items-center justify-between bg-neutral-900/90 sticky top-0 z-10">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 rounded-xl bg-blue-500/15 border border-blue-500/30 text-blue-400">
+                  <KeyRound className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base sm:text-lg font-bold text-white">
+                    GitHub Senkronizasyonu Nasıl Kurulur?
+                  </h3>
+                  <p className="text-xs text-slate-400">
+                    Sadece bir defa yapacağınız 3 kolay adımda kurulum rehberi
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowGhHelp(false)}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+                title="Kapat"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Modal Body - Scrollable */}
+            <div className="p-4 sm:p-6 overflow-y-auto space-y-4 text-xs sm:text-sm text-slate-200 leading-relaxed custom-scrollbar">
+              {/* Step 1 */}
+              <div className="p-4 rounded-xl bg-white/5 border border-white/10 space-y-2">
+                <div className="flex items-center gap-2">
+                  <span className="w-6 h-6 rounded-full bg-blue-600 text-white font-bold flex items-center justify-center text-xs">
+                    1
+                  </span>
+                  <h4 className="font-bold text-white text-sm">
+                    GitHub Deposu (Repository) Açma
+                  </h4>
+                </div>
+                <div className="space-y-1.5 pl-8 text-slate-300 text-xs">
+                  <p>• GitHub.com adresine gidip hesabınıza giriş yapın.</p>
+                  <p>• Sağ üstteki <strong className="text-white font-semibold">+</strong> ikonuna tıklayıp <strong className="text-blue-300">"New repository"</strong> seçin.</p>
+                  <p>• <strong className="text-white font-semibold">Repository name:</strong> Kısmına örneğin <code className="px-1.5 py-0.5 rounded bg-black/50 text-blue-300 font-mono">arsivim</code> veya <code className="px-1.5 py-0.5 rounded bg-black/50 text-blue-300 font-mono">lore-arsivim</code> yazın.</p>
+                  <p>• Gizlilik seçeneğini <strong className="text-white font-semibold">Private</strong> (yalnızca siz görün) veya <strong className="text-white font-semibold">Public</strong> yapabilirsiniz (ikisi de sorunsuz çalışır).</p>
+                  <p>• Sayfanın altındaki yeşil <strong className="text-emerald-300">"Create repository"</strong> butonuna basın. Deponuz hazır!</p>
+                </div>
+              </div>
+
+              {/* Step 2 */}
+              <div className="p-4 rounded-xl bg-white/5 border border-white/10 space-y-2">
+                <div className="flex items-center gap-2">
+                  <span className="w-6 h-6 rounded-full bg-blue-600 text-white font-bold flex items-center justify-center text-xs">
+                    2
+                  </span>
+                  <h4 className="font-bold text-white text-sm">
+                    Erişim Şifresi (Personal Access Token) Alma
+                  </h4>
+                </div>
+                <div className="space-y-1.5 pl-8 text-slate-300 text-xs">
+                  <p>• GitHub sayfasının en sağ üstündeki <strong className="text-white font-semibold">Profil resminize</strong> tıklayın ➔ <strong className="text-blue-300">Settings</strong> (Ayarlar) seçeneğine tıklayın.</p>
+                  <p>• Açılan sayfanın en sol altındaki menüden <strong className="text-blue-300">"Developer Settings"</strong> linkine tıklayın.</p>
+                  <p>• Sol menüden sırasıyla <strong className="text-white font-semibold">Personal access tokens</strong> ➔ <strong className="text-blue-300">Tokens (classic)</strong> yoluna tıklayın.</p>
+                  <p>• Sağ üstteki <strong className="text-white font-semibold">"Generate new token"</strong> açılır kutusundan <strong className="text-blue-300">"Generate new token (classic)"</strong> seçeneğine tıklayın (güvenlik için parolanızı sorabilir).</p>
+                  <p>• <strong className="text-white font-semibold">Note (Açıklama):</strong> Kutusuna <code className="px-1.5 py-0.5 rounded bg-black/50 text-blue-300 font-mono">arsiv-sync</code> yazın.</p>
+                  <p>• <strong className="text-white font-semibold">Expiration (Süre):</strong> <code className="px-1.5 py-0.5 rounded bg-black/50 text-slate-200">No expiration</code> (süresiz) seçebilirsiniz.</p>
+                  <p>• <strong className="text-white font-semibold">Yetkiler (Select scopes):</strong> Yalnızca en üstteki <code className="px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 font-mono font-bold">repo</code> kutucuğunu işaretleyin (başka hiçbir kutucuğa dokunmanıza gerek yoktur).</p>
+                  <p>• Sayfanın en altına inip yeşil <strong className="text-emerald-300">"Generate token"</strong> butonuna basın.</p>
+                  <div className="mt-2 p-2.5 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-200 text-[11px] space-y-1">
+                    <p className="font-bold flex items-center gap-1.5 text-amber-300">
+                      ⚠️ Çok Önemli Not (Token Kodu):
+                    </p>
+                    <p>
+                      Ekranda yeşil arka planla <code className="font-mono text-white font-bold">ghp_...</code> ile başlayan uzun bir şifre kodu çıkacaktır. Yanındaki kopyala butonuna basıp kopyalayın ve kendi not defterinize de kaydedin. Sayfayı kapatıp yenilerseniz GitHub güvenlik gereği bu kodu bir daha asla göstermez!
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Step 3 */}
+              <div className="p-4 rounded-xl bg-white/5 border border-white/10 space-y-2">
+                <div className="flex items-center gap-2">
+                  <span className="w-6 h-6 rounded-full bg-blue-600 text-white font-bold flex items-center justify-center text-xs">
+                    3
+                  </span>
+                  <h4 className="font-bold text-white text-sm">
+                    Bilgileri Uygulamaya Tanımlama
+                  </h4>
+                </div>
+                <div className="space-y-3 pl-8 text-slate-300 text-xs">
+                  <div className="p-3 rounded-lg bg-black/30 border border-white/5 space-y-1">
+                    <p className="font-bold text-sky-300">💻 Bilgisayarınızda (PC):</p>
+                    <p>• <strong className="text-white">GitHub Deposu:</strong> <code className="text-blue-300 font-mono">kullanici-adiniz/depo-adiniz</code> (Örn: <code className="text-slate-200 font-mono">ahmet/arsivim</code>).</p>
+                    <p>• <strong className="text-white">Token:</strong> Kopyaladığınız <code className="text-slate-200 font-mono">ghp_...</code> kodunu yapıştırın.</p>
+                    <p>• <strong className="text-white">Ayarları Kaydet</strong> butonuna basın. Artık arşivde yapacağınız her ekleme ve düzenleme sayaç rozetinin yanındaki kırmızı bulut ikonuna basarak anında GitHub'a aktarılır!</p>
+                  </div>
+
+                  <div className="p-3 rounded-lg bg-black/30 border border-white/5 space-y-1">
+                    <p className="font-bold text-emerald-300">📱 Telefonunuzda (Mobil):</p>
+                    <p className="text-slate-200">
+                      • Mobilde tekrar sıfırdan GitHub'a girip yeni depo açmanıza veya yeni token üretmenize <strong>HİÇ GEREK YOKTUR!</strong>
+                    </p>
+                    <p>• Bilgisayarda girdiğiniz aynı Depo adını ve aynı <code className="text-slate-200 font-mono">ghp_...</code> kodunu telefonunuzdaki uygulamanın Ayarlar ➔ Gelişmiş Seçenekler kısmına bir kez yapıştırıp <strong className="text-white">Kaydet</strong>'e basmanız yeterlidir.</p>
+                    <p>• Böylece telefonunuz doğrudan bilgisayarınızın yüklediği tüm arşive, kategorilere ve afişlere anında bağlanır.</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-4 sm:p-5 border-t border-white/10 flex items-center justify-end bg-neutral-900/90">
+              <button
+                type="button"
+                onClick={() => setShowGhHelp(false)}
+                className="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-semibold text-xs sm:text-sm shadow-lg shadow-blue-600/30 transition-all cursor-pointer active:scale-95"
               >
                 Anladım, Kapat
               </button>

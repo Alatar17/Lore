@@ -20,7 +20,20 @@ import {
   DEFAULT_FAB_PROFILES,
   areFabPositionsEqual,
   normalizeFabPositions,
+  PcSyncStatus,
+  MobileSyncStatus,
 } from './types';
+import {
+  GitHubSyncConfig,
+  getGitHubSyncConfig,
+  saveGitHubSyncConfig,
+  getHasUnpushedChanges,
+  setHasUnpushedChanges,
+  pushDataToGitHub,
+  pullDataFromGitHub,
+  checkGitHubUpdateAvailable,
+  syncImagesForItems,
+} from './utils/githubSync';
 import { INITIAL_DATA } from './data/initialData';
 import {
   getStoredDirectoryHandle,
@@ -177,6 +190,147 @@ export default function App() {
   useEffect(() => {
     safeLocalStorageSet('yapim_ui_experiments', JSON.stringify(uiExperiments));
   }, [uiExperiments]);
+
+  // GitHub One-Way Sync State (PC -> GitHub -> Mobile)
+  const [githubConfig, setGitHubConfig] = useState<GitHubSyncConfig>(() => getGitHubSyncConfig());
+  const [pcSyncStatus, setPcSyncStatus] = useState<PcSyncStatus>(() =>
+    getHasUnpushedChanges() ? 'unsynced' : 'idle'
+  );
+  const [mobileSyncStatus, setMobileSyncStatus] = useState<MobileSyncStatus>('idle');
+
+  // Helper to flag unsynced local mutations on PC
+  const markDataDirty = useCallback(() => {
+    setHasUnpushedChanges(true);
+    setPcSyncStatus('unsynced');
+  }, []);
+
+  // Background check on startup to notify mobile users if newer commits/data exist in GitHub
+  useEffect(() => {
+    const cfg = getGitHubSyncConfig();
+    if (cfg.owner && cfg.repo) {
+      checkGitHubUpdateAvailable(cfg, cfg.lastSyncedCommitSha, appData.lastUpdated)
+        .then((res) => {
+          if (res.updateAvailable) {
+            setMobileSyncStatus('has-update');
+          }
+        })
+        .catch(() => {});
+    }
+  }, []);
+
+  const handleTriggerPcSync = async () => {
+    const cfg = getGitHubSyncConfig();
+    if (!cfg.owner || !cfg.repo || !cfg.token) {
+      setDialogOptions({
+        type: 'confirm',
+        title: 'GitHub Yapılandırması Gerekli',
+        message:
+          'GitHub senkronizasyonu için önce depo ve erişim token bilginizi girmelisiniz. Ayarlar > Depolama bölümü açılsın mı?',
+        confirmText: 'Ayarları Aç',
+        cancelText: 'Vazgeç',
+        onConfirm: () => {
+          setSettingsInitialTab('storage');
+          setIsSettingsOpen(true);
+        },
+      });
+      return;
+    }
+
+    setPcSyncStatus('syncing');
+    try {
+      await pushDataToGitHub(cfg, appData, dirHandle);
+      setGitHubConfig(getGitHubSyncConfig());
+      setPcSyncStatus('synced');
+      setHasUnpushedChanges(false);
+      setTimeout(() => {
+        setPcSyncStatus('idle');
+      }, 2500);
+    } catch (err: any) {
+      setPcSyncStatus('error');
+      setDialogOptions({
+        type: 'alert',
+        title: 'GitHub Gönderim Hatası',
+        message: 'GitHub veritabanı yükleme hatası: ' + (err.message || err),
+      });
+      setTimeout(() => {
+        setPcSyncStatus('unsynced');
+      }, 5000);
+    }
+  };
+
+  const handleTriggerMobileSync = async () => {
+    const cfg = getGitHubSyncConfig();
+    if (!cfg.owner || !cfg.repo) {
+      setDialogOptions({
+        type: 'confirm',
+        title: 'GitHub Yapılandırması Gerekli',
+        message:
+          'GitHub senkronizasyonu için önce depo ve token bilginizi girmelisiniz. Ayarlar > Depolama bölümü açılsın mı?',
+        confirmText: 'Ayarları Aç',
+        cancelText: 'Vazgeç',
+        onConfirm: () => {
+          setSettingsInitialTab('storage');
+          setIsSettingsOpen(true);
+        },
+      });
+      return;
+    }
+
+    setMobileSyncStatus('syncing');
+    try {
+      const res = await pullDataFromGitHub(cfg);
+      if (res.appData && Array.isArray(res.appData.items)) {
+        setAppData(res.appData);
+        saveDataToLocalStorage(res.appData);
+        if (dirHandle) {
+          writeDataToFolder(dirHandle, res.appData).catch(() => {});
+        }
+        setGitHubConfig(getGitHubSyncConfig());
+        setMobileSyncStatus('synced');
+
+        // Incrementally load missing posters from GitHub into memory/IndexedDB
+        syncImagesForItems(res.appData.items, cfg, (itemId, blobUrl) => {
+          setAppData((prev) => ({
+            ...prev,
+            items: prev.items.map((it) => (it.id === itemId ? { ...it, thumbnail: blobUrl } : it)),
+          }));
+        }).catch((e) => console.warn('Background image sync error:', e));
+
+        setTimeout(() => {
+          setMobileSyncStatus('idle');
+        }, 3000);
+      }
+    } catch (err: any) {
+      setMobileSyncStatus('error');
+      setDialogOptions({
+        type: 'alert',
+        title: 'GitHub Güncelleme Hatası',
+        message: 'GitHub verisi çekilemedi: ' + (err.message || err),
+      });
+      setTimeout(() => {
+        setMobileSyncStatus('idle');
+      }, 4000);
+    }
+  };
+
+  // Background loader: Resolves missing posters from IndexedDB cache or GitHub on startup
+  useEffect(() => {
+    if (!isDataLoaded || !appData?.items || appData.items.length === 0) return;
+    const cfg = getGitHubSyncConfig();
+    if (!cfg.owner || !cfg.repo) return;
+
+    const needsImages = appData.items.some(
+      (it) => (!it.thumbnail || it.thumbnail === '') && it.thumbnailFileName
+    );
+    if (!needsImages) return;
+
+    syncImagesForItems(appData.items, cfg, (itemId, blobUrl) => {
+      setAppData((prev) => ({
+        ...prev,
+        items: prev.items.map((it) => (it.id === itemId ? { ...it, thumbnail: blobUrl } : it)),
+      }));
+    }).catch((e) => console.warn('Startup image resolution error:', e));
+  }, [isDataLoaded, githubConfig.owner, githubConfig.repo]);
 
   // Filter State
   const [filters, setFilters] = useState<FilterState>({
@@ -661,6 +815,7 @@ export default function App() {
       }
       return updated;
     });
+    markDataDirty();
     setIsAddModalOpen(false);
   };
 
@@ -683,6 +838,7 @@ export default function App() {
       }
       return updated;
     });
+    markDataDirty();
     setSelectedItem(null);
   };
 
@@ -708,6 +864,7 @@ export default function App() {
       }
       return updated;
     });
+    markDataDirty();
     setSelectedItem(null);
   };
 
@@ -774,6 +931,7 @@ export default function App() {
 
         setSelectedItemIds(new Set());
         setIsSelectionMode(false);
+        markDataDirty();
       },
     });
   };
@@ -804,6 +962,7 @@ export default function App() {
     setSelectedItemIds(new Set());
     setIsBulkMoveOpen(false);
     setIsSelectionMode(false);
+    markDataDirty();
   };
 
   // --- Category & Tier Row Operations ---
@@ -818,6 +977,7 @@ export default function App() {
         [tab]: newCategories,
       },
     }));
+    markDataDirty();
   };
 
   const handleUpdateCategoryTierRows = (
@@ -837,6 +997,7 @@ export default function App() {
         },
       };
     });
+    markDataDirty();
   };
 
   // --- Tier List Undo/Redo & Moved Item Tracking State & Refs ---
@@ -1557,6 +1718,10 @@ export default function App() {
           }
           onClosePanels={closeAllPanels}
           onUploadZip={() => mobileZipInputRef.current?.click()}
+          pcSyncStatus={pcSyncStatus}
+          mobileSyncStatus={mobileSyncStatus}
+          onTriggerPcSync={handleTriggerPcSync}
+          onTriggerMobileSync={handleTriggerMobileSync}
         />
 
         {/* Main Content Area */}
@@ -2723,6 +2888,10 @@ export default function App() {
           onReplaceAllData={(newData) => {
             setAppData(newData);
           }}
+          githubConfig={githubConfig}
+          onSaveGitHubConfig={(cfg) => setGitHubConfig(cfg)}
+          onTriggerPcSync={handleTriggerPcSync}
+          onTriggerMobileSync={handleTriggerMobileSync}
           onClose={() => {
             setIsSettingsOpen(false);
             setHighlightConnectFolder(false);

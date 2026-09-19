@@ -29,11 +29,12 @@ const APP_DATA_STORE = 'app_data_store';
 const HANDLE_KEY = 'root_dir_handle';
 const APP_DATA_KEY = 'current_app_data';
 const DATA_FILE_NAME = 'yapim-arsivim-data.json';
+const IMAGE_CACHE_STORE = 'image_cache';
 
 // --- IndexedDB Helper ---
 function openDB(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
-    const request = indexedDB.open(DB_NAME, 2);
+    const request = indexedDB.open(DB_NAME, 3);
     request.onupgradeneeded = (e: IDBVersionChangeEvent) => {
       const db = request.result;
       if (!db.objectStoreNames.contains(DB_STORE)) {
@@ -42,10 +43,43 @@ function openDB(): Promise<IDBDatabase> {
       if (!db.objectStoreNames.contains(APP_DATA_STORE)) {
         db.createObjectStore(APP_DATA_STORE);
       }
+      if (!db.objectStoreNames.contains(IMAGE_CACHE_STORE)) {
+        db.createObjectStore(IMAGE_CACHE_STORE);
+      }
     };
     request.onsuccess = () => resolve(request.result);
     request.onerror = () => reject(request.error);
   });
+}
+
+export async function getCachedImageBlob(fileName: string): Promise<Blob | null> {
+  try {
+    const db = await openDB();
+    return new Promise((resolve) => {
+      const tx = db.transaction(IMAGE_CACHE_STORE, 'readonly');
+      const store = tx.objectStore(IMAGE_CACHE_STORE);
+      const req = store.get(fileName);
+      req.onsuccess = () => resolve(req.result || null);
+      req.onerror = () => resolve(null);
+    });
+  } catch {
+    return null;
+  }
+}
+
+export async function setCachedImageBlob(fileName: string, blob: Blob): Promise<void> {
+  try {
+    const db = await openDB();
+    const tx = db.transaction(IMAGE_CACHE_STORE, 'readwrite');
+    const store = tx.objectStore(IMAGE_CACHE_STORE);
+    store.put(blob, fileName);
+    await new Promise((resolve, reject) => {
+      tx.oncomplete = resolve;
+      tx.onerror = reject;
+    });
+  } catch (err) {
+    console.warn('Failed to cache image in IndexedDB:', err);
+  }
 }
 
 export async function getStoredDirectoryHandle(): Promise<FileSystemDirectoryHandle | null> {

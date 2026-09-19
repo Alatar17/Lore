@@ -364,3 +364,6 @@ export interface TierListCategoryExportData {
   mainTab: MainTabType;
   items: ArchiveItem[];
 }
+
+export type PcSyncStatus = 'idle' | 'unsynced' | 'syncing' | 'synced' | 'error';
+export type MobileSyncStatus = 'idle' | 'has-update' | 'syncing' | 'synced' | 'error';
