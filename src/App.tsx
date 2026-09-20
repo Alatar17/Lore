@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import {
   AppData,
   ArchiveItem,
@@ -93,6 +93,21 @@ export default function App() {
   const [appData, setAppData] = useState<AppData>(() => {
     return loadDataFromLocalStorage() || INITIAL_DATA;
   });
+
+  const appDataRef = useRef<AppData>(appData);
+  useEffect(() => {
+    appDataRef.current = appData;
+  }, [appData]);
+
+  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const debouncedSaveData = useCallback((data: AppData) => {
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current);
+    }
+    saveTimeoutRef.current = setTimeout(() => {
+      saveDataToLocalStorage(data);
+    }, 400);
+  }, []);
 
   const [dirHandle, setDirHandle] = useState<FileSystemDirectoryHandle | null>(null);
   const [isDataLoaded, setIsDataLoaded] = useState(false);
@@ -280,17 +295,18 @@ export default function App() {
     try {
       const res = await pullDataFromGitHub(cfg);
       if (res.appData && Array.isArray(res.appData.items)) {
-        // 1. Preserve existing base64 thumbnails from local state so we don't discard them
+        // 1. Preserve ALL existing thumbnails from current state (NEVER wipe out an image already on screen!)
         const existingThumbs = new Map<string, string>();
-        for (const it of (appData?.items || [])) {
-          if (it.thumbnail && it.thumbnail.startsWith('data:image/')) {
+        for (const it of (appDataRef.current?.items || [])) {
+          if (it.thumbnail && it.thumbnail.trim() !== '') {
             existingThumbs.set(it.id, it.thumbnail);
           }
         }
 
         const mergedItems = res.appData.items.map((it) => {
-          if ((!it.thumbnail || it.thumbnail.startsWith('blob:')) && existingThumbs.has(it.id)) {
-            return { ...it, thumbnail: existingThumbs.get(it.id)! };
+          const existingThumb = existingThumbs.get(it.id);
+          if (existingThumb) {
+            return { ...it, thumbnail: existingThumb };
           }
           return it;
         });
@@ -308,15 +324,21 @@ export default function App() {
         setGitHubConfig(getGitHubSyncConfig());
         setMobileSyncStatus('synced');
 
-        // 2. Incrementally load missing posters from GitHub into persistent base64 Data URLs (identical to ZIP)
+        // 2. Incrementally load missing posters or upgrade blob: URLs in the background without UI flicker
         syncImagesForItems(mergedData.items, cfg, (itemId, dataUrl) => {
           setAppData((prev) => {
             const updatedItems = prev.items.map((it) => (it.id === itemId ? { ...it, thumbnail: dataUrl } : it));
             const updatedData = { ...prev, items: updatedItems };
-            saveDataToLocalStorage(updatedData);
+            debouncedSaveData(updatedData);
             return updatedData;
           });
-        }).catch((e) => console.warn('Background image sync error:', e));
+        })
+          .then(() => {
+            if (appDataRef.current) {
+              saveDataToLocalStorage(appDataRef.current);
+            }
+          })
+          .catch((e) => console.warn('Background image sync error:', e));
 
         setTimeout(() => {
           setMobileSyncStatus('idle');
@@ -342,7 +364,7 @@ export default function App() {
     if (!cfg.owner || !cfg.repo) return;
 
     const needsImages = appData.items.some(
-      (it) => (!it.thumbnail || it.thumbnail === '' || it.thumbnail.startsWith('blob:')) && it.thumbnailFileName
+      (it) => (!it.thumbnail || it.thumbnail.trim() === '' || it.thumbnail.startsWith('blob:')) && it.thumbnailFileName
     );
     if (!needsImages) return;
 
@@ -350,10 +372,16 @@ export default function App() {
       setAppData((prev) => {
         const updatedItems = prev.items.map((it) => (it.id === itemId ? { ...it, thumbnail: dataUrl } : it));
         const updatedData = { ...prev, items: updatedItems };
-        saveDataToLocalStorage(updatedData);
+        debouncedSaveData(updatedData);
         return updatedData;
       });
-    }).catch((e) => console.warn('Startup image resolution error:', e));
+    })
+      .then(() => {
+        if (appDataRef.current) {
+          saveDataToLocalStorage(appDataRef.current);
+        }
+      })
+      .catch((e) => console.warn('Startup image resolution error:', e));
   }, [isDataLoaded, githubConfig.owner, githubConfig.repo]);
 
   // Filter State

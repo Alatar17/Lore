@@ -660,12 +660,12 @@ export async function syncImagesForItems(
   if (!config.owner || !config.repo) return;
 
   const itemsNeedingImages = items.filter(
-    (it) => (!it.thumbnail || it.thumbnail === '' || it.thumbnail.startsWith('blob:')) && it.thumbnailFileName
+    (it) => (!it.thumbnail || it.thumbnail.trim() === '' || it.thumbnail.startsWith('blob:')) && it.thumbnailFileName
   );
 
   if (itemsNeedingImages.length === 0) return;
 
-  const CONCURRENCY = 4;
+  const CONCURRENCY = 6;
   let index = 0;
 
   async function worker() {
