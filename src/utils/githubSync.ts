@@ -573,12 +573,22 @@ export async function pullDataFromGitHub(config: GitHubSyncConfig): Promise<{
   };
 }
 
-// In-memory cache for created object URLs to prevent unnecessary re-fetching and memory leaks
-const memoryBlobUrlCache = new Map<string, string>();
+// Helper to convert Blob to Base64 Data URL (permanent, offline-safe)
+export function blobToDataUrl(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
+  });
+}
+
+// In-memory cache for permanent Data URLs to prevent repeated conversions
+const memoryDataUrlCache = new Map<string, string>();
 
 /**
  * Resolves an image filename from GitHub or IndexedDB cache.
- * Returns a fast local blob: or raw URL.
+ * Returns a permanent base64 Data URL (data:image/...) identical to ZIP import.
  */
 export async function resolveGitHubImage(
   fileName: string,
@@ -587,18 +597,18 @@ export async function resolveGitHubImage(
   const cleanName = fileName.replace(/^images\//, '');
   if (!cleanName) return null;
 
-  // 1. Check in-memory URL cache
-  if (memoryBlobUrlCache.has(cleanName)) {
-    return memoryBlobUrlCache.get(cleanName)!;
+  // 1. Check in-memory Data URL cache
+  if (memoryDataUrlCache.has(cleanName)) {
+    return memoryDataUrlCache.get(cleanName)!;
   }
 
   // 2. Check local IndexedDB cache
   try {
     const cachedBlob = await getCachedImageBlob(cleanName);
     if (cachedBlob) {
-      const url = URL.createObjectURL(cachedBlob);
-      memoryBlobUrlCache.set(cleanName, url);
-      return url;
+      const dataUrl = await blobToDataUrl(cachedBlob);
+      memoryDataUrlCache.set(cleanName, dataUrl);
+      return dataUrl;
     }
   } catch (e) {
     console.warn('Error reading from IndexedDB image cache:', e);
@@ -626,9 +636,9 @@ export async function resolveGitHubImage(
       const blob = await res.blob();
       // Store in IndexedDB for permanent offline access
       await setCachedImageBlob(cleanName, blob);
-      const url = URL.createObjectURL(blob);
-      memoryBlobUrlCache.set(cleanName, url);
-      return url;
+      const dataUrl = await blobToDataUrl(blob);
+      memoryDataUrlCache.set(cleanName, dataUrl);
+      return dataUrl;
     }
   } catch (err) {
     console.warn(`Failed to fetch image ${cleanName} from GitHub:`, err);
@@ -645,12 +655,12 @@ export async function resolveGitHubImage(
 export async function syncImagesForItems(
   items: ArchiveItem[],
   config: GitHubSyncConfig,
-  onImageLoaded: (itemId: string, blobUrl: string) => void
+  onImageLoaded: (itemId: string, dataUrl: string) => void
 ): Promise<void> {
   if (!config.owner || !config.repo) return;
 
   const itemsNeedingImages = items.filter(
-    (it) => (!it.thumbnail || it.thumbnail === '') && it.thumbnailFileName
+    (it) => (!it.thumbnail || it.thumbnail === '' || it.thumbnail.startsWith('blob:')) && it.thumbnailFileName
   );
 
   if (itemsNeedingImages.length === 0) return;

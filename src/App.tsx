@@ -280,20 +280,42 @@ export default function App() {
     try {
       const res = await pullDataFromGitHub(cfg);
       if (res.appData && Array.isArray(res.appData.items)) {
-        setAppData(res.appData);
-        saveDataToLocalStorage(res.appData);
+        // 1. Preserve existing base64 thumbnails from local state so we don't discard them
+        const existingThumbs = new Map<string, string>();
+        for (const it of (appData?.items || [])) {
+          if (it.thumbnail && it.thumbnail.startsWith('data:image/')) {
+            existingThumbs.set(it.id, it.thumbnail);
+          }
+        }
+
+        const mergedItems = res.appData.items.map((it) => {
+          if ((!it.thumbnail || it.thumbnail.startsWith('blob:')) && existingThumbs.has(it.id)) {
+            return { ...it, thumbnail: existingThumbs.get(it.id)! };
+          }
+          return it;
+        });
+
+        const mergedData: AppData = {
+          ...res.appData,
+          items: mergedItems,
+        };
+
+        setAppData(mergedData);
+        saveDataToLocalStorage(mergedData);
         if (dirHandle) {
-          writeDataToFolder(dirHandle, res.appData).catch(() => {});
+          writeDataToFolder(dirHandle, mergedData).catch(() => {});
         }
         setGitHubConfig(getGitHubSyncConfig());
         setMobileSyncStatus('synced');
 
-        // Incrementally load missing posters from GitHub into memory/IndexedDB
-        syncImagesForItems(res.appData.items, cfg, (itemId, blobUrl) => {
-          setAppData((prev) => ({
-            ...prev,
-            items: prev.items.map((it) => (it.id === itemId ? { ...it, thumbnail: blobUrl } : it)),
-          }));
+        // 2. Incrementally load missing posters from GitHub into persistent base64 Data URLs (identical to ZIP)
+        syncImagesForItems(mergedData.items, cfg, (itemId, dataUrl) => {
+          setAppData((prev) => {
+            const updatedItems = prev.items.map((it) => (it.id === itemId ? { ...it, thumbnail: dataUrl } : it));
+            const updatedData = { ...prev, items: updatedItems };
+            saveDataToLocalStorage(updatedData);
+            return updatedData;
+          });
         }).catch((e) => console.warn('Background image sync error:', e));
 
         setTimeout(() => {
@@ -313,22 +335,24 @@ export default function App() {
     }
   };
 
-  // Background loader: Resolves missing posters from IndexedDB cache or GitHub on startup
+  // Background loader: Resolves missing posters from IndexedDB cache or GitHub on startup and mühürler
   useEffect(() => {
     if (!isDataLoaded || !appData?.items || appData.items.length === 0) return;
     const cfg = getGitHubSyncConfig();
     if (!cfg.owner || !cfg.repo) return;
 
     const needsImages = appData.items.some(
-      (it) => (!it.thumbnail || it.thumbnail === '') && it.thumbnailFileName
+      (it) => (!it.thumbnail || it.thumbnail === '' || it.thumbnail.startsWith('blob:')) && it.thumbnailFileName
     );
     if (!needsImages) return;
 
-    syncImagesForItems(appData.items, cfg, (itemId, blobUrl) => {
-      setAppData((prev) => ({
-        ...prev,
-        items: prev.items.map((it) => (it.id === itemId ? { ...it, thumbnail: blobUrl } : it)),
-      }));
+    syncImagesForItems(appData.items, cfg, (itemId, dataUrl) => {
+      setAppData((prev) => {
+        const updatedItems = prev.items.map((it) => (it.id === itemId ? { ...it, thumbnail: dataUrl } : it));
+        const updatedData = { ...prev, items: updatedItems };
+        saveDataToLocalStorage(updatedData);
+        return updatedData;
+      });
     }).catch((e) => console.warn('Startup image resolution error:', e));
   }, [isDataLoaded, githubConfig.owner, githubConfig.repo]);
 
