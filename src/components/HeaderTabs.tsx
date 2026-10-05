@@ -501,86 +501,110 @@ export const HeaderTabs: React.FC<HeaderTabsProps> = ({
       {/* 1. MOBILE HEADER (md:hidden) - ALTERNATİF 1: ROL AYRIMI MODELİ            */}
       {/* ========================================================================= */}
       <div className="flex flex-col gap-2 md:hidden">
-        {/* Row 1: Left [Medya ▾ | Oyun ▾] Dropdowns --- Right [Sayaç (Toplu Seçim), Ayarlar] */}
+        {/* Row 1: Left [Medya | Oyun | Kitap] Akıllı Kompakt Sekmeler --- Right [Sayaç, Arama, Filtre, vb.] */}
         <div className="flex items-center justify-between gap-2">
-          {/* Left: Medya & Oyun Dropdown Buttons */}
+          {/* Left: Medya, Oyun, Kitap Akıllı Kompakt Butonları */}
           <div
             id="mobile-category-dropdown-container"
-            className="relative flex items-center p-0.5 bg-neutral-900/90 border border-white/15 rounded-xl shrink-0 shadow-sm"
+            className="relative flex items-center gap-1 p-0.5 bg-neutral-900/90 border border-white/15 rounded-xl shrink-0 shadow-sm"
           >
-            {/* Medya Tab Dropdown Button */}
+            {/* Medya Tab Button */}
             <button
               type="button"
               id="mobile-tab-media-btn"
+              title="Medya"
+              aria-label="Medya"
               onClick={() => {
                 if (mainTab !== 'media') {
                   onMainTabChange('media');
+                  setMobileDropdown(null);
+                } else {
+                  setMobileDropdown(mobileDropdown === 'media' ? null : 'media');
                 }
-                setMobileDropdown(mobileDropdown === 'media' ? null : 'media');
               }}
-              className={`h-8 flex items-center gap-1.5 px-3 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+              className={`h-8 flex items-center transition-all duration-200 cursor-pointer select-none ${
                 mainTab === 'media'
-                  ? 'bg-neutral-800 text-white shadow border border-white/20'
-                  : 'text-neutral-400 hover:text-white'
+                  ? 'gap-1.5 px-3 rounded-lg text-xs font-semibold bg-neutral-800 text-white shadow border border-white/20'
+                  : 'w-8 justify-center rounded-lg text-neutral-400 hover:text-white hover:bg-white/5'
               }`}
             >
-              <Film className="w-3.5 h-3.5" />
-              <span>Medya</span>
-              <ChevronDown
-                className={`w-3 h-3 transition-transform duration-150 ${
-                  mobileDropdown === 'media' ? 'rotate-180 text-white' : 'text-neutral-400'
-                }`}
-              />
+              <Film className="w-3.5 h-3.5 shrink-0" />
+              {mainTab === 'media' && (
+                <>
+                  <span>Medya</span>
+                  <ChevronDown
+                    className={`w-3 h-3 transition-transform duration-150 shrink-0 ${
+                      mobileDropdown === 'media' ? 'rotate-180 text-white' : 'text-neutral-400'
+                    }`}
+                  />
+                </>
+              )}
             </button>
 
-            {/* Oyun Tab Dropdown Button */}
+            {/* Oyun Tab Button */}
             <button
               type="button"
               id="mobile-tab-game-btn"
+              title="Oyun"
+              aria-label="Oyun"
               onClick={() => {
                 if (mainTab !== 'game') {
                   onMainTabChange('game');
+                  setMobileDropdown(null);
+                } else {
+                  setMobileDropdown(mobileDropdown === 'game' ? null : 'game');
                 }
-                setMobileDropdown(mobileDropdown === 'game' ? null : 'game');
               }}
-              className={`h-8 flex items-center gap-1.5 px-2.5 sm:px-3 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+              className={`h-8 flex items-center transition-all duration-200 cursor-pointer select-none ${
                 mainTab === 'game'
-                  ? 'bg-neutral-800 text-white shadow border border-white/20'
-                  : 'text-neutral-400 hover:text-white'
+                  ? 'gap-1.5 px-3 rounded-lg text-xs font-semibold bg-neutral-800 text-white shadow border border-white/20'
+                  : 'w-8 justify-center rounded-lg text-neutral-400 hover:text-white hover:bg-white/5'
               }`}
             >
-              <Gamepad2 className="w-3.5 h-3.5" />
-              <span>Oyun</span>
-              <ChevronDown
-                className={`w-3 h-3 transition-transform duration-150 ${
-                  mobileDropdown === 'game' ? 'rotate-180 text-white' : 'text-neutral-400'
-                }`}
-              />
+              <Gamepad2 className="w-3.5 h-3.5 shrink-0" />
+              {mainTab === 'game' && (
+                <>
+                  <span>Oyun</span>
+                  <ChevronDown
+                    className={`w-3 h-3 transition-transform duration-150 shrink-0 ${
+                      mobileDropdown === 'game' ? 'rotate-180 text-white' : 'text-neutral-400'
+                    }`}
+                  />
+                </>
+              )}
             </button>
 
-            {/* Kitap Tab Dropdown Button */}
+            {/* Kitap Tab Button */}
             <button
               type="button"
               id="mobile-tab-book-btn"
+              title="Kitap"
+              aria-label="Kitap"
               onClick={() => {
                 if (mainTab !== 'book') {
                   onMainTabChange('book');
+                  setMobileDropdown(null);
+                } else {
+                  setMobileDropdown(mobileDropdown === 'book' ? null : 'book');
                 }
-                setMobileDropdown(mobileDropdown === 'book' ? null : 'book');
               }}
-              className={`h-8 flex items-center gap-1.5 px-2.5 sm:px-3 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+              className={`h-8 flex items-center transition-all duration-200 cursor-pointer select-none ${
                 mainTab === 'book'
-                  ? 'bg-neutral-800 text-white shadow border border-white/20'
-                  : 'text-neutral-400 hover:text-white'
+                  ? 'gap-1.5 px-3 rounded-lg text-xs font-semibold bg-neutral-800 text-white shadow border border-white/20'
+                  : 'w-8 justify-center rounded-lg text-neutral-400 hover:text-white hover:bg-white/5'
               }`}
             >
-              <BookOpen className="w-3.5 h-3.5" />
-              <span>Kitap</span>
-              <ChevronDown
-                className={`w-3 h-3 transition-transform duration-150 ${
-                  mobileDropdown === 'book' ? 'rotate-180 text-white' : 'text-neutral-400'
-                }`}
-              />
+              <BookOpen className="w-3.5 h-3.5 shrink-0" />
+              {mainTab === 'book' && (
+                <>
+                  <span>Kitap</span>
+                  <ChevronDown
+                    className={`w-3 h-3 transition-transform duration-150 shrink-0 ${
+                      mobileDropdown === 'book' ? 'rotate-180 text-white' : 'text-neutral-400'
+                    }`}
+                  />
+                </>
+              )}
             </button>
 
             {/* Mobile Dropdown Menu Popover */}
