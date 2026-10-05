@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { ArchiveItem, ViewSettings, UiExperimentsState } from '../types';
-import { MEDIA_COLORS, GAME_COLORS } from '../data/initialData';
-import { Tv, Star, Brain, Check, Calendar, X, BookmarkCheck, PauseCircle } from 'lucide-react';
+import { MEDIA_COLORS, GAME_COLORS, BOOK_COLORS } from '../data/initialData';
+import { Tv, Star, Brain, Check, Calendar, X, BookmarkCheck, PauseCircle, BookOpen } from 'lucide-react';
 import { FollowBadge, getFollowColor, RatingBadgeIcon } from './FollowIndicatorIcon';
 
 interface ItemCardProps {
@@ -34,8 +34,9 @@ export const ItemCard: React.FC<ItemCardProps> = ({
 }) => {
   if (!item) return null;
   const isGame = item.mainTab === 'game';
-  const palette = isGame ? GAME_COLORS : MEDIA_COLORS;
-  const baseColor = palette[item.cat] || '#ffffff';
+  const isBook = item.mainTab === 'book';
+  const palette = isGame ? GAME_COLORS : isBook ? BOOK_COLORS : MEDIA_COLORS;
+  const baseColor = palette[item.cat] || (isBook ? '#8a6fbf' : '#ffffff');
 
   // Format date as only YYYY (or ?? if unknown/empty)
   const formattedYear = (() => {
@@ -66,10 +67,13 @@ export const ItemCard: React.FC<ItemCardProps> = ({
   const showRating = viewSettings.showRating !== false;
   const showTitle = viewSettings.showTitle !== false;
   const showAnki = Boolean(viewSettings.showAnki) && Boolean(item.anki);
-  const showWatching = viewSettings.showWatching !== false && !isGame && item.watching;
-  const showFollowing = viewSettings.showFollowing !== false && !isGame && item.following;
-  const showDropped = !isGame && Boolean(item.dropped);
+  const showWatching = viewSettings.showWatching !== false && !isGame && !isBook && item.watching;
+  const showFollowing = viewSettings.showFollowing !== false && !isGame && !isBook && item.following;
+  const showDropped = !isGame && !isBook && Boolean(item.dropped);
   const showGameStatus = viewSettings.showGameStatus !== false && isGame;
+  const showBookReading = viewSettings.showWatching !== false && isBook && Boolean(item.reading);
+  const showBookDropped = isBook && Boolean(item.dropped);
+  const showBookPages = isBook && Boolean(item.pageCount && item.pageCount > 0);
 
   const cardVignette = uiExperiments?.cardVignette || 'none';
   const cardRadius = uiExperiments?.cardRadius || 'normal';
@@ -103,6 +107,7 @@ export const ItemCard: React.FC<ItemCardProps> = ({
   };
 
   const getRadiusClasses = () => {
+    if (isBook) return 'rounded-none';
     if (cardRadius === 'sharp') return 'rounded-none';
     return 'rounded-xl';
   };
@@ -210,7 +215,7 @@ export const ItemCard: React.FC<ItemCardProps> = ({
         {showYear && !isSelectionMode && (
           <div
             id={`badge-date-${item.id}`}
-            title={`Yıl: ${formattedYear}`}
+            title={isBook ? `Okunma Yılı: ${formattedYear}` : `Yıl: ${formattedYear}`}
             className={`absolute top-1.5 left-1.5 px-1.5 py-0.5 rounded-md text-[10px] font-semibold text-neutral-300 shadow-md z-20 tracking-tight ${getBadgeBaseClasses()} ${isBadgeVisible('year')}`}
           >
             {formattedYear}
@@ -263,7 +268,7 @@ export const ItemCard: React.FC<ItemCardProps> = ({
         )}
 
         {/* Media Badges (Bottom Left: Watching Tv / Following Bookmark / Dropped PauseCircle) */}
-        {!isGame && (showWatching || showFollowing || showDropped) && (
+        {!isGame && !isBook && (showWatching || showFollowing || showDropped) && (
           <div className={`absolute bottom-1.5 left-1.5 flex items-center gap-1 z-20 ${isBadgeVisible('status')}`}>
             {showWatching && (
               <span
@@ -316,8 +321,44 @@ export const ItemCard: React.FC<ItemCardProps> = ({
           </div>
         )}
 
-        {/* Bottom-Right Badges: Anki (Left) and Achievement % (Right) */}
-        {(showAnki || (isGame && showGameStatus && item.achPercent !== null && item.achPercent !== undefined && item.achPercent > 0)) && (
+        {/* Book Badges (Bottom Left: Reading BookOpen in Blue / Dropped PauseCircle) */}
+        {isBook && (showBookReading || showBookDropped) && (
+          <div className={`absolute bottom-1.5 left-1.5 flex items-center gap-1 z-20 ${isBadgeVisible('status')}`}>
+            {showBookReading && (
+              <span
+                id={`badge-reading-${item.id}`}
+                title="Şu an okunuyor..."
+                className={`p-1 rounded-md text-blue-400 shadow-md flex items-center justify-center ${
+                  badgeStyle === 'neon'
+                    ? 'bg-black/95 sm:bg-black/90 sm:backdrop-blur-md border border-blue-400 shadow-[0_0_8px_rgba(96,165,250,0.5)]'
+                    : badgeStyle === 'minimal'
+                    ? 'bg-black/60 sm:bg-black/40 sm:backdrop-blur-sm border-transparent'
+                    : 'bg-black/60 sm:bg-black/90 border-transparent sm:border sm:border-blue-500/50 sm:backdrop-blur-md'
+                }`}
+              >
+                <BookOpen className="w-3 h-3" />
+              </span>
+            )}
+            {showBookDropped && (
+              <span
+                id={`badge-dropped-${item.id}`}
+                title="Yarım Bırakıldı"
+                className={`p-1 rounded-md text-rose-400 shadow-md flex items-center justify-center ${
+                  badgeStyle === 'neon'
+                    ? 'bg-black/95 sm:bg-black/90 sm:backdrop-blur-md border border-rose-400 shadow-[0_0_8px_rgba(244,63,94,0.5)]'
+                    : badgeStyle === 'minimal'
+                    ? 'bg-black/60 sm:bg-black/40 sm:backdrop-blur-sm border-transparent'
+                    : 'bg-black/60 sm:bg-black/90 border-transparent sm:border sm:border-rose-500/50 sm:backdrop-blur-md'
+                }`}
+              >
+                <PauseCircle className="w-3 h-3" />
+              </span>
+            )}
+          </div>
+        )}
+
+        {/* Bottom-Right Badges: Anki (Left) and Achievement % (Right) for Game, or Page Count for Book */}
+        {(showAnki || (isGame && showGameStatus && item.achPercent !== null && item.achPercent !== undefined && item.achPercent > 0) || (isBook && showBookPages)) && (
           <div className={`absolute bottom-1.5 right-1.5 flex items-center gap-1 z-20 ${isBadgeVisible('status')}`}>
             {showAnki && (
               <span
@@ -332,6 +373,17 @@ export const ItemCard: React.FC<ItemCardProps> = ({
                 }`}
               >
                 <Brain className="w-3 h-3" />
+              </span>
+            )}
+
+            {/* Book Page Count Badge (Bottom-Right, e.g. 384s) */}
+            {isBook && showBookPages && (
+              <span
+                id={`badge-pages-${item.id}`}
+                title={`Sayfa Sayısı: ${item.pageCount}`}
+                className={`px-1.5 py-0.5 rounded-md text-[10px] font-semibold text-neutral-300 shadow-md ${getBadgeBaseClasses()}`}
+              >
+                {item.pageCount}s
               </span>
             )}
 

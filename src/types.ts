@@ -1,4 +1,6 @@
-export type MainTabType = 'media' | 'game';
+import type { Card } from 'ts-fsrs';
+
+export type MainTabType = 'media' | 'game' | 'book';
 
 export type GameStatus =
   | 'Oynanıyor'
@@ -6,6 +8,14 @@ export type GameStatus =
   | '%100 Başarım'
   | 'Yarım Bırakıldı'
   | 'Oynanacak';
+
+export type BookFormat = 'Ciltsiz' | 'Ciltli' | 'E-Kitap' | 'Sesli Kitap';
+
+export interface BookQuote {
+  id: string;
+  text: string;
+  page?: number | string;
+}
 
 export interface TierRow {
   id: string;
@@ -51,6 +61,21 @@ export interface ItemCharacter {
   image?: string;
 }
 
+export interface AnkiBlurBox {
+  id: string;
+  x: number;      // % cinsinden (0-100)
+  y: number;      // % cinsinden (0-100)
+  width: number;  // % cinsinden
+  height: number; // % cinsinden
+}
+
+export interface AnkiExtraImage {
+  id: string;
+  url: string;             // sadece 2. ve 3. sahne görselleri için base64 / path
+  blurs: AnkiBlurBox[];    // bu ek görsele özel bağımsız blur kutuları
+  fileName?: string;       // images/ klasöründeki dosya referansı (örn: images/item_extra_1.jpg)
+}
+
 export interface ArchiveItem {
   id: string;
   mainTab: MainTabType;
@@ -78,9 +103,19 @@ export interface ArchiveItem {
   achMax?: number;
   hours?: number;
 
+  // Book specific
+  reading?: boolean; // Okunuyor...
+  pageCount?: number; // Sayfa Sayısı
+  format?: BookFormat; // Baskı / Format Türü (Ciltsiz, Ciltli, E-Kitap, Sesli Kitap)
+  author?: string[]; // Yazar(lar)
+  publisher?: string[]; // Yayınevi
+  translator?: string[]; // Çevirmen(ler)
+  quotes?: BookQuote[]; // Beğenilen Sözler / Alıntılar
+
   // Field-Scoped Tags
   // Media fields: firm (Firma/Stüdyo), director (Yönetmen), actors (Oyuncular), genre (Tür)
   // Game fields: developer (Geliştirici), genre (Tür)
+  // Book fields: author (Yazar), publisher (Yayınevi), translator (Çevirmen), genre (Tür)
   firm?: string[];
   director?: string[];
   actors?: string[];
@@ -96,10 +131,24 @@ export interface ArchiveItem {
 
   // Common
   anki: boolean;
+  ankiCard?: Card;
+  ankiMainBlurs?: AnkiBlurBox[];
+  ankiExtraImages?: AnkiExtraImage[];
   tier?: string | null; // tier row id or null
   isHidden?: boolean; // Kart gizleme durumu
   createdAt?: number;
   updatedAt?: number;
+}
+
+export interface BookItem extends ArchiveItem {
+  mainTab: 'book';
+  reading?: boolean;
+  pageCount?: number;
+  format?: BookFormat;
+  author?: string[];
+  publisher?: string[];
+  translator?: string[];
+  quotes?: BookQuote[];
 }
 
 export interface AppData {
@@ -108,17 +157,24 @@ export interface AppData {
   categories: {
     media: Category[];
     game: Category[];
+    book: Category[];
   };
   items: ArchiveItem[];
 }
 
+export type RatingFilterType = 'all' | '9-plus' | '8-plus' | '7-plus' | '6-below' | 'unrated';
+
 export interface FilterState {
   search: string;
   minRating: number;
+  ratingFilter?: RatingFilterType;
   watchingOnly: boolean;
   followingOnly: boolean;
+  droppedOnly?: boolean;
+  readingOnly?: boolean;
   ankiFilter: 'all' | 'yes' | 'no';
   gameStatus?: GameStatus | 'all';
+  bookFormat?: BookFormat | 'all';
   uncategorizedOnly?: boolean;
   hiddenOnly?: boolean;
   seriesOnly?: boolean;
@@ -140,7 +196,9 @@ export type SortOption =
   | 'rating-desc'
   | 'rating-asc'
   | 'title-asc'
-  | 'title-desc';
+  | 'title-desc'
+  | 'page-desc'
+  | 'page-asc';
 
 export type FollowIndicatorModel =
   | 'status-dot'
@@ -197,6 +255,8 @@ export interface FabPositionCoord {
 export interface FabPositions {
   statistics: FabPositionCoord;
   recentActivity: FabPositionCoord;
+  ankiHub: FabPositionCoord;
+  aiAssistant: FabPositionCoord;
   addItem: FabPositionCoord;
 }
 
@@ -210,6 +270,8 @@ export interface FabPositionProfile {
 export const DEFAULT_FAB_POSITIONS: FabPositions = {
   statistics: { bottom: 8, side: 4 },
   recentActivity: { bottom: 8, side: 44 },
+  ankiHub: { bottom: 8, side: 84 },
+  aiAssistant: { bottom: 8, side: 124 },
   addItem: { bottom: 8, side: 4 },
 };
 
@@ -220,6 +282,8 @@ export const DEFAULT_FAB_PROFILES: FabPositionProfile[] = [
     positions: {
       statistics: { ...DEFAULT_FAB_POSITIONS.statistics },
       recentActivity: { ...DEFAULT_FAB_POSITIONS.recentActivity },
+      ankiHub: { ...DEFAULT_FAB_POSITIONS.ankiHub },
+      aiAssistant: { ...DEFAULT_FAB_POSITIONS.aiAssistant },
       addItem: { ...DEFAULT_FAB_POSITIONS.addItem },
     },
     createdAt: 0,
@@ -235,6 +299,10 @@ export const areFabPositionsEqual = (a?: FabPositions, b?: FabPositions): boolea
     normA.statistics.side === normB.statistics.side &&
     normA.recentActivity.bottom === normB.recentActivity.bottom &&
     normA.recentActivity.side === normB.recentActivity.side &&
+    normA.ankiHub.bottom === normB.ankiHub.bottom &&
+    normA.ankiHub.side === normB.ankiHub.side &&
+    normA.aiAssistant.bottom === normB.aiAssistant.bottom &&
+    normA.aiAssistant.side === normB.aiAssistant.side &&
     normA.addItem.bottom === normB.addItem.bottom &&
     normA.addItem.side === normB.addItem.side
   );
@@ -245,6 +313,8 @@ export const normalizeFabPositions = (val: any): FabPositions => {
     return {
       statistics: { ...DEFAULT_FAB_POSITIONS.statistics },
       recentActivity: { ...DEFAULT_FAB_POSITIONS.recentActivity },
+      ankiHub: { ...DEFAULT_FAB_POSITIONS.ankiHub },
+      aiAssistant: { ...DEFAULT_FAB_POSITIONS.aiAssistant },
       addItem: { ...DEFAULT_FAB_POSITIONS.addItem },
     };
   }
@@ -261,12 +331,60 @@ export const normalizeFabPositions = (val: any): FabPositions => {
     return { bottom: defBottom, side: defSide };
   };
 
+  const statistics = toCoord(val.statistics, DEFAULT_FAB_POSITIONS.statistics.bottom, DEFAULT_FAB_POSITIONS.statistics.side);
+  const recentActivity = toCoord(val.recentActivity, DEFAULT_FAB_POSITIONS.recentActivity.bottom, DEFAULT_FAB_POSITIONS.recentActivity.side);
+  let ankiHub = toCoord(val.ankiHub, recentActivity.bottom, recentActivity.side + 40);
+  let aiAssistant = toCoord(val.aiAssistant, DEFAULT_FAB_POSITIONS.aiAssistant.bottom, DEFAULT_FAB_POSITIONS.aiAssistant.side);
+
+  // If this is legacy saved data without ankiHub or if both share the exact same coordinates
+  if (!val.ankiHub || (aiAssistant.side === ankiHub.side && aiAssistant.bottom === ankiHub.bottom)) {
+    ankiHub = { bottom: recentActivity.bottom, side: recentActivity.side + 40 };
+    if (aiAssistant.side <= ankiHub.side) {
+      aiAssistant = { bottom: ankiHub.bottom, side: ankiHub.side + 40 };
+    }
+  }
+
+  const addItem = toCoord(val.addItem, DEFAULT_FAB_POSITIONS.addItem.bottom, DEFAULT_FAB_POSITIONS.addItem.side);
+
   return {
-    statistics: toCoord(val.statistics, DEFAULT_FAB_POSITIONS.statistics.bottom, DEFAULT_FAB_POSITIONS.statistics.side),
-    recentActivity: toCoord(val.recentActivity, DEFAULT_FAB_POSITIONS.recentActivity.bottom, DEFAULT_FAB_POSITIONS.recentActivity.side),
-    addItem: toCoord(val.addItem, DEFAULT_FAB_POSITIONS.addItem.bottom, DEFAULT_FAB_POSITIONS.addItem.side),
+    statistics,
+    recentActivity,
+    ankiHub,
+    aiAssistant,
+    addItem,
   };
 };
+
+export interface AiRecommendationCard {
+  title: string;
+  releaseYear?: number | string;
+  mainTab?: 'media' | 'game' | 'book';
+  badge?: string; // 🎯 KÜTÜPHANE İMZASI | 🌀 FARKLI BİR TAT | 🔮 SIRADIŞI KEŞİF
+  matchScore?: number; // % uyum skoru (60 - 99)
+  shortDesc: string;
+  detailedDesc: string;
+  matchReason: string;
+  thumbnailUrl?: string;
+  galleryImages?: string[];
+  firms?: string[];
+  directors?: string[];
+  developers?: string[];
+  authors?: string[];
+  publishers?: string[];
+  translators?: string[];
+  genres?: string[];
+}
+
+export interface AiChatMessage {
+  id: string;
+  sender: 'user' | 'assistant';
+  text: string;
+  timestamp: number;
+  model?: string;
+  error?: boolean;
+  recommendation?: AiRecommendationCard;
+  recommendations?: AiRecommendationCard[];
+}
 
 export interface ViewSettings {
   showTitle: boolean;
@@ -287,6 +405,7 @@ export interface ViewSettings {
   ratingIcon?: RatingIconType;
   fabPositions?: FabPositions;
   fabProfiles?: FabPositionProfile[];
+  showAnkiSimulator?: boolean; // Controls visibility of the virtual time simulator bar in Anki Hub
 }
 
 export const DEFAULT_VIEW_SETTINGS: ViewSettings = {
@@ -306,6 +425,7 @@ export const DEFAULT_VIEW_SETTINGS: ViewSettings = {
   ratingIcon: 'star-2',
   fabPositions: DEFAULT_FAB_POSITIONS,
   fabProfiles: DEFAULT_FAB_PROFILES,
+  showAnkiSimulator: false,
 };
 
 export type ToolbarExperimentStyle = 'default' | 'box' | 'glass';
@@ -335,7 +455,8 @@ export interface UiExperimentsState {
 
 export type MediaTagField = 'firm' | 'director' | 'actors' | 'genre';
 export type GameTagField = 'developer' | 'genre';
-export type TagFieldKey = MediaTagField | GameTagField;
+export type BookTagField = 'author' | 'publisher' | 'translator' | 'genre';
+export type TagFieldKey = MediaTagField | GameTagField | BookTagField;
 
 export interface TagFieldDef {
   key: TagFieldKey;
@@ -356,6 +477,13 @@ export const GAME_TAG_FIELDS: TagFieldDef[] = [
   { key: 'genre', label: 'Tür', placeholder: 'Örn: Souls-like, RPG, Roguelike, Açık Dünya...' },
 ];
 
+export const BOOK_TAG_FIELDS: TagFieldDef[] = [
+  { key: 'author', label: 'Yazar', placeholder: 'Örn: George Orwell, Fyodor Dostoyevski, J.R.R. Tolkien...' },
+  { key: 'publisher', label: 'Yayınevi', placeholder: 'Örn: Can Yayınları, İthaki, İletişim...' },
+  { key: 'translator', label: 'Çevirmen', placeholder: 'Örn: Celal Üster, Roza Hakmen...' },
+  { key: 'genre', label: 'Tür', placeholder: 'Örn: Bilimkurgu, Felsefe, Klasik, Distopya...' },
+];
+
 export interface TierListCategoryExportData {
   type: 'LORE_TIER_LIST_BACKUP';
   version: number;
@@ -367,3 +495,4 @@ export interface TierListCategoryExportData {
 
 export type PcSyncStatus = 'idle' | 'unsynced' | 'syncing' | 'synced' | 'error';
 export type MobileSyncStatus = 'idle' | 'has-update' | 'syncing' | 'synced' | 'error';
+

@@ -10,6 +10,7 @@ import {
   TagFieldKey,
   MEDIA_TAG_FIELDS,
   GAME_TAG_FIELDS,
+  BOOK_TAG_FIELDS,
   UiExperimentsState,
   FabPositions,
   FabPositionProfile,
@@ -42,6 +43,7 @@ import {
   removeTagFromItems,
 } from '../utils/tagUtils';
 import { CustomDialog, DialogOptions } from './CustomDialog';
+import { initAnkiCard } from '../utils/ankiUtils';
 import {
   X,
   Plus,
@@ -65,6 +67,7 @@ import {
   Edit2,
   Film,
   Gamepad2,
+  BookOpen,
   Building2,
   Clapperboard,
   Users,
@@ -90,6 +93,9 @@ import {
   KeyRound,
   ExternalLink,
   HelpCircle,
+  Eye,
+  EyeOff,
+  Type,
 } from 'lucide-react';
 import {
   GitHubSyncConfig,
@@ -97,6 +103,11 @@ import {
   testGitHubConnection,
   saveGitHubSyncConfig,
 } from '../utils/githubSync';
+import {
+  getGeminiApiKey,
+  setGeminiApiKey,
+  testGeminiApiKey,
+} from '../utils/geminiAi';
 
 interface SettingsModalProps {
   appData: AppData;
@@ -343,6 +354,62 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   const [ghActionLoading, setGhActionLoading] = useState(false);
   const [showGhHelp, setShowGhHelp] = useState(false);
 
+  // Gemini AI State
+  const [geminiKey, setGeminiKey] = useState<string>(() => getGeminiApiKey());
+  const [showGeminiKey, setShowGeminiKey] = useState<boolean>(false);
+  const [testingGemini, setTestingGemini] = useState<boolean>(false);
+  const [geminiTestResult, setGeminiTestResult] = useState<{ success: boolean; message: string } | null>(null);
+  const [showGeminiHelp, setShowGeminiHelp] = useState<boolean>(false);
+
+  const handleSaveGeminiKey = () => {
+    const trimmed = geminiKey.trim();
+    setGeminiApiKey(trimmed);
+    setGeminiTestResult(null);
+    setDialogOptions({
+      type: 'alert',
+      title: 'Gemini API Anahtarı Kaydedildi',
+      message: trimmed
+        ? 'Gemini API anahtarınız bu tarayıcıya güvenle kaydedildi. Yapım eklerken ve düzenlerken AI özelliklerini kullanabilirsiniz.'
+        : 'Gemini API anahtarı temizlendi.',
+    });
+  };
+
+  const handleTestGeminiConnection = async () => {
+    const trimmed = geminiKey.trim();
+    if (!trimmed) {
+      setGeminiTestResult({
+        success: false,
+        message: 'Lütfen test etmeden önce bir API anahtarı girin.',
+      });
+      return;
+    }
+    setTestingGemini(true);
+    setGeminiTestResult(null);
+    try {
+      const res = await testGeminiApiKey(trimmed);
+      setGeminiTestResult(res);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setGeminiTestResult({
+        success: false,
+        message: `Bağlantı hatası: ${msg.slice(0, 100)}`,
+      });
+    } finally {
+      setTestingGemini(false);
+    }
+  };
+
+  const handleClearGeminiKey = () => {
+    setGeminiKey('');
+    setGeminiApiKey('');
+    setGeminiTestResult(null);
+    setDialogOptions({
+      type: 'alert',
+      title: 'Gemini API Anahtarı Silindi',
+      message: 'API anahtarı tarayıcı hafızasından kaldırıldı.',
+    });
+  };
+
   useEffect(() => {
     if (githubConfig) {
       setGhOwner(githubConfig.owner || '');
@@ -416,18 +483,28 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     [appData.items, settingsMainTab, validCatIds]
   );
 
-  // Active tag field list based on media/game
-  const currentTagFields = settingsMainTab === 'media' ? MEDIA_TAG_FIELDS : GAME_TAG_FIELDS;
+  // Active tag field list based on media/game/book
+  const currentTagFields =
+    settingsMainTab === 'media'
+      ? MEDIA_TAG_FIELDS
+      : settingsMainTab === 'game'
+      ? GAME_TAG_FIELDS
+      : BOOK_TAG_FIELDS;
 
   // Make sure tagFieldKey matches active settingsMainTab
   useEffect(() => {
-    if (settingsMainTab === 'media' && tagFieldKey === 'developer') {
-      setTagFieldKey('firm');
-    } else if (
-      settingsMainTab === 'game' &&
-      (tagFieldKey === 'firm' || tagFieldKey === 'director' || tagFieldKey === 'actors')
-    ) {
-      setTagFieldKey('developer');
+    if (settingsMainTab === 'media') {
+      if (tagFieldKey !== 'firm' && tagFieldKey !== 'director' && tagFieldKey !== 'actors' && tagFieldKey !== 'genre') {
+        setTagFieldKey('firm');
+      }
+    } else if (settingsMainTab === 'game') {
+      if (tagFieldKey !== 'developer' && tagFieldKey !== 'genre') {
+        setTagFieldKey('developer');
+      }
+    } else if (settingsMainTab === 'book') {
+      if (tagFieldKey !== 'author' && tagFieldKey !== 'publisher' && tagFieldKey !== 'translator' && tagFieldKey !== 'genre') {
+        setTagFieldKey('author');
+      }
     }
   }, [settingsMainTab, tagFieldKey]);
 
@@ -1027,7 +1104,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     <>
       <div
         id="settings-modal-overlay"
-        className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md md:backdrop-blur-none flex items-center justify-center p-3 sm:p-6 overflow-y-auto transition-all duration-200"
+        className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-3 sm:p-6 overflow-y-auto transition-all duration-200"
         onClick={onClose}
       >
         <div
@@ -1153,6 +1230,17 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     }`}
                   >
                     🎮 Oyun Kategorileri
+                  </button>
+                  <button
+                    id="settings-book-tab-btn"
+                    onClick={() => setSettingsMainTab('book')}
+                    className={`px-4 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                      settingsMainTab === 'book'
+                        ? 'bg-white/15 text-white shadow'
+                        : 'text-slate-400 hover:text-slate-200'
+                    }`}
+                  >
+                    📚 Kitap Kategorileri
                   </button>
                 </div>
 
@@ -1494,7 +1582,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     onClick={handleAddCategory}
                     className="w-full py-2.5 border border-dashed border-white/20 hover:border-blue-500/50 rounded-xl text-slate-300 hover:text-blue-400 text-xs font-semibold flex items-center justify-center gap-2 hover:bg-blue-500/5 transition-all cursor-pointer"
                   >
-                    <Plus className="w-4 h-4" /> Yeni Kategori Ekle ({settingsMainTab === 'media' ? 'Medya' : 'Oyun'})
+                    <Plus className="w-4 h-4" /> Yeni Kategori Ekle ({settingsMainTab === 'media' ? 'Medya' : settingsMainTab === 'game' ? 'Oyun' : 'Kitap'})
                   </button>
                 </div>
               </div>
@@ -1503,7 +1591,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             {/* TAB: TAGS (FIELD-SCOPED) */}
             {activeTab === 'tags' && (
               <div className="space-y-4">
-                {/* Header: Media / Game toggle + Search Input */}
+                {/* Header: Media / Game / Book toggle + Search Input */}
                 <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5">
                   <div className="flex gap-2 p-1 bg-black/40 rounded-xl border border-white/10 w-fit shrink-0">
                     <button
@@ -1533,6 +1621,20 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                       }`}
                     >
                       <Gamepad2 className="w-3.5 h-3.5" /> Oyun Etiketleri
+                    </button>
+                    <button
+                      onClick={() => {
+                        setSettingsMainTab('book');
+                        setTagFieldKey('author');
+                        setActiveTagPopover(null);
+                      }}
+                      className={`px-4 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer flex items-center gap-1.5 ${
+                        settingsMainTab === 'book'
+                          ? 'bg-white/15 text-white shadow'
+                          : 'text-slate-400 hover:text-slate-200'
+                      }`}
+                    >
+                      <BookOpen className="w-3.5 h-3.5" /> Kitap Etiketleri
                     </button>
                   </div>
 
@@ -1969,6 +2071,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                                   <History className="w-3 h-3 text-purple-400" />
                                   <span>{normP.recentActivity.bottom}x{normP.recentActivity.side}px</span>
                                 </span>
+                                <span className="flex items-center gap-1" title="AI Asistan Konumu">
+                                  <Sparkles className="w-3 h-3 text-amber-400" />
+                                  <span>{normP.aiAssistant.bottom}x{normP.aiAssistant.side}px</span>
+                                </span>
                                 <span className="flex items-center gap-1" title="Yeni Kart Ekle Konumu">
                                   <Plus className="w-3 h-3 text-emerald-400" />
                                   <span>{normP.addItem.bottom}x{normP.addItem.side}px</span>
@@ -2097,11 +2203,21 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
                   <div className="flex items-center justify-between p-3 rounded-xl bg-white/5 border border-white/10">
                     <div className="space-y-0.5">
+                      <span className="text-sm font-semibold text-slate-100">Kitap Ana Sayfası</span>
+                      <p className="text-xs text-slate-400">Nerede olursanız olun Kitap Ana Sayfasına götürür</p>
+                    </div>
+                    <kbd className="px-3 py-1.5 rounded-lg bg-black/60 border border-white/20 text-slate-200 text-xs font-mono font-bold shadow-inner">
+                      3
+                    </kbd>
+                  </div>
+
+                  <div className="flex items-center justify-between p-3 rounded-xl bg-white/5 border border-white/10">
+                    <div className="space-y-0.5">
                       <span className="text-sm font-semibold text-slate-100">İzlenen & Takip Listesi</span>
                       <p className="text-xs text-slate-400">İzlenen & Takip Listesi vitrinini açar</p>
                     </div>
                     <kbd className="px-3 py-1.5 rounded-lg bg-black/60 border border-white/20 text-slate-200 text-xs font-mono font-bold shadow-inner">
-                      3
+                      4
                     </kbd>
                   </div>
 
@@ -2132,6 +2248,32 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     </div>
                     <kbd className="px-3 py-1.5 rounded-lg bg-black/60 border border-white/20 text-slate-200 text-xs font-mono font-bold shadow-inner">
                       F
+                    </kbd>
+                  </div>
+
+                  <div className="flex items-center justify-between p-3 rounded-xl bg-white/5 border border-white/10">
+                    <div className="space-y-0.5">
+                      <span className="text-sm font-semibold text-slate-100 flex items-center gap-1.5">
+                        <Keyboard className="w-3.5 h-3.5 text-neutral-400" />
+                        Hızlı Kısayollar Penceresi
+                      </span>
+                      <p className="text-xs text-slate-400">Temel kısayolları listeleyen sade hızlı pencereyi açar veya kapatır</p>
+                    </div>
+                    <kbd className="px-3 py-1.5 rounded-lg bg-black/60 border border-white/20 text-slate-200 text-xs font-mono font-bold shadow-inner">
+                      K
+                    </kbd>
+                  </div>
+
+                  <div className="flex items-center justify-between p-3 rounded-xl bg-white/5 border border-white/10">
+                    <div className="space-y-0.5">
+                      <span className="text-sm font-semibold text-slate-100 flex items-center gap-1.5">
+                        <Type className="w-3.5 h-3.5 text-neutral-400" />
+                        Kart Başlıklarını Aç / Kapat
+                      </span>
+                      <p className="text-xs text-slate-400">Kartların üzerindeki başlık yazılarını gösterir veya gizler</p>
+                    </div>
+                    <kbd className="px-3 py-1.5 rounded-lg bg-black/60 border border-white/20 text-slate-200 text-xs font-mono font-bold shadow-inner">
+                      B
                     </kbd>
                   </div>
 
@@ -2172,6 +2314,19 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     </div>
                     <kbd className="px-3 py-1.5 rounded-lg bg-black/60 border border-white/20 text-slate-200 text-xs font-mono font-bold shadow-inner">
                       E
+                    </kbd>
+                  </div>
+
+                  <div className="flex items-center justify-between p-3 rounded-xl bg-white/5 border border-white/10">
+                    <div className="space-y-0.5">
+                      <span className="text-sm font-semibold text-slate-100 flex items-center gap-1.5">
+                        <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+                        Lore AI Asistan & Küratör
+                      </span>
+                      <p className="text-xs text-slate-400">Yapay zeka asistanını ve kişisel medya küratörünü açar veya kapatır</p>
+                    </div>
+                    <kbd className="px-3 py-1.5 rounded-lg bg-black/60 border border-white/20 text-slate-200 text-xs font-mono font-bold shadow-inner">
+                      A
                     </kbd>
                   </div>
                 </div>
@@ -2439,9 +2594,195 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   </label>
                 </div>
 
-                {/* Advanced Section: GitHub Sync, Mobile HTML Export & Reset */}
+                {/* Advanced Section: Gemini AI, GitHub Sync, Mobile HTML Export & Reset */}
                 {showAdvancedStorage && (
                   <div className="space-y-4 pt-1 transition-all">
+                    {/* 1. GEMINI AI INTEGRATION CARD */}
+                    <div className="p-4 rounded-xl bg-gradient-to-br from-amber-500/5 via-white/5 to-white/5 border border-amber-500/25 space-y-4 shadow-sm">
+                      <div className="flex items-center justify-between border-b border-white/10 pb-3 flex-wrap gap-2">
+                        <div className="flex items-center gap-2.5">
+                          <div className="p-2 rounded-lg bg-amber-500/15 border border-amber-500/30 text-amber-400">
+                            <Sparkles className="w-4 h-4 text-amber-400 animate-pulse" />
+                          </div>
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <h4 className="text-sm font-bold text-slate-100 flex items-center gap-1.5">
+                                Google Gemini AI Entegrasyonu
+                              </h4>
+                              <span className="text-[10px] font-semibold text-amber-300 font-mono bg-amber-500/15 px-2 py-0.5 rounded border border-amber-500/30">
+                                Free Tier (Gemini 3.8 Flash)
+                              </span>
+                            </div>
+                            <p className="text-[11px] text-slate-400">
+                              Yapım eklerken veya düzenlerken başlık ve afişten otomatik bilgi tamamlama ve akıllı kıyaslama.
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          {geminiKey.trim() ? (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
+                              <Check className="w-3 h-3" /> Anahtar Tanımlı
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/15 text-amber-300 border border-amber-500/30">
+                              <AlertCircle className="w-3 h-3" /> Anahtar Girilmedi
+                            </span>
+                          )}
+
+                          <button
+                            type="button"
+                            onClick={() => setShowGeminiHelp((prev) => !prev)}
+                            className="py-1 px-2.5 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-amber-300 text-[11px] font-medium flex items-center gap-1.5 transition-colors cursor-pointer"
+                          >
+                            <HelpCircle className="w-3.5 h-3.5 text-amber-400" />
+                            <span>Nasıl Alınır?</span>
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Help info accordion */}
+                      {showGeminiHelp && (
+                        <div className="p-3.5 rounded-xl bg-black/50 border border-amber-500/30 space-y-2 text-xs text-slate-300">
+                          <div className="flex items-center justify-between text-amber-300 font-semibold">
+                            <span className="flex items-center gap-1.5">
+                              <KeyRound className="w-3.5 h-3.5 text-amber-400" />
+                              Gemini API Anahtarı Nasıl Alınır? (Ücretsiz)
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => setShowGeminiHelp(false)}
+                              className="text-slate-400 hover:text-white"
+                            >
+                              <X className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                          <ol className="list-decimal list-inside space-y-1 text-[11px] text-slate-300/90 leading-relaxed pl-1">
+                            <li>
+                              Google hesabınızla{' '}
+                              <a
+                                href="https://aistudio.google.com/app/apikey"
+                                target="_blank"
+                                rel="noreferrer"
+                                className="text-amber-400 underline hover:text-amber-300 inline-flex items-center gap-1 font-medium"
+                              >
+                                aistudio.google.com/app/apikey <ExternalLink className="w-3 h-3" />
+                              </a>{' '}
+                              sayfasını açın.
+                            </li>
+                            <li><strong>"Create API Key"</strong> (API Anahtarı Oluştur) butonuna tıklayın.</li>
+                            <li>Oluşturulan anahtarı (genellikle <code>AQ...</code> veya <code>AIzaSy...</code> ile başlar) kopyalayıp aşağıdaki kutucuğa yapıştırın ve <strong>"Kaydet"</strong>e basın.</li>
+                            <li>Anahtarınız güvenle sadece tarayıcınızda (yerel hafızada) saklanır; sunuculara veya üçüncü şahıslara iletilmez.</li>
+                          </ol>
+                        </div>
+                      )}
+
+                      {/* Input Box */}
+                      <div className="space-y-1.5">
+                        <label className="text-[11px] font-semibold text-slate-300 flex items-center justify-between">
+                          <span className="flex items-center gap-1.5">
+                            <KeyRound className="w-3.5 h-3.5 text-amber-400" />
+                            Gemini API Anahtarı
+                          </span>
+                          <span className="text-[10px] text-slate-400 font-mono">
+                            AQ... veya AIzaSy...
+                          </span>
+                        </label>
+                        <div className="relative">
+                          <input
+                            id="gemini-api-key-input"
+                            type={showGeminiKey ? 'text' : 'password'}
+                            value={geminiKey}
+                            onChange={(e) => {
+                              setGeminiKey(e.target.value);
+                              setGeminiTestResult(null);
+                            }}
+                            placeholder="AQ... veya AIzaSy..."
+                            className="w-full pl-3 pr-20 py-2.5 rounded-xl bg-black/40 border border-white/10 focus:border-amber-500/60 focus:ring-1 focus:ring-amber-500/40 text-xs text-white placeholder-slate-500 font-mono outline-none transition-colors"
+                          />
+                          <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
+                            {geminiKey && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setGeminiKey('');
+                                  setGeminiTestResult(null);
+                                }}
+                                className="text-slate-400 hover:text-slate-200 p-1 text-[11px] cursor-pointer"
+                                title="Temizle"
+                              >
+                                <X className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                            <button
+                              type="button"
+                              onClick={() => setShowGeminiKey((p) => !p)}
+                              className="text-slate-400 hover:text-white p-1 text-[11px] cursor-pointer"
+                              title={showGeminiKey ? 'Gizle' : 'Göster'}
+                            >
+                              {showGeminiKey ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Test Result Message */}
+                      {geminiTestResult && (
+                        <div
+                          className={`p-3 rounded-xl text-xs flex items-start gap-2.5 transition-all ${
+                            geminiTestResult.success
+                              ? 'bg-emerald-500/15 border border-emerald-500/30 text-emerald-200'
+                              : 'bg-red-500/15 border border-red-500/30 text-red-200'
+                          }`}
+                        >
+                          {geminiTestResult.success ? (
+                            <CheckCircle className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                          ) : (
+                            <AlertCircle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
+                          )}
+                          <div className="flex-1 text-[11px] leading-relaxed">
+                            {geminiTestResult.message}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Action Buttons */}
+                      <div className="flex flex-wrap gap-2 pt-1 items-center">
+                        <button
+                          id="save-gemini-key-btn"
+                          type="button"
+                          onClick={handleSaveGeminiKey}
+                          className="py-2 px-4 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold flex items-center gap-1.5 shadow-lg shadow-amber-500/20 transition-all cursor-pointer"
+                        >
+                          <Check className="w-3.5 h-3.5 stroke-[3]" />
+                          <span>Kaydet</span>
+                        </button>
+
+                        <button
+                          id="test-gemini-key-btn"
+                          type="button"
+                          onClick={handleTestGeminiConnection}
+                          disabled={testingGemini || !geminiKey.trim()}
+                          className="py-2 px-3.5 rounded-xl bg-white/10 hover:bg-white/15 text-slate-200 border border-white/10 text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                        >
+                          <Sparkles className={`w-3.5 h-3.5 text-amber-400 ${testingGemini ? 'animate-spin' : ''}`} />
+                          <span>{testingGemini ? 'Bağlantı Test Ediliyor...' : 'Bağlantıyı Test Et'}</span>
+                        </button>
+
+                        {getGeminiApiKey() && (
+                          <button
+                            id="clear-gemini-key-btn"
+                            type="button"
+                            onClick={handleClearGeminiKey}
+                            className="py-2 px-3 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-300 border border-red-500/30 text-xs font-medium flex items-center gap-1.5 transition-all cursor-pointer ml-auto"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                            <span>Anahtarı Kaldır</span>
+                          </button>
+                        )}
+                      </div>
+                    </div>
+
                     {/* GITHUB ONE-WAY SYNC (PC ➔ GitHub ➔ Mobil) */}
                     <div className="p-4 rounded-xl bg-white/5 border border-white/10 space-y-4">
                       <div className="flex items-center justify-between border-b border-white/10 pb-3 flex-wrap gap-2">
@@ -2669,6 +3010,89 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                       >
                         <Download className="w-4 h-4" />
                         arsiv_mobil.html İndir
+                      </button>
+                    </div>
+
+                    {/* Anki Virtual Time Simulator / Test Mode Switch */}
+                    <div className="p-4 rounded-xl bg-blue-500/5 border border-blue-500/20 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <Clock className="w-4 h-4 text-blue-400" />
+                          <h4 className="text-sm font-semibold text-blue-300">
+                            Anki Zaman Simülatörü (Test Modu)
+                          </h4>
+                        </div>
+                        <label className="relative inline-flex items-center cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={Boolean(viewSettings.showAnkiSimulator)}
+                            onChange={(e) => {
+                              onUpdateViewSettings({ showAnkiSimulator: e.target.checked });
+                            }}
+                            className="sr-only peer"
+                          />
+                          <div className="w-9 h-5 bg-white/10 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-600"></div>
+                        </label>
+                      </div>
+                      <p className="text-xs text-slate-400 leading-relaxed">
+                        Anki Deste Hub penceresinde sanal zaman çubuğunu (+10 Dk, +1 Gün, +3 Gün) gösterir. Kartların öğrenme ve tekrar sürelerini, gün sonu vadelerini test etmek için kullanılır. Varsayılan olarak kapalıdır.
+                      </p>
+                    </div>
+
+                    {/* Anki Flashcard Progress Reset */}
+                    <div className="p-4 rounded-xl bg-amber-500/5 border border-amber-500/20 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <h4 className="text-sm font-semibold text-amber-300 flex items-center gap-2">
+                          <Layers className="w-4 h-4 text-amber-400" />
+                          <span>Tüm Anki İlerlemesini Sıfırla</span>
+                        </h4>
+                        <span className="text-[11px] font-mono text-amber-200/70 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20">
+                          {appData.items.filter((it) => it.anki).length} Aktif Kart
+                        </span>
+                      </div>
+                      <p className="text-xs text-slate-400 leading-relaxed">
+                        Tüm yapımlardaki Anki çalışma ve öğrenme geçmişini (FSRS kart verilerini) sıfırlayarak kartları ilk günkü haline döndürür. Eserlerinizin afişleri ve hazırladığınız blur kutuları <strong className="text-slate-200">asla silinmez</strong>.
+                      </p>
+                      <button
+                        id="reset-all-anki-btn"
+                        type="button"
+                        onClick={() => {
+                          setDialogOptions({
+                            type: 'confirm',
+                            title: 'Tüm Anki Geçmişini Sıfırla',
+                            message:
+                              'DİKKAT: Kütüphanenizdeki tüm yapımların Anki çalışma kayıtları ve öğrenme vadeleri sıfırlanacaktır. Afişleriniz ve blur kutularınız korunur. Devam etmek istediğinize emin misiniz?',
+                            isDestructive: true,
+                            confirmText: 'Anki İlerlemesini Sıfırla',
+                            cancelText: 'Vazgeç',
+                            onConfirm: () => {
+                              const now = new Date();
+                              const updatedItems = (appData.items || []).map((it) => {
+                                if (it.anki) {
+                                  return {
+                                    ...it,
+                                    ankiCard: initAnkiCard(now),
+                                  };
+                                }
+                                return it;
+                              });
+                              onReplaceAllData({
+                                ...appData,
+                                items: updatedItems,
+                                lastUpdated: new Date().toISOString(),
+                              });
+                              setDialogOptions({
+                                type: 'alert',
+                                title: 'Anki Sıfırlandı',
+                                message: 'Tüm yapımların Anki çalışma geçmişi başarıyla sıfırlandı.',
+                              });
+                            },
+                          });
+                        }}
+                        className="py-2 px-4 rounded-xl bg-amber-600/20 hover:bg-amber-600/30 text-amber-300 border border-amber-500/40 text-xs font-semibold flex items-center gap-2 transition-all cursor-pointer"
+                      >
+                        <RotateCcw className="w-3.5 h-3.5 text-amber-400" />
+                        <span>Tüm Anki Geçmişini Sıfırla</span>
                       </button>
                     </div>
 

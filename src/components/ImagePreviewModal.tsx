@@ -21,8 +21,12 @@ import {
   Play,
   Brain,
   Layers,
+  BookOpen,
+  Quote,
+  PenTool,
+  Globe,
 } from 'lucide-react';
-import { MEDIA_COLORS, GAME_COLORS } from '../data/initialData';
+import { MEDIA_COLORS, GAME_COLORS, BOOK_COLORS } from '../data/initialData';
 import { FollowBadge, getFollowColor, getFollowModel, RatingBadgeIcon } from './FollowIndicatorIcon';
 
 interface ImagePreviewModalProps {
@@ -62,8 +66,9 @@ export const ImagePreviewModal: React.FC<ImagePreviewModalProps> = ({
   onClose,
 }) => {
   const isGame = item.mainTab === 'game';
-  const palette = isGame ? GAME_COLORS : MEDIA_COLORS;
-  const baseColor = palette[item.cat] || '#3b82f6';
+  const isBook = item.mainTab === 'book';
+  const palette = isGame ? GAME_COLORS : isBook ? BOOK_COLORS : MEDIA_COLORS;
+  const baseColor = palette[item.cat] || (isBook ? '#8a6fbf' : '#3b82f6');
   const catObj = categories.find((c) => c.id === item.cat);
 
   const [isFlipped, setIsFlipped] = useState(false);
@@ -481,7 +486,7 @@ export const ImagePreviewModal: React.FC<ImagePreviewModalProps> = ({
     <div
       id="item-detail-preview-overlay"
       onClick={onClose}
-      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 md:p-8 bg-black/85 backdrop-blur-md transition-opacity animate-in fade-in duration-200 select-none overflow-y-auto"
+      className="fixed inset-0 z-60 flex items-center justify-center p-3 sm:p-6 md:p-8 bg-black/85 backdrop-blur-md transition-opacity animate-in fade-in duration-200 select-none overflow-y-auto"
     >
       {/* ===================== DESKTOP VIEW (MD and Above: 2-Sütunlu Geniş Panel) ===================== */}
       <div
@@ -516,7 +521,7 @@ export const ImagePreviewModal: React.FC<ImagePreviewModalProps> = ({
         {/* Sol Sütun: Büyütülmüş Afiş, Rozetler & Afiş Altında Tür ve Yapım Yılı */}
         <div className="w-[380px] lg:w-[430px] xl:w-[450px] shrink-0 h-full bg-black/60 border-r border-white/10 p-5 lg:p-6 flex flex-col justify-start relative overflow-y-auto custom-scrollbar">
           {/* 1. Afişin Konumu ve Boşlukların Giderilmesi: Afiş en tepeye yaslanır, aspect-[2/3], rozetler doğrudan afiş sınırlarına oturur */}
-          <div className="w-full aspect-[2/3] max-h-[560px] rounded-xl overflow-hidden border border-white/15 bg-[#12141c] shadow-2xl relative shrink-0">
+          <div className={`w-full aspect-[2/3] max-h-[560px] ${isBook ? 'rounded-none' : 'rounded-xl'} overflow-hidden border border-white/15 bg-[#12141c] shadow-2xl relative shrink-0`}>
             {item.thumbnail ? (
               <img
                 src={item.thumbnail}
@@ -537,7 +542,10 @@ export const ImagePreviewModal: React.FC<ImagePreviewModalProps> = ({
 
             {/* ROZET 1 - SOL ÜST: İzlenme / Tamamlama Tarihi (Takvim ikonu kaldırıldı, GG.AA.YYYY formatı) */}
             <div className="absolute top-2.5 left-2.5 z-20 pointer-events-none">
-              <div className="px-2.5 py-1 rounded-lg bg-black/85 backdrop-blur-md border border-white/15 text-xs font-semibold text-slate-200 flex items-center shadow-lg">
+              <div
+                title={isBook ? `Okunma Tarihi: ${displayDate}` : undefined}
+                className="px-2.5 py-1 rounded-lg bg-black/85 backdrop-blur-md border border-white/15 text-xs font-semibold text-slate-200 flex items-center shadow-lg"
+              >
                 <span>{displayDate}</span>
               </div>
             </div>
@@ -556,7 +564,7 @@ export const ImagePreviewModal: React.FC<ImagePreviewModalProps> = ({
             )}
 
             {/* Medya İçin: SOL ALT: Sadece Durum Rozeti (Yazısız Sadece Rozet) */}
-            {!isGame && (item.watching || item.following || item.dropped) && (
+            {!isGame && !isBook && (item.watching || item.following || item.dropped) && (
               <div className="absolute bottom-2.5 left-2.5 z-20 flex items-center gap-1.5">
                 {item.watching && (
                   <div
@@ -630,6 +638,28 @@ export const ImagePreviewModal: React.FC<ImagePreviewModalProps> = ({
               </div>
             )}
 
+            {/* Kitap İçin: SOL ALT: Okunuyor / Yarım Bırakıldı */}
+            {isBook && (item.reading || item.dropped) && (
+              <div className="absolute bottom-2.5 left-2.5 z-20 flex items-center gap-1.5 pointer-events-none">
+                {item.reading && (
+                  <div
+                    title="Şu an okunuyor..."
+                    className="p-1.5 rounded-lg bg-blue-950/85 backdrop-blur-md border border-blue-400/40 text-blue-300 shadow-lg flex items-center justify-center"
+                  >
+                    <BookOpen className="w-3.5 h-3.5 text-blue-400" />
+                  </div>
+                )}
+                {item.dropped && (
+                  <div
+                    title="Yarım Bırakıldı"
+                    className="p-1.5 rounded-lg bg-rose-950/85 backdrop-blur-md border border-rose-400/40 text-rose-300 shadow-lg flex items-center justify-center"
+                  >
+                    <PauseCircle className="w-3.5 h-3.5 text-rose-400" />
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* Oyun İçin: SOL ALT: Oynama Süresi + Yanında Durum Rozeti (Yazısız Sadece Rozet) */}
             {isGame && ((item.hours !== undefined && item.hours > 0) || item.status) && (
               <div className="absolute bottom-2.5 left-2.5 z-20 flex items-center gap-1.5 pointer-events-none">
@@ -650,7 +680,7 @@ export const ImagePreviewModal: React.FC<ImagePreviewModalProps> = ({
               </div>
             )}
 
-            {/* PC: SAĞ ALT: Anki İkonu (Solda) ve Oyun Başarım Yüzdesi (Sağda) - Eşit Yükseklik ve Dikey Uyum */}
+            {/* PC: SAĞ ALT: Anki İkonu (Solda), Kitap Sayfa Sayısı veya Oyun Başarım Yüzdesi (Sağda) */}
             <div className="absolute bottom-2.5 right-2.5 z-20 flex items-center gap-1.5 pointer-events-none">
               {Boolean(item.anki) && (
                 <div
@@ -665,32 +695,68 @@ export const ImagePreviewModal: React.FC<ImagePreviewModalProps> = ({
                   <span>%{item.achPercent}</span>
                 </div>
               )}
+              {isBook && item.pageCount !== undefined && item.pageCount > 0 && (
+                <div
+                  title={`Sayfa Sayısı: ${item.pageCount}`}
+                  className="h-6 px-2 rounded-lg bg-black/85 backdrop-blur-md border border-white/20 text-[11px] font-semibold text-slate-200 flex items-center justify-center shadow-lg"
+                >
+                  <span>{item.pageCount}s</span>
+                </div>
+              )}
             </div>
           </div>
 
           {/* 2. Afişin Altındaki Alana Bilgilerin Taşınması */}
-          {/* Ana Kategori (Dizi, Film, Anime, Oyun vb.) ve Yapım Yılı: Afişin hemen altında şık bir satırda yer alacak */}
+          {/* Ana Kategori (Dizi, Film, Anime, Oyun, Kitap vb.) ve Yapım/Basım Yılı */}
           <div className="w-full mt-3 pt-1 flex items-center justify-between gap-2 px-0.5 shrink-0">
-            {/* İçerik Türü (Sadece Main Kategori: Dizi, Film, Anime, Oyun vs.) */}
+            {/* İçerik Türü */}
             <div className="flex items-center gap-2 text-xs font-semibold text-slate-200">
               <span
                 className="w-2.5 h-2.5 rounded-full shadow-sm shrink-0"
                 style={{ backgroundColor: baseColor }}
               />
               <span className="tracking-wide">
-                {catObj?.name || (isGame ? 'Oyun' : 'Medya')}
+                {catObj?.name || (isBook ? 'Kitap' : isGame ? 'Oyun' : 'Medya')}
               </span>
             </div>
 
-            {/* Yapım Yılı (Verilmemişse kesinlikle gösterilmez) */}
+            {/* Yapım / Basım Yılı */}
             {item.releaseYear ? (
               <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/[0.05] border border-white/10 text-xs font-medium text-slate-200 shrink-0">
                 <Calendar className="w-3 h-3 text-neutral-400" />
-                <span className="text-slate-400 text-[11px]">Yapım:</span>
+                <span className="text-slate-400 text-[11px]">{isBook ? 'Basım:' : 'Yapım:'}</span>
                 <span className="font-bold text-slate-100">{formatReleaseYear(item.releaseYear)}</span>
               </div>
             ) : null}
           </div>
+
+          {/* Kitap İçin: Format & Sayfa Sayısı Rozetleri */}
+          {isBook && (item.format || (item.pageCount && item.pageCount > 0)) && (
+            <div className="w-full mt-2.5 flex items-center gap-2 px-0.5 flex-wrap">
+              {item.format && (
+                <span className="px-2 py-0.5 rounded-md bg-indigo-500/10 border border-indigo-500/25 text-indigo-300 text-xs font-medium flex items-center gap-1">
+                  <BookOpen className="w-3 h-3 text-indigo-400" />
+                  <span>{item.format}</span>
+                </span>
+              )}
+              {item.pageCount && item.pageCount > 0 ? (
+                <span className="px-2 py-0.5 rounded-md bg-white/[0.06] border border-white/10 text-slate-300 text-xs font-medium">
+                  📄 {item.pageCount} Sayfa
+                </span>
+              ) : null}
+            </div>
+          )}
+
+          {/* Kitap İçin: Çevirmen */}
+          {isBook && item.translator && item.translator.length > 0 && (
+            <div className="w-full mt-2 flex items-center gap-1.5 px-0.5 text-xs">
+              <span className="text-slate-400 font-semibold shrink-0">Çevirmen:</span>
+              <div className="px-2 py-0.5 rounded-md bg-sky-500/10 border border-sky-500/20 text-sky-300 flex items-center gap-1 font-medium">
+                <Globe className="w-3 h-3 text-sky-400 shrink-0" />
+                <span>{item.translator.join(', ')}</span>
+              </div>
+            </div>
+          )}
 
           {/* Anime / Kategori ve Yapım Yılı ile Türler arasına ayırıcı çizgi */}
           <div className="w-full border-t border-white/10 my-3 shrink-0" />
@@ -759,12 +825,35 @@ export const ImagePreviewModal: React.FC<ImagePreviewModalProps> = ({
             )}
           </div>
 
-          {/* Stüdyo / Firma / Geliştirici & Yönetmen Rozetleri (İki satır halinde, etiketli) */}
-          {((!isGame && ((item.firm && item.firm.length > 0) || (item.director && item.director.length > 0))) ||
-            (isGame && item.developer && item.developer.length > 0)) && (
+          {/* Stüdyo / Firma / Geliştirici / Yazar & Yönetmen Rozetleri */}
+          {((!isGame && !isBook && ((item.firm && item.firm.length > 0) || (item.director && item.director.length > 0))) ||
+            (isGame && item.developer && item.developer.length > 0) ||
+            (isBook && ((item.author && item.author.length > 0) || (item.publisher && item.publisher.length > 0)))) && (
             <div className="flex flex-col gap-1.5 pt-0.5">
+              {/* Kitap İçin: Yazar */}
+              {isBook && item.author && item.author.length > 0 && (
+                <div className="flex items-center gap-1.5 text-xs">
+                  <span className="text-slate-400 font-semibold shrink-0">Yazar:</span>
+                  <div className="px-2.5 py-0.5 rounded-md bg-amber-500/10 border border-amber-500/20 text-amber-300 flex items-center gap-1.5 font-medium">
+                    <PenTool className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                    <span>{item.author.join(', ')}</span>
+                  </div>
+                </div>
+              )}
+
+              {/* Kitap İçin: Yayınevi */}
+              {isBook && item.publisher && item.publisher.length > 0 && (
+                <div className="flex items-center gap-1.5 text-xs">
+                  <span className="text-slate-400 font-semibold shrink-0">Yayınevi:</span>
+                  <div className="px-2.5 py-0.5 rounded-md bg-purple-500/10 border border-purple-500/20 text-purple-300 flex items-center gap-1.5 font-medium">
+                    <Building2 className="w-3.5 h-3.5 text-purple-400 shrink-0" />
+                    <span>{item.publisher.join(', ')}</span>
+                  </div>
+                </div>
+              )}
+
               {/* 1. Satır: Firma (Medya) */}
-              {!isGame && item.firm && item.firm.length > 0 && (
+              {!isGame && !isBook && item.firm && item.firm.length > 0 && (
                 <div className="flex items-center gap-1.5 text-xs">
                   <span className="text-slate-400 font-semibold shrink-0">Firma:</span>
                   <div className="px-2.5 py-0.5 rounded-md bg-purple-500/10 border border-purple-500/20 text-purple-300 flex items-center gap-1.5 font-medium">
@@ -775,7 +864,7 @@ export const ImagePreviewModal: React.FC<ImagePreviewModalProps> = ({
               )}
 
               {/* 2. Satır: Yönetmen (Medya) */}
-              {!isGame && item.director && item.director.length > 0 && (
+              {!isGame && !isBook && item.director && item.director.length > 0 && (
                 <div className="flex items-center gap-1.5 text-xs">
                   <span className="text-slate-400 font-semibold shrink-0">Yönetmen:</span>
                   <div className="px-2.5 py-0.5 rounded-md bg-amber-500/10 border border-amber-500/20 text-amber-300 flex items-center gap-1.5 font-medium">
@@ -823,6 +912,39 @@ export const ImagePreviewModal: React.FC<ImagePreviewModalProps> = ({
             )}
           </div>
 
+          {/* Kitap İçin: Beğenilen Sözler / Alıntılar */}
+          {isBook && item.quotes && item.quotes.length > 0 && (
+            <>
+              <div className="border-t border-white/10 my-1" />
+              <div className="space-y-2.5 pt-1">
+                <div className="flex items-center gap-2">
+                  <Quote className="w-4 h-4 text-amber-400" />
+                  <span className="text-xs uppercase font-bold tracking-wider text-slate-200">
+                    Beğenilen Sözler / Alıntılar
+                  </span>
+                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 font-semibold">
+                    {item.quotes.length}
+                  </span>
+                </div>
+                <div className="space-y-2 max-h-56 overflow-y-auto custom-scrollbar pr-1">
+                  {item.quotes.map((q, idx) => (
+                    <div
+                      key={q.id || idx}
+                      className="p-3 rounded-xl bg-white/[0.03] border border-white/10 hover:border-amber-500/30 transition-all text-xs leading-relaxed text-slate-200 flex flex-col gap-1.5"
+                    >
+                      <p className="italic text-slate-200 whitespace-pre-wrap">“{q.text}”</p>
+                      {q.page !== undefined && String(q.page).trim() !== '' && (
+                        <span className="self-end text-[10px] font-semibold text-amber-300/90 px-2 py-0.5 rounded bg-amber-500/10 border border-amber-500/20">
+                          Sayfa {q.page}
+                        </span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </>
+          )}
+
           {/* Ayraç */}
           <div className="border-t border-white/10 my-1" />
 
@@ -831,7 +953,7 @@ export const ImagePreviewModal: React.FC<ImagePreviewModalProps> = ({
             <div className="flex items-center gap-2">
               <Users className="w-4 h-4 text-sky-400" />
               <span className="text-xs uppercase font-bold tracking-wider text-slate-200">
-                Karakterler & Kadro
+                {isBook ? 'Karakterler' : 'Karakterler & Kadro'}
               </span>
               {hasCharacters && (
                 <span className="text-[10px] px-2 py-0.5 rounded-full bg-sky-500/20 text-sky-300 font-semibold">
@@ -869,9 +991,8 @@ export const ImagePreviewModal: React.FC<ImagePreviewModalProps> = ({
                         {c.name}
                       </span>
                       {c.actor && (
-                        <span className="text-[11px] text-sky-300 truncate flex items-center gap-1 mt-0.5">
-                          <span className="text-[10px]">🎙️</span>
-                          <span>{c.actor}</span>
+                        <span className="text-[11px] text-sky-300 truncate mt-0.5">
+                          {c.actor}
                         </span>
                       )}
                     </div>
@@ -1017,10 +1138,13 @@ export const ImagePreviewModal: React.FC<ImagePreviewModalProps> = ({
                 item.anki ||
                 (item.achPercent !== null && item.achPercent !== undefined && item.achPercent > 0)
               );
-              const hasMediaBottomBadges = !isGame && Boolean(
+              const hasMediaBottomBadges = !isGame && !isBook && Boolean(
                 item.watching || item.following || item.dropped || item.anki
               );
-              const hasBottomBadges = hasGameBottomBadges || hasMediaBottomBadges;
+              const hasBookBottomBadges = isBook && Boolean(
+                item.reading || item.dropped || item.anki || (item.pageCount !== undefined && item.pageCount > 0)
+              );
+              const hasBottomBadges = hasGameBottomBadges || hasMediaBottomBadges || hasBookBottomBadges;
 
               return (
                 <div className="relative z-20 mt-auto w-full pt-12 pb-3.5 px-3.5 bg-gradient-to-t from-black/95 via-black/65 to-transparent rounded-b-2xl pointer-events-none flex flex-col items-center">
@@ -1032,6 +1156,49 @@ export const ImagePreviewModal: React.FC<ImagePreviewModalProps> = ({
                   >
                     {item.title}
                   </h3>
+
+                  {/* Kitap Kartları İçin Alt Panel: Sol Altta Okunuyor / Bırakıldı, Sağ Altta Varsa Sayfa Sayısı + Anki */}
+                  {isBook && hasBookBottomBadges && (
+                    <div className="w-full flex items-center justify-between pointer-events-auto">
+                      <div className="flex items-center gap-1.5">
+                        {item.reading && (
+                          <div
+                            title="Şu an okunuyor..."
+                            className="w-[26px] h-[26px] rounded-lg bg-blue-950/85 backdrop-blur-md border border-blue-400/40 text-blue-300 shadow flex items-center justify-center shrink-0"
+                          >
+                            <BookOpen className="w-3.5 h-3.5 text-blue-400" />
+                          </div>
+                        )}
+                        {item.dropped && (
+                          <div
+                            title="Yarım Bırakıldı"
+                            className="w-[26px] h-[26px] rounded-lg bg-rose-950/85 backdrop-blur-md border border-rose-400/40 text-rose-300 shadow flex items-center justify-center shrink-0"
+                          >
+                            <PauseCircle className="w-3.5 h-3.5 text-rose-400" />
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="flex items-center gap-1.5">
+                        {Boolean(item.anki) && (
+                          <div
+                            title="Anki Destesine Eklendi"
+                            className="w-[26px] h-[26px] rounded-lg bg-emerald-950/85 backdrop-blur-md border border-emerald-400/40 text-emerald-300 shadow flex items-center justify-center pointer-events-auto shrink-0"
+                          >
+                            <Brain className="w-3.5 h-3.5 text-emerald-400" />
+                          </div>
+                        )}
+                        {item.pageCount !== undefined && item.pageCount > 0 && (
+                          <div
+                            title={`Sayfa Sayısı: ${item.pageCount}`}
+                            className="h-[26px] px-2 rounded-lg bg-black/85 backdrop-blur-md border border-white/20 text-[11px] font-semibold text-slate-200 shadow flex items-center justify-center shrink-0"
+                          >
+                            <span>{item.pageCount}s</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
 
                   {/* Oyun Kartları İçin Alt Panel: Sol Altta Saat + Durum İkonu, Sağ Altta Varsa Anki + Başarım */}
                   {isGame && hasGameBottomBadges && (
@@ -1074,7 +1241,7 @@ export const ImagePreviewModal: React.FC<ImagePreviewModalProps> = ({
                   )}
 
                   {/* Medya Kartları İçin Alt Panel: Sol Altta Durum Rozetleri, Sağ Altta Varsa Anki Rozeti */}
-                  {!isGame && hasMediaBottomBadges && (
+                  {!isGame && !isBook && hasMediaBottomBadges && (
                     <div className="w-full flex items-center justify-between pointer-events-auto">
                       {/* Sol Alt: Durum İkonu (İzleniyor / Takip / Bırakıldı) */}
                       <div className="flex items-center gap-1.5">
@@ -1152,22 +1319,65 @@ export const ImagePreviewModal: React.FC<ImagePreviewModalProps> = ({
                   {item.title}
                 </h4>
 
-                {/* Zarif, minimal ve ince Yapım Yılı Rozeti */}
+                {/* Zarif, minimal ve ince Yapım / Basım Yılı Rozeti */}
                 {item.releaseYear ? (
                   <div className="flex items-center gap-1 px-2 py-0.5 rounded-md bg-white/[0.06] border border-white/10 text-[11px] font-medium text-slate-200 shrink-0 shadow-xs">
                     <Calendar className="w-2.5 h-2.5 text-neutral-400 shrink-0" />
-                    <span className="text-slate-400 text-[10px]">Yapım:</span>
+                    <span className="text-slate-400 text-[10px]">{isBook ? 'Basım:' : 'Yapım:'}</span>
                     <span className="font-semibold text-slate-100 text-[11px]">{formatReleaseYear(item.releaseYear)}</span>
                   </div>
                 ) : null}
               </div>
 
+              {/* Kitap İçin: Yazar, Yayınevi, Format & Çevirmen */}
+              {isBook && ((item.author && item.author.length > 0) || (item.publisher && item.publisher.length > 0) || item.format || (item.translator && item.translator.length > 0)) && (
+                <div className="flex flex-col gap-1 mt-2">
+                  {item.author && item.author.length > 0 && (
+                    <div className="flex items-center gap-1.5 text-[11px]">
+                      <span className="text-slate-400 font-semibold shrink-0 text-[10px]">Yazar:</span>
+                      <div className="px-2 py-0.5 rounded-md bg-amber-500/10 border border-amber-500/20 text-amber-300 flex items-center gap-1 font-medium text-[10px]">
+                        <PenTool className="w-2.5 h-2.5 text-amber-400 shrink-0" />
+                        <span className="truncate max-w-[200px]">{item.author.join(', ')}</span>
+                      </div>
+                    </div>
+                  )}
+
+                  {item.publisher && item.publisher.length > 0 && (
+                    <div className="flex items-center gap-1.5 text-[11px]">
+                      <span className="text-slate-400 font-semibold shrink-0 text-[10px]">Yayınevi:</span>
+                      <div className="px-2 py-0.5 rounded-md bg-purple-500/10 border border-purple-500/20 text-purple-300 flex items-center gap-1 font-medium text-[10px]">
+                        <Building2 className="w-2.5 h-2.5 text-purple-400 shrink-0" />
+                        <span className="truncate max-w-[200px]">{item.publisher.join(', ')}</span>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="flex items-center gap-2 flex-wrap text-[10px]">
+                    {item.format && (
+                      <span className="px-1.5 py-0.5 rounded bg-indigo-500/10 border border-indigo-500/25 text-indigo-300 font-medium">
+                        📖 {item.format}
+                      </span>
+                    )}
+                    {item.pageCount !== undefined && item.pageCount > 0 && (
+                      <span className="px-1.5 py-0.5 rounded bg-white/[0.06] border border-white/10 text-slate-300">
+                        📄 {item.pageCount} Sayfa
+                      </span>
+                    )}
+                    {item.translator && item.translator.length > 0 && (
+                      <span className="text-slate-400 truncate">
+                        Çev: {item.translator.join(', ')}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              )}
+
               {/* Başlık altında Medya için Firma ve Yönetmen (2 Ayrı Satır), Oyun için Geliştirici (Tek Satır) */}
-              {((!isGame && ((item.firm && item.firm.length > 0) || (item.director && item.director.length > 0))) ||
+              {((!isGame && !isBook && ((item.firm && item.firm.length > 0) || (item.director && item.director.length > 0))) ||
                 (isGame && item.developer && item.developer.length > 0)) && (
                 <div className="flex flex-col gap-1.5 mt-2">
                   {/* Satır 1: Firma (Medya) */}
-                  {!isGame && item.firm && item.firm.length > 0 && (
+                  {!isGame && !isBook && item.firm && item.firm.length > 0 && (
                     <div className="flex items-center gap-1.5 text-[11px]">
                       <span className="text-slate-400 font-semibold shrink-0 text-[10px]">Firma:</span>
                       <div className="px-2 py-0.5 rounded-md bg-purple-500/10 border border-purple-500/20 text-purple-300 flex items-center gap-1 font-medium text-[10px]">
@@ -1178,7 +1388,7 @@ export const ImagePreviewModal: React.FC<ImagePreviewModalProps> = ({
                   )}
 
                   {/* Satır 2: Yönetmen (Medya) */}
-                  {!isGame && item.director && item.director.length > 0 && (
+                  {!isGame && !isBook && item.director && item.director.length > 0 && (
                     <div className="flex items-center gap-1.5 text-[11px]">
                       <span className="text-slate-400 font-semibold shrink-0 text-[10px]">Yönetmen:</span>
                       <div className="px-2 py-0.5 rounded-md bg-amber-500/10 border border-amber-500/20 text-amber-300 flex items-center gap-1 font-medium text-[10px]">
@@ -1202,7 +1412,7 @@ export const ImagePreviewModal: React.FC<ImagePreviewModalProps> = ({
               )}
             </div>
 
-            {/* Scrollable Center: Desc + Characters (Boşluğa veya metne dokunulunca kart ön yüze döner) */}
+            {/* Scrollable Center: Desc + Quotes + Characters */}
             <div className="flex-1 overflow-y-auto custom-scrollbar my-2.5 space-y-3 pr-1 text-left">
               {/* Konu */}
               <div>
@@ -1214,10 +1424,34 @@ export const ImagePreviewModal: React.FC<ImagePreviewModalProps> = ({
                 </p>
               </div>
 
+              {/* Kitap İçin: Beğenilen Sözler / Alıntılar */}
+              {isBook && item.quotes && item.quotes.length > 0 && (
+                <div>
+                  <span className="block text-[10px] uppercase font-bold tracking-wider text-slate-400 mb-1 flex items-center gap-1">
+                    <Quote className="w-3 h-3 text-amber-400" /> Beğenilen Sözler / Alıntılar ({item.quotes.length})
+                  </span>
+                  <div className="space-y-1.5">
+                    {item.quotes.map((q, idx) => (
+                      <div
+                        key={q.id || idx}
+                        className="p-2 rounded-lg bg-white/[0.03] border border-white/10 text-xs leading-relaxed flex flex-col gap-1"
+                      >
+                        <p className="italic text-slate-200 text-[11px] whitespace-pre-wrap">“{q.text}”</p>
+                        {q.page !== undefined && String(q.page).trim() !== '' && (
+                          <span className="self-end text-[9px] font-semibold text-amber-300/90 px-1.5 py-0.5 rounded bg-amber-500/10 border border-amber-500/20">
+                            Sayfa {q.page}
+                          </span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               {/* Karakterler */}
               <div>
                 <span className="block text-[10px] uppercase font-bold tracking-wider text-slate-400 mb-1 flex items-center gap-1">
-                  <Users className="w-3 h-3 text-sky-400" /> Karakterler & Kadro
+                  <Users className="w-3 h-3 text-sky-400" /> {isBook ? 'Karakterler' : 'Karakterler & Kadro'}
                 </span>
                 {hasCharacters ? (
                   <div className="grid grid-cols-2 gap-1.5 sm:gap-2">
@@ -1372,8 +1606,7 @@ export const ImagePreviewModal: React.FC<ImagePreviewModalProps> = ({
                 {selectedCharacter.name}
               </h3>
               {selectedCharacter.actor && (
-                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-sky-500/15 border border-sky-500/30 text-sky-300 text-xs font-semibold shadow-sm">
-                  <span>🎙️</span>
+                <div className="inline-flex items-center px-3 py-1 rounded-full bg-sky-500/15 border border-sky-500/30 text-sky-300 text-xs font-semibold shadow-sm">
                   <span>{selectedCharacter.actor}</span>
                 </div>
               )}

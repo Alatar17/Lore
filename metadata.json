@@ -1,6 +1,6 @@
 {
   "name": "Lore",
-  "description": "Kişisel medya ve oyun kütüphanesi arşivi.",
+  "description": "Kişisel medya, oyun ve kitap kütüphanesi arşivi.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

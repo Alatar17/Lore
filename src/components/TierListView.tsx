@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { ArchiveItem, Category, MainTabType, TierRow, TierListCardStyle } from '../types';
-import { DEFAULT_TIER_COLORS, MEDIA_COLORS, GAME_COLORS } from '../data/initialData';
+import { DEFAULT_TIER_COLORS, MEDIA_COLORS, GAME_COLORS, BOOK_COLORS } from '../data/initialData';
 import { downloadTierListAsPng } from '../utils/tierImageExport';
 import {
   Plus,
@@ -109,6 +109,7 @@ export const TierListView: React.FC<TierListViewProps> = ({
   onItemPreview,
 }) => {
   const isClassic = tierListStyle === 'classic';
+  const isBook = mainTab === 'book';
 
   const [draggedItemId, setDraggedItemId] = useState<string | null>(null);
   const [dragOverRowId, setDragOverRowId] = useState<string | null>(null);
@@ -696,7 +697,7 @@ export const TierListView: React.FC<TierListViewProps> = ({
                       {/* Actual Card Body */}
                       <div
                         className={`w-full h-full overflow-hidden bg-neutral-900 shadow-md flex items-center justify-center text-center relative ${
-                          isClassic
+                          isClassic || isBook
                             ? 'rounded-none border-r border-b border-black/70 group-hover:brightness-110'
                             : 'rounded-lg border border-white/15 group-hover:border-white/40'
                         }`}
@@ -897,7 +898,7 @@ export const TierListView: React.FC<TierListViewProps> = ({
 
                 <div
                   className={`w-full h-full overflow-hidden bg-neutral-800 shadow-md flex items-center justify-center text-center relative ${
-                    isClassic
+                    isClassic || isBook
                       ? 'rounded-none border border-black/70 group-hover:brightness-110'
                       : 'rounded-lg border border-white/15 group-hover:border-white/40'
                   }`}

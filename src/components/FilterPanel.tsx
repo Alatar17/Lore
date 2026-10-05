@@ -1,16 +1,16 @@
 import React, { useRef, useEffect } from 'react';
-import { FilterState, GameStatus, MainTabType } from '../types';
+import { FilterState, GameStatus, MainTabType, RatingFilterType, BookFormat } from '../types';
 import {
   SlidersHorizontal,
   RotateCcw,
   Star,
-  Tv,
-  Bookmark,
+  PauseCircle,
   Brain,
   Gamepad2,
   Check,
   FolderX,
   Layers,
+  BookOpen,
 } from 'lucide-react';
 
 interface FilterPanelProps {
@@ -31,6 +31,14 @@ const GAME_STATUS_OPTIONS: { label: string; value: GameStatus | 'all' }[] = [
   { label: 'Yarım Bırakıldı', value: 'Yarım Bırakıldı' },
 ];
 
+const BOOK_FORMAT_OPTIONS: { label: string; value: BookFormat | 'all' }[] = [
+  { label: 'Tüm Formatlar', value: 'all' },
+  { label: 'Ciltsiz (Karton Kapak)', value: 'Ciltsiz' },
+  { label: 'Ciltli (Sert Kapak)', value: 'Ciltli' },
+  { label: 'E-Kitap (Dijital)', value: 'E-Kitap' },
+  { label: 'Sesli Kitap', value: 'Sesli Kitap' },
+];
+
 export const FilterPanel: React.FC<FilterPanelProps> = ({
   mainTab,
   filters,
@@ -40,6 +48,7 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
   isHideModeActive,
 }) => {
   const isGame = mainTab === 'game';
+  const isBook = mainTab === 'book';
   const isInsideSubfolder = Boolean(activeSub);
 
   const hiddenTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -69,27 +78,45 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
   };
 
   const isFiltered =
+    (filters.ratingFilter && filters.ratingFilter !== 'all') ||
     filters.minRating > 0 ||
+    Boolean(filters.droppedOnly) ||
+    Boolean(filters.readingOnly) ||
     filters.watchingOnly ||
     filters.followingOnly ||
     filters.ankiFilter !== 'all' ||
     Boolean(filters.seriesOnly) ||
     Boolean(filters.uncategorizedOnly) ||
     (!isHideModeActive && Boolean(filters.hiddenOnly)) ||
-    (filters.gameStatus && filters.gameStatus !== 'all');
+    (filters.gameStatus && filters.gameStatus !== 'all') ||
+    (filters.bookFormat && filters.bookFormat !== 'all');
 
   const handleReset = () => {
     onChange({
       minRating: 0,
+      ratingFilter: 'all',
+      droppedOnly: false,
+      readingOnly: false,
       watchingOnly: false,
       followingOnly: false,
       ankiFilter: 'all',
       gameStatus: 'all',
+      bookFormat: 'all',
       seriesOnly: false,
       uncategorizedOnly: false,
       hiddenOnly: false,
     });
   };
+
+  const currentRatingValue =
+    filters.ratingFilter ||
+    (filters.minRating >= 9
+      ? '9-plus'
+      : filters.minRating >= 8
+      ? '8-plus'
+      : filters.minRating >= 7
+      ? '7-plus'
+      : 'all');
 
   return (
     <div
@@ -127,85 +154,82 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
       </div>
 
       <div className="space-y-3.5">
-        {/* Puan Eşiği (Rating Dropdown Menu: Tümü, 9+, 8+, 7+) */}
+        {/* Puan Filtresi (Sadeleştirilmiş Akıllı Seçenekler) */}
         <div>
           <label className="block text-[11px] uppercase tracking-wider text-neutral-400 font-semibold mb-1.5 flex items-center gap-1.5">
             <Star className="w-3.5 h-3.5 text-amber-400" />
-            <span>Puan Eşiği</span>
+            <span>Puan Filtresi</span>
           </label>
           <select
             id="filter-rating-select"
-            value={filters.minRating}
-            onChange={(e) => onChange({ minRating: Number(e.target.value) })}
+            value={currentRatingValue}
+            onChange={(e) => {
+              const val = e.target.value as RatingFilterType;
+              const numericMap: Record<RatingFilterType, number> = {
+                'all': 0,
+                '9-plus': 9,
+                '8-plus': 8,
+                '7-plus': 7,
+                '6-below': 0,
+                'unrated': 0,
+              };
+              onChange({ ratingFilter: val, minRating: numericMap[val] || 0 });
+            }}
             className="w-full bg-neutral-800 text-neutral-200 border border-white/10 rounded-lg px-2.5 py-1.5 text-xs focus:outline-none focus:border-white/30 cursor-pointer"
           >
-            <option value={0} className="bg-neutral-900 text-white">
-              Tümü (Filtre Yok)
+            <option value="all" className="bg-neutral-900 text-white">
+              Tüm Puanlar (Filtre Yok)
             </option>
-            <option value={10} className="bg-neutral-900 text-amber-300 font-bold">
-              ★ 10 Puan
+            <option value="9-plus" className="bg-neutral-900 text-amber-300 font-semibold">
+              ★ 9+ Puan (Zirve Yapımlar)
             </option>
-            <option value={9} className="bg-neutral-900 text-amber-300 font-bold">
-              ★ 9+ Puan
+            <option value="8-plus" className="bg-neutral-900 text-amber-300 font-semibold">
+              ★ 8+ Puan (Çok İyi)
             </option>
-            <option value={8} className="bg-neutral-900 text-amber-300 font-bold">
-              ★ 8+ Puan
+            <option value="7-plus" className="bg-neutral-900 text-amber-300 font-semibold">
+              ★ 7+ Puan (İyi)
             </option>
-            <option value={7} className="bg-neutral-900 text-amber-300 font-bold">
-              ★ 7+ Puan
+            <option value="6-below" className="bg-neutral-900 text-slate-300">
+              ★ 6 ve Altı (Ortalama / Düşük)
             </option>
-            <option value={6} className="bg-neutral-900 text-amber-300">
-              ★ 6+ Puan
-            </option>
-            <option value={5} className="bg-neutral-900 text-amber-300">
-              ★ 5+ Puan
-            </option>
-            <option value={4} className="bg-neutral-900 text-amber-300">
-              ★ 4+ Puan
-            </option>
-            <option value={3} className="bg-neutral-900 text-amber-300">
-              ★ 3+ Puan
-            </option>
-            <option value={2} className="bg-neutral-900 text-amber-300">
-              ★ 2+ Puan
-            </option>
-            <option value={1} className="bg-neutral-900 text-amber-300">
-              ★ 1+ Puan
+            <option value="unrated" className="bg-neutral-900 text-sky-300 font-medium">
+              ? Puansız Yapımlar (Değerlendirilmemiş)
             </option>
           </select>
         </div>
 
-        {/* Media-Specific: Watching / Following */}
+        {/* Status filters for Book & Media */}
         {!isGame && (
-          <div className="pt-2 border-t border-white/10 space-y-1.5">
-            <span className="text-[10px] uppercase font-semibold text-neutral-500 tracking-wider block mb-1">
-              İzleme & Takip Durumu
-            </span>
-            <label className="flex items-center justify-between text-xs text-neutral-300 hover:text-white cursor-pointer select-none py-1 px-1 rounded-lg hover:bg-white/5 transition-colors">
-              <div className="flex items-center gap-2">
-                <Tv className="w-3.5 h-3.5 text-blue-400" />
-                <span>Sadece İzlenenler</span>
-              </div>
-              <input
-                id="filter-watching-checkbox"
-                type="checkbox"
-                checked={filters.watchingOnly}
-                onChange={(e) => onChange({ watchingOnly: e.target.checked })}
-                className="w-4 h-4 rounded border-neutral-600 bg-neutral-800 text-white focus:ring-0 cursor-pointer accent-white"
-              />
-            </label>
+          <div className="pt-2 border-t border-white/10 space-y-1">
+            {/* Book-Specific: Şu An Okunanlar */}
+            {isBook && (
+              <label className="flex items-center justify-between text-xs text-neutral-300 hover:text-white cursor-pointer select-none py-1.5 px-1 rounded-lg hover:bg-white/5 transition-colors">
+                <div className="flex items-center gap-2">
+                  <BookOpen className="w-4 h-4 text-blue-400" />
+                  <span className="text-blue-200 font-medium">Şu An Okunanlar</span>
+                </div>
+                <input
+                  id="filter-reading-checkbox"
+                  type="checkbox"
+                  checked={Boolean(filters.readingOnly)}
+                  onChange={(e) => onChange({ readingOnly: e.target.checked })}
+                  className="w-4 h-4 rounded border-blue-500/50 bg-neutral-800 text-blue-500 focus:ring-0 cursor-pointer accent-blue-500"
+                />
+              </label>
+            )}
 
-            <label className="flex items-center justify-between text-xs text-neutral-300 hover:text-white cursor-pointer select-none py-1 px-1 rounded-lg hover:bg-white/5 transition-colors">
+            {/* Media & Book: Yarım Bırakılanlar */}
+            <label className="flex items-center justify-between text-xs text-neutral-300 hover:text-white cursor-pointer select-none py-1.5 px-1 rounded-lg hover:bg-white/5 transition-colors">
               <div className="flex items-center gap-2">
-                <Bookmark className="w-3.5 h-3.5 text-amber-400 fill-amber-400/20" />
-                <span>Sadece Takip Edilenler</span>
+                <PauseCircle className="w-4 h-4 text-rose-400" />
+                <span className="text-rose-200 font-medium">Yarım Bırakılanlar</span>
               </div>
               <input
-                id="filter-following-checkbox"
+                id="filter-dropped-checkbox"
                 type="checkbox"
-                checked={filters.followingOnly}
-                onChange={(e) => onChange({ followingOnly: e.target.checked })}
-                className="w-4 h-4 rounded border-neutral-600 bg-neutral-800 text-white focus:ring-0 cursor-pointer accent-white"
+                checked={Boolean(filters.droppedOnly)}
+                onChange={(e) => onChange({ droppedOnly: e.target.checked })}
+                className="w-4 h-4 rounded border-rose-500/50 bg-neutral-800 text-rose-500 focus:ring-0 cursor-pointer accent-rose-500"
               />
             </label>
           </div>
@@ -229,6 +253,32 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
               className="w-full bg-neutral-800 text-neutral-200 border border-white/10 rounded-lg px-2.5 py-1.5 text-xs focus:outline-none focus:border-white/30 cursor-pointer"
             >
               {GAME_STATUS_OPTIONS.map((opt) => (
+                <option key={opt.value} value={opt.value} className="bg-neutral-900 text-white">
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
+
+        {/* Book-Specific: Format Filter */}
+        {isBook && (
+          <div className="pt-2 border-t border-white/10">
+            <label className="block text-[11px] uppercase tracking-wider text-neutral-400 font-semibold mb-1.5 flex items-center gap-1.5">
+              <BookOpen className="w-3.5 h-3.5 text-purple-400" />
+              <span>Format / Baskı Türü</span>
+            </label>
+            <select
+              id="filter-book-format-select"
+              value={filters.bookFormat || 'all'}
+              onChange={(e) =>
+                onChange({
+                  bookFormat: e.target.value as BookFormat | 'all',
+                })
+              }
+              className="w-full bg-neutral-800 text-neutral-200 border border-white/10 rounded-lg px-2.5 py-1.5 text-xs focus:outline-none focus:border-white/30 cursor-pointer"
+            >
+              {BOOK_FORMAT_OPTIONS.map((opt) => (
                 <option key={opt.value} value={opt.value} className="bg-neutral-900 text-white">
                   {opt.label}
                 </option>

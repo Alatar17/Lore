@@ -8,7 +8,9 @@ export type SortOption =
   | 'rating-desc'      // Puan (Yüksekten Düşüğe)
   | 'rating-asc'       // Puan (Düşükten Yükseğe)
   | 'title-asc'        // İsim (A-Z)
-  | 'title-desc';      // İsim (Z-A)
+  | 'title-desc'       // İsim (Z-A)
+  | 'page-desc'        // Sayfa Sayısı: Çoktan Aza
+  | 'page-asc';        // Sayfa Sayısı: Azdan Çoka
 
 /**
  * Checks if date string represents an unknown / indeterminate date.
@@ -111,11 +113,14 @@ export function parseReleaseYear(releaseYear?: number | string | null): ParsedRe
 }
 
 /**
- * Checks if an item is currently active (Watching or Playing).
+ * Checks if an item is currently active (Watching, Playing, or Reading).
  */
 export function isItemActive(item: ArchiveItem): boolean {
   if (item.mainTab === 'game') {
     return item.status === 'Oynanıyor';
+  }
+  if (item.mainTab === 'book') {
+    return !!item.reading;
   }
   return !!item.watching;
 }
@@ -238,6 +243,30 @@ export function sortArchiveItems(items: ArchiveItem[], sortOption: SortOption = 
 
       case 'title-desc': {
         return b.title.localeCompare(a.title, 'tr', { sensitivity: 'base' });
+      }
+
+      case 'page-desc': {
+        const pageA = a.pageCount || 0;
+        const pageB = b.pageCount || 0;
+        if (pageA === 0 && pageB === 0) {
+          return a.title.localeCompare(b.title, 'tr', { sensitivity: 'base' });
+        }
+        if (pageA === 0) return 1;
+        if (pageB === 0) return -1;
+        if (pageB !== pageA) return pageB - pageA;
+        return a.title.localeCompare(b.title, 'tr', { sensitivity: 'base' });
+      }
+
+      case 'page-asc': {
+        const pageA = a.pageCount || 0;
+        const pageB = b.pageCount || 0;
+        if (pageA === 0 && pageB === 0) {
+          return a.title.localeCompare(b.title, 'tr', { sensitivity: 'base' });
+        }
+        if (pageA === 0) return 1;
+        if (pageB === 0) return -1;
+        if (pageA !== pageB) return pageA - pageB;
+        return a.title.localeCompare(b.title, 'tr', { sensitivity: 'base' });
       }
 
       default:

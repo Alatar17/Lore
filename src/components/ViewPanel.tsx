@@ -1,6 +1,6 @@
 import React from 'react';
 import { ViewSettings, MainTabType, SortOption } from '../types';
-import { SlidersHorizontal, ZoomIn, ZoomOut, Tv, Bookmark, Star, Calendar, Brain, Gamepad2, Type, ArrowUpDown } from 'lucide-react';
+import { SlidersHorizontal, ZoomIn, ZoomOut, Tv, Bookmark, Star, Calendar, Brain, Gamepad2, Type, ArrowUpDown, BookOpen } from 'lucide-react';
 
 interface ViewPanelProps {
   settings: ViewSettings;
@@ -40,16 +40,20 @@ export const ViewPanel: React.FC<ViewPanelProps> = ({ settings, mainTab, onChang
             className="w-full bg-neutral-800 text-neutral-200 border border-white/10 rounded-lg px-2.5 py-1.5 text-xs focus:outline-none focus:border-white/30 cursor-pointer"
           >
             <option value="date-desc" className="bg-neutral-900 text-white">
-              İzleme / Bitirme Tarihi (Yeniden Eskiye) [Varsayılan]
+              {mainTab === 'book'
+                ? 'Okunma Tarihi (Yeniden Eskiye) [Varsayılan]'
+                : 'İzleme / Bitirme Tarihi (Yeniden Eskiye) [Varsayılan]'}
             </option>
             <option value="date-asc" className="bg-neutral-900 text-white">
-              İzleme / Bitirme Tarihi (Eskiden Yeniye)
+              {mainTab === 'book'
+                ? 'Okunma Tarihi (Eskiden Yeniye)'
+                : 'İzleme / Bitirme Tarihi (Eskiden Yeniye)'}
             </option>
             <option value="release-desc" className="bg-neutral-900 text-white">
-              Yapım Yılı (Yeniden Eskiye)
+              {mainTab === 'book' ? 'Basım Yılı (Yeniden Eskiye)' : 'Yapım Yılı (Yeniden Eskiye)'}
             </option>
             <option value="release-asc" className="bg-neutral-900 text-white">
-              Yapım Yılı (Eskiden Yeniye)
+              {mainTab === 'book' ? 'Basım Yılı (Eskiden Yeniye)' : 'Yapım Yılı (Eskiden Yeniye)'}
             </option>
             <option value="rating-desc" className="bg-neutral-900 text-white">
               Puan (Yüksekten Düşüğe)
@@ -63,6 +67,16 @@ export const ViewPanel: React.FC<ViewPanelProps> = ({ settings, mainTab, onChang
             <option value="title-desc" className="bg-neutral-900 text-white">
               İsim (Z-A)
             </option>
+            {mainTab === 'book' && (
+              <>
+                <option value="page-desc" className="bg-neutral-900 text-purple-300 font-medium">
+                  Sayfa Sayısı: Çoktan Aza
+                </option>
+                <option value="page-asc" className="bg-neutral-900 text-purple-300 font-medium">
+                  Sayfa Sayısı: Azdan Çoka
+                </option>
+              </>
+            )}
           </select>
         </div>
         {/* Common: Title */}
@@ -175,6 +189,27 @@ export const ViewPanel: React.FC<ViewPanelProps> = ({ settings, mainTab, onChang
                 type="checkbox"
                 checked={settings.showGameStatus !== false}
                 onChange={(e) => onChange({ showGameStatus: e.target.checked })}
+                className="w-4 h-4 rounded border-neutral-600 bg-neutral-800 text-white focus:ring-0 cursor-pointer accent-white"
+              />
+            </label>
+          </div>
+        )}
+
+        {/* Book Specific Controls */}
+        {mainTab === 'book' && (
+          <div className="pt-2 border-t border-white/10 space-y-2">
+            <span className="text-[10px] uppercase font-semibold text-neutral-500 tracking-wider">Kitap Rozetleri</span>
+            
+            <label className="flex items-center justify-between text-xs text-neutral-300 hover:text-white cursor-pointer select-none py-1 px-1 rounded-lg hover:bg-white/5 transition-colors">
+              <div className="flex items-center gap-2">
+                <BookOpen className="w-3.5 h-3.5 text-blue-400" />
+                <span>Okunuyor Rozeti</span>
+              </div>
+              <input
+                id="toggle-show-book-reading"
+                type="checkbox"
+                checked={settings.showWatching !== false}
+                onChange={(e) => onChange({ showWatching: e.target.checked })}
                 className="w-4 h-4 rounded border-neutral-600 bg-neutral-800 text-white focus:ring-0 cursor-pointer accent-white"
               />
             </label>

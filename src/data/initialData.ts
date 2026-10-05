@@ -35,12 +35,20 @@ export const GAME_COLORS: Record<string, string> = {
   strateji: '#383838',
 };
 
+export const BOOK_COLORS: Record<string, string> = {
+  roman: '#404040',
+  bilimkurgu: '#525252',
+  felsefe: '#737373',
+  klasik: '#262626',
+};
+
 export const INITIAL_DATA: AppData = {
   version: 1,
   lastUpdated: new Date().toISOString(),
   categories: {
     media: [],
     game: [],
+    book: [],
   },
   items: [],
 };

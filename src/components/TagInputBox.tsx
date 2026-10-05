@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { X, Plus, ChevronDown } from 'lucide-react';
+import { X, Plus, ChevronDown, Sparkles, RotateCcw } from 'lucide-react';
 
 interface TagInputBoxProps {
   label: string;
@@ -9,6 +9,11 @@ interface TagInputBoxProps {
   availableTags: string[]; // Field-scoped isolated tags for autocomplete & dropdown
   tagCounts?: Map<string, number>; // Usage counts for each tag
   icon?: React.ReactNode;
+  rightElement?: React.ReactNode;
+  highlightNewTags?: string[];
+  highlightRemovedTags?: string[];
+  onRestoreRemovedTag?: (tag: string) => void;
+  hideCount?: boolean;
 }
 
 export const TagInputBox: React.FC<TagInputBoxProps> = ({
@@ -19,6 +24,11 @@ export const TagInputBox: React.FC<TagInputBoxProps> = ({
   availableTags = [],
   tagCounts,
   icon,
+  rightElement,
+  highlightNewTags = [],
+  highlightRemovedTags = [],
+  onRestoreRemovedTag,
+  hideCount = false,
 }) => {
   const [inputValue, setInputValue] = useState('');
   const [isOpen, setIsOpen] = useState(false);
@@ -106,11 +116,14 @@ export const TagInputBox: React.FC<TagInputBoxProps> = ({
           {icon}
           {label}
         </label>
-        {tags.length > 0 && (
-          <span className="text-[10px] text-slate-400 font-medium">
-            {tags.length} seçili
-          </span>
-        )}
+        <div className="flex items-center gap-2">
+          {tags.length > 0 && !hideCount && (
+            <span className="text-[10px] text-slate-400 font-medium">
+              {tags.length} seçili
+            </span>
+          )}
+          {rightElement}
+        </div>
       </div>
 
       {/* Box container with pills and input */}
@@ -126,24 +139,55 @@ export const TagInputBox: React.FC<TagInputBoxProps> = ({
         }`}
       >
         {/* Rendered Selected Tag Chips */}
-        {tags.map((tag, idx) => (
-          <span
-            key={idx}
-            className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-blue-500/15 border border-blue-500/30 text-blue-300 text-xs font-medium group transition-all"
+        {tags.map((tag, idx) => {
+          const isNewAi = highlightNewTags.some(
+            (t) => t.trim().toLowerCase() === tag.trim().toLowerCase()
+          );
+          return (
+            <span
+              key={idx}
+              className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium group transition-all ${
+                isNewAi
+                  ? 'bg-emerald-500/20 border border-emerald-500/60 text-emerald-300 ring-1 ring-emerald-500/30 shadow-xs shadow-emerald-500/20'
+                  : 'bg-blue-500/15 border border-blue-500/30 text-blue-300'
+              }`}
+            >
+              {isNewAi && <Sparkles className="w-2.5 h-2.5 text-emerald-400 shrink-0" />}
+              <span>{tag}</span>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  removeTag(idx);
+                }}
+                className={`p-0.5 rounded-full transition-colors cursor-pointer ${
+                  isNewAi
+                    ? 'text-emerald-400/80 hover:text-white hover:bg-emerald-500/30'
+                    : 'text-blue-400/70 hover:text-white hover:bg-blue-500/30'
+                }`}
+                title="Etiketi kaldır"
+              >
+                <X className="w-3 h-3" />
+              </button>
+            </span>
+          );
+        })}
+
+        {/* Removed tags that AI omitted (dashed red chip, click to restore) */}
+        {highlightRemovedTags.map((tag, idx) => (
+          <button
+            key={`removed-${idx}`}
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onRestoreRemovedTag?.(tag);
+            }}
+            className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-rose-500/15 border border-dashed border-rose-500/50 text-rose-300/85 text-xs font-medium line-through hover:no-underline hover:text-rose-100 hover:bg-rose-500/30 hover:border-rose-400 transition-all cursor-pointer group"
+            title={`"${tag}" AI önerisinde yer almıyor. Korumak / geri eklemek için tıklayın`}
           >
             <span>{tag}</span>
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                removeTag(idx);
-              }}
-              className="text-blue-400/70 hover:text-white hover:bg-blue-500/30 p-0.5 rounded-full transition-colors cursor-pointer"
-              title="Etiketi kaldır"
-            >
-              <X className="w-3 h-3" />
-            </button>
-          </span>
+            <RotateCcw className="w-2.5 h-2.5 text-rose-400 group-hover:text-rose-200 shrink-0 ml-0.5" />
+          </button>
         ))}
 
         {/* Inline Input Field */}

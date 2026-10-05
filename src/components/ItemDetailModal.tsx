@@ -1,11 +1,15 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
-import { ArchiveItem, Category, GameStatus, ItemCharacter } from '../types';
-import { MEDIA_COLORS, GAME_COLORS } from '../data/initialData';
+import { ArchiveItem, Category, GameStatus, ItemCharacter, BookFormat, BookQuote, AnkiBlurBox, AnkiExtraImage } from '../types';
+import { MEDIA_COLORS, GAME_COLORS, BOOK_COLORS } from '../data/initialData';
 import { optimizeImageFile } from '../utils/imageOptimizer';
 import { TagInputBox } from './TagInputBox';
 import { getFieldScopedTags, getFieldScopedTagCounts } from '../utils/tagUtils';
 import { safeLocalStorageGet, safeLocalStorageSet } from '../utils/fileSystem';
 import { CustomDialog, DialogOptions } from './CustomDialog';
+import { getGeminiApiKey, fetchAiMetadata, formatMetadataModelLabel, AiItemMetadata, AiLogEntry } from '../utils/geminiAi';
+import { AiProcessLogModal } from './AiProcessLogModal';
+import { AnkiEditorModal } from './AnkiEditorModal';
+import { initAnkiCard } from '../utils/ankiUtils';
 import {
   X,
   Upload,
@@ -32,6 +36,15 @@ import {
   Image as ImageIcon,
   Layers,
   Info,
+  AlertCircle,
+  Loader2,
+  CheckCircle2,
+  RotateCcw,
+  BookOpen,
+  Quote,
+  PenTool,
+  Globe,
+  Crop,
 } from 'lucide-react';
 
 interface ItemDetailModalProps {
@@ -72,6 +85,7 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
   const [showFollowDetails, setShowFollowDetails] = useState(false);
   const [showFranchiseTooltip, setShowFranchiseTooltip] = useState(false);
   const [deleteConfirmDialog, setDeleteConfirmDialog] = useState<DialogOptions | null>(null);
+  const [showAnkiEditor, setShowAnkiEditor] = useState<boolean>(false);
 
   // Takip kutularında (Beklenen Dönem veya Gelişme Notu) veri olup olmadığını kontrol eder
   const hasFollowData = !!(
@@ -105,6 +119,15 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
     return '';
   });
 
+  // Book specific states
+  const [pageCount, setPageCount] = useState<number | string>(item.pageCount ?? '');
+  const [bookFormat, setBookFormat] = useState<BookFormat>(item.format || 'Ciltsiz');
+  const [reading, setReading] = useState<boolean>(Boolean(item.reading));
+  const [author, setAuthor] = useState<string[]>(item.author || []);
+  const [publisher, setPublisher] = useState<string[]>(item.publisher || []);
+  const [translator, setTranslator] = useState<string[]>(item.translator || []);
+  const [quotes, setQuotes] = useState<BookQuote[]>(item.quotes || []);
+
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Sync formData when item prop changes (e.g. user selected another item)
@@ -126,6 +149,19 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
       setStartYear(yearStr);
       setEndYear('');
     }
+    setPageCount(item.pageCount ?? '');
+    setBookFormat(item.format || 'Ciltsiz');
+    setReading(Boolean(item.reading));
+    setAuthor(item.author || []);
+    setPublisher(item.publisher || []);
+    setTranslator(item.translator || []);
+    setQuotes(item.quotes || []);
+    setAiDescState(null);
+    setAiYearState(null);
+    setAiTagStates({});
+    setAiCharState(null);
+    setTagDiffs({});
+    setHighlightNewCharacters([]);
   }, [item]);
 
   // Series name suggestions for autocomplete
@@ -139,6 +175,559 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
     return Array.from(set).sort((a, b) => a.localeCompare(b, 'tr'));
   }, [allItems]);
 
+  // Gemini AI States
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiFetchedData, setAiFetchedData] = useState<AiItemMetadata | null>(null);
+  const [aiNotice, setAiNotice] = useState<{ text: string; type: 'success' | 'error' | 'warn' } | null>(null);
+
+  // AI Suggestions tracking for Description & Release Year (Auto-applied with visual glow & instant toggle)
+  const [aiDescState, setAiDescState] = useState<{
+    original: string;
+    suggested: string;
+    isActive: boolean;
+  } | null>(null);
+
+  const [aiYearState, setAiYearState] = useState<{
+    original: { startYear: string; endYear: string; isYearRange: boolean; releaseYear?: string | number };
+    suggested: { startYear: string; endYear: string; isYearRange: boolean; releaseYear?: string | number };
+    isActive: boolean;
+  } | null>(null);
+
+  // Tag fields & characters AI toggle states
+  const [aiTagStates, setAiTagStates] = useState<{
+    genres?: {
+      original: string[];
+      suggested: string[];
+      diff: { newTags: string[]; removedTags: string[] };
+      isActive: boolean;
+    };
+    firms?: {
+      original: string[];
+      suggested: string[];
+      diff: { newTags: string[]; removedTags: string[] };
+      isActive: boolean;
+    };
+    directors?: {
+      original: string[];
+      suggested: string[];
+      diff: { newTags: string[]; removedTags: string[] };
+      isActive: boolean;
+    };
+    actors?: {
+      original: string[];
+      suggested: string[];
+      diff: { newTags: string[]; removedTags: string[] };
+      isActive: boolean;
+    };
+    developers?: {
+      original: string[];
+      suggested: string[];
+      diff: { newTags: string[]; removedTags: string[] };
+      isActive: boolean;
+    };
+    authors?: {
+      original: string[];
+      suggested: string[];
+      diff: { newTags: string[]; removedTags: string[] };
+      isActive: boolean;
+    };
+    publishers?: {
+      original: string[];
+      suggested: string[];
+      diff: { newTags: string[]; removedTags: string[] };
+      isActive: boolean;
+    };
+    translators?: {
+      original: string[];
+      suggested: string[];
+      diff: { newTags: string[]; removedTags: string[] };
+      isActive: boolean;
+    };
+  }>({});
+
+  const [aiCharState, setAiCharState] = useState<{
+    original: ItemCharacter[];
+    suggested: ItemCharacter[];
+    highlightNames: string[];
+    isActive: boolean;
+  } | null>(null);
+
+  // Undo & Visual Diffing States
+  const [fieldUndoHistory, setFieldUndoHistory] = useState<{
+    releaseYear?: { startYear: string; endYear: string; isYearRange: boolean };
+    desc?: string;
+    genres?: string[];
+    firms?: string[];
+    directors?: string[];
+    actors?: string[];
+    developers?: string[];
+    authors?: string[];
+    publishers?: string[];
+    translators?: string[];
+    characters?: ItemCharacter[];
+  }>({});
+
+  const [tagDiffs, setTagDiffs] = useState<{
+    genres?: { newTags: string[]; removedTags: string[] };
+    firms?: { newTags: string[]; removedTags: string[] };
+    directors?: { newTags: string[]; removedTags: string[] };
+    actors?: { newTags: string[]; removedTags: string[] };
+    developers?: { newTags: string[]; removedTags: string[] };
+    authors?: { newTags: string[]; removedTags: string[] };
+    publishers?: { newTags: string[]; removedTags: string[] };
+    translators?: { newTags: string[]; removedTags: string[] };
+  }>({});
+
+  const [highlightNewCharacters, setHighlightNewCharacters] = useState<string[]>([]);
+  const [fieldNotices, setFieldNotices] = useState<Record<string, string>>({});
+
+  const showFieldNotice = (field: string, text: string) => {
+    setFieldNotices((prev) => ({ ...prev, [field]: text }));
+    setTimeout(() => {
+      setFieldNotices((prev) => {
+        const next = { ...prev };
+        delete next[field];
+        return next;
+      });
+    }, 2800);
+  };
+
+  // AI Real-time Step Status & Logging States
+  const [aiStatusText, setAiStatusText] = useState<string | null>(null);
+  const [aiStatusType, setAiStatusType] = useState<'loading' | 'success' | 'error' | null>(null);
+  const [aiLogs, setAiLogs] = useState<AiLogEntry[]>([]);
+  const [showAiLogModal, setShowAiLogModal] = useState<boolean>(false);
+  const [aiUsedModel, setAiUsedModel] = useState<string | undefined>(undefined);
+
+  const ensureAiData = async (): Promise<AiItemMetadata | null> => {
+    if (aiFetchedData) return aiFetchedData;
+
+    const key = getGeminiApiKey();
+    if (!key) {
+      const err = 'Lütfen önce Ayarlar > Veri & Dosya Sistemi > Gelişmiş altından Gemini API anahtarınızı kaydedin.';
+      setAiNotice({
+        text: err,
+        type: 'error',
+      });
+      setAiStatusText('API anahtarı eksik');
+      setAiStatusType('error');
+      setAiLogs([
+        {
+          id: `${Date.now()}-err`,
+          time: new Date().toTimeString().split(' ')[0],
+          level: 'error',
+          message: 'Gemini API anahtarı ayarlanmamış.',
+          details: 'Ayarlar > Veri & Dosya Sistemi > Gelişmiş Seçenekler altından geçerli bir Google AI Studio anahtarı girin.',
+        },
+      ]);
+      setTimeout(() => setAiNotice(null), 5000);
+      return null;
+    }
+
+    if (!formData.title.trim() && !formData.thumbnail) {
+      const err = 'Lütfen önce bir yapım başlığı girin veya bir afiş ekleyin.';
+      setAiNotice({
+        text: err,
+        type: 'error',
+      });
+      setAiStatusText('Başlık veya afiş gerekli');
+      setAiStatusType('error');
+      setTimeout(() => setAiNotice(null), 4000);
+      return null;
+    }
+
+    setAiLoading(true);
+    setAiNotice(null);
+    setAiStatusText('İşlem başlatılıyor...');
+    setAiStatusType('loading');
+    setAiLogs([]);
+    setAiUsedModel(undefined);
+
+    try {
+      const res = await fetchAiMetadata({
+        title: formData.title.trim(),
+        categoryName: selectedCatObj?.name || '',
+        isGame,
+        isBook,
+        posterBase64: formData.thumbnail,
+        existingGenres: isBook ? availableBookGenreTags : isGame ? availableGameGenreTags : availableMediaGenreTags,
+        existingFirms: availableFirmTags,
+        existingDirectors: availableDirectorTags,
+        existingDevelopers: availableDevTags,
+        existingAuthors: availableAuthorTags,
+        existingPublishers: availablePublisherTags,
+        existingTranslators: availableTranslatorTags,
+        onProgress: (statusText, logEntry) => {
+          setAiStatusText(statusText);
+          setAiLogs((prev) => [...prev, logEntry]);
+        },
+      });
+
+      if (res.logs && res.logs.length > 0) {
+        setAiLogs(res.logs);
+      }
+      if (res.usedModel) {
+        setAiUsedModel(res.usedModel);
+      }
+
+      if (!res.success || !res.data) {
+        setAiNotice({
+          text: res.error || 'AI yapım bilgilerini getiremedi.',
+          type: 'error',
+        });
+        setAiStatusText(res.error || 'İşlem tamamlanamadı');
+        setAiStatusType('error');
+        setTimeout(() => setAiNotice(null), 5000);
+        return null;
+      }
+
+      setAiFetchedData(res.data);
+      const formattedModel = formatMetadataModelLabel(res.usedModel);
+      setAiStatusText(`Tamamlandı (${formattedModel})`);
+      setAiStatusType('success');
+      return res.data;
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setAiNotice({
+        text: `Hata: ${msg.slice(0, 100)}`,
+        type: 'error',
+      });
+      setAiStatusText(`Hata: ${msg.slice(0, 50)}`);
+      setAiStatusType('error');
+      setTimeout(() => setAiNotice(null), 5000);
+      return null;
+    } finally {
+      setAiLoading(false);
+    }
+  };
+
+  // Master AI Action: "✨ AI ile Doldur"
+  // Boş alanları otomatik doldurur, dolu alanlar için onay önerileri hazırlar.
+  const handleAiFill = async () => {
+    if (!formData.title.trim() && !formData.thumbnail) {
+      setAiNotice({
+        text: 'Lütfen önce bir yapım başlığı girin veya afiş yükleyin.',
+        type: 'warn',
+      });
+      setTimeout(() => setAiNotice(null), 3000);
+      return;
+    }
+
+    const data = await ensureAiData();
+    if (!data) return;
+
+    let filledCount = 0;
+    let suggestedCount = 0;
+
+    // 1. Release Year (Çıkış Yılı) - Doğrudan kutuya uygula, yeşil çerçeve ve [↩]/[✨] geçiş durumunu aktifleştir
+    const normalizeYear = (val: string) => val.replace(/\s+/g, '').replace(/[-–—]/g, '-');
+    const curYear = isYearRange ? `${startYear}–${endYear}`.trim() : startYear.trim();
+    if (data.releaseYear) {
+      const aiYearStr = String(data.releaseYear).trim();
+      if (aiYearStr && (!curYear || normalizeYear(aiYearStr) !== normalizeYear(curYear))) {
+        let aiStart = aiYearStr;
+        let aiEnd = '';
+        let aiIsRange = false;
+        if (aiYearStr.includes('-') || aiYearStr.includes('–') || aiYearStr.includes('—')) {
+          aiIsRange = true;
+          const parts = aiYearStr.split(/[-–—]/);
+          aiStart = parts[0]?.trim() || '';
+          aiEnd = parts[1]?.trim() || '';
+        }
+        const computedAiYear = aiIsRange
+          ? (aiEnd ? `${aiStart}–${aiEnd}` : `${aiStart}–`)
+          : (!isNaN(Number(aiStart)) ? Number(aiStart) : aiStart);
+
+        setAiYearState({
+          original: {
+            startYear,
+            endYear,
+            isYearRange,
+            releaseYear: formData.releaseYear,
+          },
+          suggested: {
+            startYear: aiStart,
+            endYear: aiEnd,
+            isYearRange: aiIsRange,
+            releaseYear: computedAiYear,
+          },
+          isActive: true,
+        });
+
+        setIsYearRange(aiIsRange);
+        setStartYear(aiStart);
+        setEndYear(aiEnd);
+        handleChange('releaseYear', computedAiYear);
+
+        if (!curYear) {
+          filledCount++;
+        } else {
+          suggestedCount++;
+        }
+      }
+    }
+
+    // 2. Description (Konu / Özet) - Doğrudan kutuya uygula, yeşil çerçeve ve [↩]/[✨] geçiş durumunu aktifleştir
+    const curDesc = (formData.desc || '').trim();
+    const aiDesc = (data.description || '').trim();
+    if (aiDesc && aiDesc !== curDesc) {
+      setAiDescState({
+        original: formData.desc || '',
+        suggested: aiDesc,
+        isActive: true,
+      });
+      handleChange('desc', aiDesc);
+
+      if (!curDesc) {
+        filledCount++;
+      } else {
+        suggestedCount++;
+      }
+    }
+
+    // Helper for tag fields
+    const processTagField = (
+      fieldKey: 'genres' | 'firms' | 'directors' | 'actors' | 'developers' | 'authors' | 'publishers' | 'translators',
+      currentTags: string[] | undefined,
+      aiTags: string[] | undefined,
+      setter: (tags: string[]) => void
+    ) => {
+      const current = currentTags || [];
+      const ai = aiTags || [];
+      if (ai.length === 0) return;
+
+      if (current.length === 0) {
+        setter(ai);
+        filledCount++;
+      } else {
+        const curSet = new Set(current.map((t) => t.trim().toLowerCase()));
+        const aiSet = new Set(ai.map((t) => t.trim().toLowerCase()));
+        const newTags = ai.filter((t) => !curSet.has(t.trim().toLowerCase()));
+        const removedTags = current.filter((t) => !aiSet.has(t.trim().toLowerCase()));
+
+        if (newTags.length > 0 || removedTags.length > 0) {
+          const updated = [...current.filter((t) => aiSet.has(t.trim().toLowerCase())), ...newTags];
+          const finalSuggested = updated.length > 0 ? updated : ai;
+          const diff = { newTags, removedTags };
+
+          setter(finalSuggested);
+          setTagDiffs((prev) => ({
+            ...prev,
+            [fieldKey]: diff,
+          }));
+          setAiTagStates((prev) => ({
+            ...prev,
+            [fieldKey]: {
+              original: [...current],
+              suggested: finalSuggested,
+              diff,
+              isActive: true,
+            },
+          }));
+          suggestedCount++;
+        }
+      }
+    };
+
+    // 3. Genres
+    processTagField('genres', formData.genre, data.genres, (tags) => handleChange('genre', tags));
+
+    // 4. Field-scoped tags
+    if (isBook) {
+      processTagField('authors', author, data.authors, setAuthor);
+      processTagField('publishers', publisher, data.publishers, setPublisher);
+      processTagField('translators', translator, data.translators, setTranslator);
+    } else if (!isGame) {
+      processTagField('firms', formData.firm, data.firms, (tags) => handleChange('firm', tags));
+      processTagField('directors', formData.director, data.directors, (tags) => handleChange('director', tags));
+      const aiActorList = data.actors && data.actors.length > 0
+        ? data.actors
+        : Array.from(new Set((data.characters || []).map((c) => c.actor?.trim()).filter(Boolean) as string[]));
+      processTagField('actors', formData.actors, aiActorList, (tags) => handleChange('actors', tags));
+    } else {
+      processTagField('developers', formData.developer, data.developers, (tags) => handleChange('developer', tags));
+    }
+
+    // 6. Characters (Karakterler & Kadro)
+    const aiChars = data.characters || [];
+    if (aiChars.length > 0) {
+      const cur = formData.characters || [];
+      if (cur.length === 0) {
+        handleChange(
+          'characters',
+          aiChars.map((c) => ({ name: c.name, actor: c.actor || '' }))
+        );
+        filledCount++;
+      } else {
+        const curNames = new Set(cur.map((c) => c.name.trim().toLowerCase()));
+        const newChars = aiChars.filter((c) => !curNames.has(c.name.trim().toLowerCase()));
+        if (newChars.length > 0) {
+          const updated = [...cur, ...newChars.map((c) => ({ name: c.name, actor: c.actor || '' }))];
+          handleChange('characters', updated);
+          const highlightNames = newChars.map((c) => c.name.trim().toLowerCase());
+          setHighlightNewCharacters(highlightNames);
+          setAiCharState({
+            original: [...cur],
+            suggested: updated,
+            highlightNames,
+            isActive: true,
+          });
+          suggestedCount++;
+        }
+      }
+    }
+
+    // Bilgilendirme üst bildirimi kullanıcı isteğiyle kaldırıldı (alan içi geri alma butonları mevcuttur)
+  };
+
+  const handleToggleTagField = (
+    fieldKey: 'genres' | 'firms' | 'directors' | 'actors' | 'developers' | 'authors' | 'publishers' | 'translators',
+    formKey?: 'genre' | 'firm' | 'director' | 'actors' | 'developer'
+  ) => {
+    const state = aiTagStates[fieldKey];
+    if (!state) return;
+
+    const applyTags = (tags: string[]) => {
+      if (formKey) handleChange(formKey, tags);
+      else if (fieldKey === 'genres') handleChange('genre', tags);
+      else if (fieldKey === 'authors') setAuthor(tags);
+      else if (fieldKey === 'publishers') setPublisher(tags);
+      else if (fieldKey === 'translators') setTranslator(tags);
+    };
+
+    if (state.isActive) {
+      applyTags(state.original);
+      setTagDiffs((prev) => {
+        const next = { ...prev };
+        delete next[fieldKey];
+        return next;
+      });
+      setAiTagStates((prev) => ({
+        ...prev,
+        [fieldKey]: { ...state, isActive: false },
+      }));
+    } else {
+      applyTags(state.suggested);
+      setTagDiffs((prev) => ({
+        ...prev,
+        [fieldKey]: state.diff,
+      }));
+      setAiTagStates((prev) => ({
+        ...prev,
+        [fieldKey]: { ...state, isActive: true },
+      }));
+    }
+  };
+
+  const handleToggleCharacters = () => {
+    if (!aiCharState) return;
+
+    if (aiCharState.isActive) {
+      handleChange('characters', aiCharState.original);
+      setHighlightNewCharacters([]);
+      setAiCharState((prev) => (prev ? { ...prev, isActive: false } : null));
+    } else {
+      handleChange('characters', aiCharState.suggested);
+      setHighlightNewCharacters(aiCharState.highlightNames);
+      setAiCharState((prev) => (prev ? { ...prev, isActive: true } : null));
+    }
+  };
+
+  const handleTagFieldChange = (
+    fieldKey: 'genres' | 'firms' | 'directors' | 'actors' | 'developers' | 'authors' | 'publishers' | 'translators',
+    formKey: 'genre' | 'firm' | 'director' | 'actors' | 'developer' | 'author' | 'publisher' | 'translator',
+    newTags: string[]
+  ) => {
+    if (formKey === 'author') setAuthor(newTags);
+    else if (formKey === 'publisher') setPublisher(newTags);
+    else if (formKey === 'translator') setTranslator(newTags);
+    else handleChange(formKey, newTags);
+
+    const state = aiTagStates[fieldKey];
+    if (state && state.isActive) {
+      // Retain newTags highlight for any tags still in newTags that were suggested by AI
+      const remainingNew = (state.diff.newTags || []).filter((t) =>
+        newTags.some((nt) => nt.trim().toLowerCase() === t.trim().toLowerCase())
+      );
+      // Retain removedTags for any original tag that is not in newTags
+      const curSet = new Set(newTags.map((t) => t.trim().toLowerCase()));
+      const remainingRemoved = (state.original || []).filter(
+        (t) => !curSet.has(t.trim().toLowerCase())
+      );
+
+      const updatedDiff = {
+        newTags: remainingNew,
+        removedTags: remainingRemoved,
+      };
+
+      setTagDiffs((prev) => ({
+        ...prev,
+        [fieldKey]: updatedDiff,
+      }));
+      setAiTagStates((prev) => ({
+        ...prev,
+        [fieldKey]: {
+          ...state,
+          diff: updatedDiff,
+        },
+      }));
+    }
+  };
+
+  const handleRestoreRemovedTag = (
+    field: 'genres' | 'firms' | 'directors' | 'actors' | 'developers' | 'authors' | 'publishers' | 'translators',
+    tag: string
+  ) => {
+    let nextTags: string[] = [];
+    if (field === 'genres') {
+      nextTags = [...(formData.genre || []), tag];
+      handleChange('genre', nextTags);
+    } else if (field === 'firms') {
+      nextTags = [...(formData.firm || []), tag];
+      handleChange('firm', nextTags);
+    } else if (field === 'directors') {
+      nextTags = [...(formData.director || []), tag];
+      handleChange('director', nextTags);
+    } else if (field === 'actors') {
+      nextTags = [...(formData.actors || []), tag];
+      handleChange('actors', nextTags);
+    } else if (field === 'developers') {
+      nextTags = [...(formData.developer || []), tag];
+      handleChange('developer', nextTags);
+    } else if (field === 'authors') {
+      setAuthor((prev) => [...prev, tag]);
+    } else if (field === 'publishers') {
+      setPublisher((prev) => [...prev, tag]);
+    } else if (field === 'translators') {
+      setTranslator((prev) => [...prev, tag]);
+    }
+    setTagDiffs((prev) => {
+      const cur = prev[field];
+      if (!cur) return prev;
+      return {
+        ...prev,
+        [field]: {
+          ...cur,
+          removedTags: cur.removedTags.filter((t) => t.toLowerCase() !== tag.toLowerCase()),
+        },
+      };
+    });
+    setAiTagStates((prev) => {
+      const cur = prev[field];
+      if (!cur) return prev;
+      return {
+        ...prev,
+        [field]: {
+          ...cur,
+          diff: {
+            ...cur.diff,
+            removedTags: cur.diff.removedTags.filter((t) => t.toLowerCase() !== tag.toLowerCase()),
+          },
+        },
+      };
+    });
+  };
+
   // Auto-sync category if categories list updates or current cat becomes invalid
   useEffect(() => {
     if (categories.length > 0 && !categories.some((c) => c.id === formData.cat)) {
@@ -151,9 +740,10 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
   }, [categories, formData.cat]);
 
   const isGame = formData.mainTab === 'game';
+  const isBook = formData.mainTab === 'book';
   const selectedCatObj = categories.find((c) => c.id === formData.cat);
-  const palette = isGame ? GAME_COLORS : MEDIA_COLORS;
-  const baseColor = palette[formData.cat] || '#3b82f6';
+  const palette = isGame ? GAME_COLORS : isBook ? BOOK_COLORS : MEDIA_COLORS;
+  const baseColor = palette[formData.cat] || (isBook ? '#8a6fbf' : '#3b82f6');
 
   // Field-scoped tag lists and count maps
   const availableFirmTags = useMemo(
@@ -209,6 +799,83 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
     () => getFieldScopedTagCounts(allItems, 'game', 'genre'),
     [allItems]
   );
+
+  const availableAuthorTags = useMemo(
+    () => getFieldScopedTags(allItems, 'book', 'author'),
+    [allItems]
+  );
+  const authorTagCounts = useMemo(
+    () => getFieldScopedTagCounts(allItems, 'book', 'author'),
+    [allItems]
+  );
+
+  const availablePublisherTags = useMemo(
+    () => getFieldScopedTags(allItems, 'book', 'publisher'),
+    [allItems]
+  );
+  const publisherTagCounts = useMemo(
+    () => getFieldScopedTagCounts(allItems, 'book', 'publisher'),
+    [allItems]
+  );
+
+  const availableTranslatorTags = useMemo(
+    () => getFieldScopedTags(allItems, 'book', 'translator'),
+    [allItems]
+  );
+  const translatorTagCounts = useMemo(
+    () => getFieldScopedTagCounts(allItems, 'book', 'translator'),
+    [allItems]
+  );
+
+  const availableBookGenreTags = useMemo(
+    () => getFieldScopedTags(allItems, 'book', 'genre'),
+    [allItems]
+  );
+  const bookGenreTagCounts = useMemo(
+    () => getFieldScopedTagCounts(allItems, 'book', 'genre'),
+    [allItems]
+  );
+
+  // Book Status & Quotes Handlers
+  const handleBookStatusToggle = (type: 'reading' | 'dropped') => {
+    if (type === 'reading') {
+      const next = !reading;
+      setReading(next);
+      if (next) {
+        handleChange('dropped', false);
+        handleChange('date', '');
+      }
+    } else if (type === 'dropped') {
+      const next = !formData.dropped;
+      handleChange('dropped', next);
+      if (next) {
+        setReading(false);
+      }
+    }
+  };
+
+  const handleAddQuote = () => {
+    setQuotes((prev) => [
+      ...prev,
+      {
+        id: `q_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
+        text: '',
+        page: '',
+      },
+    ]);
+  };
+
+  const handleUpdateQuote = (index: number, field: 'text' | 'page', value: string) => {
+    setQuotes((prev) => {
+      const updated = [...prev];
+      updated[index] = { ...updated[index], [field]: value };
+      return updated;
+    });
+  };
+
+  const handleRemoveQuote = (index: number) => {
+    setQuotes((prev) => prev.filter((_, i) => i !== index));
+  };
 
   // Aggregated actor suggestions from actors tags and existing characters
   const allActorSuggestions = useMemo(() => {
@@ -321,6 +988,8 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
 
   const isDateDisabled = isGame
     ? (formData.status === 'Oynanıyor' || formData.status === 'Oynanacak')
+    : isBook
+    ? reading
     : !!formData.watching;
 
   const applyImageBase64 = async (rawInput: File | Blob | string, name?: string) => {
@@ -470,6 +1139,38 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
       releaseYear: computedReleaseYear,
       seriesName: trimmedSeries,
       seriesOrder: cleanSeriesOrder,
+      // Book specific
+      reading: isBook ? reading : undefined,
+      pageCount: isBook && pageCount !== '' && !isNaN(Number(pageCount)) ? Number(pageCount) : undefined,
+      format: isBook ? bookFormat : undefined,
+      author: isBook && author.length > 0 ? author : undefined,
+      publisher: isBook && publisher.length > 0 ? publisher : undefined,
+      translator: isBook && translator.length > 0 ? translator : undefined,
+      quotes:
+        isBook && quotes.filter((q) => q.text.trim().length > 0).length > 0
+          ? quotes
+              .filter((q) => q.text.trim().length > 0)
+              .map((q) => ({
+                id: q.id,
+                text: q.text.trim(),
+                page:
+                  q.page !== undefined && String(q.page).trim().length > 0
+                    ? !isNaN(Number(q.page))
+                      ? Number(q.page)
+                      : String(q.page).trim()
+                    : undefined,
+              }))
+          : undefined,
+      // Media tags
+      firm: !isGame && !isBook && (formData.firm || []).length > 0 ? formData.firm : undefined,
+      director: !isGame && !isBook && (formData.director || []).length > 0 ? formData.director : undefined,
+      actors: !isGame && !isBook && (formData.actors || []).length > 0 ? formData.actors : undefined,
+      // Game tags
+      developer: isGame && (formData.developer || []).length > 0 ? formData.developer : undefined,
+      // Media flags
+      watching: !isGame && !isBook ? formData.watching : undefined,
+      following: !isGame && !isBook ? formData.following : undefined,
+      dropped: isBook ? formData.dropped : (!isGame ? formData.dropped : undefined),
       updatedAt: Date.now(),
     });
   };
@@ -535,7 +1236,7 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
   return (
     <div
       id="detail-modal-overlay"
-      className="fixed inset-0 z-60 bg-black/80 backdrop-blur-xs flex items-center justify-center p-3 sm:p-5 overflow-y-auto"
+      className="fixed inset-0 z-60 bg-black/80 backdrop-blur-md flex items-center justify-center p-3 sm:p-5 overflow-y-auto"
     >
       <div
         id="detail-modal-box"
@@ -545,7 +1246,7 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
         {/* Header bar */}
         <div className="flex items-center justify-between px-5 py-3 border-b border-white/10 bg-black/40">
           <div className="flex items-center gap-2 text-xs text-slate-400 font-medium">
-            <span className="text-slate-300 font-semibold">{isGame ? '🎮 Oyun' : '🎬 Medya'}</span>
+            <span className="text-slate-300 font-semibold">{isGame ? '🎮 Oyun' : isBook ? '📚 Kitap' : '🎬 Medya'}</span>
             <span>/</span>
             <span className="text-blue-300 font-semibold">{selectedCatObj?.name || 'Kategorisiz'}</span>
             {formData.sub && (
@@ -557,6 +1258,7 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
           </div>
 
           <div className="flex items-center gap-2">
+
             {/* Delete button (only on desktop/large screens or non-readonly) */}
             {!isReadOnly && (
               <button
@@ -609,12 +1311,29 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
 
         {/* Modal Body */}
         <form onSubmit={handleSaveForm} className="p-5 sm:p-6 space-y-4 overflow-y-auto flex-1 custom-scrollbar">
+          {/* AI Banner / Notification (Yalnızca hata veya uyarı durumlarında görünür, başarı uyarısı kaldırıldı) */}
+          {aiNotice && aiNotice.type !== 'success' && (
+            <div className="p-3 rounded-xl text-xs flex items-center justify-between gap-2 transition-all bg-red-500/15 border border-red-500/30 text-red-200">
+              <div className="flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 text-red-400 shrink-0" />
+                <span>{aiNotice.text}</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setAiNotice(null)}
+                className="text-slate-400 hover:text-white"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          )}
+
           {/* TOP SECTION: Left Compact Poster (with top-right X and bottom buttons) + Right Info & Notes */}
           <div className="flex flex-col sm:flex-row gap-4 items-start">
             {/* Left: Compact Poster Column */}
             <div className="w-28 sm:w-32 shrink-0 mx-auto sm:mx-0 flex flex-col gap-1.5">
               <div
-                className="relative w-full aspect-[2/3] rounded-xl overflow-hidden border border-white/15 shadow-md flex items-center justify-center text-center group"
+                className={`relative w-full aspect-[2/3] ${isBook ? 'rounded-none' : 'rounded-xl'} overflow-hidden border border-white/15 shadow-md flex items-center justify-center text-center group`}
                 style={{
                   backgroundColor: formData.thumbnail ? '#0b0e14' : `${baseColor}22`,
                   borderColor: formData.thumbnail ? 'rgba(255,255,255,0.15)' : `${baseColor}60`,
@@ -625,7 +1344,7 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
                     <img
                       src={formData.thumbnail}
                       alt={formData.title}
-                      className="w-full h-full object-cover rounded-xl"
+                      className={`w-full h-full object-cover ${isBook ? 'rounded-none' : 'rounded-xl'}`}
                     />
                     {/* Top-Right "X" icon to remove image */}
                     <button
@@ -687,51 +1406,70 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
 
             {/* Right: Main Fields + Notes */}
             <div className="flex-1 w-full space-y-2.5">
-              {/* Title */}
+              {/* Title with AI Doldur Button */}
               <div>
                 <label className="block text-[10px] uppercase tracking-wider text-slate-400 font-semibold mb-0.5">
                   Başlık *
                 </label>
-                <input
-                  id="detail-title-input"
-                  type="text"
-                  required
-                  value={formData.title}
-                  onChange={(e) => handleChange('title', e.target.value)}
-                  className="w-full bg-black/30 text-white font-semibold border border-white/10 rounded-xl px-3 py-1.5 text-xs focus:outline-none focus:border-blue-500 transition-colors"
-                />
+                <div className="flex items-center gap-2">
+                  <input
+                    id="detail-title-input"
+                    type="text"
+                    required
+                    autoComplete="off"
+                    value={formData.title}
+                    onChange={(e) => handleChange('title', e.target.value)}
+                    className="flex-1 min-w-0 bg-black/30 text-white font-semibold border border-white/10 rounded-xl px-3 py-1.5 text-xs focus:outline-none focus:border-blue-500 transition-colors"
+                  />
+                  {!isReadOnly && (
+                    <button
+                      id="detail-ai-fill-btn"
+                      type="button"
+                      onClick={handleAiFill}
+                      disabled={aiLoading || (!formData.title.trim() && !formData.thumbnail)}
+                      title={
+                        !formData.title.trim() && !formData.thumbnail
+                          ? 'Otomatik doldurma için önce bir başlık yazın veya afiş ekleyin.'
+                          : 'Gemini AI ile boş alanları otomatik doldurur, dolu alanlar için öneriler sunar'
+                      }
+                      className="shrink-0 px-3 py-1.5 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 text-xs font-bold flex items-center gap-1.5 shadow-md shadow-amber-500/20 border border-amber-400/40 transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed disabled:shadow-none"
+                    >
+                      <Sparkles className={`w-3.5 h-3.5 ${aiLoading ? 'animate-spin' : ''}`} />
+                      <span>{aiLoading ? 'Dolduruluyor...' : 'AI ile Doldur'}</span>
+                    </button>
+                  )}
+                </div>
               </div>
 
               {/* Category & Subgroup Selectors */}
-              <div className={`grid gap-2 ${selectedCatObj?.subgroups.length ? 'grid-cols-2' : 'grid-cols-1'}`}>
-                <div>
-                  <label className="block text-[10px] uppercase tracking-wider text-slate-400 font-semibold mb-0.5">
-                    Kategori
-                  </label>
-                  <select
-                    id="detail-category-select"
-                    value={formData.cat}
-                    onChange={(e) => {
-                      const newCat = e.target.value;
-                      setFormData((prev) => ({
-                        ...prev,
-                        cat: newCat,
-                        sub: null,
-                      }));
-                    }}
-                    className="w-full bg-black/30 text-slate-200 border border-white/10 rounded-xl px-2.5 py-1.5 text-xs focus:outline-none focus:border-blue-500 cursor-pointer"
-                  >
-                    <option value="" className="bg-slate-900 text-neutral-400">(Kategorisiz / Havuz)</option>
-                    {categories.map((c) => (
-                      <option key={c.id} value={c.id} className="bg-slate-900 text-white">
-                        {c.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+              {isBook ? (
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                  <div>
+                    <label className="block text-[10px] uppercase tracking-wider text-slate-400 font-semibold mb-0.5">
+                      Kategori
+                    </label>
+                    <select
+                      id="detail-category-select"
+                      value={formData.cat}
+                      onChange={(e) => {
+                        const newCat = e.target.value;
+                        setFormData((prev) => ({
+                          ...prev,
+                          cat: newCat,
+                          sub: null,
+                        }));
+                      }}
+                      className="w-full bg-black/30 text-slate-200 border border-white/10 rounded-xl px-2.5 py-1.5 text-xs focus:outline-none focus:border-indigo-500 cursor-pointer"
+                    >
+                      <option value="" className="bg-slate-900 text-neutral-400">(Kategorisiz / Havuz)</option>
+                      {categories.map((c) => (
+                        <option key={c.id} value={c.id} className="bg-slate-900 text-white">
+                          {c.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
 
-                {/* Subgroup Selector - ONLY visible if category has subgroups */}
-                {selectedCatObj && selectedCatObj.subgroups.length > 0 && (
                   <div>
                     <label className="block text-[10px] uppercase tracking-wider text-slate-400 font-semibold mb-0.5">
                       Alt-Grup
@@ -740,18 +1478,83 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
                       id="detail-subgroup-select"
                       value={formData.sub || ''}
                       onChange={(e) => handleChange('sub', e.target.value || null)}
-                      className="w-full bg-black/30 text-slate-200 border border-white/10 rounded-xl px-2.5 py-1.5 text-xs focus:outline-none focus:border-blue-500 cursor-pointer"
+                      className="w-full bg-black/30 text-slate-200 border border-white/10 rounded-xl px-2.5 py-1.5 text-xs focus:outline-none focus:border-indigo-500 cursor-pointer"
                     >
                       <option value="" className="bg-slate-900 text-white">Yok</option>
-                      {selectedCatObj.subgroups.map((s) => (
+                      {(selectedCatObj?.subgroups || []).map((s) => (
                         <option key={s} value={s} className="bg-slate-900 text-white">
                           {s}
                         </option>
                       ))}
                     </select>
                   </div>
-                )}
-              </div>
+
+                  <div>
+                    <label className="block text-[10px] uppercase tracking-wider text-slate-400 font-semibold mb-0.5 flex items-center gap-1">
+                      <BookOpen className="w-3 h-3 text-indigo-400" /> Sayfa Sayısı
+                    </label>
+                    <input
+                      id="detail-page-count-input"
+                      type="number"
+                      min="1"
+                      placeholder="Örn: 384"
+                      value={pageCount}
+                      onChange={(e) => setPageCount(e.target.value)}
+                      className="w-full bg-black/30 text-slate-200 border border-white/10 rounded-xl px-2.5 py-1.5 text-xs focus:outline-none focus:border-indigo-500 font-medium"
+                    />
+                  </div>
+                </div>
+              ) : (
+                <div className={`grid gap-2 ${selectedCatObj?.subgroups.length ? 'grid-cols-2' : 'grid-cols-1'}`}>
+                  <div>
+                    <label className="block text-[10px] uppercase tracking-wider text-slate-400 font-semibold mb-0.5">
+                      Kategori
+                    </label>
+                    <select
+                      id="detail-category-select"
+                      value={formData.cat}
+                      onChange={(e) => {
+                        const newCat = e.target.value;
+                        setFormData((prev) => ({
+                          ...prev,
+                          cat: newCat,
+                          sub: null,
+                        }));
+                      }}
+                      className="w-full bg-black/30 text-slate-200 border border-white/10 rounded-xl px-2.5 py-1.5 text-xs focus:outline-none focus:border-blue-500 cursor-pointer"
+                    >
+                      <option value="" className="bg-slate-900 text-neutral-400">(Kategorisiz / Havuz)</option>
+                      {categories.map((c) => (
+                        <option key={c.id} value={c.id} className="bg-slate-900 text-white">
+                          {c.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Subgroup Selector - ONLY visible if category has subgroups */}
+                  {selectedCatObj && selectedCatObj.subgroups.length > 0 && (
+                    <div>
+                      <label className="block text-[10px] uppercase tracking-wider text-slate-400 font-semibold mb-0.5">
+                        Alt-Grup
+                      </label>
+                      <select
+                        id="detail-subgroup-select"
+                        value={formData.sub || ''}
+                        onChange={(e) => handleChange('sub', e.target.value || null)}
+                        className="w-full bg-black/30 text-slate-200 border border-white/10 rounded-xl px-2.5 py-1.5 text-xs focus:outline-none focus:border-blue-500 cursor-pointer"
+                      >
+                        <option value="" className="bg-slate-900 text-white">Yok</option>
+                        {selectedCatObj.subgroups.map((s) => (
+                          <option key={s} value={s} className="bg-slate-900 text-white">
+                            {s}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* Rating, Release Year & Date */}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 items-start min-w-0">
@@ -780,7 +1583,7 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
                   <div className="flex items-center gap-1.5 h-5 mb-1">
                     <label className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold flex items-center gap-1 truncate">
                       <Calendar className="w-3 h-3 text-neutral-400 shrink-0" />
-                      <span>Yapım Yılı</span>
+                      <span>{isBook ? 'Basım Yılı' : 'Yapım Yılı'}</span>
                     </label>
                     <button
                       type="button"
@@ -802,6 +1605,43 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
                     >
                       <CalendarRange className="w-3.5 h-3.5 text-blue-400" />
                     </button>
+
+                    {/* AI Status & Actions for Release Year */}
+                    {!isReadOnly && aiYearState && (
+                      <div className="ml-auto flex items-center gap-1">
+                        {aiYearState.isActive ? (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setStartYear(aiYearState.original.startYear);
+                              setEndYear(aiYearState.original.endYear);
+                              setIsYearRange(aiYearState.original.isYearRange);
+                              handleChange('releaseYear', aiYearState.original.releaseYear);
+                              setAiYearState((prev) => (prev ? { ...prev, isActive: false } : null));
+                            }}
+                            title="Eski haline dön"
+                            className="p-1 rounded-md bg-white/10 hover:bg-white/20 text-slate-300 hover:text-white border border-white/20 transition-all cursor-pointer shadow-xs"
+                          >
+                            <RotateCcw className="w-3.5 h-3.5" />
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setStartYear(aiYearState.suggested.startYear);
+                              setEndYear(aiYearState.suggested.endYear);
+                              setIsYearRange(aiYearState.suggested.isYearRange);
+                              handleChange('releaseYear', aiYearState.suggested.releaseYear);
+                              setAiYearState((prev) => (prev ? { ...prev, isActive: true } : null));
+                            }}
+                            title="AI önerisine geç"
+                            className="p-1 rounded-md bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 transition-all cursor-pointer shadow-xs"
+                          >
+                            <Sparkles className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                      </div>
+                    )}
                   </div>
 
                   {!isYearRange ? (
@@ -816,8 +1656,15 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
                         setStartYear(val);
                         const s = val.trim();
                         handleChange('releaseYear', s ? (!isNaN(Number(s)) ? Number(s) : s) : undefined);
+                        if (aiYearState?.isActive) {
+                          setAiYearState((prev) => (prev ? { ...prev, isActive: false } : null));
+                        }
                       }}
-                      className="w-full h-8 bg-black/30 text-slate-200 font-medium border border-white/10 rounded-xl px-2.5 text-xs focus:outline-none focus:border-blue-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                      className={`w-full h-8 text-slate-200 font-medium rounded-xl px-2.5 text-xs focus:outline-none focus:border-blue-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none transition-all ${
+                        aiYearState?.isActive
+                          ? 'border border-emerald-500/80 ring-1 ring-emerald-500/40 shadow-[0_0_10px_rgba(16,185,129,0.18)] bg-emerald-500/[0.04]'
+                          : 'border border-white/10 bg-black/30'
+                      }`}
                     />
                   ) : (
                     <div className="flex items-center gap-1 min-w-0">
@@ -834,8 +1681,15 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
                           const eVal = endYear.trim();
                           const combined = s ? (eVal ? `${s}–${eVal}` : `${s}–`) : (eVal ? `–${eVal}` : undefined);
                           handleChange('releaseYear', combined);
+                          if (aiYearState?.isActive) {
+                            setAiYearState((prev) => (prev ? { ...prev, isActive: false } : null));
+                          }
                         }}
-                        className="w-full min-w-0 h-8 bg-black/30 text-slate-200 font-medium border border-white/10 rounded-xl px-1.5 text-xs text-center focus:outline-none focus:border-blue-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                        className={`w-full min-w-0 h-8 text-slate-200 font-medium rounded-xl px-1.5 text-xs text-center focus:outline-none focus:border-blue-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none transition-all ${
+                          aiYearState?.isActive
+                            ? 'border border-emerald-500/80 ring-1 ring-emerald-500/40 shadow-[0_0_10px_rgba(16,185,129,0.18)] bg-emerald-500/[0.04]'
+                            : 'border border-white/10 bg-black/30'
+                        }`}
                       />
                       <span className="text-slate-500 font-bold text-xs shrink-0">—</span>
                       <input
@@ -850,8 +1704,15 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
                           const eVal = val.trim();
                           const combined = s ? (eVal ? `${s}–${eVal}` : `${s}–`) : (eVal ? `–${eVal}` : undefined);
                           handleChange('releaseYear', combined);
+                          if (aiYearState?.isActive) {
+                            setAiYearState((prev) => (prev ? { ...prev, isActive: false } : null));
+                          }
                         }}
-                        className="w-full min-w-0 h-8 bg-black/30 text-slate-200 font-medium border border-white/10 rounded-xl px-1.5 text-xs text-center focus:outline-none focus:border-blue-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                        className={`w-full min-w-0 h-8 text-slate-200 font-medium rounded-xl px-1.5 text-xs text-center focus:outline-none focus:border-blue-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none transition-all ${
+                          aiYearState?.isActive
+                            ? 'border border-emerald-500/80 ring-1 ring-emerald-500/40 shadow-[0_0_10px_rgba(16,185,129,0.18)] bg-emerald-500/[0.04]'
+                            : 'border border-white/10 bg-black/30'
+                        }`}
                       />
                     </div>
                   )}
@@ -861,7 +1722,7 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
                   <div className="flex items-center gap-1 h-5 mb-1">
                     <label className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold flex items-center gap-1 truncate">
                       <Calendar className="w-3 h-3 text-neutral-400 shrink-0" />
-                      <span>{isGame ? 'Tamamlama Tarihi' : 'İzlenme Tarihi'}</span>
+                      <span>{isGame ? 'Tamamlama Tarihi' : isBook ? 'Okunma Tarihi' : 'İzlenme Tarihi'}</span>
                     </label>
                   </div>
                   <div className="flex items-center gap-1 min-w-0">
@@ -873,7 +1734,7 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
                             : 'bg-amber-500/10 text-amber-300 border border-amber-500/30'
                         }`}
                       >
-                        <span className="truncate">{isDateDisabled ? 'Devam Ediyor (Kilitli)' : 'Bilinmiyor (??)'}</span>
+                        <span className="truncate">{isDateDisabled ? (isBook ? 'Okunuyor (Kilitli)' : 'Devam Ediyor (Kilitli)') : 'Bilinmiyor (??)'}</span>
                       </div>
                     ) : (
                       <input
@@ -888,7 +1749,7 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
                             setRememberedDate(val);
                           }
                         }}
-                        placeholder={isDateDisabled ? (isGame ? 'Oynanıyor (Kilitli)' : 'İzleniyor (Kilitli)') : ''}
+                        placeholder={isDateDisabled ? (isGame ? 'Oynanıyor (Kilitli)' : isBook ? 'Okunuyor (Kilitli)' : 'İzleniyor (Kilitli)') : ''}
                         className={`flex-1 min-w-0 h-8 border rounded-xl px-2 text-xs focus:outline-none transition-all ${
                           isDateDisabled
                             ? 'bg-black/50 text-neutral-500 border-white/5 opacity-50 cursor-not-allowed pointer-events-none select-none placeholder:text-neutral-500 placeholder:italic'
@@ -908,7 +1769,7 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
                           handleChange('date', '??');
                         }
                       }}
-                      title={isDateDisabled ? 'Yapım tamamlanmadığı için tarih kilitlidir' : 'Tarih Bilinmiyor (??)'}
+                      title={isDateDisabled ? (isBook ? 'Kitap henüz okunuyor olduğu için tarih kilitlidir' : 'Yapım tamamlanmadığı için tarih kilitlidir') : 'Tarih Bilinmiyor (??)'}
                       className={`h-8 w-8 rounded-xl border text-xs font-semibold transition-all flex items-center justify-center shrink-0 ${
                         isDateDisabled
                           ? 'opacity-30 cursor-not-allowed pointer-events-none bg-white/5 text-neutral-500 border-white/5'
@@ -925,16 +1786,56 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
 
               {/* Description & Notes Area (Moved Up to Top Section next to Poster) */}
               <div>
-                <label className="block text-[10px] uppercase tracking-wider text-slate-400 font-semibold mb-0.5">
-                  KONUSU
-                </label>
+                <div className="flex items-center justify-between mb-0.5">
+                  <label className="block text-[10px] uppercase tracking-wider text-slate-400 font-semibold">
+                    KONUSU
+                  </label>
+                  {!isReadOnly && aiDescState && (
+                    <div className="flex items-center gap-1">
+                      {aiDescState.isActive ? (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            handleChange('desc', aiDescState.original);
+                            setAiDescState((prev) => (prev ? { ...prev, isActive: false } : null));
+                          }}
+                          title="Eski haline dön"
+                          className="p-1 rounded-md bg-white/10 hover:bg-white/20 text-slate-300 hover:text-white border border-white/20 transition-all cursor-pointer shadow-xs"
+                        >
+                          <RotateCcw className="w-3.5 h-3.5" />
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            handleChange('desc', aiDescState.suggested);
+                            setAiDescState((prev) => (prev ? { ...prev, isActive: true } : null));
+                          }}
+                          title="AI önerisine geç"
+                          className="p-1 rounded-md bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 transition-all cursor-pointer shadow-xs"
+                        >
+                          <Sparkles className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
                 <textarea
                   id="detail-desc-textarea"
                   rows={3}
                   value={formData.desc}
-                  onChange={(e) => handleChange('desc', e.target.value)}
+                  onChange={(e) => {
+                    handleChange('desc', e.target.value);
+                    if (aiDescState?.isActive) {
+                      setAiDescState((prev) => (prev ? { ...prev, isActive: false } : null));
+                    }
+                  }}
                   placeholder="Yıllar sonra hatırlamak için notlar, hisler, önemli detaylar..."
-                  className="w-full bg-black/30 text-slate-200 border border-white/10 rounded-xl p-2.5 text-xs leading-relaxed focus:outline-none focus:border-blue-500 resize-y custom-scrollbar min-h-[82px]"
+                  className={`w-full text-slate-200 rounded-xl p-2.5 text-xs leading-relaxed focus:outline-none focus:border-blue-500 resize-y custom-scrollbar min-h-[82px] transition-all ${
+                    aiDescState?.isActive
+                      ? 'border border-emerald-500/80 ring-1 ring-emerald-500/40 shadow-[0_0_12px_rgba(16,185,129,0.18)] bg-emerald-500/[0.04]'
+                      : 'border border-white/10 bg-black/30'
+                  }`}
                 />
               </div>
             </div>
@@ -948,7 +1849,83 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
             <label className="block text-[10px] uppercase tracking-wider text-slate-400 font-bold">
               DURUM
             </label>
-            {!isGame ? (
+            {isBook ? (
+              /* Book Status Options (Format, Okunuyor, Yarım Bırakıldı, Anki) */
+              <div className="flex flex-wrap items-center gap-2.5 sm:gap-3.5 p-2 rounded-xl bg-white/[0.02] border border-white/5">
+                {/* Format Dropdown - Compact & Neat */}
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <label htmlFor="detail-book-format-select" className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold flex items-center gap-1 shrink-0">
+                    <BookOpen className="w-3.5 h-3.5 text-indigo-400" /> Format:
+                  </label>
+                  <select
+                    id="detail-book-format-select"
+                    value={bookFormat}
+                    onChange={(e) => setBookFormat(e.target.value as BookFormat)}
+                    className="bg-black/30 text-slate-200 border border-white/10 rounded-lg px-2 py-1 text-xs focus:outline-none focus:border-indigo-500 cursor-pointer font-medium"
+                  >
+                    <option value="Ciltsiz" className="bg-slate-900 text-white">📖 Ciltsiz</option>
+                    <option value="Ciltli" className="bg-slate-900 text-white">📚 Ciltli</option>
+                    <option value="E-Kitap" className="bg-slate-900 text-white">📱 E-Kitap</option>
+                    <option value="Sesli Kitap" className="bg-slate-900 text-white">🎧 Sesli Kitap</option>
+                  </select>
+                </div>
+
+                {/* Status Badges: Okunuyor, Yarım Bırakıldı, Anki */}
+                <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap shrink-0">
+                  {/* Okunuyor... */}
+                  <label className="flex items-center gap-1.5 text-xs text-slate-300 cursor-pointer select-none hover:text-white px-2 py-1 rounded-lg hover:bg-white/5 transition-colors whitespace-nowrap">
+                    <input
+                      id="detail-book-reading-cb"
+                      type="checkbox"
+                      checked={reading}
+                      onChange={() => handleBookStatusToggle('reading')}
+                      className="w-4 h-4 rounded border-slate-600 bg-slate-800 text-indigo-500 focus:ring-0 cursor-pointer"
+                    />
+                    <BookOpen className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
+                    <span className="text-xs">Okunuyor...</span>
+                  </label>
+
+                  {/* Yarım Bırakıldı */}
+                  <label className="flex items-center gap-1.5 text-xs text-slate-300 cursor-pointer select-none hover:text-white px-2 py-1 rounded-lg hover:bg-white/5 transition-colors whitespace-nowrap">
+                    <input
+                      id="detail-book-dropped-cb"
+                      type="checkbox"
+                      checked={!!formData.dropped}
+                      onChange={() => handleBookStatusToggle('dropped')}
+                      className="w-4 h-4 rounded border-slate-600 bg-slate-800 text-rose-500 focus:ring-0 cursor-pointer"
+                    />
+                    <PauseCircle className="w-3.5 h-3.5 text-rose-400 shrink-0" />
+                    <span className="text-xs">Yarım Bırakıldı</span>
+                  </label>
+
+                  {/* Anki */}
+                  <div className="flex items-center gap-1.5">
+                    <label className="flex items-center gap-1.5 text-xs text-slate-300 cursor-pointer select-none hover:text-white px-2 py-1 rounded-lg hover:bg-white/5 transition-colors whitespace-nowrap">
+                      <input
+                        id="detail-book-anki-cb"
+                        type="checkbox"
+                        checked={!!formData.anki}
+                        onChange={(e) => handleChange('anki', e.target.checked)}
+                        className="w-4 h-4 rounded border-slate-600 bg-slate-800 text-emerald-500 focus:ring-0 cursor-pointer"
+                      />
+                      <Layers className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                      <span className="text-xs">Anki</span>
+                    </label>
+                    {formData.anki && (
+                      <button
+                        type="button"
+                        id="btn-open-anki-editor-detail-book"
+                        onClick={() => setShowAnkiEditor(true)}
+                        className="p-1 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 transition-all cursor-pointer shadow-xs"
+                        title="Anki Editörü"
+                      >
+                        <Crop className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ) : !isGame ? (
               /* Media Status Options (İzlenen, Takip, Yarım Bırakıldı, Anki) */
               <>
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 p-2 rounded-xl bg-white/[0.02] border border-white/5">
@@ -1017,17 +1994,30 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
                   <span className="text-xs">Yarım Bırakıldı</span>
                 </label>
 
-                <label className="flex items-center gap-2 text-xs text-slate-300 cursor-pointer select-none hover:text-white p-1.5 rounded-lg hover:bg-white/5 transition-colors">
-                  <input
-                    id="detail-anki-cb"
-                    type="checkbox"
-                    checked={!!formData.anki}
-                    onChange={(e) => handleChange('anki', e.target.checked)}
-                    className="w-4 h-4 rounded border-slate-600 bg-slate-800 text-emerald-500 focus:ring-0 cursor-pointer"
-                  />
-                  <Sparkles className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-                  <span className="text-xs">Anki</span>
-                </label>
+                <div className="flex items-center gap-1.5">
+                  <label className="flex items-center gap-2 text-xs text-slate-300 cursor-pointer select-none hover:text-white p-1.5 rounded-lg hover:bg-white/5 transition-colors">
+                    <input
+                      id="detail-anki-cb"
+                      type="checkbox"
+                      checked={!!formData.anki}
+                      onChange={(e) => handleChange('anki', e.target.checked)}
+                      className="w-4 h-4 rounded border-slate-600 bg-slate-800 text-emerald-500 focus:ring-0 cursor-pointer"
+                    />
+                    <Layers className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                    <span className="text-xs">Anki</span>
+                  </label>
+                  {formData.anki && (
+                    <button
+                      type="button"
+                      id="btn-open-anki-editor-detail-media"
+                      onClick={() => setShowAnkiEditor(true)}
+                      className="p-1 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 transition-all cursor-pointer shadow-xs"
+                      title="Anki Editörü"
+                    >
+                      <Crop className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
               </div>
 
               {/* Takip Listesi Gelişmeleri & Beklenen Tarih Kutusu (Takip aktifken ve butona tıklandığında açılır, bilgiler asla silinmez) */}
@@ -1084,7 +2074,7 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
             </>
             ) : (
               /* Game Status Options */
-              <div className="grid grid-cols-1 sm:grid-cols-4 gap-2.5 p-2 rounded-xl bg-white/[0.02] border border-white/5 items-center">
+              <div className="grid grid-cols-1 sm:grid-cols-[1.15fr_1.1fr_1fr_105px] gap-3 p-2 rounded-xl bg-white/[0.02] border border-white/5 items-end">
                 <div>
                   <label className="block text-[10px] uppercase tracking-wider text-slate-400 font-semibold mb-0.5">
                     Oyun Durumu
@@ -1173,18 +2163,31 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
                   />
                 </div>
 
-                <div className="flex items-end pb-0.5">
-                  <label className="flex items-center gap-1.5 text-xs text-slate-300 cursor-pointer select-none hover:text-white p-1 rounded-lg hover:bg-white/5 transition-colors">
-                    <input
-                      id="detail-anki-game-cb"
-                      type="checkbox"
-                      checked={!!formData.anki}
-                      onChange={(e) => handleChange('anki', e.target.checked)}
-                      className="w-4 h-4 rounded border-slate-600 bg-slate-800 text-emerald-500 focus:ring-0 cursor-pointer"
-                    />
-                    <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
-                    <span className="text-xs">Anki'ye İşlendi</span>
-                  </label>
+                <div className="flex items-center justify-start h-[30px] sm:h-[32px] mb-0.5 shrink-0">
+                  <div className="flex items-center gap-1.5">
+                    <label className="flex items-center gap-1.5 text-xs text-slate-300 cursor-pointer select-none hover:text-white px-2 py-1 rounded-lg hover:bg-white/5 transition-colors whitespace-nowrap">
+                      <input
+                        id="detail-anki-game-cb"
+                        type="checkbox"
+                        checked={!!formData.anki}
+                        onChange={(e) => handleChange('anki', e.target.checked)}
+                        className="w-4 h-4 rounded border-slate-600 bg-slate-800 text-emerald-500 focus:ring-0 cursor-pointer"
+                      />
+                      <Layers className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                      <span className="text-xs">Anki</span>
+                    </label>
+                    {formData.anki && (
+                      <button
+                        type="button"
+                        id="btn-open-anki-editor-detail-game"
+                        onClick={() => setShowAnkiEditor(true)}
+                        className="p-1 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 transition-all cursor-pointer shadow-xs shrink-0"
+                        title="Anki Editörü"
+                      >
+                        <Crop className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
                 </div>
               </div>
             )}
@@ -1200,67 +2203,404 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
               <span>Etiketler & Alanlar</span>
             </div>
 
-            {!isGame ? (
+            {isBook ? (
+              /* Book Tag Fields: Yazar, Yayınevi, Çevirmen, Tür */
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <TagInputBox
+                    label="Yazar"
+                    placeholder="Örn: Fyodor Dostoyevski, J.R.R. Tolkien..."
+                    tags={author}
+                    onChange={(newTags) => handleTagFieldChange('authors', 'author', newTags)}
+                    availableTags={availableAuthorTags}
+                    tagCounts={authorTagCounts}
+                    icon={<PenTool className="w-3 h-3 text-amber-400" />}
+                    highlightNewTags={tagDiffs.authors?.newTags}
+                    highlightRemovedTags={tagDiffs.authors?.removedTags}
+                    onRestoreRemovedTag={(tag) => handleRestoreRemovedTag('authors', tag)}
+                    hideCount={!!aiTagStates.authors}
+                    rightElement={
+                      aiTagStates.authors && (
+                        aiTagStates.authors.isActive ? (
+                          <button
+                            type="button"
+                            onClick={() => handleToggleTagField('authors')}
+                            title="Eski haline dön"
+                            className="p-1 rounded-md bg-white/10 hover:bg-white/20 text-slate-300 hover:text-white border border-white/20 transition-all cursor-pointer shadow-xs"
+                          >
+                            <RotateCcw className="w-3.5 h-3.5" />
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => handleToggleTagField('authors')}
+                            title="AI önerisine geç"
+                            className="p-1 rounded-md bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 transition-all cursor-pointer shadow-xs"
+                          >
+                            <Sparkles className="w-3.5 h-3.5" />
+                          </button>
+                        )
+                      )
+                    }
+                  />
+                </div>
+
+                <div>
+                  <TagInputBox
+                    label="Yayınevi"
+                    placeholder="Örn: İş Bankası Kültür Yayınları, İthaki, Can..."
+                    tags={publisher}
+                    onChange={(newTags) => handleTagFieldChange('publishers', 'publisher', newTags)}
+                    availableTags={availablePublisherTags}
+                    tagCounts={publisherTagCounts}
+                    icon={<Building2 className="w-3 h-3 text-purple-400" />}
+                    highlightNewTags={tagDiffs.publishers?.newTags}
+                    highlightRemovedTags={tagDiffs.publishers?.removedTags}
+                    onRestoreRemovedTag={(tag) => handleRestoreRemovedTag('publishers', tag)}
+                    hideCount={!!aiTagStates.publishers}
+                    rightElement={
+                      aiTagStates.publishers && (
+                        aiTagStates.publishers.isActive ? (
+                          <button
+                            type="button"
+                            onClick={() => handleToggleTagField('publishers')}
+                            title="Eski haline dön"
+                            className="p-1 rounded-md bg-white/10 hover:bg-white/20 text-slate-300 hover:text-white border border-white/20 transition-all cursor-pointer shadow-xs"
+                          >
+                            <RotateCcw className="w-3.5 h-3.5" />
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => handleToggleTagField('publishers')}
+                            title="AI önerisine geç"
+                            className="p-1 rounded-md bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 transition-all cursor-pointer shadow-xs"
+                          >
+                            <Sparkles className="w-3.5 h-3.5" />
+                          </button>
+                        )
+                      )
+                    }
+                  />
+                </div>
+
+                <div>
+                  <TagInputBox
+                    label="Çevirmen"
+                    placeholder="Örn: Nihal Yalaza Taluy, Roza Hakmen..."
+                    tags={translator}
+                    onChange={(newTags) => handleTagFieldChange('translators', 'translator', newTags)}
+                    availableTags={availableTranslatorTags}
+                    tagCounts={translatorTagCounts}
+                    icon={<Globe className="w-3 h-3 text-sky-400" />}
+                    highlightNewTags={tagDiffs.translators?.newTags}
+                    highlightRemovedTags={tagDiffs.translators?.removedTags}
+                    onRestoreRemovedTag={(tag) => handleRestoreRemovedTag('translators', tag)}
+                    hideCount={!!aiTagStates.translators}
+                    rightElement={
+                      aiTagStates.translators && (
+                        aiTagStates.translators.isActive ? (
+                          <button
+                            type="button"
+                            onClick={() => handleToggleTagField('translators')}
+                            title="Eski haline dön"
+                            className="p-1 rounded-md bg-white/10 hover:bg-white/20 text-slate-300 hover:text-white border border-white/20 transition-all cursor-pointer shadow-xs"
+                          >
+                            <RotateCcw className="w-3.5 h-3.5" />
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => handleToggleTagField('translators')}
+                            title="AI önerisine geç"
+                            className="p-1 rounded-md bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 transition-all cursor-pointer shadow-xs"
+                          >
+                            <Sparkles className="w-3.5 h-3.5" />
+                          </button>
+                        )
+                      )
+                    }
+                  />
+                </div>
+
+                <div>
+                  <TagInputBox
+                    label="Tür"
+                    placeholder="Örn: Klasik, Bilim Kurgu, Felsefe, Distopya..."
+                    tags={formData.genre || []}
+                    onChange={(newTags) => handleTagFieldChange('genres', 'genre', newTags)}
+                    availableTags={availableBookGenreTags}
+                    tagCounts={bookGenreTagCounts}
+                    icon={<Tags className="w-3 h-3 text-emerald-400" />}
+                    highlightNewTags={tagDiffs.genres?.newTags}
+                    highlightRemovedTags={tagDiffs.genres?.removedTags}
+                    onRestoreRemovedTag={(tag) => handleRestoreRemovedTag('genres', tag)}
+                    hideCount={!!aiTagStates.genres}
+                    rightElement={
+                      aiTagStates.genres && (
+                        aiTagStates.genres.isActive ? (
+                          <button
+                            type="button"
+                            onClick={() => handleToggleTagField('genres', 'genre')}
+                            title="Eski haline dön"
+                            className="p-1 rounded-md bg-white/10 hover:bg-white/20 text-slate-300 hover:text-white border border-white/20 transition-all cursor-pointer shadow-xs"
+                          >
+                            <RotateCcw className="w-3.5 h-3.5" />
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => handleToggleTagField('genres', 'genre')}
+                            title="AI önerisine geç"
+                            className="p-1 rounded-md bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 transition-all cursor-pointer shadow-xs"
+                          >
+                            <Sparkles className="w-3.5 h-3.5" />
+                          </button>
+                        )
+                      )
+                    }
+                  />
+                </div>
+              </div>
+            ) : !isGame ? (
               /* Media Tag Fields: Firma, Yönetmen, Oyuncular, Tür */
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <TagInputBox
-                  label="Firma / Stüdyo"
-                  placeholder="Örn: MAPPA, WIT Studio, Ufotable..."
-                  tags={formData.firm || []}
-                  onChange={(newTags) => handleChange('firm', newTags)}
-                  availableTags={availableFirmTags}
-                  tagCounts={firmTagCounts}
-                  icon={<Building2 className="w-3 h-3 text-purple-400" />}
-                />
-                <TagInputBox
-                  label="Yönetmen"
-                  placeholder="Örn: Christopher Nolan, Miyazaki..."
-                  tags={formData.director || []}
-                  onChange={(newTags) => handleChange('director', newTags)}
-                  availableTags={availableDirectorTags}
-                  tagCounts={directorTagCounts}
-                  icon={<Clapperboard className="w-3 h-3 text-amber-400" />}
-                />
-                <TagInputBox
-                  label="Oyuncular / Seslendirme"
-                  placeholder="Örn: Kenjiro Tsuda, Cillian Murphy..."
-                  tags={formData.actors || []}
-                  onChange={(newTags) => handleChange('actors', newTags)}
-                  availableTags={availableActorsTags}
-                  tagCounts={actorsTagCounts}
-                  icon={<Users className="w-3 h-3 text-sky-400" />}
-                />
-                <TagInputBox
-                  label="Tür"
-                  placeholder="Örn: Aksiyon, Dram, Bilim Kurgu, Seinen..."
-                  tags={formData.genre || []}
-                  onChange={(newTags) => handleChange('genre', newTags)}
-                  availableTags={availableMediaGenreTags}
-                  tagCounts={mediaGenreTagCounts}
-                  icon={<Tags className="w-3 h-3 text-emerald-400" />}
-                />
+                <div>
+                  <TagInputBox
+                    label="Firma / Stüdyo"
+                    placeholder="Örn: MAPPA, WIT Studio, Ufotable..."
+                    tags={formData.firm || []}
+                    onChange={(newTags) => handleTagFieldChange('firms', 'firm', newTags)}
+                    availableTags={availableFirmTags}
+                    tagCounts={firmTagCounts}
+                    icon={<Building2 className="w-3 h-3 text-purple-400" />}
+                    highlightNewTags={tagDiffs.firms?.newTags}
+                    highlightRemovedTags={tagDiffs.firms?.removedTags}
+                    onRestoreRemovedTag={(tag) => handleRestoreRemovedTag('firms', tag)}
+                    hideCount={!isReadOnly && !!aiTagStates.firms}
+                    rightElement={
+                      !isReadOnly && aiTagStates.firms && (
+                        aiTagStates.firms.isActive ? (
+                          <button
+                            type="button"
+                            onClick={() => handleToggleTagField('firms', 'firm')}
+                            title="Eski haline dön"
+                            className="p-1 rounded-md bg-white/10 hover:bg-white/20 text-slate-300 hover:text-white border border-white/20 transition-all cursor-pointer shadow-xs"
+                          >
+                            <RotateCcw className="w-3.5 h-3.5" />
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => handleToggleTagField('firms', 'firm')}
+                            title="AI önerisine geç"
+                            className="p-1 rounded-md bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 transition-all cursor-pointer shadow-xs"
+                          >
+                            <Sparkles className="w-3.5 h-3.5" />
+                          </button>
+                        )
+                      )
+                    }
+                  />
+                </div>
+
+                <div>
+                  <TagInputBox
+                    label="Yönetmen"
+                    placeholder="Örn: Christopher Nolan, Miyazaki..."
+                    tags={formData.director || []}
+                    onChange={(newTags) => handleTagFieldChange('directors', 'director', newTags)}
+                    availableTags={availableDirectorTags}
+                    tagCounts={directorTagCounts}
+                    icon={<Clapperboard className="w-3 h-3 text-amber-400" />}
+                    highlightNewTags={tagDiffs.directors?.newTags}
+                    highlightRemovedTags={tagDiffs.directors?.removedTags}
+                    onRestoreRemovedTag={(tag) => handleRestoreRemovedTag('directors', tag)}
+                    hideCount={!isReadOnly && !!aiTagStates.directors}
+                    rightElement={
+                      !isReadOnly && aiTagStates.directors && (
+                        aiTagStates.directors.isActive ? (
+                          <button
+                            type="button"
+                            onClick={() => handleToggleTagField('directors', 'director')}
+                            title="Eski haline dön"
+                            className="p-1 rounded-md bg-white/10 hover:bg-white/20 text-slate-300 hover:text-white border border-white/20 transition-all cursor-pointer shadow-xs"
+                          >
+                            <RotateCcw className="w-3.5 h-3.5" />
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => handleToggleTagField('directors', 'director')}
+                            title="AI önerisine geç"
+                            className="p-1 rounded-md bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 transition-all cursor-pointer shadow-xs"
+                          >
+                            <Sparkles className="w-3.5 h-3.5" />
+                          </button>
+                        )
+                      )
+                    }
+                  />
+                </div>
+
+                <div>
+                  <TagInputBox
+                    label="Oyuncular / Seslendirme"
+                    placeholder="Örn: Kenjiro Tsuda, Cillian Murphy..."
+                    tags={formData.actors || []}
+                    onChange={(newTags) => handleTagFieldChange('actors', 'actors', newTags)}
+                    availableTags={availableActorsTags}
+                    tagCounts={actorsTagCounts}
+                    icon={<Users className="w-3 h-3 text-sky-400" />}
+                    highlightNewTags={tagDiffs.actors?.newTags}
+                    highlightRemovedTags={tagDiffs.actors?.removedTags}
+                    onRestoreRemovedTag={(tag) => handleRestoreRemovedTag('actors', tag)}
+                    hideCount={!isReadOnly && !!aiTagStates.actors}
+                    rightElement={
+                      !isReadOnly && aiTagStates.actors && (
+                        aiTagStates.actors.isActive ? (
+                          <button
+                            type="button"
+                            onClick={() => handleToggleTagField('actors', 'actors')}
+                            title="Eski haline dön"
+                            className="p-1 rounded-md bg-white/10 hover:bg-white/20 text-slate-300 hover:text-white border border-white/20 transition-all cursor-pointer shadow-xs"
+                          >
+                            <RotateCcw className="w-3.5 h-3.5" />
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => handleToggleTagField('actors', 'actors')}
+                            title="AI önerisine geç"
+                            className="p-1 rounded-md bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 transition-all cursor-pointer shadow-xs"
+                          >
+                            <Sparkles className="w-3.5 h-3.5" />
+                          </button>
+                        )
+                      )
+                    }
+                  />
+                </div>
+
+                <div>
+                  <TagInputBox
+                    label="Tür"
+                    placeholder="Örn: Aksiyon, Dram, Bilim Kurgu, Seinen..."
+                    tags={formData.genre || []}
+                    onChange={(newTags) => handleTagFieldChange('genres', 'genre', newTags)}
+                    availableTags={availableMediaGenreTags}
+                    tagCounts={mediaGenreTagCounts}
+                    icon={<Tags className="w-3 h-3 text-emerald-400" />}
+                    highlightNewTags={tagDiffs.genres?.newTags}
+                    highlightRemovedTags={tagDiffs.genres?.removedTags}
+                    onRestoreRemovedTag={(tag) => handleRestoreRemovedTag('genres', tag)}
+                    hideCount={!isReadOnly && !!aiTagStates.genres}
+                    rightElement={
+                      !isReadOnly && aiTagStates.genres && (
+                        aiTagStates.genres.isActive ? (
+                          <button
+                            type="button"
+                            onClick={() => handleToggleTagField('genres', 'genre')}
+                            title="Eski haline dön"
+                            className="p-1 rounded-md bg-white/10 hover:bg-white/20 text-slate-300 hover:text-white border border-white/20 transition-all cursor-pointer shadow-xs"
+                          >
+                            <RotateCcw className="w-3.5 h-3.5" />
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => handleToggleTagField('genres', 'genre')}
+                            title="AI önerisine geç"
+                            className="p-1 rounded-md bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 transition-all cursor-pointer shadow-xs"
+                          >
+                            <Sparkles className="w-3.5 h-3.5" />
+                          </button>
+                        )
+                      )
+                    }
+                  />
+                </div>
               </div>
             ) : (
               /* Game Tag Fields: Geliştirici, Tür */
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <TagInputBox
-                  label="Geliştirici / Stüdyo"
-                  placeholder="Örn: FromSoftware, CD Projekt RED, Larian..."
-                  tags={formData.developer || []}
-                  onChange={(newTags) => handleChange('developer', newTags)}
-                  availableTags={availableDevTags}
-                  tagCounts={devTagCounts}
-                  icon={<Building2 className="w-3 h-3 text-purple-400" />}
-                />
-                <TagInputBox
-                  label="Tür"
-                  placeholder="Örn: Souls-like, RPG, Açık Dünya, CRPG..."
-                  tags={formData.genre || []}
-                  onChange={(newTags) => handleChange('genre', newTags)}
-                  availableTags={availableGameGenreTags}
-                  tagCounts={gameGenreTagCounts}
-                  icon={<Tags className="w-3 h-3 text-emerald-400" />}
-                />
+                <div>
+                  <TagInputBox
+                    label="Geliştirici / Stüdyo"
+                    placeholder="Örn: FromSoftware, CD Projekt RED, Larian..."
+                    tags={formData.developer || []}
+                    onChange={(newTags) => handleTagFieldChange('developers', 'developer', newTags)}
+                    availableTags={availableDevTags}
+                    tagCounts={devTagCounts}
+                    icon={<Building2 className="w-3 h-3 text-purple-400" />}
+                    highlightNewTags={tagDiffs.developers?.newTags}
+                    highlightRemovedTags={tagDiffs.developers?.removedTags}
+                    onRestoreRemovedTag={(tag) => handleRestoreRemovedTag('developers', tag)}
+                    hideCount={!isReadOnly && !!aiTagStates.developers}
+                    rightElement={
+                      !isReadOnly && aiTagStates.developers && (
+                        aiTagStates.developers.isActive ? (
+                          <button
+                            type="button"
+                            onClick={() => handleToggleTagField('developers', 'developer')}
+                            title="Eski haline dön"
+                            className="p-1 rounded-md bg-white/10 hover:bg-white/20 text-slate-300 hover:text-white border border-white/20 transition-all cursor-pointer shadow-xs"
+                          >
+                            <RotateCcw className="w-3.5 h-3.5" />
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => handleToggleTagField('developers', 'developer')}
+                            title="AI önerisine geç"
+                            className="p-1 rounded-md bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 transition-all cursor-pointer shadow-xs"
+                          >
+                            <Sparkles className="w-3.5 h-3.5" />
+                          </button>
+                        )
+                      )
+                    }
+                  />
+                </div>
+
+                <div>
+                  <TagInputBox
+                    label="Tür"
+                    placeholder="Örn: Souls-like, RPG, Açık Dünya, CRPG..."
+                    tags={formData.genre || []}
+                    onChange={(newTags) => handleTagFieldChange('genres', 'genre', newTags)}
+                    availableTags={availableGameGenreTags}
+                    tagCounts={gameGenreTagCounts}
+                    icon={<Tags className="w-3 h-3 text-emerald-400" />}
+                    highlightNewTags={tagDiffs.genres?.newTags}
+                    highlightRemovedTags={tagDiffs.genres?.removedTags}
+                    onRestoreRemovedTag={(tag) => handleRestoreRemovedTag('genres', tag)}
+                    hideCount={!isReadOnly && !!aiTagStates.genres}
+                    rightElement={
+                      !isReadOnly && aiTagStates.genres && (
+                        aiTagStates.genres.isActive ? (
+                          <button
+                            type="button"
+                            onClick={() => handleToggleTagField('genres', 'genre')}
+                            title="Eski haline dön"
+                            className="p-1 rounded-md bg-white/10 hover:bg-white/20 text-slate-300 hover:text-white border border-white/20 transition-all cursor-pointer shadow-xs"
+                          >
+                            <RotateCcw className="w-3.5 h-3.5" />
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => handleToggleTagField('genres', 'genre')}
+                            title="AI önerisine geç"
+                            className="p-1 rounded-md bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 transition-all cursor-pointer shadow-xs"
+                          >
+                            <Sparkles className="w-3.5 h-3.5" />
+                          </button>
+                        )
+                      )
+                    }
+                  />
+                </div>
               </div>
             )}
           </div>
@@ -1275,15 +2615,40 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
                 <Users className="w-3.5 h-3.5 text-sky-400" />
                 <span>Karakterler & Kadro</span>
               </div>
-              <button
-                type="button"
-                id="btn-add-character-row"
-                onClick={handleAddCharacter}
-                className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-sky-500/20 hover:bg-sky-500/30 text-sky-300 font-semibold text-xs border border-sky-500/30 transition-colors cursor-pointer"
-              >
-                <Plus className="w-3.5 h-3.5" />
-                <span>Karakter Ekle</span>
-              </button>
+              <div className="flex items-center gap-2">
+                {!isReadOnly && aiCharState && (
+                  <div className="flex items-center gap-1">
+                    {aiCharState.isActive ? (
+                      <button
+                        type="button"
+                        onClick={handleToggleCharacters}
+                        title="Eski haline dön"
+                        className="p-1 rounded-md bg-white/10 hover:bg-white/20 text-slate-300 hover:text-white border border-white/20 transition-all cursor-pointer shadow-xs"
+                      >
+                        <RotateCcw className="w-3.5 h-3.5" />
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={handleToggleCharacters}
+                        title="AI önerisine geç"
+                        className="p-1 rounded-md bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 transition-all cursor-pointer shadow-xs"
+                      >
+                        <Sparkles className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
+                )}
+                <button
+                  type="button"
+                  id="btn-add-character-row"
+                  onClick={handleAddCharacter}
+                  className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-sky-500/20 hover:bg-sky-500/30 text-sky-300 font-semibold text-xs border border-sky-500/30 transition-colors cursor-pointer"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Karakter Ekle</span>
+                </button>
+              </div>
             </div>
 
             {/* Global Actor Autocomplete Datalist */}
@@ -1300,10 +2665,16 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
               </div>
             ) : (
               <div className="space-y-2 max-h-[260px] overflow-y-auto custom-scrollbar pr-1">
-                {formData.characters.map((char, index) => (
+                {formData.characters.map((char, index) => {
+                  const isNewAi = highlightNewCharacters.includes(char.name.trim().toLowerCase());
+                  return (
                   <div
                     key={index}
-                    className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 p-2.5 rounded-xl bg-white/[0.03] border border-white/10 group hover:border-white/20 transition-all"
+                    className={`flex flex-col sm:flex-row items-stretch sm:items-center gap-2 p-2.5 rounded-xl transition-all ${
+                      isNewAi
+                        ? 'bg-emerald-500/10 border border-emerald-500/40 ring-1 ring-emerald-500/20'
+                        : 'bg-white/[0.03] border border-white/10 group hover:border-white/20'
+                    }`}
                   >
                     {/* Karakter Görseli Seçici / Önizleme / Panodan Yapıştırma */}
                     <div className="relative shrink-0 flex items-center justify-center">
@@ -1374,11 +2745,10 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
                     </div>
 
                     <div className="flex-1 flex items-center gap-1">
-                      <span className="text-slate-500 text-xs hidden sm:inline">🎙️</span>
                       <input
                         type="text"
                         list="actor-autocomplete-list"
-                        placeholder="Seslendiren / Oyuncu (örn: Kana Hanazawa)"
+                        placeholder={isBook ? 'Rolü / Kimliği (örn: Dedektif, Hukuk Öğrencisi)' : 'Seslendiren / Oyuncu (örn: Kana Hanazawa)'}
                         value={char.actor || ''}
                         onChange={(e) =>
                           handleUpdateCharacter(index, 'actor', e.target.value)
@@ -1396,10 +2766,78 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
                       <Trash2 className="w-4 h-4" />
                     </button>
                   </div>
-                ))}
+                );
+              })}
               </div>
             )}
           </div>
+
+          {/* Kitap İçin: Beğenilen Sözler / Alıntılar Bölümü (Karakterler ile Seri Bağlantısı Arasında) */}
+          {isBook && (
+            <>
+              <div className="border-t-2 border-white/20 my-4" />
+              <div className="space-y-3 pt-1">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5 text-xs font-bold text-slate-200">
+                    <Quote className="w-3.5 h-3.5 text-amber-400" />
+                    <span>Beğenilen Sözler / Alıntılar ({quotes.length})</span>
+                  </div>
+                  <button
+                    type="button"
+                    id="btn-detail-add-quote-row"
+                    onClick={handleAddQuote}
+                    className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 font-semibold text-xs border border-amber-500/30 transition-colors cursor-pointer"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>Söz Ekle</span>
+                  </button>
+                </div>
+
+                {quotes.length === 0 ? (
+                  <div className="p-3.5 rounded-xl bg-white/[0.02] border border-white/5 text-center text-xs text-slate-400">
+                    Henüz eklenmiş bir alıntı veya söz bulunmuyor.
+                  </div>
+                ) : (
+                  <div className="space-y-2.5 max-h-[260px] overflow-y-auto custom-scrollbar pr-1">
+                    {quotes.map((quoteItem, index) => (
+                      <div
+                        key={quoteItem.id || index}
+                        className="flex flex-col sm:flex-row items-stretch sm:items-start gap-2 p-2.5 rounded-xl bg-white/[0.03] border border-white/10 group hover:border-white/20 transition-all"
+                      >
+                        <div className="flex-1">
+                          <textarea
+                            rows={2}
+                            placeholder="Kitaptan alıntı veya beğenilen söz..."
+                            value={quoteItem.text}
+                            onChange={(e) => handleUpdateQuote(index, 'text', e.target.value)}
+                            className="w-full bg-black/40 text-slate-200 placeholder-slate-500 border border-white/10 rounded-lg px-2.5 py-1.5 text-xs focus:outline-none focus:border-amber-500 resize-y min-h-[52px] custom-scrollbar"
+                          />
+                        </div>
+
+                        <div className="w-full sm:w-32 shrink-0 flex items-center gap-1.5">
+                          <input
+                            type="text"
+                            placeholder="Sayfa No"
+                            value={quoteItem.page ?? ''}
+                            onChange={(e) => handleUpdateQuote(index, 'page', e.target.value)}
+                            className="w-full bg-black/40 text-amber-300 placeholder-slate-500 border border-white/10 rounded-lg px-2.5 py-1.5 text-xs focus:outline-none focus:border-amber-500 text-center font-medium"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveQuote(index)}
+                            title="Sözü Sil"
+                            className="p-1.5 rounded-lg text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 transition-colors cursor-pointer shrink-0"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </>
+          )}
 
           {/* Prominent Separator between Characters and Series */}
           <div className="border-t-2 border-white/20 my-4" />
@@ -1472,13 +2910,49 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
           </div>
         </form>
 
-        {/* Footer with Explicit Action Buttons */}
-        <div className="flex items-center justify-end px-5 py-3 border-t border-white/10 bg-black/40">
+        {/* Footer with Explicit Action Buttons and Live AI Process Status */}
+        <div className="flex items-center justify-between px-5 py-3 border-t border-white/10 bg-black/40 gap-3">
+          {/* Left side: AI Status & Info button (visible only when an AI action is triggered) */}
+          <div className="flex-1 min-w-0 flex items-center">
+            {aiStatusText && (
+              <div
+                className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-xl border text-xs max-w-full transition-all animate-in fade-in duration-150 ${
+                  aiStatusType === 'loading'
+                    ? 'bg-amber-500/10 border-amber-500/30 text-amber-300'
+                    : aiStatusType === 'success'
+                    ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300'
+                    : 'bg-rose-500/10 border-rose-500/30 text-rose-300'
+                }`}
+              >
+                {aiStatusType === 'loading' ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0 text-amber-400" />
+                ) : aiStatusType === 'success' ? (
+                  <CheckCircle2 className="w-3.5 h-3.5 shrink-0 text-emerald-400" />
+                ) : (
+                  <AlertCircle className="w-3.5 h-3.5 shrink-0 text-rose-400" />
+                )}
+                <span className="truncate font-medium">{aiStatusText}</span>
+
+                {/* (i) button to open detailed log dialog */}
+                {aiLogs.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setShowAiLogModal(true)}
+                    title="AI İşlem Detaylarını ve Günlüğünü Gör"
+                    className="p-1 rounded-lg hover:bg-white/15 text-white/80 hover:text-white transition-colors cursor-pointer shrink-0 ml-1 border border-white/10"
+                  >
+                    <Info className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+
           <button
             id="save-detail-form-btn"
             type="button"
             onClick={() => handleSaveForm()}
-            className="flex items-center gap-1.5 px-6 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-semibold text-xs transition-all shadow-lg shadow-blue-600/30 cursor-pointer"
+            className="flex items-center gap-1.5 px-6 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-semibold text-xs transition-all shadow-lg shadow-blue-600/30 cursor-pointer shrink-0"
           >
             <Save className="w-3.5 h-3.5" />
             <span>Kaydet</span>
@@ -1486,11 +2960,45 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
         </div>
       </div>
 
+      {/* AI Process Log Modal */}
+      {showAiLogModal && (
+        <AiProcessLogModal
+          isOpen={showAiLogModal}
+          onClose={() => setShowAiLogModal(false)}
+          title={formData.title}
+          logs={aiLogs}
+          statusType={aiStatusType}
+          usedModel={aiUsedModel}
+        />
+      )}
+
       {/* Centered In-App Delete Confirmation Modal */}
       {deleteConfirmDialog && (
         <CustomDialog
           options={deleteConfirmDialog}
           onClose={() => setDeleteConfirmDialog(null)}
+        />
+      )}
+
+      {/* Anki Görsel & Blur Editörü */}
+      {showAnkiEditor && (
+        <AnkiEditorModal
+          isOpen={showAnkiEditor}
+          itemTitle={formData.title}
+          initialThumbnail={formData.thumbnail}
+          initialMainBlurs={formData.ankiMainBlurs || []}
+          initialExtraImages={formData.ankiExtraImages || []}
+          onApply={(data) => {
+            setFormData((prev) => ({
+              ...prev,
+              anki: true,
+              thumbnail: data.thumbnail || prev.thumbnail,
+              ankiMainBlurs: data.mainBlurs,
+              ankiExtraImages: data.extraImages,
+              ankiCard: prev.ankiCard || initAnkiCard(),
+            }));
+          }}
+          onClose={() => setShowAnkiEditor(false)}
         />
       )}
     </div>

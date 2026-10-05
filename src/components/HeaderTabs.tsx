@@ -21,6 +21,7 @@ import {
   ChevronRight,
   Film,
   Gamepad2,
+  BookOpen,
   LayoutGrid,
   ListOrdered,
   Tag,
@@ -44,6 +45,7 @@ interface HeaderTabsProps {
   categories: {
     media: Category[];
     game: Category[];
+    book: Category[];
   };
   activeCatId: string | null;
   activeSub: string | null;
@@ -134,8 +136,8 @@ export const HeaderTabs: React.FC<HeaderTabsProps> = ({
 }) => {
   const searchInputRef = useRef<HTMLInputElement>(null);
   const searchContainerRef = useRef<HTMLDivElement>(null);
-  const [openDropdown, setOpenDropdown] = useState<'media' | 'game' | null>(null);
-  const [mobileDropdown, setMobileDropdown] = useState<'media' | 'game' | null>(null);
+  const [openDropdown, setOpenDropdown] = useState<'media' | 'game' | 'book' | null>(null);
+  const [mobileDropdown, setMobileDropdown] = useState<'media' | 'game' | 'book' | null>(null);
   const [hoveredCat, setHoveredCat] = useState<Category | null>(null);
   const [hoveredCatTop, setHoveredCatTop] = useState<number>(0);
   const [isMobileSheetOpen, setIsMobileSheetOpen] = useState(false);
@@ -357,7 +359,12 @@ export const HeaderTabs: React.FC<HeaderTabsProps> = ({
     onSearchChange(val);
   };
 
-  const currentCategoryList = (mainTab === 'media' ? categories?.media : categories?.game) || [];
+  const currentCategoryList =
+    (mainTab === 'media'
+      ? categories?.media
+      : mainTab === 'game'
+      ? categories?.game
+      : categories?.book) || [];
   const activeCategory =
     activeCatId && activeCatId !== TRACKED_TAB_ID
       ? currentCategoryList.find((c) => c?.id === activeCatId)
@@ -406,7 +413,7 @@ export const HeaderTabs: React.FC<HeaderTabsProps> = ({
     (filters.gameStatus && filters.gameStatus !== 'all' ? 1 : 0);
 
   // Pure Hover handlers for Main Dropdown buttons with snappy 120ms delay
-  const handleMouseEnter = (tab: 'media' | 'game') => {
+  const handleMouseEnter = (tab: 'media' | 'game' | 'book') => {
     if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
     if (openDropdown !== tab) {
       setHoveredCat(null);
@@ -433,7 +440,7 @@ export const HeaderTabs: React.FC<HeaderTabsProps> = ({
   };
 
   // Clicking the main button switches the tab and toggles dropdown
-  const handleTabButtonClick = (tab: 'media' | 'game', e: React.MouseEvent) => {
+  const handleTabButtonClick = (tab: 'media' | 'game' | 'book', e: React.MouseEvent) => {
     e.stopPropagation();
     if (mainTab !== tab) {
       if (isSearchOpen) {
@@ -452,7 +459,7 @@ export const HeaderTabs: React.FC<HeaderTabsProps> = ({
 
   // Selecting a category from dropdown switches tab if necessary and sets category
   const handleSelectCategoryFromMenu = (
-    targetTab: 'media' | 'game',
+    targetTab: 'media' | 'game' | 'book',
     catId: string | null,
     sub: string | null = null
   ) => {
@@ -536,7 +543,7 @@ export const HeaderTabs: React.FC<HeaderTabsProps> = ({
                 }
                 setMobileDropdown(mobileDropdown === 'game' ? null : 'game');
               }}
-              className={`h-8 flex items-center gap-1.5 px-3 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+              className={`h-8 flex items-center gap-1.5 px-2.5 sm:px-3 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
                 mainTab === 'game'
                   ? 'bg-neutral-800 text-white shadow border border-white/20'
                   : 'text-neutral-400 hover:text-white'
@@ -547,6 +554,31 @@ export const HeaderTabs: React.FC<HeaderTabsProps> = ({
               <ChevronDown
                 className={`w-3 h-3 transition-transform duration-150 ${
                   mobileDropdown === 'game' ? 'rotate-180 text-white' : 'text-neutral-400'
+                }`}
+              />
+            </button>
+
+            {/* Kitap Tab Dropdown Button */}
+            <button
+              type="button"
+              id="mobile-tab-book-btn"
+              onClick={() => {
+                if (mainTab !== 'book') {
+                  onMainTabChange('book');
+                }
+                setMobileDropdown(mobileDropdown === 'book' ? null : 'book');
+              }}
+              className={`h-8 flex items-center gap-1.5 px-2.5 sm:px-3 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                mainTab === 'book'
+                  ? 'bg-neutral-800 text-white shadow border border-white/20'
+                  : 'text-neutral-400 hover:text-white'
+              }`}
+            >
+              <BookOpen className="w-3.5 h-3.5" />
+              <span>Kitap</span>
+              <ChevronDown
+                className={`w-3 h-3 transition-transform duration-150 ${
+                  mobileDropdown === 'book' ? 'rotate-180 text-white' : 'text-neutral-400'
                 }`}
               />
             </button>
@@ -579,14 +611,24 @@ export const HeaderTabs: React.FC<HeaderTabsProps> = ({
                   </>
                 )}
 
-                {/* 2. Kategoriler Listesi (Dizi, Film, Anime, Animasyon vb.) */}
+                {/* 2. Kategoriler Listesi (Dizi, Film, Anime, Roman, vb.) */}
                 <div className="space-y-1 pt-0.5">
-                  {(mobileDropdown === 'media' ? categories.media : categories.game).length === 0 ? (
-                    <div className="py-2 px-3 text-center text-xs text-neutral-400">
-                      Henüz kategori tanımlanmadı
+                  {((mobileDropdown === 'media' ? categories.media : mobileDropdown === 'game' ? categories.game : categories.book) || []).length === 0 ? (
+                    <div className="py-2.5 px-3 text-center">
+                      <p className="text-xs text-neutral-400">Henüz kategori tanımlanmadı</p>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setMobileDropdown(null);
+                          onOpenSettings();
+                        }}
+                        className="mt-1 text-xs text-blue-400 hover:text-blue-300 font-medium hover:underline cursor-pointer"
+                      >
+                        + Kategori Tanımla
+                      </button>
                     </div>
                   ) : (
-                    (mobileDropdown === 'media' ? categories.media : categories.game).map((cat) => {
+                    ((mobileDropdown === 'media' ? categories.media : mobileDropdown === 'game' ? categories.game : categories.book) || []).map((cat) => {
                       const isCatActive = mainTab === mobileDropdown && activeCatId === cat.id;
                       const hasSubs = cat.subgroups && cat.subgroups.length > 0;
 
@@ -878,9 +920,9 @@ export const HeaderTabs: React.FC<HeaderTabsProps> = ({
                 className="flex items-center gap-1 px-2.5 py-1 rounded-xl bg-neutral-900/90 border border-white/15 text-xs text-neutral-300 shrink-0 max-w-[calc(100vw-145px)] overflow-x-auto no-scrollbar shadow-sm"
               >
                 {activeCatId === null ? (
-                  /* No Category Selected: Root level (Medya / Oyun) */
+                  /* No Category Selected: Root level (Medya / Oyun / Kitap) */
                   <span className="text-white font-semibold text-xs truncate">
-                    {mainTab === 'media' ? 'Medya' : 'Oyun'}
+                    {mainTab === 'media' ? 'Medya' : mainTab === 'game' ? 'Oyun' : 'Kitap'}
                   </span>
                 ) : activeCatId === TRACKED_TAB_ID ? (
                   /* Tracked tab selected: Medya › İzlenen & Takip */
@@ -896,10 +938,10 @@ export const HeaderTabs: React.FC<HeaderTabsProps> = ({
                         onCategorySelect(null);
                         onSubgroupSelect(null);
                       }}
-                      title={`Tüm ${mainTab === 'media' ? 'Medya' : 'Oyun'} listesine dön`}
+                      title={`Tüm ${mainTab === 'media' ? 'Medya' : mainTab === 'game' ? 'Oyun' : 'Kitap'} listesine dön`}
                       className="text-neutral-400 hover:text-white font-medium cursor-pointer transition-colors shrink-0"
                     >
-                      {mainTab === 'media' ? 'Medya' : 'Oyun'}
+                      {mainTab === 'media' ? 'Medya' : mainTab === 'game' ? 'Oyun' : 'Kitap'}
                     </button>
                     <span className="text-neutral-500 shrink-0 text-xs font-light">›</span>
                     <span className="text-white font-semibold text-xs truncate">
@@ -907,9 +949,9 @@ export const HeaderTabs: React.FC<HeaderTabsProps> = ({
                     </span>
                   </div>
                 ) : (
-                  /* Normal Category selected: Medya › Anime › Shounen or Oyun › RPG */
+                  /* Normal Category selected: Medya › Anime › Shounen or Kitap › Roman */
                   <div className="flex items-center gap-1 min-w-0">
-                    {/* Root (Medya / Oyun) - Clickable to reset to all */}
+                    {/* Root (Medya / Oyun / Kitap) - Clickable to reset to all */}
                     <button
                       type="button"
                       onClick={() => {
@@ -921,10 +963,10 @@ export const HeaderTabs: React.FC<HeaderTabsProps> = ({
                         onCategorySelect(null);
                         onSubgroupSelect(null);
                       }}
-                      title={`Tüm ${mainTab === 'media' ? 'Medya' : 'Oyun'} listesine dön`}
+                      title={`Tüm ${mainTab === 'media' ? 'Medya' : mainTab === 'game' ? 'Oyun' : 'Kitap'} listesine dön`}
                       className="text-neutral-400 hover:text-white font-medium cursor-pointer transition-colors shrink-0"
                     >
-                      {mainTab === 'media' ? 'Medya' : 'Oyun'}
+                      {mainTab === 'media' ? 'Medya' : mainTab === 'game' ? 'Oyun' : 'Kitap'}
                     </button>
 
                     <span className="text-neutral-500 shrink-0 text-xs font-light">›</span>
@@ -1055,7 +1097,7 @@ export const HeaderTabs: React.FC<HeaderTabsProps> = ({
             id="active-breadcrumb-pill"
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-neutral-900/90 border border-white/10 text-xs text-neutral-300 h-8"
           >
-            {/* Main Tab (Medya / Oyun) - Clickable! */}
+            {/* Main Tab (Medya / Oyun / Kitap) - Clickable! */}
             <button
               onClick={() => {
                 if (isSearchOpen) {
@@ -1071,7 +1113,7 @@ export const HeaderTabs: React.FC<HeaderTabsProps> = ({
               title="Tüm listeyi göster"
               className="text-neutral-300 hover:text-white font-medium hover:underline cursor-pointer transition-colors"
             >
-              {mainTab === 'media' ? 'Medya' : 'Oyun'}
+              {mainTab === 'media' ? 'Medya' : mainTab === 'game' ? 'Oyun' : 'Kitap'}
             </button>
 
             {/* Category Level - Clickable! */}
@@ -1271,7 +1313,7 @@ export const HeaderTabs: React.FC<HeaderTabsProps> = ({
 
                   {/* Categories */}
                   <div className="max-h-72 overflow-y-auto space-y-0.5 custom-scrollbar">
-                    {categories.media.length === 0 ? (
+                    {(categories?.media || []).length === 0 ? (
                       <div className="py-2.5 px-3 text-center">
                         <p className="text-[11px] text-neutral-400">Henüz kategori yok</p>
                         <button
@@ -1393,7 +1435,7 @@ export const HeaderTabs: React.FC<HeaderTabsProps> = ({
                 <div className="w-60 p-2 bg-[#181818]/95 backdrop-blur-xl border border-white/15 rounded-xl shadow-2xl space-y-1 relative">
                   {/* Categories */}
                   <div className="max-h-72 overflow-y-auto space-y-0.5 custom-scrollbar">
-                    {categories.game.length === 0 ? (
+                    {(categories?.game || []).length === 0 ? (
                       <div className="py-2.5 px-3 text-center">
                         <p className="text-[11px] text-neutral-400">Henüz kategori yok</p>
                         <button
@@ -1407,7 +1449,7 @@ export const HeaderTabs: React.FC<HeaderTabsProps> = ({
                         </button>
                       </div>
                     ) : (
-                      categories.game.map((cat) => {
+                      (categories?.game || []).map((cat) => {
                       const isCatActive = mainTab === 'game' && activeCatId === cat.id;
                       const hasSubs = cat.subgroups && cat.subgroups.length > 0;
                       const isHovered = hoveredCat?.id === cat.id;
@@ -1460,6 +1502,129 @@ export const HeaderTabs: React.FC<HeaderTabsProps> = ({
                             <button
                               key={sub}
                               onClick={() => handleSelectCategoryFromMenu('game', hoveredCat.id, sub)}
+                              className={`w-full text-left px-3 py-2 rounded-lg text-xs font-medium transition-colors truncate cursor-pointer ${
+                                isSubActive
+                                  ? 'bg-neutral-700 text-white font-semibold'
+                                  : 'text-neutral-300 hover:bg-neutral-800 hover:text-white'
+                              }`}
+                            >
+                              {sub}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Kitap Dropdown Button */}
+          <div
+            className="relative"
+            onMouseEnter={() => handleMouseEnter('book')}
+          >
+            <button
+              id="dropdown-book-btn"
+              onClick={(e) => handleTabButtonClick('book', e)}
+              className={`flex items-center gap-2 px-4 py-1.5 rounded-lg text-sm font-semibold transition-all duration-150 cursor-pointer ${
+                mainTab === 'book'
+                  ? 'bg-neutral-800 text-white shadow-sm border border-white/20'
+                  : 'text-neutral-400 hover:text-white hover:bg-neutral-900 border border-transparent'
+              }`}
+            >
+              <BookOpen className="w-4 h-4 text-neutral-300" />
+              <span>Kitap</span>
+              <ChevronDown
+                className={`w-3.5 h-3.5 text-neutral-400 transition-transform duration-150 ${
+                  openDropdown === 'book' ? 'rotate-180 text-white' : ''
+                }`}
+              />
+            </button>
+
+            {/* Kitap Dropdown Menu with Hover Flyout Submenu */}
+            {openDropdown === 'book' && (
+              <div
+                id="dropdown-book-menu"
+                className="absolute top-full left-1/2 -translate-x-1/2 mt-1.5 z-50"
+                onClick={(e) => e.stopPropagation()}
+                onMouseEnter={() => {
+                  if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
+                }}
+              >
+                {/* Main Category Menu List (Fixed Width & Stable) */}
+                <div className="w-60 p-2 bg-[#181818]/95 backdrop-blur-xl border border-white/15 rounded-xl shadow-2xl space-y-1 relative">
+                  {/* Categories */}
+                  <div className="max-h-72 overflow-y-auto space-y-0.5 custom-scrollbar">
+                    {(categories?.book || []).length === 0 ? (
+                      <div className="py-2.5 px-3 text-center">
+                        <p className="text-[11px] text-neutral-400">Henüz kategori yok</p>
+                        <button
+                          onClick={() => {
+                            setOpenDropdown(null);
+                            onOpenSettings();
+                          }}
+                          className="mt-1 text-[11px] text-blue-400 hover:text-blue-300 font-medium hover:underline cursor-pointer"
+                        >
+                          + Kategori Tanımla
+                        </button>
+                      </div>
+                    ) : (
+                      (categories?.book || []).map((cat) => {
+                        const isCatActive = mainTab === 'book' && activeCatId === cat.id;
+                        const hasSubs = cat.subgroups && cat.subgroups.length > 0;
+                        const isHovered = hoveredCat?.id === cat.id;
+
+                        return (
+                          <div
+                            key={cat.id}
+                            onMouseEnter={(e) => handleCatMouseEnter(cat, e)}
+                            onClick={() => handleSelectCategoryFromMenu('book', cat.id, null)}
+                            className={`flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium transition-colors cursor-pointer ${
+                              isCatActive
+                                ? 'bg-neutral-700 text-white shadow'
+                                : isHovered
+                                ? 'bg-neutral-800 text-white'
+                                : 'text-neutral-300 hover:bg-neutral-800/60 hover:text-white'
+                            }`}
+                          >
+                            <span className="truncate">{cat.name}</span>
+                            {hasSubs && (
+                              <ChevronRight
+                                className={`w-3.5 h-3.5 transition-colors ${
+                                  isCatActive || isHovered ? 'text-white' : 'text-neutral-500'
+                                }`}
+                              />
+                            )}
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+
+                  {/* Absolute Positioned Right Flyout Submenu */}
+                  {hoveredCat && hoveredCat.subgroups && hoveredCat.subgroups.length > 0 && (
+                    <div
+                      id="flyout-book-subgroups-menu"
+                      style={{ top: `${Math.max(0, hoveredCatTop - 4)}px` }}
+                      className="absolute left-full ml-1.5 w-52 p-2 bg-[#181818]/95 backdrop-blur-xl border border-white/15 rounded-2xl shadow-2xl space-y-1 animate-in fade-in zoom-in-95 duration-100 z-50"
+                      onMouseEnter={() => {
+                        if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
+                      }}
+                    >
+                      <div className="px-3 py-1.5 text-[10px] font-semibold text-neutral-400 uppercase tracking-wider flex items-center justify-between border-b border-white/10 mb-1">
+                        <span>{hoveredCat.name} Alt Grupları</span>
+                      </div>
+
+                      <div className="max-h-60 overflow-y-auto space-y-0.5 custom-scrollbar">
+                        {hoveredCat.subgroups.map((sub) => {
+                          const isSubActive =
+                            mainTab === 'book' && activeCatId === hoveredCat.id && activeSub === sub;
+                          return (
+                            <button
+                              key={sub}
+                              onClick={() => handleSelectCategoryFromMenu('book', hoveredCat.id, sub)}
                               className={`w-full text-left px-3 py-2 rounded-lg text-xs font-medium transition-colors truncate cursor-pointer ${
                                 isSubActive
                                   ? 'bg-neutral-700 text-white font-semibold'

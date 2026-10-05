@@ -54,6 +54,7 @@ import {
 } from './utils/fileSystem';
 import { sortArchiveItems } from './utils/sortUtils';
 import { downloadTierListAsPng } from './utils/tierImageExport';
+import { ensureAnkiCardDates } from './utils/ankiUtils';
 
 import { HeaderTabs, TRACKED_TAB_ID } from './components/HeaderTabs';
 import { ItemCard } from './components/ItemCard';
@@ -64,7 +65,11 @@ import { AddItemModal } from './components/AddItemModal';
 import { SettingsModal } from './components/SettingsModal';
 import { StatisticsModal } from './components/StatisticsModal';
 import { RecentActivityModal } from './components/RecentActivityModal';
+import { AiAssistantModal } from './components/AiAssistantModal';
 import { ImagePreviewModal } from './components/ImagePreviewModal';
+import { QuickShortcutsModal } from './components/QuickShortcutsModal';
+import { AnkiHubModal } from './components/AnkiHubModal';
+import { AnkiStudyModal } from './components/AnkiStudyModal';
 import { BulkMoveModal } from './components/BulkMoveModal';
 import { CustomDialog, CustomDialogOptions } from './components/CustomDialog';
 import { FOLLOW_MODELS, FOLLOW_COLORS, FollowBadge, getFollowColor, RATING_ICON_OPTIONS } from './components/FollowIndicatorIcon';
@@ -91,13 +96,26 @@ import {
 export default function App() {
   // --- Persistent App Data State ---
   const [appData, setAppData] = useState<AppData>(() => {
-    return loadDataFromLocalStorage() || INITIAL_DATA;
+    const raw = loadDataFromLocalStorage() || INITIAL_DATA;
+    return {
+      ...raw,
+      items: (raw.items || []).map((it) => ({
+        ...it,
+        ankiCard: it.ankiCard ? ensureAnkiCardDates(it.ankiCard) : undefined,
+      })),
+    };
   });
 
   const appDataRef = useRef<AppData>(appData);
   useEffect(() => {
     appDataRef.current = appData;
   }, [appData]);
+
+  const [dirHandle, setDirHandle] = useState<FileSystemDirectoryHandle | null>(null);
+  const dirHandleRef = useRef<FileSystemDirectoryHandle | null>(dirHandle);
+  useEffect(() => {
+    dirHandleRef.current = dirHandle;
+  }, [dirHandle]);
 
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const debouncedSaveData = useCallback((data: AppData) => {
@@ -106,10 +124,13 @@ export default function App() {
     }
     saveTimeoutRef.current = setTimeout(() => {
       saveDataToLocalStorage(data);
-    }, 400);
+      if (dirHandleRef.current) {
+        writeDataToFolder(dirHandleRef.current, data).catch((err) =>
+          console.warn('Folder save error:', err)
+        );
+      }
+    }, 500);
   }, []);
-
-  const [dirHandle, setDirHandle] = useState<FileSystemDirectoryHandle | null>(null);
   const [isDataLoaded, setIsDataLoaded] = useState(false);
   const [dialogOptions, setDialogOptions] = useState<CustomDialogOptions | null>(null);
 
@@ -133,7 +154,22 @@ export default function App() {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isStatisticsOpen, setIsStatisticsOpen] = useState(false);
   const [isRecentActivityOpen, setIsRecentActivityOpen] = useState(false);
+  const [isAnkiHubOpen, setIsAnkiHubOpen] = useState(false);
+  const [virtualTimeOffsetMs, setVirtualTimeOffsetMs] = useState(0);
+  const [isAnkiStudyOpen, setIsAnkiStudyOpen] = useState(false);
+  const [studyQueue, setStudyQueue] = useState<ArchiveItem[]>([]);
+  const [studyDeckTitle, setStudyDeckTitle] = useState('Tümü (Karışık)');
+  const [isAiAssistantOpen, setIsAiAssistantOpen] = useState(false);
+  const [isShortcutsModalOpen, setIsShortcutsModalOpen] = useState(false);
+  const [hasAiAssistantOpened, setHasAiAssistantOpened] = useState(false);
+
+  useEffect(() => {
+    if (isAiAssistantOpen && !hasAiAssistantOpened) {
+      setHasAiAssistantOpened(true);
+    }
+  }, [isAiAssistantOpen, hasAiAssistantOpened]);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [addModalInitialTitle, setAddModalInitialTitle] = useState<string | undefined>(undefined);
   const [selectedItem, setSelectedItem] = useState<ArchiveItem | null>(null);
   const [hoveredItem, setHoveredItem] = useState<ArchiveItem | null>(null);
   const [previewItem, setPreviewItem] = useState<ArchiveItem | null>(null);
@@ -305,10 +341,11 @@ export default function App() {
 
         const mergedItems = res.appData.items.map((it) => {
           const existingThumb = existingThumbs.get(it.id);
-          if (existingThumb) {
-            return { ...it, thumbnail: existingThumb };
-          }
-          return it;
+          const withThumb = existingThumb ? { ...it, thumbnail: existingThumb } : it;
+          return {
+            ...withThumb,
+            ankiCard: withThumb.ankiCard ? ensureAnkiCardDates(withThumb.ankiCard) : undefined,
+          };
         });
 
         const mergedData: AppData = {
@@ -388,8 +425,11 @@ export default function App() {
   const [filters, setFilters] = useState<FilterState>({
     search: '',
     minRating: 0,
+    ratingFilter: 'all',
     watchingOnly: false,
     followingOnly: false,
+    droppedOnly: false,
+    readingOnly: false,
     ankiFilter: 'all',
     uncategorizedOnly: false,
     hiddenOnly: false,
@@ -427,6 +467,7 @@ export default function App() {
         const parsed = JSON.parse(saved);
         const theme = parsed.theme === 'dark-slate' ? 'nordic-frost' : (parsed.theme || 'pure-dark');
         return {
+          ...parsed,
           showTitle: false,
           showRating: true,
           showYear: true,
@@ -456,7 +497,6 @@ export default function App() {
                 return { ...p, positions: norm };
               })
             : DEFAULT_FAB_PROFILES,
-          ...parsed,
           theme,
           followIndicatorModel: parsed.followIndicatorModel || savedModel,
           followIndicatorColor: parsed.followIndicatorColor || savedColor,
@@ -519,6 +559,9 @@ export default function App() {
     isSettingsOpen ||
     isStatisticsOpen ||
     isRecentActivityOpen ||
+    isAnkiHubOpen ||
+    isAiAssistantOpen ||
+    isShortcutsModalOpen ||
     previewItem ||
     isBulkMoveOpen ||
     isEditingFabMode
@@ -538,8 +581,27 @@ export default function App() {
   useEffect(() => {
     async function initStorage() {
       try {
+        const sanitize = (data: AppData | null): AppData | null => {
+          if (!data) return null;
+          return {
+            ...data,
+            categories: {
+              media: Array.isArray(data.categories?.media) ? data.categories.media : [],
+              game: Array.isArray(data.categories?.game) ? data.categories.game : [],
+              book: Array.isArray(data.categories?.book) ? data.categories.book : [],
+            },
+            items: Array.isArray(data.items)
+              ? data.items.map((it) => ({
+                  ...it,
+                  ankiCard: it.ankiCard ? ensureAnkiCardDates(it.ankiCard) : undefined,
+                }))
+              : [],
+          };
+        };
+
         // 1. First check IndexedDB (which stores full items, custom posters & modifications)
-        const idbData = await loadDataFromIndexedDB();
+        const rawIdbData = await loadDataFromIndexedDB();
+        const idbData = sanitize(rawIdbData);
         let currentBestData: AppData | null = null;
 
         if (idbData && idbData.categories && Array.isArray(idbData.items) && idbData.items.length > 0) {
@@ -547,7 +609,8 @@ export default function App() {
           currentBestData = idbData;
         } else {
           // Fallback to localStorage
-          const local = loadDataFromLocalStorage();
+          const rawLocal = loadDataFromLocalStorage();
+          const local = sanitize(rawLocal);
           if (local && local.categories && Array.isArray(local.items) && local.items.length > 0) {
             setAppData(local);
             currentBestData = local;
@@ -562,7 +625,8 @@ export default function App() {
             const hasPerm = await verifyPermission(storedHandle, true);
             if (hasPerm) {
               setDirHandle(storedHandle);
-              const folderData = await readDataFromFolder(storedHandle);
+              const rawFolderData = await readDataFromFolder(storedHandle);
+              const folderData = sanitize(rawFolderData);
               if (folderData && folderData.categories && Array.isArray(folderData.items) && folderData.items.length > 0) {
                 const localUpdated = currentBestData?.lastUpdated ? new Date(currentBestData.lastUpdated).getTime() : 0;
                 const folderUpdated = folderData.lastUpdated ? new Date(folderData.lastUpdated).getTime() : 0;
@@ -605,18 +669,16 @@ export default function App() {
   useEffect(() => {
     if (!isDataLoaded) return;
 
-    // Save to local storage
-    saveDataToLocalStorage(appData);
-
-    // Save to File System Folder if connected
-    if (dirHandle) {
-      const timeoutId = setTimeout(() => {
+    const timeoutId = setTimeout(() => {
+      saveDataToLocalStorage(appData);
+      if (dirHandle) {
         writeDataToFolder(dirHandle, appData).catch((err) => {
           console.error('Auto-save to directory failed:', err);
         });
-      }, 500); // 500ms debounce
-      return () => clearTimeout(timeoutId);
-    }
+      }
+    }, 600); // 600ms debounce so rapid state updates do not spam IndexedDB/storage
+
+    return () => clearTimeout(timeoutId);
   }, [appData, dirHandle, isDataLoaded]);
 
   // Flush save on window unload
@@ -662,7 +724,7 @@ export default function App() {
       ? currentCategories.find((c) => c?.id === activeCatId)
       : null;
 
-  // --- 3. Global Keyboard Shortcuts (1: Media Home, 2: Game Home, 3: Tracked, 'W': Add, 'Escape': Smart ESC/Settings, 'Tab': Grid/Tier, 'Space': Fullscreen) ---
+  // --- 3. Global Keyboard Shortcuts (1: Media Home, 2: Game Home, 3: Tracked, 'W': Add, 'Escape': Smart ESC/Settings, 'Tab': Grid/Tier, 'Space': Fullscreen, 'B': Card Titles) ---
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       // 'Escape' key -> Smart ESC:
@@ -676,6 +738,14 @@ export default function App() {
         e.preventDefault();
         if (previewItem) {
           setPreviewItem(null);
+        } else if (isShortcutsModalOpen) {
+          setIsShortcutsModalOpen(false);
+        } else if (isAnkiStudyOpen) {
+          setIsAnkiStudyOpen(false);
+        } else if (isAiAssistantOpen) {
+          setIsAiAssistantOpen(false);
+        } else if (isAnkiHubOpen) {
+          setIsAnkiHubOpen(false);
         } else if (isRecentActivityOpen) {
           setIsRecentActivityOpen(false);
         } else if (isSettingsOpen) {
@@ -703,6 +773,23 @@ export default function App() {
         target.tagName === 'SELECT' ||
         target.isContentEditable
       ) {
+        return;
+      }
+
+      // 'B' or 'b' key -> Toggle Card Titles On / Off (Kart Başlıklarını Göster / Gizle)
+      if (e.key === 'b' || e.key === 'B') {
+        if (e.ctrlKey || e.metaKey || e.altKey) return;
+        if (selectedItem || isAddModalOpen || isSettingsOpen || isStatisticsOpen || isRecentActivityOpen || isAiAssistantOpen || isBulkMoveOpen || isEditingFabMode) {
+          return;
+        }
+        e.preventDefault();
+        setViewSettings((prev) => {
+          const isCurrentlyShowing = prev.showTitle !== false;
+          return {
+            ...prev,
+            showTitle: !isCurrentlyShowing,
+          };
+        });
         return;
       }
 
@@ -738,8 +825,24 @@ export default function App() {
         return;
       }
 
-      // '3' key -> İzlenen & Takip Listesini açar
+      // '3' key -> Nerede olursan ol Kitap Ana Sayfasına götürür
       if (e.key === '3') {
+        e.preventDefault();
+        closeAllPanels();
+        setSelectedItem(null);
+        setIsAddModalOpen(false);
+        setIsSettingsOpen(false);
+        setIsSearchOpen(false);
+        setSearchQuery('');
+        setMainTab('book');
+        setActiveCatId(null);
+        setActiveSub(null);
+        setViewMode('grid');
+        return;
+      }
+
+      // '4' key -> İzlenen & Takip Listesini açar
+      if (e.key === '4') {
         e.preventDefault();
         closeAllPanels();
         setSelectedItem(null);
@@ -798,11 +901,35 @@ export default function App() {
         setIsRecentActivityOpen((prev) => !prev);
         return;
       }
+
+      // 'A' or 'a' key -> Toggle AI Assistant Modal (Lore AI Asistan)
+      if (e.key === 'a' || e.key === 'A') {
+        e.preventDefault();
+        closeAllPanels();
+        setIsAiAssistantOpen((prev) => !prev);
+        return;
+      }
+
+      // 'K' or 'k' key -> Toggle Quick Shortcuts Modal
+      if (e.key === 'k' || e.key === 'K') {
+        if (e.ctrlKey || e.metaKey || e.altKey) return;
+        if (selectedItem || isAddModalOpen || isSettingsOpen || isStatisticsOpen || isRecentActivityOpen || isAiAssistantOpen || isBulkMoveOpen || isEditingFabMode) {
+          if (isShortcutsModalOpen) {
+            e.preventDefault();
+            setIsShortcutsModalOpen(false);
+          }
+          return;
+        }
+        e.preventDefault();
+        closeAllPanels();
+        setIsShortcutsModalOpen((prev) => !prev);
+        return;
+      }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [closeAllPanels, selectedItem, isAddModalOpen, isSettingsOpen, isFilterOpen, isViewOpen, isSearchOpen, activeCategory, hoveredItem, previewItem]);
+  }, [closeAllPanels, selectedItem, isAddModalOpen, isSettingsOpen, isFilterOpen, isViewOpen, isSearchOpen, activeCategory, hoveredItem, previewItem, isAiAssistantOpen, isShortcutsModalOpen]);
 
   // Directory Connection Handlers
   const handleConnectFolder = async () => {
@@ -893,6 +1020,43 @@ export default function App() {
     markDataDirty();
     setSelectedItem(null);
   };
+
+  // Lightweight Anki progress updater: uses debounced persistence so rapid card repetition stays at 60 FPS
+  const handleSaveAnkiItem = useCallback((updatedItem: ArchiveItem) => {
+    const itemWithTimestamp: ArchiveItem = {
+      ...updatedItem,
+      updatedAt: Date.now(),
+    };
+    setAppData((prev) => {
+      const updated: AppData = {
+        ...prev,
+        lastUpdated: new Date().toISOString(),
+        items: prev.items.map((it) => (it.id === itemWithTimestamp.id ? itemWithTimestamp : it)),
+      };
+      debouncedSaveData(updated);
+      return updated;
+    });
+    setHasUnpushedChanges(true);
+  }, [debouncedSaveData]);
+
+  // Batch Anki study session updater: persists cards modified during a study session in a single batch
+  const handleSaveAnkiSession = useCallback((updatedItems: ArchiveItem[]) => {
+    if (!updatedItems || updatedItems.length === 0) return;
+    const updateMap = new Map(updatedItems.map((it) => [it.id, it]));
+    setAppData((prev) => {
+      const updated: AppData = {
+        ...prev,
+        lastUpdated: new Date().toISOString(),
+        items: prev.items.map((it) => {
+          const matching = updateMap.get(it.id);
+          return matching ? { ...matching, updatedAt: Date.now() } : it;
+        }),
+      };
+      debouncedSaveData(updated);
+      return updated;
+    });
+    setHasUnpushedChanges(true);
+  }, [debouncedSaveData]);
 
   const handleDeleteItem = (itemId: string) => {
     const itemToDelete = appData.items.find((it) => it.id === itemId);
@@ -1557,6 +1721,9 @@ export default function App() {
           const itemDirectors = (item.director || []).map((d) => d.toLowerCase());
           const itemActors = (item.actors || []).map((a) => a.toLowerCase());
           const itemDevelopers = (item.developer || []).map((d) => d.toLowerCase());
+          const itemAuthors = (item.author || []).map((a) => a.toLowerCase());
+          const itemPublishers = (item.publisher || []).map((p) => p.toLowerCase());
+          const itemTranslators = (item.translator || []).map((t) => t.toLowerCase());
           const itemYear = item.releaseYear ? item.releaseYear.toString() : '';
           const itemCharNames = (item.characters || []).map((c) => (c.name || '').toLowerCase());
           const itemCharActors = (item.characters || [])
@@ -1579,6 +1746,9 @@ export default function App() {
             if (itemDirectors.some((d) => d.includes(term))) return true;
             if (itemActors.some((a) => a.includes(term))) return true;
             if (itemDevelopers.some((d) => d.includes(term))) return true;
+            if (itemAuthors.some((a) => a.includes(term))) return true;
+            if (itemPublishers.some((p) => p.includes(term))) return true;
+            if (itemTranslators.some((t) => t.includes(term))) return true;
             if (itemCharNames.some((n) => n.includes(term))) return true;
             if (itemCharActors.some((a) => a.includes(term))) return true;
             return false;
@@ -1591,7 +1761,22 @@ export default function App() {
       }
 
       // 5. Rating & Watch status filters
-      if (filters.minRating > 0 && item.rating < filters.minRating) return false;
+      if (filters.ratingFilter && filters.ratingFilter !== 'all') {
+        if (filters.ratingFilter === '9-plus' && (item.rating < 9 || !item.rating)) return false;
+        if (filters.ratingFilter === '8-plus' && (item.rating < 8 || !item.rating)) return false;
+        if (filters.ratingFilter === '7-plus' && (item.rating < 7 || !item.rating)) return false;
+        if (filters.ratingFilter === '6-below' && (!item.rating || item.rating > 6 || item.rating <= 0)) return false;
+        if (filters.ratingFilter === 'unrated' && item.rating && item.rating > 0) return false;
+      } else if (filters.minRating > 0 && item.rating < filters.minRating) {
+        return false;
+      }
+
+      // Media-specific: Yarım Bırakılanlar filter
+      if (filters.droppedOnly && !item.dropped) return false;
+
+      // Book-specific: Şu An Okunanlar filter
+      if (item.mainTab === 'book' && filters.readingOnly && !item.reading) return false;
+
       if (filters.watchingOnly && !item.watching && !(item as any).isWatching) return false;
       if (filters.followingOnly && !item.following && !(item as any).isFollowing) return false;
 
@@ -1603,7 +1788,12 @@ export default function App() {
         if (item.status !== filters.gameStatus) return false;
       }
 
-      // 8. Anki filter
+      // 8. Book format filter
+      if (item.mainTab === 'book' && filters.bookFormat && filters.bookFormat !== 'all') {
+        if (item.format !== filters.bookFormat) return false;
+      }
+
+      // 9. Anki filter
       if (filters.ankiFilter === 'yes' && !item.anki) return false;
       if (filters.ankiFilter === 'no' && item.anki) return false;
 
@@ -1985,6 +2175,8 @@ export default function App() {
 
             const statPos = normPositions.statistics;
             const recentPos = normPositions.recentActivity;
+            const ankiPos = normPositions.ankiHub;
+            const aiPos = normPositions.aiAssistant;
             const addPos = normPositions.addItem;
 
             return (
@@ -2082,6 +2274,104 @@ export default function App() {
                         }`}
                       >
                         {recentPos.bottom}x{recentPos.side}px
+                      </span>
+                    )}
+                  </button>
+                </div>
+
+                {/* 2.3. Anki Hub Button (Sol Alttaki 3. Yüzen Buton, Sadece İkon, Metinsiz) */}
+                <div
+                  className={`fixed transition-all duration-150 ${
+                    isEditingFabMode ? 'z-[65]' : 'z-40'
+                  }`}
+                  style={{ bottom: `${ankiPos.bottom}px`, left: `${ankiPos.side}px` }}
+                >
+                  <button
+                    id="fab-anki-hub-btn"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (isEditingFabMode) {
+                        setSelectedFab('ankiHub');
+                        return;
+                      }
+                      closeAllPanels();
+                      setIsAnkiHubOpen((prev) => !prev);
+                    }}
+                    title={
+                      isEditingFabMode
+                        ? `Anki Hub (${ankiPos.bottom}px x ${ankiPos.side}px)`
+                        : 'Anki Deste Hub\'ı'
+                    }
+                    className={`relative w-8 h-8 rounded-full flex items-center justify-center transition-all duration-150 backdrop-blur-md cursor-pointer group ${
+                      isEditingFabMode
+                        ? selectedFab === 'ankiHub'
+                          ? 'bg-blue-600 text-white ring-2 ring-blue-400 ring-offset-1 ring-offset-slate-950 shadow-lg shadow-blue-500/40 opacity-100'
+                          : 'bg-slate-900/90 text-slate-300 ring-1 ring-dashed ring-blue-400/50 hover:ring-blue-400 opacity-80 hover:opacity-100 border border-white/20'
+                        : isAnkiHubOpen
+                        ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/40 ring-2 ring-blue-400/60 opacity-100 scale-105'
+                        : 'bg-slate-900/80 hover:bg-blue-600 text-slate-400 hover:text-white shadow-md hover:shadow-blue-600/30 hover:scale-105 active:scale-95 border border-white/10 hover:border-blue-400/40 opacity-70 hover:opacity-100'
+                    }`}
+                  >
+                    <Layers className="w-3.5 h-3.5 transition-transform duration-200 group-hover:scale-110" />
+
+                    {isEditingFabMode && (
+                      <span
+                        className={`absolute -top-6 left-1/2 -translate-x-1/2 px-1.5 py-0.5 rounded text-[9px] font-mono whitespace-nowrap pointer-events-none shadow-md ${
+                          selectedFab === 'ankiHub'
+                            ? 'bg-emerald-600 text-white font-bold'
+                            : 'bg-slate-900/95 border border-white/20 text-slate-300'
+                        }`}
+                      >
+                        {ankiPos.bottom}x{ankiPos.side}px
+                      </span>
+                    )}
+                  </button>
+                </div>
+
+                {/* 2.5. AI Assistant Button */}
+                <div
+                  className={`fixed transition-all duration-150 ${
+                    isEditingFabMode ? 'z-[65]' : 'z-40'
+                  }`}
+                  style={{ bottom: `${aiPos.bottom}px`, left: `${aiPos.side}px` }}
+                >
+                  <button
+                    id="fab-ai-assistant-btn"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (isEditingFabMode) {
+                        setSelectedFab('aiAssistant');
+                        return;
+                      }
+                      closeAllPanels();
+                      setIsAiAssistantOpen((prev) => !prev);
+                    }}
+                    title={
+                      isEditingFabMode
+                        ? `AI Asistan (${aiPos.bottom}px x ${aiPos.side}px)`
+                        : 'Lore AI Asistan & Küratör (Kısayol: A)'
+                    }
+                    className={`relative w-8 h-8 rounded-full flex items-center justify-center transition-all duration-150 backdrop-blur-md cursor-pointer group ${
+                      isEditingFabMode
+                        ? selectedFab === 'aiAssistant'
+                          ? 'bg-amber-500 text-white ring-2 ring-amber-400 ring-offset-1 ring-offset-slate-950 shadow-lg shadow-amber-500/40 opacity-100'
+                          : 'bg-slate-900/90 text-amber-300 ring-1 ring-dashed ring-amber-400/50 hover:ring-amber-400 opacity-80 hover:opacity-100 border border-white/20'
+                        : isAiAssistantOpen
+                        ? 'bg-gradient-to-tr from-amber-500 to-indigo-600 text-white shadow-lg shadow-amber-500/40 ring-2 ring-amber-400/60 opacity-100 scale-105'
+                        : 'bg-slate-900/80 hover:bg-gradient-to-tr hover:from-amber-500 hover:to-indigo-600 text-amber-400/90 hover:text-white shadow-md hover:shadow-amber-500/30 hover:scale-105 active:scale-95 border border-white/10 hover:border-amber-400/40 opacity-80 hover:opacity-100'
+                    }`}
+                  >
+                    <Sparkles className="w-3.5 h-3.5 transition-transform duration-200 group-hover:scale-110" />
+
+                    {isEditingFabMode && (
+                      <span
+                        className={`absolute -top-6 left-1/2 -translate-x-1/2 px-1.5 py-0.5 rounded text-[9px] font-mono whitespace-nowrap pointer-events-none shadow-md ${
+                          selectedFab === 'aiAssistant'
+                            ? 'bg-amber-500 text-white font-bold'
+                            : 'bg-slate-900/95 border border-white/20 text-slate-300'
+                        }`}
+                      >
+                        {aiPos.bottom}x{aiPos.side}px
                       </span>
                     )}
                   </button>
@@ -2887,8 +3177,12 @@ export default function App() {
           activeCatId={activeCatId !== TRACKED_TAB_ID ? activeCatId : null}
           activeSub={activeSub}
           allItems={appData.items}
+          initialTitle={addModalInitialTitle}
           onAdd={handleAddItem}
-          onClose={() => setIsAddModalOpen(false)}
+          onClose={() => {
+            setIsAddModalOpen(false);
+            setAddModalInitialTitle(undefined);
+          }}
         />
       )}
 
@@ -2983,13 +3277,38 @@ export default function App() {
         />
       )}
 
+      {/* 4.6. Lore AI Assistant Modal */}
+      {(isAiAssistantOpen || hasAiAssistantOpened) && (
+        <AiAssistantModal
+          isOpen={isAiAssistantOpen}
+          onClose={() => setIsAiAssistantOpen(false)}
+          items={appData.items}
+          categories={appData.categories}
+          activeTab={mainTab}
+          onOpenItemDetail={(item) => setPreviewItem(item)}
+          onOpenAddItem={(initialTitle, targetTab) => {
+            if (targetTab) {
+              setMainTab(targetTab);
+            }
+            setAddModalInitialTitle(initialTitle);
+            setIsAddModalOpen(true);
+          }}
+        />
+      )}
+
+      {/* 4.7. Quick Shortcuts Modal (K Key) */}
+      <QuickShortcutsModal
+        isOpen={isShortcutsModalOpen}
+        onClose={() => setIsShortcutsModalOpen(false)}
+      />
+
       {/* 5. Image Large Preview Lightbox Modal */}
       {previewItem && (
         <ImagePreviewModal
           item={previewItem}
           categories={currentCategories}
           allItems={appData.items}
-          allCategories={[...appData.categories.media, ...appData.categories.game]}
+          allCategories={[...appData.categories.media, ...appData.categories.game, ...(appData.categories.book || [])]}
           viewSettings={viewSettings}
           onClose={() => setPreviewItem(null)}
           onSelectItem={(newItem) => setPreviewItem(newItem)}
@@ -3010,6 +3329,74 @@ export default function App() {
           categories={currentCategories}
           onClose={() => setIsBulkMoveOpen(false)}
           onMove={handleBulkMove}
+        />
+      )}
+
+      {/* 6.5. Anki Hub Modal */}
+      {isAnkiHubOpen && (
+        <AnkiHubModal
+          isOpen={isAnkiHubOpen}
+          onClose={() => setIsAnkiHubOpen(false)}
+          items={appData.items}
+          categories={appData.categories}
+          virtualTimeOffsetMs={virtualTimeOffsetMs}
+          onSetVirtualTimeOffsetMs={setVirtualTimeOffsetMs}
+          showSimulator={Boolean(viewSettings.showAnkiSimulator)}
+          onUpdateItem={handleSaveAnkiItem}
+          onStartStudy={(queue, title) => {
+            if (queue.length === 0) {
+              setDialogOptions({
+                type: 'alert',
+                title: 'Vadesi Gelen Kart Yok',
+                message: `"${title}" destesinde şu anda vadesi gelen veya yeni kart bulunmuyor. Sanal zaman çubuğu ile süreyi ileri sarabilir veya başka bir deste seçebilirsiniz.`,
+                confirmText: 'Tamam',
+              });
+              return;
+            }
+            setStudyQueue(queue);
+            setStudyDeckTitle(title);
+            setIsAnkiStudyOpen(true);
+          }}
+        />
+      )}
+
+      {/* 6.6. Anki Flashcard Study Session Modal */}
+      {isAnkiStudyOpen && (
+        <AnkiStudyModal
+          isOpen={isAnkiStudyOpen}
+          deckTitle={studyDeckTitle}
+          initialQueue={studyQueue}
+          virtualTimeOffsetMs={virtualTimeOffsetMs}
+          categories={appData.categories}
+          onSaveSession={handleSaveAnkiSession}
+          onClose={(pendingSessionItems?: ArchiveItem[]) => {
+            // Immediately flush any debounced save to IndexedDB and disk when leaving study session
+            if (saveTimeoutRef.current) {
+              clearTimeout(saveTimeoutRef.current);
+            }
+            let latestData = appDataRef.current;
+            if (pendingSessionItems && pendingSessionItems.length > 0) {
+              const updateMap = new Map(pendingSessionItems.map((it) => [it.id, it]));
+              latestData = {
+                ...latestData,
+                lastUpdated: new Date().toISOString(),
+                items: latestData.items.map((it) => {
+                  const matching = updateMap.get(it.id);
+                  return matching ? { ...matching, updatedAt: Date.now() } : it;
+                }),
+              };
+              setAppData(latestData);
+              appDataRef.current = latestData;
+              setHasUnpushedChanges(true);
+            }
+            if (latestData) {
+              saveDataToLocalStorage(latestData);
+              if (dirHandle) {
+                writeDataToFolder(dirHandle, latestData).catch(() => {});
+              }
+            }
+            setIsAnkiStudyOpen(false);
+          }}
         />
       )}
 

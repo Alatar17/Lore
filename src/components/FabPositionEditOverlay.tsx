@@ -24,6 +24,7 @@ import {
   History,
   Plus,
   AlertCircle,
+  Layers,
 } from 'lucide-react';
 
 export const SYSTEM_PRESETS: {
@@ -139,6 +140,18 @@ export const FabPositionEditOverlay: React.FC<FabPositionEditOverlayProps> = ({
           name: 'Son Aktivite',
           icon: <History className="w-3.5 h-3.5 text-purple-400" />,
           colorText: 'text-purple-400',
+        };
+      case 'ankiHub':
+        return {
+          name: 'Anki Hub',
+          icon: <Layers className="w-3.5 h-3.5 text-emerald-400" />,
+          colorText: 'text-emerald-400',
+        };
+      case 'aiAssistant':
+        return {
+          name: 'AI Asistan',
+          icon: <Sparkles className="w-3.5 h-3.5 text-amber-400" />,
+          colorText: 'text-amber-400',
         };
       case 'addItem':
         return {
@@ -296,6 +309,10 @@ export const FabPositionEditOverlay: React.FC<FabPositionEditOverlayProps> = ({
                       <span className="flex items-center gap-1" title="Son Aktivite Konumu">
                         <History className="w-3 h-3 text-purple-400" />
                         <span>{normP.recentActivity.bottom}x{normP.recentActivity.side}px</span>
+                      </span>
+                      <span className="flex items-center gap-1" title="AI Asistan Konumu">
+                        <Sparkles className="w-3 h-3 text-amber-400" />
+                        <span>{normP.aiAssistant.bottom}x{normP.aiAssistant.side}px</span>
                       </span>
                       <span className="flex items-center gap-1" title="Yeni Kart Ekle Konumu">
                         <Plus className="w-3 h-3 text-emerald-400" />

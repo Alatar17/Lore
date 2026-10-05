@@ -325,11 +325,22 @@ export async function pushDataToGitHub(
   }
 
   // 2. Prepare clean JSON payload
-  // Keep thumbnailFileName; drop inline heavy base64 strings so JSON stays tiny (1-2 MB)
+  // Keep thumbnailFileName and ankiExtraImages.fileName; drop inline heavy base64 strings so JSON stays tiny (1-2 MB)
   const cleanItems: ArchiveItem[] = (appData.items || []).map((item) => {
     const copy = { ...item };
     if (copy.thumbnailFileName && copy.thumbnail?.startsWith('data:image/')) {
       delete copy.thumbnail;
+    }
+    if (copy.ankiExtraImages && copy.ankiExtraImages.length > 0) {
+      copy.ankiExtraImages = copy.ankiExtraImages.map((extra, idx) => {
+        const extraCopy = { ...extra };
+        const fileName = extraCopy.fileName || `images/${copy.id}_extra_${idx}.jpg`;
+        extraCopy.fileName = fileName;
+        if (extraCopy.url && extraCopy.url.startsWith('data:image/')) {
+          extraCopy.url = fileName;
+        }
+        return extraCopy;
+      });
     }
     return copy;
   });
@@ -346,11 +357,18 @@ export async function pushDataToGitHub(
       }
 
       if (imagesDir) {
-        // Collect all image filenames referenced by active items
+        // Collect all image filenames referenced by active items (both thumbnails and ankiExtraImages)
         const neededImageNames = new Set<string>();
         for (const item of cleanItems) {
           if (item.thumbnailFileName) {
             neededImageNames.add(item.thumbnailFileName.replace(/^images\//, ''));
+          }
+          if (item.ankiExtraImages && Array.isArray(item.ankiExtraImages)) {
+            for (const extra of item.ankiExtraImages) {
+              if (extra.fileName) {
+                neededImageNames.add(extra.fileName.replace(/^images\//, ''));
+              }
+            }
           }
         }
 

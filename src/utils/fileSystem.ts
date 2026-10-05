@@ -2,6 +2,7 @@ import { AppData, ArchiveItem, Category, MainTabType, TierListCategoryExportData
 import { INITIAL_DATA } from '../data/initialData';
 import JSZip from 'jszip';
 import { renderTierListToPngBlob } from './tierImageExport';
+import { ensureAnkiCardDates } from './ankiUtils';
 
 // Helper to get formatted date string for export files (e.g., 2026-08-24_11-50 or 2026-08-24)
 export function getFormattedDateForFilename(): string {
@@ -134,7 +135,17 @@ export async function loadDataFromIndexedDB(): Promise<AppData | null> {
       const req = store.get(APP_DATA_KEY);
       req.onsuccess = () => {
         if (req.result && req.result.categories && req.result.items) {
-          resolve(req.result as AppData);
+          const res = req.result as AppData;
+          if (!Array.isArray(res.categories.book)) res.categories.book = [];
+          if (!Array.isArray(res.categories.media)) res.categories.media = [];
+          if (!Array.isArray(res.categories.game)) res.categories.game = [];
+          if (Array.isArray(res.items)) {
+            res.items = res.items.map((it) => ({
+              ...it,
+              ankiCard: it.ankiCard ? ensureAnkiCardDates(it.ankiCard) : undefined,
+            }));
+          }
+          resolve(res);
         } else {
           resolve(null);
         }
@@ -263,7 +274,42 @@ export async function readDataFromFolder(dirHandle: FileSystemDirectoryHandle): 
             // Ignore missing images
           }
         }
+
+        // Restore ankiExtraImages from images/ folder if stored as relative path
+        if (item.ankiExtraImages && Array.isArray(item.ankiExtraImages)) {
+          for (let idx = 0; idx < item.ankiExtraImages.length; idx++) {
+            const extra = item.ankiExtraImages[idx];
+            const targetFileName = extra.fileName
+              ? extra.fileName.replace(/^images\//, '')
+              : extra.url && extra.url.startsWith('images/')
+              ? extra.url.replace(/^images\//, '')
+              : null;
+            if (targetFileName && (!extra.url || extra.url.startsWith('images/'))) {
+              try {
+                const imgHandle = await imagesDir.getFileHandle(targetFileName);
+                const imgFile = await imgHandle.getFile();
+                const base64 = await readFileAsBase64(imgFile);
+                extra.url = base64;
+              } catch {
+                // Ignore missing extra image
+              }
+            }
+          }
+        }
       }
+    }
+
+    if (json && json.categories) {
+      if (!Array.isArray(json.categories.book)) json.categories.book = [];
+      if (!Array.isArray(json.categories.media)) json.categories.media = [];
+      if (!Array.isArray(json.categories.game)) json.categories.game = [];
+    }
+
+    if (json && Array.isArray(json.items)) {
+      json.items = json.items.map((it) => ({
+        ...it,
+        ankiCard: it.ankiCard ? ensureAnkiCardDates(it.ankiCard) : undefined,
+      }));
     }
 
     return json;
@@ -307,6 +353,36 @@ export async function writeDataToFolder(dirHandle: FileSystemDirectoryHandle, da
           console.warn(`Could not write image for ${item.id}:`, imgErr);
         }
       }
+
+      // Handle Anki extra images: extract to images/ folder so JSON stays lightweight
+      if (item.ankiExtraImages && item.ankiExtraImages.length > 0 && imagesDir) {
+        const cleanExtras = [];
+        for (let idx = 0; idx < item.ankiExtraImages.length; idx++) {
+          const extra = item.ankiExtraImages[idx];
+          const extraCopy = { ...extra };
+          if (extra.url && extra.url.startsWith('data:image/')) {
+            try {
+              const mimeMatch = extra.url.match(/data:image\/([a-zA-Z0-9]+);/);
+              const ext = mimeMatch ? (mimeMatch[1] === 'jpeg' ? 'jpg' : mimeMatch[1]) : 'jpg';
+              const extraImgName = `${item.id}_extra_${idx}.${ext}`;
+              const blob = dataURLtoBlob(extra.url);
+
+              const imgHandle = await imagesDir.getFileHandle(extraImgName, { create: true });
+              const imgWritable = await (imgHandle as any).createWritable();
+              await imgWritable.write(blob);
+              await imgWritable.close();
+
+              extraCopy.fileName = `images/${extraImgName}`;
+              extraCopy.url = `images/${extraImgName}`;
+            } catch (extraErr) {
+              console.warn(`Could not write extra image ${idx} for ${item.id}:`, extraErr);
+            }
+          }
+          cleanExtras.push(extraCopy);
+        }
+        itemCopy.ankiExtraImages = cleanExtras;
+      }
+
       cleanItems.push(itemCopy);
     }
 
@@ -372,6 +448,19 @@ export async function cleanOrphanImagesInFolder(
       activeFileNames.add(`${item.id}.jpeg`);
       activeFileNames.add(`${item.id}.png`);
       activeFileNames.add(`${item.id}.webp`);
+
+      if (item.ankiExtraImages && Array.isArray(item.ankiExtraImages)) {
+        for (let idx = 0; idx < item.ankiExtraImages.length; idx++) {
+          const extra = item.ankiExtraImages[idx];
+          if (extra.fileName) {
+            activeFileNames.add(extra.fileName.replace(/^images\//, ''));
+          }
+          activeFileNames.add(`${item.id}_extra_${idx}.jpg`);
+          activeFileNames.add(`${item.id}_extra_${idx}.jpeg`);
+          activeFileNames.add(`${item.id}_extra_${idx}.png`);
+          activeFileNames.add(`${item.id}_extra_${idx}.webp`);
+        }
+      }
     }
 
     const deletedFiles: string[] = [];
@@ -482,13 +571,20 @@ export function loadDataFromLocalStorage(): AppData {
       if (parsed && typeof parsed === 'object') {
         const mediaCats = Array.isArray(parsed.categories?.media) ? parsed.categories.media : [];
         const gameCats = Array.isArray(parsed.categories?.game) ? parsed.categories.game : [];
-        const items = Array.isArray(parsed.items) ? parsed.items.filter(Boolean) : [];
+        const bookCats = Array.isArray(parsed.categories?.book) ? parsed.categories.book : [];
+        const items = Array.isArray(parsed.items)
+          ? parsed.items.filter(Boolean).map((it: ArchiveItem) => ({
+              ...it,
+              ankiCard: it.ankiCard ? ensureAnkiCardDates(it.ankiCard) : undefined,
+            }))
+          : [];
         return {
           version: parsed.version || 1,
           lastUpdated: parsed.lastUpdated || new Date().toISOString(),
           categories: {
             media: mediaCats,
             game: gameCats,
+            book: bookCats,
           },
           items,
         };
@@ -562,7 +658,7 @@ export function parseUploadedJson(file: File, existingAppData?: AppData): Promis
           const sanitizedItems: ArchiveItem[] = json.map((it: any, index: number) => ({
             ...it,
             id: it.id || `item_${Date.now()}_${index}`,
-            mainTab: it.mainTab === 'game' ? 'game' : 'media',
+            mainTab: it.mainTab === 'game' ? 'game' : it.mainTab === 'book' ? 'book' : 'media',
             cat: it.cat || '',
             sub: it.sub || null,
             title: it.title || 'İsimsiz Yapım',
@@ -582,6 +678,13 @@ export function parseUploadedJson(file: File, existingAppData?: AppData): Promis
             achPercent: it.achPercent !== undefined ? it.achPercent : null,
             achMax: it.achMax || undefined,
             hours: it.hours || undefined,
+            reading: it.reading ?? false,
+            pageCount: typeof it.pageCount === 'number' ? it.pageCount : undefined,
+            format: it.format || undefined,
+            author: Array.isArray(it.author) ? it.author : undefined,
+            publisher: Array.isArray(it.publisher) ? it.publisher : undefined,
+            translator: Array.isArray(it.translator) ? it.translator : undefined,
+            quotes: Array.isArray(it.quotes) ? it.quotes : undefined,
             firm: Array.isArray(it.firm) ? it.firm : undefined,
             director: Array.isArray(it.director) ? it.director : undefined,
             actors: Array.isArray(it.actors) ? it.actors : undefined,
@@ -589,6 +692,7 @@ export function parseUploadedJson(file: File, existingAppData?: AppData): Promis
             genre: Array.isArray(it.genre) ? it.genre : undefined,
             characters: Array.isArray(it.characters) ? it.characters : undefined,
             anki: it.anki ?? false,
+            ankiCard: it.ankiCard ? ensureAnkiCardDates(it.ankiCard) : undefined,
             createdAt: typeof it.createdAt === 'number' ? it.createdAt : (it.createdAt ? Number(it.createdAt) : Date.now()),
             updatedAt: typeof it.updatedAt === 'number' ? it.updatedAt : (it.updatedAt ? Number(it.updatedAt) : Date.now()),
           }));
@@ -611,7 +715,7 @@ export function parseUploadedJson(file: File, existingAppData?: AppData): Promis
           const sanitizedItems: ArchiveItem[] = json.items.map((it: any, index: number) => ({
             ...it,
             id: it.id || `item_${Date.now()}_${index}`,
-            mainTab: it.mainTab === 'game' ? 'game' : 'media',
+            mainTab: it.mainTab === 'game' ? 'game' : it.mainTab === 'book' ? 'book' : 'media',
             cat: it.cat || '',
             sub: it.sub || null,
             title: it.title || 'İsimsiz Yapım',
@@ -631,6 +735,13 @@ export function parseUploadedJson(file: File, existingAppData?: AppData): Promis
             achPercent: it.achPercent !== undefined ? it.achPercent : null,
             achMax: it.achMax || undefined,
             hours: it.hours || undefined,
+            reading: it.reading ?? false,
+            pageCount: typeof it.pageCount === 'number' ? it.pageCount : undefined,
+            format: it.format || undefined,
+            author: Array.isArray(it.author) ? it.author : undefined,
+            publisher: Array.isArray(it.publisher) ? it.publisher : undefined,
+            translator: Array.isArray(it.translator) ? it.translator : undefined,
+            quotes: Array.isArray(it.quotes) ? it.quotes : undefined,
             firm: Array.isArray(it.firm) ? it.firm : undefined,
             director: Array.isArray(it.director) ? it.director : undefined,
             actors: Array.isArray(it.actors) ? it.actors : undefined,
@@ -638,13 +749,18 @@ export function parseUploadedJson(file: File, existingAppData?: AppData): Promis
             genre: Array.isArray(it.genre) ? it.genre : undefined,
             characters: Array.isArray(it.characters) ? it.characters : undefined,
             anki: it.anki ?? false,
+            ankiCard: it.ankiCard ? ensureAnkiCardDates(it.ankiCard) : undefined,
             createdAt: typeof it.createdAt === 'number' ? it.createdAt : (it.createdAt ? Number(it.createdAt) : Date.now()),
             updatedAt: typeof it.updatedAt === 'number' ? it.updatedAt : (it.updatedAt ? Number(it.updatedAt) : Date.now()),
           }));
 
           const hasCategories = json.categories && typeof json.categories === 'object';
           const categories = hasCategories
-            ? json.categories
+            ? {
+                media: json.categories.media || [],
+                game: json.categories.game || [],
+                book: json.categories.book || [],
+              }
             : existingAppData?.categories || INITIAL_DATA.categories;
 
           return resolve({
@@ -716,6 +832,33 @@ export async function buildUnifiedZipBlob(data: AppData): Promise<Blob> {
         console.warn('Image zip export error:', e);
       }
     }
+
+    // Handle Anki extra images in ZIP: save each into images/ folder in zip, keep JSON lightweight
+    if (item.ankiExtraImages && item.ankiExtraImages.length > 0) {
+      const cleanExtras = [];
+      for (let idx = 0; idx < item.ankiExtraImages.length; idx++) {
+        const extra = item.ankiExtraImages[idx];
+        const extraCopy = { ...extra };
+        if (extra.url && extra.url.startsWith('data:image/')) {
+          try {
+            const mimeMatch = extra.url.match(/data:image\/([a-zA-Z0-9]+);/);
+            const ext = mimeMatch ? (mimeMatch[1] === 'jpeg' ? 'jpg' : mimeMatch[1]) : 'jpg';
+            const extraImgName = `${item.id}_extra_${idx}.${ext}`;
+            const blob = dataURLtoBlob(extra.url);
+            if (imgFolder) {
+              imgFolder.file(extraImgName, blob);
+            }
+            extraCopy.fileName = `images/${extraImgName}`;
+            extraCopy.url = `images/${extraImgName}`;
+          } catch (e) {
+            console.warn('Extra image zip export error:', e);
+          }
+        }
+        cleanExtras.push(extraCopy);
+      }
+      itemCopy.ankiExtraImages = cleanExtras;
+    }
+
     cleanItems.push(itemCopy);
   }
 
@@ -736,7 +879,7 @@ export async function buildUnifiedZipBlob(data: AppData): Promise<Blob> {
 
   // 2. Generate TierList_Yedekleri folder in the Master ZIP
   const tierFolder = masterZip.folder('TierList_Yedekleri');
-  const allTabs: MainTabType[] = ['media', 'game'];
+  const allTabs: MainTabType[] = ['media', 'game', 'book'];
   const now = new Date();
 
   for (const tab of allTabs) {
@@ -910,7 +1053,10 @@ export async function importAppDataFromZip(
 
   for (const rawItem of rawAppData.items) {
     if (!rawItem.id) continue;
-    const item: ArchiveItem = { ...rawItem };
+    const item: ArchiveItem = {
+      ...rawItem,
+      ankiCard: rawItem.ankiCard ? ensureAnkiCardDates(rawItem.ankiCard) : undefined,
+    };
 
     if (!item.thumbnail || !item.thumbnail.startsWith('data:image/')) {
       if (item.thumbnailFileName) {
@@ -933,6 +1079,31 @@ export async function importAppDataFromZip(
           item.thumbnail = imageMap.get(idKeyPng)!;
         }
       }
+    }
+
+    // Restore Anki extra images from ZIP
+    if (item.ankiExtraImages && Array.isArray(item.ankiExtraImages)) {
+      item.ankiExtraImages = item.ankiExtraImages.map((extra, idx) => {
+        if (!extra.url || !extra.url.startsWith('data:image/')) {
+          const targetName = extra.fileName
+            ? extra.fileName.toLowerCase()
+            : extra.url && extra.url.startsWith('images/')
+            ? extra.url.toLowerCase()
+            : null;
+          if (targetName) {
+            const rawBase = targetName.replace(/^images\//i, '');
+            const match = imageMap.get(targetName) || imageMap.get(rawBase);
+            if (match) return { ...extra, url: match };
+          }
+          const idKeyJpg = `${item.id}_extra_${idx}.jpg`.toLowerCase();
+          const idKeyWebp = `${item.id}_extra_${idx}.webp`.toLowerCase();
+          const idKeyPng = `${item.id}_extra_${idx}.png`.toLowerCase();
+          if (imageMap.has(idKeyJpg)) return { ...extra, url: imageMap.get(idKeyJpg)! };
+          if (imageMap.has(idKeyWebp)) return { ...extra, url: imageMap.get(idKeyWebp)! };
+          if (imageMap.has(idKeyPng)) return { ...extra, url: imageMap.get(idKeyPng)! };
+        }
+        return extra;
+      });
     }
 
     uniqueItemsMap.set(item.id, item);

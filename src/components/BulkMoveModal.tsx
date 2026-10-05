@@ -35,7 +35,7 @@ export const BulkMoveModal: React.FC<BulkMoveModalProps> = ({
 
   if (!isOpen) return null;
 
-  const mainTabLabel = mainTab === 'media' ? 'Medya' : 'Oyun';
+  const mainTabLabel = mainTab === 'media' ? 'Medya' : mainTab === 'game' ? 'Oyun' : 'Kitap';
   const selectedCategory = categories.find((c) => c.id === targetCatId);
   const availableSubgroups = selectedCategory?.subgroups || [];
 

@@ -5,6 +5,7 @@ import {
   X,
   Film,
   Gamepad2,
+  BookOpen,
   ChevronRight,
 } from 'lucide-react';
 
@@ -15,6 +16,7 @@ interface RecentActivityModalProps {
   categories: {
     media: Category[];
     game: Category[];
+    book?: Category[];
   };
   onSelectItem: (item: ArchiveItem) => void;
   onNavigateToCategory: (mainTab: MainTabType, catId: string, sub: string | null) => void;
@@ -76,7 +78,7 @@ export const RecentActivityModal: React.FC<RecentActivityModalProps> = ({
   onNavigateToCategory,
 }) => {
   const [filterTab, setFilterTab] = useState<'all' | 'added' | 'updated'>('added');
-  const [scopeFilter, setScopeFilter] = useState<'all' | 'media' | 'game'>('all');
+  const [scopeFilter, setScopeFilter] = useState<'all' | 'media' | 'game' | 'book'>('all');
 
   // Reset to 'added' whenever the modal opens
   useEffect(() => {
@@ -102,17 +104,19 @@ export const RecentActivityModal: React.FC<RecentActivityModalProps> = ({
   // Fast category lookup map
   const categoryMap = useMemo(() => {
     const map = new Map<string, string>();
-    categories.media.forEach((c) => map.set(c.id, c.name));
-    categories.game.forEach((c) => map.set(c.id, c.name));
+    categories.media?.forEach((c) => map.set(c.id, c.name));
+    categories.game?.forEach((c) => map.set(c.id, c.name));
+    categories.book?.forEach((c) => map.set(c.id, c.name));
     return map;
   }, [categories]);
 
   // Build activity records
   const { addedList, updatedList, allList } = useMemo(() => {
-    // 1. Filter by scope (all / media / game)
+    // 1. Filter by scope (all / media / game / book)
     const scopedItems = items.filter((it) => {
       if (scopeFilter === 'media') return it.mainTab === 'media';
       if (scopeFilter === 'game') return it.mainTab === 'game';
+      if (scopeFilter === 'book') return it.mainTab === 'book';
       return true;
     });
 
@@ -291,6 +295,19 @@ export const RecentActivityModal: React.FC<RecentActivityModalProps> = ({
               <Gamepad2 className={`w-3.5 h-3.5 ${scopeFilter === 'game' ? 'text-white' : 'text-emerald-400'}`} />
               <span>Oyun</span>
             </button>
+            <button
+              id="activity-scope-book-desktop"
+              onClick={() => setScopeFilter('book')}
+              title="Sadece Kitap yapımlarını filtrele"
+              className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer flex items-center gap-1.5 ${
+                scopeFilter === 'book'
+                  ? 'bg-indigo-600 text-white font-bold shadow-xs'
+                  : 'text-neutral-400 hover:text-neutral-200 hover:bg-white/5'
+              }`}
+            >
+              <BookOpen className={`w-3.5 h-3.5 ${scopeFilter === 'book' ? 'text-white' : 'text-indigo-400'}`} />
+              <span>Kitap</span>
+            </button>
           </div>
         </div>
 
@@ -333,8 +350,8 @@ export const RecentActivityModal: React.FC<RecentActivityModalProps> = ({
             </button>
           </div>
 
-          {/* Alt Katman: Tümü / Medya / Oyun */}
-          <div className="grid grid-cols-3 p-1 bg-black/50 rounded-xl border border-white/10 gap-1 text-[11px] font-semibold">
+          {/* Alt Katman: Tümü / Medya / Oyun / Kitap */}
+          <div className="grid grid-cols-4 p-1 bg-black/50 rounded-xl border border-white/10 gap-1 text-[11px] font-semibold">
             <button
               id="activity-scope-all-mobile"
               onClick={() => setScopeFilter('all')}
@@ -369,6 +386,18 @@ export const RecentActivityModal: React.FC<RecentActivityModalProps> = ({
             >
               <Gamepad2 className={`w-3.5 h-3.5 shrink-0 ${scopeFilter === 'game' ? 'text-white' : 'text-emerald-400'}`} />
               <span>Oyun</span>
+            </button>
+            <button
+              id="activity-scope-book-mobile"
+              onClick={() => setScopeFilter('book')}
+              className={`py-1.5 px-1 rounded-lg transition-all cursor-pointer flex items-center justify-center gap-1.5 truncate ${
+                scopeFilter === 'book'
+                  ? 'bg-indigo-600 text-white font-bold shadow-xs'
+                  : 'text-neutral-400 hover:text-neutral-200'
+              }`}
+            >
+              <BookOpen className={`w-3.5 h-3.5 shrink-0 ${scopeFilter === 'book' ? 'text-white' : 'text-indigo-400'}`} />
+              <span>Kitap</span>
             </button>
           </div>
         </div>
@@ -422,6 +451,8 @@ export const RecentActivityModal: React.FC<RecentActivityModalProps> = ({
                       <div className="w-full h-full flex flex-col items-center justify-center text-neutral-500 bg-white/5">
                         {item.mainTab === 'media' ? (
                           <Film className="w-4 h-4 opacity-50" />
+                        ) : item.mainTab === 'book' ? (
+                          <BookOpen className="w-4 h-4 opacity-50" />
                         ) : (
                           <Gamepad2 className="w-4 h-4 opacity-50" />
                         )}
