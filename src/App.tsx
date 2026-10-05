@@ -2419,7 +2419,7 @@ export default function App() {
                 {!isEditingFabMode && (
                   <div
                     id="mobile-bottom-dock"
-                    className="fixed bottom-3.5 left-1/2 -translate-x-1/2 z-40 md:hidden flex items-center p-1 bg-neutral-900/95 backdrop-blur-xl border border-white/20 rounded-2xl shadow-2xl shadow-black/80 select-none animate-in fade-in zoom-in-95 duration-200"
+                    className="fixed bottom-2 left-1/2 -translate-x-1/2 z-40 md:hidden flex items-center p-0.5 bg-neutral-900/95 backdrop-blur-xl border border-white/20 rounded-xl shadow-2xl shadow-black/80 select-none animate-in fade-in zoom-in-95 duration-200"
                     onClick={(e) => e.stopPropagation()}
                   >
                     {/* Sol Grup: 4 İkon [ 📊 İstatistik | ⏱ Geçmiş | 📚 Anki Hub | ✨ AI Asistan ] */}
@@ -2433,7 +2433,7 @@ export default function App() {
                           setIsStatisticsOpen((p) => !p);
                         }}
                         title="İstatistikler"
-                        className={`w-9 h-9 rounded-xl flex items-center justify-center transition-all cursor-pointer ${
+                        className={`w-8.5 h-8 rounded-lg flex items-center justify-center transition-all cursor-pointer ${
                           isStatisticsOpen
                             ? 'bg-blue-600 text-white shadow'
                             : 'text-neutral-400 hover:text-white hover:bg-white/10 active:scale-95'
@@ -2451,7 +2451,7 @@ export default function App() {
                           setIsRecentActivityOpen((p) => !p);
                         }}
                         title="Son Aktiviteler"
-                        className={`w-9 h-9 rounded-xl flex items-center justify-center transition-all cursor-pointer ${
+                        className={`w-8.5 h-8 rounded-lg flex items-center justify-center transition-all cursor-pointer ${
                           isRecentActivityOpen
                             ? 'bg-blue-600 text-white shadow'
                             : 'text-neutral-400 hover:text-white hover:bg-white/10 active:scale-95'
@@ -2469,7 +2469,7 @@ export default function App() {
                           setIsAnkiHubOpen((p) => !p);
                         }}
                         title="Anki Deste Hub'ı"
-                        className={`w-9 h-9 rounded-xl flex items-center justify-center transition-all cursor-pointer ${
+                        className={`w-8.5 h-8 rounded-lg flex items-center justify-center transition-all cursor-pointer ${
                           isAnkiHubOpen
                             ? 'bg-blue-600 text-white shadow'
                             : 'text-neutral-400 hover:text-white hover:bg-white/10 active:scale-95'
@@ -2487,7 +2487,7 @@ export default function App() {
                           setIsAiAssistantOpen((p) => !p);
                         }}
                         title="Lore AI Asistan"
-                        className={`w-9 h-9 rounded-xl flex items-center justify-center transition-all cursor-pointer ${
+                        className={`w-8.5 h-8 rounded-lg flex items-center justify-center transition-all cursor-pointer ${
                           isAiAssistantOpen
                             ? 'bg-gradient-to-tr from-amber-500 to-indigo-600 text-white shadow ring-1 ring-amber-400/60'
                             : 'text-amber-400/90 hover:text-white hover:bg-white/10 active:scale-95'
@@ -2498,7 +2498,7 @@ export default function App() {
                     </div>
 
                     {/* Dikey Ayraç Çizgisi */}
-                    <div className="w-[1px] h-4 bg-white/20 mx-1" />
+                    <div className="w-[1px] h-3.5 bg-white/20 mx-1" />
 
                     {/* Sağ Grup: [ 🔍 Arama | 🌪 Filtre | 👁 Görünüm ] */}
                     <div className="flex items-center gap-0.5">
@@ -2510,7 +2510,7 @@ export default function App() {
                           setIsSearchOpen((p) => !p);
                         }}
                         title="Arama"
-                        className={`w-9 h-9 rounded-xl flex items-center justify-center transition-all cursor-pointer ${
+                        className={`w-8.5 h-8 rounded-lg flex items-center justify-center transition-all cursor-pointer ${
                           isSearchOpen || searchQuery.trim()
                             ? 'bg-blue-600/30 text-blue-200 shadow-sm'
                             : 'text-neutral-400 hover:text-white hover:bg-white/10 active:scale-95'
@@ -2530,7 +2530,7 @@ export default function App() {
                             setIsFilterOpen((p) => !p);
                           }}
                           title="Filtrele"
-                          className={`w-9 h-9 rounded-xl flex items-center justify-center transition-all relative cursor-pointer ${
+                          className={`w-8.5 h-8 rounded-lg flex items-center justify-center transition-all relative cursor-pointer ${
                             isFilterOpen || activeFiltersCount > 0
                               ? 'bg-neutral-800 text-white shadow-sm'
                               : 'text-neutral-400 hover:text-white hover:bg-white/10 active:scale-95'
@@ -2569,7 +2569,7 @@ export default function App() {
                             setIsViewOpen((p) => !p);
                           }}
                           title="Görünüm Ayarları"
-                          className={`w-9 h-9 rounded-xl flex items-center justify-center transition-all cursor-pointer select-none ${
+                          className={`w-8.5 h-8 rounded-lg flex items-center justify-center transition-all cursor-pointer select-none ${
                             isViewOpen
                               ? 'bg-neutral-800 text-white shadow-sm'
                               : 'text-neutral-400 hover:text-white hover:bg-white/10 active:scale-95'
