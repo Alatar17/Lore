@@ -501,19 +501,17 @@ export const HeaderTabs: React.FC<HeaderTabsProps> = ({
       {/* 1. MOBILE HEADER (md:hidden) - ALTERNATİF 1: ROL AYRIMI MODELİ            */}
       {/* ========================================================================= */}
       <div className="flex flex-col gap-2 md:hidden">
-        {/* Row 1: Left [Medya | Oyun | Kitap] Akıllı Kompakt Sekmeler --- Right [Sayaç, Arama, Filtre, vb.] */}
+        {/* Row 1: Left [Medya ▾ | Oyun ▾ | Kitap ▾] --- Right [Sayaç | Ayarlar] */}
         <div className="flex items-center justify-between gap-2">
-          {/* Left: Medya, Oyun, Kitap Akıllı Kompakt Butonları */}
+          {/* Left: Medya, Oyun, Kitap Dropdown Buttons */}
           <div
             id="mobile-category-dropdown-container"
-            className="relative flex items-center gap-1 p-0.5 bg-neutral-900/90 border border-white/15 rounded-xl shrink-0 shadow-sm"
+            className="relative flex items-center p-0.5 bg-neutral-900/90 border border-white/15 rounded-xl shrink-0 shadow-sm"
           >
             {/* Medya Tab Button */}
             <button
               type="button"
               id="mobile-tab-media-btn"
-              title="Medya"
-              aria-label="Medya"
               onClick={() => {
                 if (mainTab !== 'media') {
                   onMainTabChange('media');
@@ -522,31 +520,25 @@ export const HeaderTabs: React.FC<HeaderTabsProps> = ({
                   setMobileDropdown(mobileDropdown === 'media' ? null : 'media');
                 }
               }}
-              className={`h-8 flex items-center transition-all duration-200 cursor-pointer select-none ${
+              className={`h-8 flex items-center gap-1.5 px-2.5 sm:px-3 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
                 mainTab === 'media'
-                  ? 'gap-1.5 px-3 rounded-lg text-xs font-semibold bg-neutral-800 text-white shadow border border-white/20'
-                  : 'w-8 justify-center rounded-lg text-neutral-400 hover:text-white hover:bg-white/5'
+                  ? 'bg-neutral-800 text-white shadow border border-white/20'
+                  : 'text-neutral-400 hover:text-white'
               }`}
             >
               <Film className="w-3.5 h-3.5 shrink-0" />
-              {mainTab === 'media' && (
-                <>
-                  <span>Medya</span>
-                  <ChevronDown
-                    className={`w-3 h-3 transition-transform duration-150 shrink-0 ${
-                      mobileDropdown === 'media' ? 'rotate-180 text-white' : 'text-neutral-400'
-                    }`}
-                  />
-                </>
-              )}
+              <span>Medya</span>
+              <ChevronDown
+                className={`w-3 h-3 transition-transform duration-150 ${
+                  mobileDropdown === 'media' ? 'rotate-180 text-white' : 'text-neutral-400'
+                }`}
+              />
             </button>
 
             {/* Oyun Tab Button */}
             <button
               type="button"
               id="mobile-tab-game-btn"
-              title="Oyun"
-              aria-label="Oyun"
               onClick={() => {
                 if (mainTab !== 'game') {
                   onMainTabChange('game');
@@ -555,31 +547,25 @@ export const HeaderTabs: React.FC<HeaderTabsProps> = ({
                   setMobileDropdown(mobileDropdown === 'game' ? null : 'game');
                 }
               }}
-              className={`h-8 flex items-center transition-all duration-200 cursor-pointer select-none ${
+              className={`h-8 flex items-center gap-1.5 px-2.5 sm:px-3 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
                 mainTab === 'game'
-                  ? 'gap-1.5 px-3 rounded-lg text-xs font-semibold bg-neutral-800 text-white shadow border border-white/20'
-                  : 'w-8 justify-center rounded-lg text-neutral-400 hover:text-white hover:bg-white/5'
+                  ? 'bg-neutral-800 text-white shadow border border-white/20'
+                  : 'text-neutral-400 hover:text-white'
               }`}
             >
               <Gamepad2 className="w-3.5 h-3.5 shrink-0" />
-              {mainTab === 'game' && (
-                <>
-                  <span>Oyun</span>
-                  <ChevronDown
-                    className={`w-3 h-3 transition-transform duration-150 shrink-0 ${
-                      mobileDropdown === 'game' ? 'rotate-180 text-white' : 'text-neutral-400'
-                    }`}
-                  />
-                </>
-              )}
+              <span>Oyun</span>
+              <ChevronDown
+                className={`w-3 h-3 transition-transform duration-150 ${
+                  mobileDropdown === 'game' ? 'rotate-180 text-white' : 'text-neutral-400'
+                }`}
+              />
             </button>
 
             {/* Kitap Tab Button */}
             <button
               type="button"
               id="mobile-tab-book-btn"
-              title="Kitap"
-              aria-label="Kitap"
               onClick={() => {
                 if (mainTab !== 'book') {
                   onMainTabChange('book');
@@ -588,23 +574,19 @@ export const HeaderTabs: React.FC<HeaderTabsProps> = ({
                   setMobileDropdown(mobileDropdown === 'book' ? null : 'book');
                 }
               }}
-              className={`h-8 flex items-center transition-all duration-200 cursor-pointer select-none ${
+              className={`h-8 flex items-center gap-1.5 px-2.5 sm:px-3 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
                 mainTab === 'book'
-                  ? 'gap-1.5 px-3 rounded-lg text-xs font-semibold bg-neutral-800 text-white shadow border border-white/20'
-                  : 'w-8 justify-center rounded-lg text-neutral-400 hover:text-white hover:bg-white/5'
+                  ? 'bg-neutral-800 text-white shadow border border-white/20'
+                  : 'text-neutral-400 hover:text-white'
               }`}
             >
               <BookOpen className="w-3.5 h-3.5 shrink-0" />
-              {mainTab === 'book' && (
-                <>
-                  <span>Kitap</span>
-                  <ChevronDown
-                    className={`w-3 h-3 transition-transform duration-150 shrink-0 ${
-                      mobileDropdown === 'book' ? 'rotate-180 text-white' : 'text-neutral-400'
-                    }`}
-                  />
-                </>
-              )}
+              <span>Kitap</span>
+              <ChevronDown
+                className={`w-3 h-3 transition-transform duration-150 ${
+                  mobileDropdown === 'book' ? 'rotate-180 text-white' : 'text-neutral-400'
+                }`}
+              />
             </button>
 
             {/* Mobile Dropdown Menu Popover */}
@@ -708,11 +690,11 @@ export const HeaderTabs: React.FC<HeaderTabsProps> = ({
             )}
           </div>
 
-          {/* Right: Unified Tool Capsule [ Sayaç | Search Filter View Settings ] */}
+          {/* Right: Unified Tool Capsule [ Sayaç | Settings ] */}
           <div className="flex items-center shrink-0">
             {/* Unified Tools Capsule */}
             <div className="flex items-center p-0.5 bg-neutral-900/90 border border-white/15 rounded-xl shadow-sm">
-              {/* Sayaç Rozeti: 1. satırdaki kutunun içinde sabit en solda (Mobilde Tıklanabilir GitHub Senkronizasyon Rozeti) */}
+              {/* Sayaç Rozeti */}
               <button
                 id="mobile-item-count-badge"
                 type="button"
@@ -743,89 +725,8 @@ export const HeaderTabs: React.FC<HeaderTabsProps> = ({
                 <span>{totalFilteredCount}</span>
               </button>
 
-              {/* Arama ikonunun solundaki dikey çizgi */}
+              {/* Ayarlar ikonunun solundaki dikey çizgi */}
               <div className="w-[1px] h-3.5 bg-white/15 mx-0.5" />
-
-              {/* Search Icon Button */}
-              <button
-                id="mobile-search-toggle-btn"
-                onClick={onToggleSearch}
-                title="Arama"
-                className={`h-8 w-8 rounded-lg transition-all cursor-pointer flex items-center justify-center ${
-                  isSearchOpen || searchQuery.trim()
-                    ? 'bg-blue-600/30 text-blue-200 shadow-sm'
-                    : 'text-neutral-400 hover:text-white hover:bg-white/5'
-                }`}
-              >
-                <Search className="w-4 h-4" />
-              </button>
-
-              {/* Filter Icon Button */}
-              <div className={`relative ${isFilterOpen ? 'z-50' : ''}`}>
-                <button
-                  id="mobile-filter-toggle-btn"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onToggleFilter();
-                  }}
-                  title="Filtrele"
-                  className={`h-8 w-8 rounded-lg transition-all relative cursor-pointer flex items-center justify-center ${
-                    isFilterOpen || activeFiltersCount > 0
-                      ? 'bg-neutral-800 text-white shadow-sm'
-                      : 'text-neutral-400 hover:text-white hover:bg-white/5'
-                  }`}
-                >
-                  <SlidersHorizontal className="w-4 h-4" />
-                  {activeFiltersCount > 0 && (
-                    <span className="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 rounded-full bg-white text-neutral-950 text-[10px] font-bold flex items-center justify-center shadow">
-                      {activeFiltersCount}
-                    </span>
-                  )}
-                </button>
-
-                {isFilterOpen && (
-                  <FilterPanel
-                    mainTab={mainTab}
-                    filters={filters}
-                    onChange={onFilterChange}
-                    onClose={onClosePanels}
-                    activeCategoryName={activeCategory?.name || null}
-                    activeSub={activeSub || null}
-                  />
-                )}
-              </div>
-
-              {/* View Settings Icon Button */}
-              <div className={`relative ${isViewOpen ? 'z-50' : ''}`}>
-                <button
-                  id="mobile-view-toggle-btn"
-                  type="button"
-                  onTouchStart={handleMobileViewPressStart}
-                  onTouchEnd={handleMobileViewPressEnd}
-                  onTouchCancel={handleMobileViewPressEnd}
-                  onMouseDown={handleMobileViewPressStart}
-                  onMouseUp={handleMobileViewPressEnd}
-                  onMouseLeave={handleMobileViewPressEnd}
-                  onClick={handleMobileViewClick}
-                  title="Görünüm Ayarları (1 sn basılı tut: ZIP Yükle)"
-                  className={`h-8 w-8 rounded-lg transition-all cursor-pointer flex items-center justify-center select-none ${
-                    isViewOpen
-                      ? 'bg-neutral-800 text-white shadow-sm'
-                      : 'text-neutral-400 hover:text-white hover:bg-white/5'
-                  }`}
-                >
-                  <Eye className="w-4 h-4" />
-                </button>
-
-                {isViewOpen && (
-                  <ViewPanel
-                    settings={viewSettings}
-                    mainTab={mainTab}
-                    onChange={onViewSettingsChange}
-                    onClose={onClosePanels}
-                  />
-                )}
-              </div>
 
               {/* Settings Icon Button */}
               <button

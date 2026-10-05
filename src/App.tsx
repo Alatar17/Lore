@@ -74,6 +74,8 @@ import { BulkMoveModal } from './components/BulkMoveModal';
 import { CustomDialog, CustomDialogOptions } from './components/CustomDialog';
 import { FOLLOW_MODELS, FOLLOW_COLORS, FollowBadge, getFollowColor, RATING_ICON_OPTIONS } from './components/FollowIndicatorIcon';
 import { FabPositionEditOverlay } from './components/FabPositionEditOverlay';
+import { FilterPanel } from './components/FilterPanel';
+import { ViewPanel } from './components/ViewPanel';
 import {
   Plus,
   BarChart3,
@@ -91,6 +93,9 @@ import {
   Layers,
   FlaskConical,
   Palette,
+  Search,
+  SlidersHorizontal,
+  Eye,
 } from 'lucide-react';
 
 export default function App() {
@@ -697,6 +702,26 @@ export default function App() {
     setIsFilterOpen(false);
     setIsViewOpen(false);
   }, []);
+
+  // Close filter & view popovers on outside click
+  useEffect(() => {
+    if (!isFilterOpen && !isViewOpen) return;
+    const handleDocClick = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (
+        !target.closest('#filter-panel') &&
+        !target.closest('#view-panel') &&
+        !target.closest('#mob-dock-filter-btn') &&
+        !target.closest('#mob-dock-view-btn') &&
+        !target.closest('#mobile-filter-toggle-btn') &&
+        !target.closest('#mobile-view-toggle-btn')
+      ) {
+        closeAllPanels();
+      }
+    };
+    document.addEventListener('mousedown', handleDocClick);
+    return () => document.removeEventListener('mousedown', handleDocClick);
+  }, [isFilterOpen, isViewOpen, closeAllPanels]);
 
   // Desktop Folder connection guard (Ensures local folder is connected before add/edit on desktop)
   const requireFolderOnDesktop = (): boolean => {
@@ -2179,203 +2204,393 @@ export default function App() {
             const aiPos = normPositions.aiAssistant;
             const addPos = normPositions.addItem;
 
+            const activeFiltersCount =
+              (filters.minRating > 0 ? 1 : 0) +
+              (filters.watchingOnly ? 1 : 0) +
+              (filters.followingOnly ? 1 : 0) +
+              (filters.ankiFilter !== 'all' ? 1 : 0) +
+              (filters.uncategorizedOnly ? 1 : 0) +
+              (filters.seriesOnly ? 1 : 0) +
+              (filters.gameStatus && filters.gameStatus !== 'all' ? 1 : 0) +
+              (filters.bookFormat && filters.bookFormat !== 'all' ? 1 : 0);
+
             return (
               <>
-                {/* 1. Statistics Button */}
-                <div
-                  className={`fixed transition-all duration-150 ${
-                    isEditingFabMode ? 'z-[65]' : 'z-40'
-                  }`}
-                  style={{ bottom: `${statPos.bottom}px`, left: `${statPos.side}px` }}
-                >
-                  <button
-                    id="fab-statistics-btn"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      if (isEditingFabMode) {
-                        setSelectedFab('statistics');
-                        return;
-                      }
-                      closeAllPanels();
-                      setIsStatisticsOpen((prev) => !prev);
-                    }}
-                    title={
-                      isEditingFabMode
-                        ? `İstatistikler (${statPos.bottom}px x ${statPos.side}px)`
-                        : 'İstatistikler & Grafikler (Kısayol: Q)'
-                    }
-                    className={`relative w-8 h-8 rounded-full flex items-center justify-center transition-all duration-150 backdrop-blur-md cursor-pointer group ${
-                      isEditingFabMode
-                        ? selectedFab === 'statistics'
-                          ? 'bg-blue-600 text-white ring-2 ring-blue-400 ring-offset-1 ring-offset-slate-950 shadow-lg shadow-blue-500/40 opacity-100'
-                          : 'bg-slate-900/90 text-slate-300 ring-1 ring-dashed ring-blue-400/50 hover:ring-blue-400 opacity-80 hover:opacity-100 border border-white/20'
-                        : 'bg-slate-900/80 hover:bg-blue-600 text-slate-400 hover:text-white shadow-md hover:shadow-blue-600/30 hover:scale-105 active:scale-95 border border-white/10 hover:border-blue-400/40 opacity-70 hover:opacity-100'
+                {/* 1. Desktop & FAB Edit Mode: Individual Draggable FABs */}
+                <div className={isEditingFabMode ? 'contents' : 'hidden md:contents'}>
+                  {/* 1. Statistics Button */}
+                  <div
+                    className={`fixed transition-all duration-150 ${
+                      isEditingFabMode ? 'z-[65]' : 'z-40'
                     }`}
+                    style={{ bottom: `${statPos.bottom}px`, left: `${statPos.side}px` }}
                   >
-                    <BarChart3 className="w-3.5 h-3.5 transition-transform duration-200 group-hover:scale-110" />
-
-                    {isEditingFabMode && (
-                      <span
-                        className={`absolute -top-6 left-1/2 -translate-x-1/2 px-1.5 py-0.5 rounded text-[9px] font-mono whitespace-nowrap pointer-events-none shadow-md ${
-                          selectedFab === 'statistics'
-                            ? 'bg-blue-600 text-white font-bold'
-                            : 'bg-slate-900/95 border border-white/20 text-slate-300'
-                        }`}
-                      >
-                        {statPos.bottom}x{statPos.side}px
-                      </span>
-                    )}
-                  </button>
-                </div>
-
-                {/* 2. Recent Activity Button */}
-                <div
-                  className={`fixed transition-all duration-150 ${
-                    isEditingFabMode ? 'z-[65]' : 'z-40'
-                  }`}
-                  style={{ bottom: `${recentPos.bottom}px`, left: `${recentPos.side}px` }}
-                >
-                  <button
-                    id="fab-recent-activity-btn"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      if (isEditingFabMode) {
-                        setSelectedFab('recentActivity');
-                        return;
+                    <button
+                      id="fab-statistics-btn"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (isEditingFabMode) {
+                          setSelectedFab('statistics');
+                          return;
+                        }
+                        closeAllPanels();
+                        setIsStatisticsOpen((prev) => !prev);
+                      }}
+                      title={
+                        isEditingFabMode
+                          ? `İstatistikler (${statPos.bottom}px x ${statPos.side}px)`
+                          : 'İstatistikler & Grafikler (Kısayol: Q)'
                       }
-                      closeAllPanels();
-                      setIsRecentActivityOpen((prev) => !prev);
-                    }}
-                    title={
-                      isEditingFabMode
-                        ? `Son Aktiviteler (${recentPos.bottom}px x ${recentPos.side}px)`
-                        : 'Son Aktiviteler (Kısayol: E)'
-                    }
-                    className={`relative w-8 h-8 rounded-full flex items-center justify-center transition-all duration-150 backdrop-blur-md cursor-pointer group ${
-                      isEditingFabMode
-                        ? selectedFab === 'recentActivity'
-                          ? 'bg-blue-600 text-white ring-2 ring-blue-400 ring-offset-1 ring-offset-slate-950 shadow-lg shadow-blue-500/40 opacity-100'
-                          : 'bg-slate-900/90 text-slate-300 ring-1 ring-dashed ring-blue-400/50 hover:ring-blue-400 opacity-80 hover:opacity-100 border border-white/20'
-                        : 'bg-slate-900/80 hover:bg-blue-600 text-slate-400 hover:text-white shadow-md hover:shadow-blue-600/30 hover:scale-105 active:scale-95 border border-white/10 hover:border-blue-400/40 opacity-70 hover:opacity-100'
-                    }`}
-                  >
-                    <History
-                      className={`w-3.5 h-3.5 transition-transform duration-200 group-hover:scale-110 ${
-                        isHideModeActive ? '' : '-scale-x-100'
+                      className={`relative w-8 h-8 rounded-full flex items-center justify-center transition-all duration-150 backdrop-blur-md cursor-pointer group ${
+                        isEditingFabMode
+                          ? selectedFab === 'statistics'
+                            ? 'bg-blue-600 text-white ring-2 ring-blue-400 ring-offset-1 ring-offset-slate-950 shadow-lg shadow-blue-500/40 opacity-100'
+                            : 'bg-slate-900/90 text-slate-300 ring-1 ring-dashed ring-blue-400/50 hover:ring-blue-400 opacity-80 hover:opacity-100 border border-white/20'
+                          : 'bg-slate-900/80 hover:bg-blue-600 text-slate-400 hover:text-white shadow-md hover:shadow-blue-600/30 hover:scale-105 active:scale-95 border border-white/10 hover:border-blue-400/40 opacity-70 hover:opacity-100'
                       }`}
-                    />
+                    >
+                      <BarChart3 className="w-3.5 h-3.5 transition-transform duration-200 group-hover:scale-110" />
 
-                    {isEditingFabMode && (
-                      <span
-                        className={`absolute -top-6 left-1/2 -translate-x-1/2 px-1.5 py-0.5 rounded text-[9px] font-mono whitespace-nowrap pointer-events-none shadow-md ${
-                          selectedFab === 'recentActivity'
-                            ? 'bg-blue-600 text-white font-bold'
-                            : 'bg-slate-900/95 border border-white/20 text-slate-300'
-                        }`}
-                      >
-                        {recentPos.bottom}x{recentPos.side}px
-                      </span>
-                    )}
-                  </button>
-                </div>
+                      {isEditingFabMode && (
+                        <span
+                          className={`absolute -top-6 left-1/2 -translate-x-1/2 px-1.5 py-0.5 rounded text-[9px] font-mono whitespace-nowrap pointer-events-none shadow-md ${
+                            selectedFab === 'statistics'
+                              ? 'bg-blue-600 text-white font-bold'
+                              : 'bg-slate-900/95 border border-white/20 text-slate-300'
+                          }`}
+                        >
+                          {statPos.bottom}x{statPos.side}px
+                        </span>
+                      )}
+                    </button>
+                  </div>
 
-                {/* 2.3. Anki Hub Button (Sol Alttaki 3. Yüzen Buton, Sadece İkon, Metinsiz) */}
-                <div
-                  className={`fixed transition-all duration-150 ${
-                    isEditingFabMode ? 'z-[65]' : 'z-40'
-                  }`}
-                  style={{ bottom: `${ankiPos.bottom}px`, left: `${ankiPos.side}px` }}
-                >
-                  <button
-                    id="fab-anki-hub-btn"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      if (isEditingFabMode) {
-                        setSelectedFab('ankiHub');
-                        return;
-                      }
-                      closeAllPanels();
-                      setIsAnkiHubOpen((prev) => !prev);
-                    }}
-                    title={
-                      isEditingFabMode
-                        ? `Anki Hub (${ankiPos.bottom}px x ${ankiPos.side}px)`
-                        : 'Anki Deste Hub\'ı'
-                    }
-                    className={`relative w-8 h-8 rounded-full flex items-center justify-center transition-all duration-150 backdrop-blur-md cursor-pointer group ${
-                      isEditingFabMode
-                        ? selectedFab === 'ankiHub'
-                          ? 'bg-blue-600 text-white ring-2 ring-blue-400 ring-offset-1 ring-offset-slate-950 shadow-lg shadow-blue-500/40 opacity-100'
-                          : 'bg-slate-900/90 text-slate-300 ring-1 ring-dashed ring-blue-400/50 hover:ring-blue-400 opacity-80 hover:opacity-100 border border-white/20'
-                        : isAnkiHubOpen
-                        ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/40 ring-2 ring-blue-400/60 opacity-100 scale-105'
-                        : 'bg-slate-900/80 hover:bg-blue-600 text-slate-400 hover:text-white shadow-md hover:shadow-blue-600/30 hover:scale-105 active:scale-95 border border-white/10 hover:border-blue-400/40 opacity-70 hover:opacity-100'
+                  {/* 2. Recent Activity Button */}
+                  <div
+                    className={`fixed transition-all duration-150 ${
+                      isEditingFabMode ? 'z-[65]' : 'z-40'
                     }`}
+                    style={{ bottom: `${recentPos.bottom}px`, left: `${recentPos.side}px` }}
                   >
-                    <Layers className="w-3.5 h-3.5 transition-transform duration-200 group-hover:scale-110" />
-
-                    {isEditingFabMode && (
-                      <span
-                        className={`absolute -top-6 left-1/2 -translate-x-1/2 px-1.5 py-0.5 rounded text-[9px] font-mono whitespace-nowrap pointer-events-none shadow-md ${
-                          selectedFab === 'ankiHub'
-                            ? 'bg-emerald-600 text-white font-bold'
-                            : 'bg-slate-900/95 border border-white/20 text-slate-300'
-                        }`}
-                      >
-                        {ankiPos.bottom}x{ankiPos.side}px
-                      </span>
-                    )}
-                  </button>
-                </div>
-
-                {/* 2.5. AI Assistant Button */}
-                <div
-                  className={`fixed transition-all duration-150 ${
-                    isEditingFabMode ? 'z-[65]' : 'z-40'
-                  }`}
-                  style={{ bottom: `${aiPos.bottom}px`, left: `${aiPos.side}px` }}
-                >
-                  <button
-                    id="fab-ai-assistant-btn"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      if (isEditingFabMode) {
-                        setSelectedFab('aiAssistant');
-                        return;
+                    <button
+                      id="fab-recent-activity-btn"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (isEditingFabMode) {
+                          setSelectedFab('recentActivity');
+                          return;
+                        }
+                        closeAllPanels();
+                        setIsRecentActivityOpen((prev) => !prev);
+                      }}
+                      title={
+                        isEditingFabMode
+                          ? `Son Aktiviteler (${recentPos.bottom}px x ${recentPos.side}px)`
+                          : 'Son Aktiviteler (Kısayol: E)'
                       }
-                      closeAllPanels();
-                      setIsAiAssistantOpen((prev) => !prev);
-                    }}
-                    title={
-                      isEditingFabMode
-                        ? `AI Asistan (${aiPos.bottom}px x ${aiPos.side}px)`
-                        : 'Lore AI Asistan & Küratör (Kısayol: A)'
-                    }
-                    className={`relative w-8 h-8 rounded-full flex items-center justify-center transition-all duration-150 backdrop-blur-md cursor-pointer group ${
-                      isEditingFabMode
-                        ? selectedFab === 'aiAssistant'
-                          ? 'bg-amber-500 text-white ring-2 ring-amber-400 ring-offset-1 ring-offset-slate-950 shadow-lg shadow-amber-500/40 opacity-100'
-                          : 'bg-slate-900/90 text-amber-300 ring-1 ring-dashed ring-amber-400/50 hover:ring-amber-400 opacity-80 hover:opacity-100 border border-white/20'
-                        : isAiAssistantOpen
-                        ? 'bg-gradient-to-tr from-amber-500 to-indigo-600 text-white shadow-lg shadow-amber-500/40 ring-2 ring-amber-400/60 opacity-100 scale-105'
-                        : 'bg-slate-900/80 hover:bg-gradient-to-tr hover:from-amber-500 hover:to-indigo-600 text-amber-400/90 hover:text-white shadow-md hover:shadow-amber-500/30 hover:scale-105 active:scale-95 border border-white/10 hover:border-amber-400/40 opacity-80 hover:opacity-100'
-                    }`}
-                  >
-                    <Sparkles className="w-3.5 h-3.5 transition-transform duration-200 group-hover:scale-110" />
+                      className={`relative w-8 h-8 rounded-full flex items-center justify-center transition-all duration-150 backdrop-blur-md cursor-pointer group ${
+                        isEditingFabMode
+                          ? selectedFab === 'recentActivity'
+                            ? 'bg-blue-600 text-white ring-2 ring-blue-400 ring-offset-1 ring-offset-slate-950 shadow-lg shadow-blue-500/40 opacity-100'
+                            : 'bg-slate-900/90 text-slate-300 ring-1 ring-dashed ring-blue-400/50 hover:ring-blue-400 opacity-80 hover:opacity-100 border border-white/20'
+                          : 'bg-slate-900/80 hover:bg-blue-600 text-slate-400 hover:text-white shadow-md hover:shadow-blue-600/30 hover:scale-105 active:scale-95 border border-white/10 hover:border-blue-400/40 opacity-70 hover:opacity-100'
+                      }`}
+                    >
+                      <History
+                        className={`w-3.5 h-3.5 transition-transform duration-200 group-hover:scale-110 ${
+                          isHideModeActive ? '' : '-scale-x-100'
+                        }`}
+                      />
 
-                    {isEditingFabMode && (
-                      <span
-                        className={`absolute -top-6 left-1/2 -translate-x-1/2 px-1.5 py-0.5 rounded text-[9px] font-mono whitespace-nowrap pointer-events-none shadow-md ${
-                          selectedFab === 'aiAssistant'
-                            ? 'bg-amber-500 text-white font-bold'
-                            : 'bg-slate-900/95 border border-white/20 text-slate-300'
+                      {isEditingFabMode && (
+                        <span
+                          className={`absolute -top-6 left-1/2 -translate-x-1/2 px-1.5 py-0.5 rounded text-[9px] font-mono whitespace-nowrap pointer-events-none shadow-md ${
+                            selectedFab === 'recentActivity'
+                              ? 'bg-blue-600 text-white font-bold'
+                              : 'bg-slate-900/95 border border-white/20 text-slate-300'
+                          }`}
+                        >
+                          {recentPos.bottom}x{recentPos.side}px
+                        </span>
+                      )}
+                    </button>
+                  </div>
+
+                  {/* 2.3. Anki Hub Button */}
+                  <div
+                    className={`fixed transition-all duration-150 ${
+                      isEditingFabMode ? 'z-[65]' : 'z-40'
+                    }`}
+                    style={{ bottom: `${ankiPos.bottom}px`, left: `${ankiPos.side}px` }}
+                  >
+                    <button
+                      id="fab-anki-hub-btn"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (isEditingFabMode) {
+                          setSelectedFab('ankiHub');
+                          return;
+                        }
+                        closeAllPanels();
+                        setIsAnkiHubOpen((prev) => !prev);
+                      }}
+                      title={
+                        isEditingFabMode
+                          ? `Anki Hub (${ankiPos.bottom}px x ${ankiPos.side}px)`
+                          : 'Anki Deste Hub\'ı'
+                      }
+                      className={`relative w-8 h-8 rounded-full flex items-center justify-center transition-all duration-150 backdrop-blur-md cursor-pointer group ${
+                        isEditingFabMode
+                          ? selectedFab === 'ankiHub'
+                            ? 'bg-blue-600 text-white ring-2 ring-blue-400 ring-offset-1 ring-offset-slate-950 shadow-lg shadow-blue-500/40 opacity-100'
+                            : 'bg-slate-900/90 text-slate-300 ring-1 ring-dashed ring-blue-400/50 hover:ring-blue-400 opacity-80 hover:opacity-100 border border-white/20'
+                          : isAnkiHubOpen
+                          ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/40 ring-2 ring-blue-400/60 opacity-100 scale-105'
+                          : 'bg-slate-900/80 hover:bg-blue-600 text-slate-400 hover:text-white shadow-md hover:shadow-blue-600/30 hover:scale-105 active:scale-95 border border-white/10 hover:border-blue-400/40 opacity-70 hover:opacity-100'
+                      }`}
+                    >
+                      <Layers className="w-3.5 h-3.5 transition-transform duration-200 group-hover:scale-110" />
+
+                      {isEditingFabMode && (
+                        <span
+                          className={`absolute -top-6 left-1/2 -translate-x-1/2 px-1.5 py-0.5 rounded text-[9px] font-mono whitespace-nowrap pointer-events-none shadow-md ${
+                            selectedFab === 'ankiHub'
+                              ? 'bg-emerald-600 text-white font-bold'
+                              : 'bg-slate-900/95 border border-white/20 text-slate-300'
+                          }`}
+                        >
+                          {ankiPos.bottom}x{ankiPos.side}px
+                        </span>
+                      )}
+                    </button>
+                  </div>
+
+                  {/* 2.5. AI Assistant Button */}
+                  <div
+                    className={`fixed transition-all duration-150 ${
+                      isEditingFabMode ? 'z-[65]' : 'z-40'
+                    }`}
+                    style={{ bottom: `${aiPos.bottom}px`, left: `${aiPos.side}px` }}
+                  >
+                    <button
+                      id="fab-ai-assistant-btn"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (isEditingFabMode) {
+                          setSelectedFab('aiAssistant');
+                          return;
+                        }
+                        closeAllPanels();
+                        setIsAiAssistantOpen((prev) => !prev);
+                      }}
+                      title={
+                        isEditingFabMode
+                          ? `AI Asistan (${aiPos.bottom}px x ${aiPos.side}px)`
+                          : 'Lore AI Asistan & Küratör (Kısayol: A)'
+                      }
+                      className={`relative w-8 h-8 rounded-full flex items-center justify-center transition-all duration-150 backdrop-blur-md cursor-pointer group ${
+                        isEditingFabMode
+                          ? selectedFab === 'aiAssistant'
+                            ? 'bg-amber-500 text-white ring-2 ring-amber-400 ring-offset-1 ring-offset-slate-950 shadow-lg shadow-amber-500/40 opacity-100'
+                            : 'bg-slate-900/90 text-amber-300 ring-1 ring-dashed ring-amber-400/50 hover:ring-amber-400 opacity-80 hover:opacity-100 border border-white/20'
+                          : isAiAssistantOpen
+                          ? 'bg-gradient-to-tr from-amber-500 to-indigo-600 text-white shadow-lg shadow-amber-500/40 ring-2 ring-amber-400/60 opacity-100 scale-105'
+                          : 'bg-slate-900/80 hover:bg-gradient-to-tr hover:from-amber-500 hover:to-indigo-600 text-amber-400/90 hover:text-white shadow-md hover:shadow-amber-500/30 hover:scale-105 active:scale-95 border border-white/10 hover:border-amber-400/40 opacity-80 hover:opacity-100'
+                      }`}
+                    >
+                      <Sparkles className="w-3.5 h-3.5 transition-transform duration-200 group-hover:scale-110" />
+
+                      {isEditingFabMode && (
+                        <span
+                          className={`absolute -top-6 left-1/2 -translate-x-1/2 px-1.5 py-0.5 rounded text-[9px] font-mono whitespace-nowrap pointer-events-none shadow-md ${
+                            selectedFab === 'aiAssistant'
+                              ? 'bg-amber-500 text-white font-bold'
+                              : 'bg-slate-900/95 border border-white/20 text-slate-300'
+                          }`}
+                        >
+                          {aiPos.bottom}x{aiPos.side}px
+                        </span>
+                      )}
+                    </button>
+                  </div>
+                </div>
+
+                {/* 2. Mobile Floating Pill Dock (md:hidden) */}
+                {!isEditingFabMode && (
+                  <div
+                    id="mobile-bottom-dock"
+                    className="fixed bottom-3.5 left-1/2 -translate-x-1/2 z-40 md:hidden flex items-center p-1 bg-neutral-900/95 backdrop-blur-xl border border-white/20 rounded-2xl shadow-2xl shadow-black/80 select-none animate-in fade-in zoom-in-95 duration-200"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    {/* Sol Grup: 4 İkon [ 📊 İstatistik | ⏱ Geçmiş | 📚 Anki Hub | ✨ AI Asistan ] */}
+                    <div className="flex items-center gap-0.5">
+                      {/* 1. İstatistik */}
+                      <button
+                        type="button"
+                        id="mob-dock-statistics-btn"
+                        onClick={() => {
+                          closeAllPanels();
+                          setIsStatisticsOpen((p) => !p);
+                        }}
+                        title="İstatistikler"
+                        className={`w-9 h-9 rounded-xl flex items-center justify-center transition-all cursor-pointer ${
+                          isStatisticsOpen
+                            ? 'bg-blue-600 text-white shadow'
+                            : 'text-neutral-400 hover:text-white hover:bg-white/10 active:scale-95'
                         }`}
                       >
-                        {aiPos.bottom}x{aiPos.side}px
-                      </span>
-                    )}
-                  </button>
-                </div>
+                        <BarChart3 className="w-4 h-4" />
+                      </button>
+
+                      {/* 2. Son Aktiviteler */}
+                      <button
+                        type="button"
+                        id="mob-dock-recent-btn"
+                        onClick={() => {
+                          closeAllPanels();
+                          setIsRecentActivityOpen((p) => !p);
+                        }}
+                        title="Son Aktiviteler"
+                        className={`w-9 h-9 rounded-xl flex items-center justify-center transition-all cursor-pointer ${
+                          isRecentActivityOpen
+                            ? 'bg-blue-600 text-white shadow'
+                            : 'text-neutral-400 hover:text-white hover:bg-white/10 active:scale-95'
+                        }`}
+                      >
+                        <History className={`w-4 h-4 ${isHideModeActive ? '' : '-scale-x-100'}`} />
+                      </button>
+
+                      {/* 3. Anki Hub */}
+                      <button
+                        type="button"
+                        id="mob-dock-anki-btn"
+                        onClick={() => {
+                          closeAllPanels();
+                          setIsAnkiHubOpen((p) => !p);
+                        }}
+                        title="Anki Deste Hub'ı"
+                        className={`w-9 h-9 rounded-xl flex items-center justify-center transition-all cursor-pointer ${
+                          isAnkiHubOpen
+                            ? 'bg-blue-600 text-white shadow'
+                            : 'text-neutral-400 hover:text-white hover:bg-white/10 active:scale-95'
+                        }`}
+                      >
+                        <Layers className="w-4 h-4" />
+                      </button>
+
+                      {/* 4. Lore AI Asistan */}
+                      <button
+                        type="button"
+                        id="mob-dock-ai-btn"
+                        onClick={() => {
+                          closeAllPanels();
+                          setIsAiAssistantOpen((p) => !p);
+                        }}
+                        title="Lore AI Asistan"
+                        className={`w-9 h-9 rounded-xl flex items-center justify-center transition-all cursor-pointer ${
+                          isAiAssistantOpen
+                            ? 'bg-gradient-to-tr from-amber-500 to-indigo-600 text-white shadow ring-1 ring-amber-400/60'
+                            : 'text-amber-400/90 hover:text-white hover:bg-white/10 active:scale-95'
+                        }`}
+                      >
+                        <Sparkles className="w-4 h-4" />
+                      </button>
+                    </div>
+
+                    {/* Dikey Ayraç Çizgisi */}
+                    <div className="w-[1px] h-4 bg-white/20 mx-1" />
+
+                    {/* Sağ Grup: [ 🔍 Arama | 🌪 Filtre | 👁 Görünüm ] */}
+                    <div className="flex items-center gap-0.5">
+                      {/* 5. Arama */}
+                      <button
+                        type="button"
+                        id="mob-dock-search-btn"
+                        onClick={() => {
+                          setIsSearchOpen((p) => !p);
+                        }}
+                        title="Arama"
+                        className={`w-9 h-9 rounded-xl flex items-center justify-center transition-all cursor-pointer ${
+                          isSearchOpen || searchQuery.trim()
+                            ? 'bg-blue-600/30 text-blue-200 shadow-sm'
+                            : 'text-neutral-400 hover:text-white hover:bg-white/10 active:scale-95'
+                        }`}
+                      >
+                        <Search className="w-4 h-4" />
+                      </button>
+
+                      {/* 6. Filtre */}
+                      <div className="relative">
+                        <button
+                          type="button"
+                          id="mob-dock-filter-btn"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setIsViewOpen(false);
+                            setIsFilterOpen((p) => !p);
+                          }}
+                          title="Filtrele"
+                          className={`w-9 h-9 rounded-xl flex items-center justify-center transition-all relative cursor-pointer ${
+                            isFilterOpen || activeFiltersCount > 0
+                              ? 'bg-neutral-800 text-white shadow-sm'
+                              : 'text-neutral-400 hover:text-white hover:bg-white/10 active:scale-95'
+                          }`}
+                        >
+                          <SlidersHorizontal className="w-4 h-4" />
+                          {activeFiltersCount > 0 && (
+                            <span className="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 rounded-full bg-white text-neutral-950 text-[10px] font-bold flex items-center justify-center shadow">
+                              {activeFiltersCount}
+                            </span>
+                          )}
+                        </button>
+
+                        {isFilterOpen && (
+                          <FilterPanel
+                            mainTab={mainTab}
+                            filters={filters}
+                            onChange={(newFilters) => setFilters((p) => ({ ...p, ...newFilters }))}
+                            onClose={() => setIsFilterOpen(false)}
+                            activeCategoryName={activeCategory?.name || null}
+                            activeSub={activeSub || null}
+                            isHideModeActive={isHideModeActive}
+                            placement="bottom"
+                          />
+                        )}
+                      </div>
+
+                      {/* 7. Görünüm */}
+                      <div className="relative">
+                        <button
+                          type="button"
+                          id="mob-dock-view-btn"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setIsFilterOpen(false);
+                            setIsViewOpen((p) => !p);
+                          }}
+                          title="Görünüm Ayarları"
+                          className={`w-9 h-9 rounded-xl flex items-center justify-center transition-all cursor-pointer select-none ${
+                            isViewOpen
+                              ? 'bg-neutral-800 text-white shadow-sm'
+                              : 'text-neutral-400 hover:text-white hover:bg-white/10 active:scale-95'
+                          }`}
+                        >
+                          <Eye className="w-4 h-4" />
+                        </button>
+
+                        {isViewOpen && (
+                          <ViewPanel
+                            settings={viewSettings}
+                            mainTab={mainTab}
+                            onChange={(newSettings) => setViewSettings((p) => ({ ...p, ...newSettings }))}
+                            onClose={() => setIsViewOpen(false)}
+                            placement="bottom"
+                          />
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 {/* 3. Add Item Button */}
                 {(isEditingFabMode || activeCatId !== TRACKED_TAB_ID) && (

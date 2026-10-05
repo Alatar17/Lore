@@ -7,16 +7,19 @@ interface ViewPanelProps {
   mainTab: MainTabType;
   onChange: (newSettings: Partial<ViewSettings>) => void;
   onClose: () => void;
+  placement?: 'top' | 'bottom';
 }
 
-export const ViewPanel: React.FC<ViewPanelProps> = ({ settings, mainTab, onChange }) => {
+export const ViewPanel: React.FC<ViewPanelProps> = ({ settings, mainTab, onChange, placement }) => {
   const cardSize = settings.cardSize || 3;
   const currentSort: SortOption = settings.sortBy || 'date-desc';
 
   return (
     <div
       id="view-panel"
-      className="absolute top-12 right-0 z-50 w-72 p-4 bg-[#181818]/95 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl text-sm animate-in fade-in zoom-in-95 duration-150 text-neutral-200"
+      className={`absolute z-50 w-72 max-w-[calc(100vw-2rem)] p-4 bg-[#181818]/95 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl text-sm animate-in fade-in zoom-in-95 duration-150 text-neutral-200 max-h-[75vh] overflow-y-auto custom-scrollbar ${
+        placement === 'bottom' ? 'bottom-12 right-0 mb-1' : 'top-12 right-0'
+      }`}
       onClick={(e) => e.stopPropagation()}
     >
       <div className="flex items-center gap-2 pb-2.5 mb-3 border-b border-white/10">

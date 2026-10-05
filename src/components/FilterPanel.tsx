@@ -21,6 +21,7 @@ interface FilterPanelProps {
   activeCategoryName?: string | null;
   activeSub?: string | null;
   isHideModeActive?: boolean;
+  placement?: 'top' | 'bottom';
 }
 
 const GAME_STATUS_OPTIONS: { label: string; value: GameStatus | 'all' }[] = [
@@ -121,7 +122,9 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
   return (
     <div
       id="filter-panel"
-      className="absolute top-12 right-0 z-50 w-72 p-4 bg-[#181818]/95 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl text-sm animate-in fade-in zoom-in-95 duration-150 text-neutral-200"
+      className={`absolute z-50 w-72 max-w-[calc(100vw-2rem)] p-4 bg-[#181818]/95 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl text-sm animate-in fade-in zoom-in-95 duration-150 text-neutral-200 max-h-[75vh] overflow-y-auto custom-scrollbar ${
+        placement === 'bottom' ? 'bottom-12 right-0 mb-1' : 'top-12 right-0'
+      }`}
       onClick={(e) => e.stopPropagation()}
     >
       {/* Header */}
