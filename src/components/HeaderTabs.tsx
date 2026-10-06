@@ -487,13 +487,15 @@ export const HeaderTabs: React.FC<HeaderTabsProps> = ({
     Boolean(filters.uncategorizedOnly) ||
     Boolean(filters.seriesOnly);
 
+  const isBoxOrGlass = uiExperiments?.toolbarStyle === 'box' || uiExperiments?.toolbarStyle === 'glass';
+
   return (
     <header
       className={`relative z-30 flex flex-col gap-2.5 sm:gap-3 py-2.5 sm:py-3 transition-all duration-300 ${
         uiExperiments?.toolbarStyle === 'box'
-          ? 'bg-neutral-900/80 p-3 sm:p-3.5 rounded-2xl border border-white/10 shadow-lg'
+          ? 'bg-neutral-900/80 px-2 py-2.5 sm:p-3.5 rounded-2xl border border-white/10 shadow-lg'
           : uiExperiments?.toolbarStyle === 'glass'
-          ? 'bg-white/[0.03] backdrop-blur-xl p-3 sm:p-3.5 rounded-2xl border border-white/10 shadow-2xl'
+          ? 'bg-white/[0.03] backdrop-blur-xl px-2 py-2.5 sm:p-3.5 rounded-2xl border border-white/10 shadow-2xl'
           : 'border-b border-white/10'
       }`}
     >
@@ -502,7 +504,7 @@ export const HeaderTabs: React.FC<HeaderTabsProps> = ({
       {/* ========================================================================= */}
       <div className="flex flex-col gap-2 md:hidden">
         {/* Row 1: Left [Medya ▾ | Oyun ▾ | Kitap ▾] --- Right [Sayaç | Ayarlar] */}
-        <div className="flex items-center justify-between gap-2">
+        <div className={`flex items-center justify-between ${isBoxOrGlass ? 'gap-1.5 sm:gap-2' : 'gap-2'}`}>
           {/* Left: Medya, Oyun, Kitap Dropdown Buttons */}
           <div
             id="mobile-category-dropdown-container"
@@ -520,7 +522,9 @@ export const HeaderTabs: React.FC<HeaderTabsProps> = ({
                   setMobileDropdown(mobileDropdown === 'media' ? null : 'media');
                 }
               }}
-              className={`h-8 flex items-center gap-1.5 px-2.5 sm:px-3 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+              className={`h-8 flex items-center rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                isBoxOrGlass ? 'gap-1 px-2 sm:gap-1.5 sm:px-3' : 'gap-1.5 px-2.5 sm:px-3'
+              } ${
                 mainTab === 'media'
                   ? 'bg-neutral-800 text-white shadow border border-white/20'
                   : 'text-neutral-400 hover:text-white'
@@ -529,7 +533,7 @@ export const HeaderTabs: React.FC<HeaderTabsProps> = ({
               <Film className="w-3.5 h-3.5 shrink-0" />
               <span>Medya</span>
               <ChevronDown
-                className={`w-3 h-3 transition-transform duration-150 ${
+                className={`w-3 h-3 transition-transform duration-150 shrink-0 ${
                   mobileDropdown === 'media' ? 'rotate-180 text-white' : 'text-neutral-400'
                 }`}
               />
@@ -547,7 +551,9 @@ export const HeaderTabs: React.FC<HeaderTabsProps> = ({
                   setMobileDropdown(mobileDropdown === 'game' ? null : 'game');
                 }
               }}
-              className={`h-8 flex items-center gap-1.5 px-2.5 sm:px-3 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+              className={`h-8 flex items-center rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                isBoxOrGlass ? 'gap-1 px-2 sm:gap-1.5 sm:px-3' : 'gap-1.5 px-2.5 sm:px-3'
+              } ${
                 mainTab === 'game'
                   ? 'bg-neutral-800 text-white shadow border border-white/20'
                   : 'text-neutral-400 hover:text-white'
@@ -556,7 +562,7 @@ export const HeaderTabs: React.FC<HeaderTabsProps> = ({
               <Gamepad2 className="w-3.5 h-3.5 shrink-0" />
               <span>Oyun</span>
               <ChevronDown
-                className={`w-3 h-3 transition-transform duration-150 ${
+                className={`w-3 h-3 transition-transform duration-150 shrink-0 ${
                   mobileDropdown === 'game' ? 'rotate-180 text-white' : 'text-neutral-400'
                 }`}
               />
@@ -574,7 +580,9 @@ export const HeaderTabs: React.FC<HeaderTabsProps> = ({
                   setMobileDropdown(mobileDropdown === 'book' ? null : 'book');
                 }
               }}
-              className={`h-8 flex items-center gap-1.5 px-2.5 sm:px-3 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+              className={`h-8 flex items-center rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                isBoxOrGlass ? 'gap-1 px-2 sm:gap-1.5 sm:px-3' : 'gap-1.5 px-2.5 sm:px-3'
+              } ${
                 mainTab === 'book'
                   ? 'bg-neutral-800 text-white shadow border border-white/20'
                   : 'text-neutral-400 hover:text-white'
@@ -583,7 +591,7 @@ export const HeaderTabs: React.FC<HeaderTabsProps> = ({
               <BookOpen className="w-3.5 h-3.5 shrink-0" />
               <span>Kitap</span>
               <ChevronDown
-                className={`w-3 h-3 transition-transform duration-150 ${
+                className={`w-3 h-3 transition-transform duration-150 shrink-0 ${
                   mobileDropdown === 'book' ? 'rotate-180 text-white' : 'text-neutral-400'
                 }`}
               />
@@ -710,7 +718,9 @@ export const HeaderTabs: React.FC<HeaderTabsProps> = ({
                     ? 'GitHub bağlantı hatası (Tekrar denemek için dokunun)'
                     : `Toplam ${totalFilteredCount} yapım (GitHub’dan kontrol etmek için dokunun)`
                 }
-                className={`h-8 px-2.5 rounded-lg font-bold text-[11px] shrink-0 flex items-center justify-center transition-all cursor-pointer select-none active:scale-95 ${
+                className={`h-8 rounded-lg font-bold text-[11px] shrink-0 flex items-center justify-center transition-all cursor-pointer select-none active:scale-95 ${
+                  isBoxOrGlass ? 'px-2 sm:px-2.5' : 'px-2.5'
+                } ${
                   mobileSyncStatus === 'has-update'
                     ? 'bg-rose-500/25 border border-rose-500/50 text-rose-300 animate-pulse shadow-sm shadow-rose-500/30'
                     : mobileSyncStatus === 'syncing'
@@ -740,7 +750,9 @@ export const HeaderTabs: React.FC<HeaderTabsProps> = ({
                 onTouchCancel={handleSettingsPressEnd}
                 onClick={handleSettingsClick}
                 title="Ayarlar"
-                className="h-8 w-8 rounded-lg text-neutral-400 hover:text-white hover:bg-white/5 transition-all cursor-pointer flex items-center justify-center select-none"
+                className={`h-8 rounded-lg text-neutral-400 hover:text-white hover:bg-white/5 transition-all cursor-pointer flex items-center justify-center select-none ${
+                  isBoxOrGlass ? 'w-7.5 sm:w-8' : 'w-8'
+                }`}
               >
                 <Settings className="w-4 h-4" />
               </button>

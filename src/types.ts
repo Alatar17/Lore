@@ -134,6 +134,7 @@ export interface ArchiveItem {
   ankiCard?: Card;
   ankiMainBlurs?: AnkiBlurBox[];
   ankiExtraImages?: AnkiExtraImage[];
+  ankiFrontTags?: string[]; // Anki kartı ön yüzünde başlık altında gösterilecek künye etiketleri (max 2)
   tier?: string | null; // tier row id or null
   isHidden?: boolean; // Kart gizleme durumu
   createdAt?: number;

@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { ArchiveItem, ViewSettings, UiExperimentsState } from '../types';
 import { MEDIA_COLORS, GAME_COLORS, BOOK_COLORS } from '../data/initialData';
-import { Tv, Star, Brain, Check, Calendar, X, BookmarkCheck, PauseCircle, BookOpen } from 'lucide-react';
+import { Tv, Star, Layers, Check, Calendar, X, BookmarkCheck, PauseCircle, BookOpen } from 'lucide-react';
 import { FollowBadge, getFollowColor, RatingBadgeIcon } from './FollowIndicatorIcon';
 
 interface ItemCardProps {
@@ -38,16 +38,16 @@ export const ItemCard: React.FC<ItemCardProps> = ({
   const palette = isGame ? GAME_COLORS : isBook ? BOOK_COLORS : MEDIA_COLORS;
   const baseColor = palette[item.cat] || (isBook ? '#8a6fbf' : '#ffffff');
 
-  // Format date as only YYYY (or ?? if unknown/empty)
+  // Format date as only YYYY (or null if unknown/empty)
   const formattedYear = (() => {
     if (!item.date || item.date === '??.??' || item.date === '??' || item.date === 'unknown' || item.date.startsWith('0000')) {
-      return '??';
+      return null;
     }
     const parts = item.date.split('-');
-    if (parts.length >= 1 && parts[0] && parts[0].length === 4) {
+    if (parts.length >= 1 && parts[0] && parts[0].length === 4 && !isNaN(Number(parts[0]))) {
       return parts[0];
     }
-    return '??';
+    return null;
   })();
 
   const [showAnnouncementModal, setShowAnnouncementModal] = useState(false);
@@ -212,7 +212,7 @@ export const ItemCard: React.FC<ItemCardProps> = ({
         )}
 
         {/* Date Badge: Top Left for Both Media and Game */}
-        {showYear && !isSelectionMode && (
+        {showYear && !isSelectionMode && Boolean(formattedYear) && (
           <div
             id={`badge-date-${item.id}`}
             title={isBook ? `Okunma Yılı: ${formattedYear}` : `Yıl: ${formattedYear}`}
@@ -372,7 +372,7 @@ export const ItemCard: React.FC<ItemCardProps> = ({
                     : 'bg-black/60 sm:bg-black/90 border-transparent sm:border sm:border-emerald-500/50 sm:backdrop-blur-md'
                 }`}
               >
-                <Brain className="w-3 h-3" />
+                <Layers className="w-3 h-3" />
               </span>
             )}
 

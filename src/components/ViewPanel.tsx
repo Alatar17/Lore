@@ -1,6 +1,6 @@
 import React from 'react';
 import { ViewSettings, MainTabType, SortOption } from '../types';
-import { SlidersHorizontal, ZoomIn, ZoomOut, Tv, Bookmark, Star, Calendar, Brain, Gamepad2, Type, ArrowUpDown, BookOpen } from 'lucide-react';
+import { SlidersHorizontal, ZoomIn, ZoomOut, Tv, Bookmark, Star, Calendar, Layers, Gamepad2, Type, ArrowUpDown, BookOpen } from 'lucide-react';
 
 interface ViewPanelProps {
   settings: ViewSettings;
@@ -130,7 +130,7 @@ export const ViewPanel: React.FC<ViewPanelProps> = ({ settings, mainTab, onChang
         {/* Common: Anki */}
         <label className="flex items-center justify-between text-xs text-neutral-300 hover:text-white cursor-pointer select-none py-1 px-1 rounded-lg hover:bg-white/5 transition-colors">
           <div className="flex items-center gap-2">
-            <Brain className="w-3.5 h-3.5 text-emerald-400" />
+            <Layers className="w-3.5 h-3.5 text-emerald-400" />
             <span>Anki Rozetini Göster</span>
           </div>
           <input

@@ -5,7 +5,6 @@ import {
   RotateCcw,
   Star,
   PauseCircle,
-  Brain,
   Gamepad2,
   Check,
   FolderX,
@@ -47,6 +46,7 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
   activeCategoryName,
   activeSub,
   isHideModeActive,
+  placement = 'top',
 }) => {
   const isGame = mainTab === 'game';
   const isBook = mainTab === 'book';
@@ -310,7 +310,7 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
         {/* Anki Filtresi */}
         <div className="pt-2 border-t border-white/10">
           <label className="block text-[11px] uppercase tracking-wider text-neutral-400 font-semibold mb-1.5 flex items-center gap-1.5">
-            <Brain className="w-3.5 h-3.5 text-emerald-400" />
+            <Layers className="w-3.5 h-3.5 text-emerald-400" />
             <span>Anki Durumu</span>
           </label>
           <div className="grid grid-cols-3 gap-1">

@@ -19,7 +19,6 @@ import {
   Tags,
   CheckCircle2,
   Play,
-  Brain,
   Layers,
   BookOpen,
   Quote,
@@ -687,7 +686,7 @@ export const ImagePreviewModal: React.FC<ImagePreviewModalProps> = ({
                   title="Anki Destesine Eklendi"
                   className="h-6 w-6 rounded-lg bg-emerald-950/85 backdrop-blur-md border border-emerald-400/40 text-emerald-300 shadow-lg flex items-center justify-center"
                 >
-                  <Brain className="w-3.5 h-3.5 text-emerald-400" />
+                  <Layers className="w-3.5 h-3.5 text-emerald-400" />
                 </div>
               )}
               {isGame && item.achPercent !== null && item.achPercent !== undefined && item.achPercent > 0 && (
@@ -1185,7 +1184,7 @@ export const ImagePreviewModal: React.FC<ImagePreviewModalProps> = ({
                             title="Anki Destesine Eklendi"
                             className="w-[26px] h-[26px] rounded-lg bg-emerald-950/85 backdrop-blur-md border border-emerald-400/40 text-emerald-300 shadow flex items-center justify-center pointer-events-auto shrink-0"
                           >
-                            <Brain className="w-3.5 h-3.5 text-emerald-400" />
+                            <Layers className="w-3.5 h-3.5 text-emerald-400" />
                           </div>
                         )}
                         {item.pageCount !== undefined && item.pageCount > 0 && (
@@ -1228,7 +1227,7 @@ export const ImagePreviewModal: React.FC<ImagePreviewModalProps> = ({
                             title="Anki Destesine Eklendi"
                             className="w-[26px] h-[26px] rounded-lg bg-emerald-950/85 backdrop-blur-md border border-emerald-400/40 text-emerald-300 shadow flex items-center justify-center shrink-0"
                           >
-                            <Brain className="w-3.5 h-3.5 text-emerald-400" />
+                            <Layers className="w-3.5 h-3.5 text-emerald-400" />
                           </div>
                         )}
                         {item.achPercent !== null && item.achPercent !== undefined && item.achPercent > 0 && (
@@ -1289,7 +1288,7 @@ export const ImagePreviewModal: React.FC<ImagePreviewModalProps> = ({
                             title="Anki Destesine Eklendi"
                             className="w-[26px] h-[26px] rounded-lg bg-emerald-950/85 backdrop-blur-md border border-emerald-400/40 text-emerald-300 shadow flex items-center justify-center pointer-events-auto shrink-0"
                           >
-                            <Brain className="w-3.5 h-3.5 text-emerald-400" />
+                            <Layers className="w-3.5 h-3.5 text-emerald-400" />
                           </div>
                         )}
                       </div>

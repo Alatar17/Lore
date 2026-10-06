@@ -915,7 +915,30 @@ export const AddItemModal: React.FC<AddItemModalProps> = ({
   const [anki, setAnki] = useState(false);
   const [ankiMainBlurs, setAnkiMainBlurs] = useState<AnkiBlurBox[]>([]);
   const [ankiExtraImages, setAnkiExtraImages] = useState<AnkiExtraImage[]>([]);
+  const [ankiFrontTags, setAnkiFrontTags] = useState<string[]>([]);
+  const [ankiTagSelectionMode, setAnkiTagSelectionMode] = useState<boolean>(false);
+  const [ankiNotice, setAnkiNotice] = useState<string | null>(null);
   const [showAnkiEditor, setShowAnkiEditor] = useState<boolean>(false);
+
+  const handleToggleAnkiFrontTag = (tag: string) => {
+    const trimmed = tag.trim();
+    if (!trimmed) return;
+    const existingIndex = ankiFrontTags.findIndex(
+      (t) => t.trim().toLowerCase() === trimmed.toLowerCase()
+    );
+    if (existingIndex !== -1) {
+      setAnkiFrontTags((prev) => prev.filter((_, idx) => idx !== existingIndex));
+      setAnkiNotice(null);
+    } else {
+      if (ankiFrontTags.length >= 2) {
+        setAnkiNotice('En fazla 2 etiket seçilebilir.');
+        setTimeout(() => setAnkiNotice(null), 2500);
+        return;
+      }
+      setAnkiFrontTags((prev) => [...prev, trimmed]);
+      setAnkiNotice(null);
+    }
+  };
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const selectedCatObj = categories.find((c) => c.id === cat);
@@ -1091,6 +1114,20 @@ export const AddItemModal: React.FC<AddItemModalProps> = ({
       ankiCard: anki ? initAnkiCard() : undefined,
       ankiMainBlurs: ankiMainBlurs.length > 0 ? ankiMainBlurs : undefined,
       ankiExtraImages: ankiExtraImages.length > 0 ? ankiExtraImages : undefined,
+      ankiFrontTags: (() => {
+        if (!anki || ankiFrontTags.length === 0) return undefined;
+        const allEligibleTags = isBook
+          ? [...author, ...publisher, ...translator]
+          : isGame
+          ? [...developer]
+          : [...firm, ...director, ...actors];
+        const cleaned = ankiFrontTags.filter((ft) =>
+          allEligibleTags.some(
+            (et) => et.trim().toLowerCase() === ft.trim().toLowerCase()
+          )
+        ).slice(0, 2);
+        return cleaned.length > 0 ? cleaned : undefined;
+      })(),
       tier: null,
       createdAt: Date.now(),
       updatedAt: Date.now(),
@@ -1732,7 +1769,10 @@ export const AddItemModal: React.FC<AddItemModalProps> = ({
                         id="add-book-anki-cb"
                         type="checkbox"
                         checked={anki}
-                        onChange={(e) => setAnki(e.target.checked)}
+                        onChange={(e) => {
+                          setAnki(e.target.checked);
+                          if (!e.target.checked) setAnkiTagSelectionMode(false);
+                        }}
                         className="w-4 h-4 rounded border-slate-600 bg-slate-800 text-emerald-500 focus:ring-0 cursor-pointer"
                       />
                       <Layers className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
@@ -1827,7 +1867,10 @@ export const AddItemModal: React.FC<AddItemModalProps> = ({
                       id="add-anki-cb"
                       type="checkbox"
                       checked={anki}
-                      onChange={(e) => setAnki(e.target.checked)}
+                      onChange={(e) => {
+                        setAnki(e.target.checked);
+                        if (!e.target.checked) setAnkiTagSelectionMode(false);
+                      }}
                       className="w-4 h-4 rounded border-slate-600 bg-slate-800 text-emerald-500 focus:ring-0 cursor-pointer"
                     />
                     <Layers className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
@@ -1977,7 +2020,10 @@ export const AddItemModal: React.FC<AddItemModalProps> = ({
                         id="add-anki-game-cb"
                         type="checkbox"
                         checked={anki}
-                        onChange={(e) => setAnki(e.target.checked)}
+                        onChange={(e) => {
+                          setAnki(e.target.checked);
+                          if (!e.target.checked) setAnkiTagSelectionMode(false);
+                        }}
                         className="w-4 h-4 rounded border-slate-600 bg-slate-800 text-emerald-500 focus:ring-0 cursor-pointer"
                       />
                       <Layers className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
@@ -2005,9 +2051,38 @@ export const AddItemModal: React.FC<AddItemModalProps> = ({
 
           {/* BOTTOM SECTION: FIELD-SCOPED TAGS (En Altta, Tam Genişlik) */}
           <div className="space-y-3 pt-1">
-            <div className="flex items-center gap-1.5 text-xs font-bold text-slate-200">
-              <Tags className="w-3.5 h-3.5 text-blue-400" />
-              <span>Etiketler & Alanlar</span>
+            <div className="flex items-center justify-between min-h-[24px] h-[24px]">
+              <div className="flex items-center gap-1.5 text-xs font-bold text-slate-200">
+                <Tags className="w-3.5 h-3.5 text-blue-400 shrink-0" />
+                <span>Etiketler</span>
+                {anki && (
+                  <button
+                    type="button"
+                    onClick={() => setAnkiTagSelectionMode((prev) => !prev)}
+                    title="Anki Etiket"
+                    className={`ml-0.5 transition-colors cursor-pointer p-0 bg-transparent border-0 flex items-center justify-center leading-none shrink-0 ${
+                      ankiTagSelectionMode
+                        ? 'text-emerald-400 drop-shadow-[0_0_6px_rgba(52,211,153,0.8)]'
+                        : 'text-slate-500 hover:text-slate-300'
+                    }`}
+                  >
+                    <Layers className="w-3.5 h-3.5 shrink-0" />
+                  </button>
+                )}
+              </div>
+              {anki && ankiTagSelectionMode && (
+                <div className="flex items-center gap-2">
+                  {ankiNotice ? (
+                    <span className="text-[11px] text-amber-400 font-medium animate-in fade-in">
+                      {ankiNotice}
+                    </span>
+                  ) : ankiFrontTags.length > 0 ? (
+                    <span className="text-[11px] text-emerald-400 font-medium animate-in fade-in">
+                      {ankiFrontTags.length}/2 seçili
+                    </span>
+                  ) : null}
+                </div>
+              )}
             </div>
 
             {isBook ? (
@@ -2026,6 +2101,10 @@ export const AddItemModal: React.FC<AddItemModalProps> = ({
                     highlightRemovedTags={tagDiffs.authors?.removedTags}
                     onRestoreRemovedTag={(tag) => handleRestoreRemovedTag('authors', tag)}
                     hideCount={!!aiTagStates.authors}
+                    isAnkiMode={anki && ankiTagSelectionMode}
+                    isEligibleForAnki={true}
+                    selectedAnkiTags={ankiFrontTags}
+                    onToggleAnkiTag={handleToggleAnkiFrontTag}
                     rightElement={
                       aiTagStates.authors && (
                         aiTagStates.authors.isActive ? (
@@ -2065,6 +2144,10 @@ export const AddItemModal: React.FC<AddItemModalProps> = ({
                     highlightRemovedTags={tagDiffs.publishers?.removedTags}
                     onRestoreRemovedTag={(tag) => handleRestoreRemovedTag('publishers', tag)}
                     hideCount={!!aiTagStates.publishers}
+                    isAnkiMode={anki && ankiTagSelectionMode}
+                    isEligibleForAnki={true}
+                    selectedAnkiTags={ankiFrontTags}
+                    onToggleAnkiTag={handleToggleAnkiFrontTag}
                     rightElement={
                       aiTagStates.publishers && (
                         aiTagStates.publishers.isActive ? (
@@ -2104,6 +2187,10 @@ export const AddItemModal: React.FC<AddItemModalProps> = ({
                     highlightRemovedTags={tagDiffs.translators?.removedTags}
                     onRestoreRemovedTag={(tag) => handleRestoreRemovedTag('translators', tag)}
                     hideCount={!!aiTagStates.translators}
+                    isAnkiMode={anki && ankiTagSelectionMode}
+                    isEligibleForAnki={true}
+                    selectedAnkiTags={ankiFrontTags}
+                    onToggleAnkiTag={handleToggleAnkiFrontTag}
                     rightElement={
                       aiTagStates.translators && (
                         aiTagStates.translators.isActive ? (
@@ -2143,6 +2230,8 @@ export const AddItemModal: React.FC<AddItemModalProps> = ({
                     highlightRemovedTags={tagDiffs.genres?.removedTags}
                     onRestoreRemovedTag={(tag) => handleRestoreRemovedTag('genres', tag)}
                     hideCount={!!aiTagStates.genres}
+                    isAnkiMode={anki && ankiTagSelectionMode}
+                    isEligibleForAnki={false}
                     rightElement={
                       aiTagStates.genres && (
                         aiTagStates.genres.isActive ? (
@@ -2185,6 +2274,10 @@ export const AddItemModal: React.FC<AddItemModalProps> = ({
                     highlightRemovedTags={tagDiffs.firms?.removedTags}
                     onRestoreRemovedTag={(tag) => handleRestoreRemovedTag('firms', tag)}
                     hideCount={!!aiTagStates.firms}
+                    isAnkiMode={anki && ankiTagSelectionMode}
+                    isEligibleForAnki={true}
+                    selectedAnkiTags={ankiFrontTags}
+                    onToggleAnkiTag={handleToggleAnkiFrontTag}
                     rightElement={
                       aiTagStates.firms && (
                         aiTagStates.firms.isActive ? (
@@ -2224,6 +2317,10 @@ export const AddItemModal: React.FC<AddItemModalProps> = ({
                     highlightRemovedTags={tagDiffs.directors?.removedTags}
                     onRestoreRemovedTag={(tag) => handleRestoreRemovedTag('directors', tag)}
                     hideCount={!!aiTagStates.directors}
+                    isAnkiMode={anki && ankiTagSelectionMode}
+                    isEligibleForAnki={true}
+                    selectedAnkiTags={ankiFrontTags}
+                    onToggleAnkiTag={handleToggleAnkiFrontTag}
                     rightElement={
                       aiTagStates.directors && (
                         aiTagStates.directors.isActive ? (
@@ -2263,6 +2360,10 @@ export const AddItemModal: React.FC<AddItemModalProps> = ({
                     highlightRemovedTags={tagDiffs.actors?.removedTags}
                     onRestoreRemovedTag={(tag) => handleRestoreRemovedTag('actors', tag)}
                     hideCount={!!aiTagStates.actors}
+                    isAnkiMode={anki && ankiTagSelectionMode}
+                    isEligibleForAnki={true}
+                    selectedAnkiTags={ankiFrontTags}
+                    onToggleAnkiTag={handleToggleAnkiFrontTag}
                     rightElement={
                       aiTagStates.actors && (
                         aiTagStates.actors.isActive ? (
@@ -2302,6 +2403,8 @@ export const AddItemModal: React.FC<AddItemModalProps> = ({
                     highlightRemovedTags={tagDiffs.genres?.removedTags}
                     onRestoreRemovedTag={(tag) => handleRestoreRemovedTag('genres', tag)}
                     hideCount={!!aiTagStates.genres}
+                    isAnkiMode={anki && ankiTagSelectionMode}
+                    isEligibleForAnki={false}
                     rightElement={
                       aiTagStates.genres && (
                         aiTagStates.genres.isActive ? (
@@ -2344,6 +2447,10 @@ export const AddItemModal: React.FC<AddItemModalProps> = ({
                     highlightRemovedTags={tagDiffs.developers?.removedTags}
                     onRestoreRemovedTag={(tag) => handleRestoreRemovedTag('developers', tag)}
                     hideCount={!!aiTagStates.developers}
+                    isAnkiMode={anki && ankiTagSelectionMode}
+                    isEligibleForAnki={true}
+                    selectedAnkiTags={ankiFrontTags}
+                    onToggleAnkiTag={handleToggleAnkiFrontTag}
                     rightElement={
                       aiTagStates.developers && (
                         aiTagStates.developers.isActive ? (
@@ -2383,6 +2490,8 @@ export const AddItemModal: React.FC<AddItemModalProps> = ({
                     highlightRemovedTags={tagDiffs.genres?.removedTags}
                     onRestoreRemovedTag={(tag) => handleRestoreRemovedTag('genres', tag)}
                     hideCount={!!aiTagStates.genres}
+                    isAnkiMode={anki && ankiTagSelectionMode}
+                    isEligibleForAnki={false}
                     rightElement={
                       aiTagStates.genres && (
                         aiTagStates.genres.isActive ? (

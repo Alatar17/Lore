@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { AnkiBlurBox, AnkiExtraImage } from '../types';
 import { optimizeImageFile } from '../utils/imageOptimizer';
 import {
@@ -112,6 +112,32 @@ export const AnkiEditorModal: React.FC<AnkiEditorModalProps> = ({
     if (selectedBoxId === id) setSelectedBoxId(null);
   };
 
+  // Keyboard shortcut: Space toggles Blur visible / transparent
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement;
+      if (
+        target.tagName === 'INPUT' ||
+        target.tagName === 'TEXTAREA' ||
+        target.tagName === 'SELECT' ||
+        target.isContentEditable
+      ) {
+        return;
+      }
+
+      if (e.code === 'Space' || e.key === ' ') {
+        e.preventDefault();
+        e.stopPropagation();
+        setIsBlurVisible((prev) => !prev);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen]);
+
   // Bulletproof Drag Implementation using Pointer Capture
   const handleDragPointerDown = (box: AnkiBlurBox, e: React.PointerEvent<HTMLDivElement>) => {
     // If clicking on delete button or resize handle, skip drag
@@ -166,8 +192,12 @@ export const AnkiEditorModal: React.FC<AnkiEditorModalProps> = ({
     target.addEventListener('pointercancel', onPointerUp);
   };
 
-  // Bulletproof Resize Implementation using Pointer Capture
-  const handleResizePointerDown = (box: AnkiBlurBox, e: React.PointerEvent<HTMLDivElement>) => {
+  // Bulletproof Resize Implementation supporting nw, sw, se handles
+  const handleResizePointerDown = (
+    box: AnkiBlurBox,
+    corner: 'se' | 'sw' | 'nw',
+    e: React.PointerEvent<HTMLDivElement>
+  ) => {
     e.preventDefault();
     e.stopPropagation();
     const target = e.currentTarget;
@@ -180,22 +210,46 @@ export const AnkiEditorModal: React.FC<AnkiEditorModalProps> = ({
     const startClientY = e.clientY;
     const origBoxW = box.width;
     const origBoxH = box.height;
-    const boxX = box.x;
-    const boxY = box.y;
+    const origBoxX = box.x;
+    const origBoxY = box.y;
+    const origRight = origBoxX + origBoxW;
+    const origBottom = origBoxY + origBoxH;
 
     const onPointerMove = (moveEv: PointerEvent) => {
-      const deltaWPercent = ((moveEv.clientX - startClientX) / containerRect.width) * 100;
-      const deltaHPercent = ((moveEv.clientY - startClientY) / containerRect.height) * 100;
-      const newW = Math.max(8, Math.min(100 - boxX, origBoxW + deltaWPercent));
-      const newH = Math.max(4, Math.min(100 - boxY, origBoxH + deltaHPercent));
+      const deltaXPercent = ((moveEv.clientX - startClientX) / containerRect.width) * 100;
+      const deltaYPercent = ((moveEv.clientY - startClientY) / containerRect.height) * 100;
+
+      let nextX = origBoxX;
+      let nextY = origBoxY;
+      let nextW = origBoxW;
+      let nextH = origBoxH;
+
+      if (corner === 'se') {
+        // Bottom-Right: Top-Left stays fixed
+        nextW = Math.max(8, Math.min(100 - origBoxX, origBoxW + deltaXPercent));
+        nextH = Math.max(4, Math.min(100 - origBoxY, origBoxH + deltaYPercent));
+      } else if (corner === 'sw') {
+        // Bottom-Left: Top-Right stays fixed
+        nextX = Math.max(0, Math.min(origRight - 8, origBoxX + deltaXPercent));
+        nextW = origRight - nextX;
+        nextH = Math.max(4, Math.min(100 - origBoxY, origBoxH + deltaYPercent));
+      } else if (corner === 'nw') {
+        // Top-Left: Bottom-Right stays fixed
+        nextX = Math.max(0, Math.min(origRight - 8, origBoxX + deltaXPercent));
+        nextW = origRight - nextX;
+        nextY = Math.max(0, Math.min(origBottom - 4, origBoxY + deltaYPercent));
+        nextH = origBottom - nextY;
+      }
 
       updateCurrentBlurs((prev) =>
         prev.map((b) =>
           b.id === box.id
             ? {
                 ...b,
-                width: Math.round(newW * 10) / 10,
-                height: Math.round(newH * 10) / 10,
+                x: Math.round(nextX * 10) / 10,
+                y: Math.round(nextY * 10) / 10,
+                width: Math.round(nextW * 10) / 10,
+                height: Math.round(nextH * 10) / 10,
               }
             : b
         )
@@ -339,21 +393,39 @@ export const AnkiEditorModal: React.FC<AnkiEditorModalProps> = ({
                         height: `${box.height}%`,
                         touchAction: 'none',
                       }}
-                      className={`absolute cursor-move rounded-lg transition-shadow select-none group ${
+                      className={`absolute cursor-move rounded-lg transition-none select-none group ${
                         isBlurVisible
                           ? 'backdrop-blur-xl bg-white/10 border border-white/35 shadow-lg'
-                          : 'bg-white/5 border-2 border-dashed border-emerald-400/80 shadow-md'
+                          : 'bg-emerald-500/15 border-2 border-dashed border-emerald-400 shadow-[0_0_0_1px_rgba(0,0,0,0.8)]'
                       } ${
                         isSelected
-                          ? 'ring-2 ring-emerald-400 ring-offset-1 ring-offset-black/50 z-20'
-                          : 'hover:border-emerald-300/80 z-10'
+                          ? 'z-20'
+                          : 'z-10'
                       }`}
                     >
-                      {/* Sol Üst: "Blur #1" Etiketi */}
-                      <div className="absolute top-1 left-1.5 flex items-center gap-1 pointer-events-none select-none">
+                      {/* Sol Üst: Boyutlandırma Tutamacı */}
+                      <div
+                        onPointerDown={(e) => handleResizePointerDown(box, 'nw', e)}
+                        title="Sol Üstten Boyutlandır"
+                        className="resize-handle absolute left-0.5 top-0.5 w-3.5 h-3.5 cursor-nw-resize flex items-center justify-center text-white/70 hover:text-white drop-shadow transition-colors"
+                      >
+                        <Maximize2 className="w-2 h-2 rotate-90" />
+                      </div>
+
+                      {/* Sol Üst: "Blur #1" Etiketi (Tutamaçın hemen sağında) */}
+                      <div className="absolute top-0.5 left-4 flex items-center gap-1 pointer-events-none select-none">
                         <span className="text-[10px] font-bold text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.85)]">
                           Blur #{index + 1}
                         </span>
+                      </div>
+
+                      {/* Sol Alt: Boyutlandırma Tutamacı */}
+                      <div
+                        onPointerDown={(e) => handleResizePointerDown(box, 'sw', e)}
+                        title="Sol Alttan Boyutlandır"
+                        className="resize-handle absolute left-0.5 bottom-0.5 w-3.5 h-3.5 cursor-sw-resize flex items-center justify-center text-white/70 hover:text-white drop-shadow transition-colors"
+                      >
+                        <Maximize2 className="w-2 h-2" />
                       </div>
 
                       {/* Sağ Üst: Zarif Silme (X) Butonu - Arka plansız, hafif gölgeli, hover'da kırmızı */}
@@ -369,8 +441,8 @@ export const AnkiEditorModal: React.FC<AnkiEditorModalProps> = ({
 
                       {/* Sağ Alt: Boyutlandırma Tutamacı */}
                       <div
-                        onPointerDown={(e) => handleResizePointerDown(box, e)}
-                        title="Yeniden Boyutlandır"
+                        onPointerDown={(e) => handleResizePointerDown(box, 'se', e)}
+                        title="Sağ Alttan Boyutlandır"
                         className="resize-handle absolute right-0.5 bottom-0.5 w-3.5 h-3.5 cursor-se-resize flex items-center justify-center text-white/70 hover:text-white drop-shadow transition-colors"
                       >
                         <Maximize2 className="w-2 h-2 rotate-90" />

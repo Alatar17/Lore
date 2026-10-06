@@ -46,6 +46,7 @@ import {
   loadDataFromIndexedDB,
   safeLocalStorageSet,
   safeLocalStorageGet,
+  safeLocalStorageRemove,
   deleteImageFromFolder,
   exportTierListBackup,
   parseTierListBackupFile,
@@ -190,6 +191,10 @@ export default function App() {
 
   // UI Experiments State for visual appearance and atmosphere
   const [uiExperiments, setUiExperiments] = useState<UiExperimentsState>(() => {
+    const isMobileClient = typeof window !== 'undefined' && window.innerWidth < 768;
+    const deviceDefaultToolbar = isMobileClient ? 'default' : 'box';
+    const hasExplicitToolbar = safeLocalStorageGet('yapim_toolbar_style_explicit') === 'true';
+
     const savedModel = (safeLocalStorageGet('yapim_follow_indicator_model') as FollowIndicatorModel) || 'underline-accent';
     const savedColor = (safeLocalStorageGet('yapim_follow_indicator_color') as FollowIndicatorColor) || 'sky';
     const savedFollow = (safeLocalStorageGet('yapim_follow_indicator_icon') as FollowIndicatorIconType) || 'megaphone';
@@ -203,7 +208,9 @@ export default function App() {
           parsed.cardVignette === 'top'
             ? 'bottom'
             : parsed.cardVignette || (parsed.cardEffect === 'vignette' ? 'bottom' : 'none');
-        const toolbarStyle = parsed.toolbarStyle === 'floating' ? 'default' : (parsed.toolbarStyle || 'default');
+        const toolbarStyle = hasExplicitToolbar
+          ? (parsed.toolbarStyle === 'floating' ? 'default' : (parsed.toolbarStyle || deviceDefaultToolbar))
+          : deviceDefaultToolbar;
         const cardRadius = parsed.cardRadius === 'soft' ? 'normal' : (parsed.cardRadius || 'normal');
         const badgeDensity = parsed.badgeDensity === 'compact' ? 'full' : (parsed.badgeDensity || 'full');
 
@@ -224,7 +231,7 @@ export default function App() {
       } catch {}
     }
     return {
-      toolbarStyle: 'default',
+      toolbarStyle: deviceDefaultToolbar,
       cardVignette: 'none',
       cardRadius: 'normal',
       cardHoverMotion: 'none',
@@ -2728,13 +2735,14 @@ export default function App() {
                     {openUiTestMenu === 'toolbar' && (
                       <>
                         {[
-                          { id: 'default', label: 'Varsayılan (Sade)', desc: 'Klasik alt çizgili sade üst bar' },
+                          { id: 'default', label: 'Sade', desc: 'Klasik alt çizgili sade üst bar' },
                           { id: 'box', label: 'Gri Toolbar Kutusu', desc: 'Koyu kutu içine alınmış zarif bar' },
                           { id: 'glass', label: 'Buzlu Cam (Glassmorphism)', desc: 'Yarı saydam ve arkası bulanık bar' },
                         ].map((opt) => (
                           <button
                             key={opt.id}
                             onClick={() => {
+                              safeLocalStorageSet('yapim_toolbar_style_explicit', 'true');
                               setUiExperiments((p) => ({ ...p, toolbarStyle: opt.id as any }));
                             }}
                             className={`w-full text-left p-2 rounded-xl flex items-center justify-between transition-colors cursor-pointer ${
@@ -3145,7 +3153,7 @@ export default function App() {
                   />
                 </button>
 
-                {/* 2. Üst Bar Group (Gri Kutu & Buzlu Cam) */}
+                {/* 2. Üst Bar Group (Gri Kutu & Buzlu Cam & Sade) */}
                 <button
                   type="button"
                   onClick={() =>
@@ -3154,7 +3162,7 @@ export default function App() {
                   className={`px-2 sm:px-2.5 py-1 rounded-lg font-medium transition-colors flex items-center gap-1 cursor-pointer whitespace-nowrap shrink-0 ${
                     openUiTestMenu === 'toolbar'
                       ? 'bg-blue-600 text-white shadow border border-blue-500'
-                      : uiExperiments.toolbarStyle !== 'default'
+                      : uiExperiments.toolbarStyle !== (typeof window !== 'undefined' && window.innerWidth < 768 ? 'default' : 'box')
                       ? 'bg-blue-600/30 text-blue-300 border border-blue-500/40'
                       : 'bg-white/5 hover:bg-white/10 text-neutral-300 border border-transparent'
                   }`}
@@ -3164,6 +3172,7 @@ export default function App() {
                     <span className="hidden sm:inline">
                       {uiExperiments.toolbarStyle === 'box' && ': Kutu'}
                       {uiExperiments.toolbarStyle === 'glass' && ': Cam'}
+                      {uiExperiments.toolbarStyle === 'default' && ': Sade'}
                     </span>
                   </span>
                   <ChevronDown
@@ -3302,7 +3311,7 @@ export default function App() {
                 </button>
 
                 {/* Reset Button (visible if any experiment is active) */}
-                {(uiExperiments.toolbarStyle !== 'default' ||
+                {(uiExperiments.toolbarStyle !== (typeof window !== 'undefined' && window.innerWidth < 768 ? 'default' : 'box') ||
                   uiExperiments.cardGlow ||
                   uiExperiments.cardVignette !== 'none' ||
                   uiExperiments.cardRadius !== 'normal' ||
@@ -3324,8 +3333,10 @@ export default function App() {
                         confirmText: 'Evet, Sıfırla',
                         cancelText: 'Vazgeç',
                         onConfirm: () => {
+                          safeLocalStorageRemove('yapim_toolbar_style_explicit');
+                          const defToolbar = typeof window !== 'undefined' && window.innerWidth < 768 ? 'default' : 'box';
                           setUiExperiments({
-                            toolbarStyle: 'default',
+                            toolbarStyle: defToolbar,
                             cardGlow: false,
                             cardVignette: 'none',
                             cardRadius: 'normal',
@@ -3558,6 +3569,7 @@ export default function App() {
           onSetVirtualTimeOffsetMs={setVirtualTimeOffsetMs}
           showSimulator={Boolean(viewSettings.showAnkiSimulator)}
           onUpdateItem={handleSaveAnkiItem}
+          onDeleteItem={handleDeleteItem}
           onStartStudy={(queue, title) => {
             if (queue.length === 0) {
               setDialogOptions({

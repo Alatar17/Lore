@@ -255,3 +255,82 @@ export function getAnkiStudyQueue(items: ArchiveItem[], now: Date = new Date()):
   // Priority order: Learning -> Review -> New
   return [...learningItems, ...reviewItems, ...newItems];
 }
+
+export type AnkiBadgeRole =
+  | 'firm'
+  | 'developer'
+  | 'publisher'
+  | 'author'
+  | 'translator'
+  | 'director'
+  | 'actors';
+
+export interface AnkiFrontBadgeItem {
+  text: string;
+  role: AnkiBadgeRole;
+}
+
+/**
+ * Resolves the front badges (with field roles) to display below the title on the Anki flashcard front face.
+ * - If user selected explicit front tags (item.ankiFrontTags), uses them (up to 2) and determines role.
+ * - Otherwise applies "Otomatik Akıl" (automatic fallback):
+ *   - Game: developer[0]
+ *   - Book: author[0]
+ *   - Media: firm[0] (or director[0] if firm is absent)
+ */
+export function getAnkiFrontBadges(item: ArchiveItem): AnkiFrontBadgeItem[] {
+  if (item.ankiFrontTags && item.ankiFrontTags.length > 0) {
+    return item.ankiFrontTags.slice(0, 2).map((tag) => {
+      const cleanTag = tag.trim().toLowerCase();
+      let role: AnkiBadgeRole = 'firm';
+
+      if (item.mainTab === 'game') {
+        role = 'developer';
+      } else if (item.mainTab === 'book') {
+        if (item.author?.some((t) => t.trim().toLowerCase() === cleanTag)) {
+          role = 'author';
+        } else if (item.translator?.some((t) => t.trim().toLowerCase() === cleanTag)) {
+          role = 'translator';
+        } else if (item.publisher?.some((t) => t.trim().toLowerCase() === cleanTag)) {
+          role = 'publisher';
+        } else {
+          role = 'author';
+        }
+      } else {
+        // media
+        if (item.firm?.some((t) => t.trim().toLowerCase() === cleanTag)) {
+          role = 'firm';
+        } else if (item.director?.some((t) => t.trim().toLowerCase() === cleanTag)) {
+          role = 'director';
+        } else if (item.actors?.some((t) => t.trim().toLowerCase() === cleanTag)) {
+          role = 'actors';
+        } else {
+          role = 'firm';
+        }
+      }
+
+      return { text: tag.trim(), role };
+    });
+  }
+
+  if (item.mainTab === 'game') {
+    if (item.developer && item.developer.length > 0 && item.developer[0]?.trim()) {
+      return [{ text: item.developer[0].trim(), role: 'developer' }];
+    }
+  } else if (item.mainTab === 'book') {
+    if (item.author && item.author.length > 0 && item.author[0]?.trim()) {
+      return [{ text: item.author[0].trim(), role: 'author' }];
+    }
+  } else {
+    // Media
+    if (item.firm && item.firm.length > 0 && item.firm[0]?.trim()) {
+      return [{ text: item.firm[0].trim(), role: 'firm' }];
+    }
+    if (item.director && item.director.length > 0 && item.director[0]?.trim()) {
+      return [{ text: item.director[0].trim(), role: 'director' }];
+    }
+  }
+
+  return [];
+}
+

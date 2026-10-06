@@ -7,6 +7,7 @@ import {
   getRepeatOptions,
   AnkiRepeatOption,
   calculateAnkiCounts,
+  getAnkiFrontBadges,
 } from '../utils/ankiUtils';
 import { MEDIA_COLORS, GAME_COLORS, BOOK_COLORS } from '../data/initialData';
 import {
@@ -28,6 +29,7 @@ import {
   Clock,
   Layers,
   Quote,
+  Globe,
 } from 'lucide-react';
 
 interface AnkiStudyModalProps {
@@ -340,6 +342,12 @@ export const AnkiStudyModal: React.FC<AnkiStudyModalProps> = ({
     return String(currentItem.releaseYear);
   }, [currentItem?.releaseYear]);
 
+  // Front face badges (item.ankiFrontTags or Otomatik Akıl)
+  const frontBadges = useMemo(() => {
+    if (!currentItem) return [];
+    return getAnkiFrontBadges(currentItem);
+  }, [currentItem]);
+
   if (!isOpen) return null;
 
   return (
@@ -481,9 +489,9 @@ export const AnkiStudyModal: React.FC<AnkiStudyModalProps> = ({
           ) : (
             /* ================= CASE 2: Active Flashcard ================= */
             <div className="w-full flex flex-col items-center select-none">
-              {/* 3D Flippable Flashcard Container */}
+              {/* 3D Flippable Flashcard Container: 2:3 Aspect Ratio identically matching AnkiEditorModal */}
               <div
-                className="relative w-full max-w-[320px] sm:max-w-[330px] h-[460px] sm:h-[480px]"
+                className="relative w-auto h-[48vh] sm:h-[54vh] max-h-[500px] aspect-[2/3] mx-auto"
                 style={{ perspective: 1000 }}
               >
                 <div
@@ -507,7 +515,7 @@ export const AnkiStudyModal: React.FC<AnkiStudyModalProps> = ({
                   title={
                     isAnswerShown
                       ? isFlipped
-                        ? 'Ön yüze dönmek için tıklayın'
+                        ? undefined
                         : 'Detaylı künyeyi okumak için karta tıklayıp çevirin'
                       : undefined
                   }
@@ -560,20 +568,76 @@ export const AnkiStudyModal: React.FC<AnkiStudyModalProps> = ({
                       )}
                     </div>
 
+                    {/* Front Top-Left: Release Year badge (Only shown in Phase 2 when answer is revealed) */}
+                    {isAnswerShown && formattedYear && (
+                      <div className="absolute top-3 left-3 z-10 animate-in fade-in slide-in-from-top-1 duration-200">
+                        <span className="inline-flex items-center px-2.5 py-1 rounded-lg bg-black/75 backdrop-blur-md border border-white/25 text-xs font-mono font-bold text-slate-100 shadow-xl">
+                          {formattedYear}
+                        </span>
+                      </div>
+                    )}
+
                     {/* Front Bottom: Title & Details (Only shown in Phase 2 when answer is revealed) */}
                     {isAnswerShown && (
-                      <div className="relative z-10 mt-auto p-3.5 flex flex-col items-center text-center bg-gradient-to-t from-black/90 via-black/50 to-transparent pt-8 pb-3">
-                        <div className="animate-in fade-in slide-in-from-bottom-2 duration-200 w-full">
-                          <h3
-                            className="text-lg sm:text-xl font-extrabold text-white leading-tight drop-shadow-md mb-1 line-clamp-2"
-                            style={{ color: baseColor }}
-                          >
+                      <div className="relative z-10 mt-auto p-3.5 flex flex-col items-center text-center bg-gradient-to-t from-black/95 via-black/60 to-transparent pt-8 pb-3">
+                        <div className="animate-in fade-in slide-in-from-bottom-2 duration-200 w-full flex flex-col items-center">
+                          <h3 className="text-lg sm:text-xl font-extrabold text-white leading-tight drop-shadow-md line-clamp-2">
                             {currentItem.title}
                           </h3>
-                          {formattedYear && (
-                            <span className="inline-block px-2 py-0.5 rounded bg-white/10 text-[11px] font-mono text-slate-300">
-                              {formattedYear}
-                            </span>
+
+                          {/* Front Badges (Kullanıcı Seçimi veya Otomatik Akıl) */}
+                          {frontBadges.length > 0 && (
+                            <div className="flex items-center justify-center flex-wrap gap-1.5 mt-2 animate-in fade-in slide-in-from-bottom-1 duration-200">
+                              {frontBadges.map((badge, idx) => {
+                                let iconNode = (
+                                  <Building2 className="w-3 h-3 text-purple-400 shrink-0" />
+                                );
+                                let roleLabel = 'Firma / Stüdyo';
+
+                                if (badge.role === 'author') {
+                                  iconNode = (
+                                    <PenTool className="w-3 h-3 text-amber-400 shrink-0" />
+                                  );
+                                  roleLabel = 'Yazar';
+                                } else if (badge.role === 'translator') {
+                                  iconNode = (
+                                    <Globe className="w-3 h-3 text-sky-400 shrink-0" />
+                                  );
+                                  roleLabel = 'Çevirmen';
+                                } else if (badge.role === 'publisher') {
+                                  roleLabel = 'Yayınevi';
+                                } else if (badge.role === 'director') {
+                                  iconNode = (
+                                    <Clapperboard className="w-3 h-3 text-amber-400 shrink-0" />
+                                  );
+                                  roleLabel = 'Yönetmen';
+                                } else if (badge.role === 'actors') {
+                                  iconNode = (
+                                    <Users className="w-3 h-3 text-sky-400 shrink-0" />
+                                  );
+                                  roleLabel = 'Oyuncular / Seslendirme';
+                                } else if (badge.role === 'developer') {
+                                  roleLabel = 'Geliştirici / Stüdyo';
+                                }
+
+                                return (
+                                  <React.Fragment key={idx}>
+                                    {idx > 0 && (
+                                      <span className="text-white/40 text-xs font-bold select-none">
+                                        •
+                                      </span>
+                                    )}
+                                    <span
+                                      title={roleLabel}
+                                      className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-black/75 backdrop-blur-md border border-white/20 text-xs font-medium text-slate-200 shadow-md"
+                                    >
+                                      {iconNode}
+                                      <span>{badge.text}</span>
+                                    </span>
+                                  </React.Fragment>
+                                );
+                              })}
+                            </div>
                           )}
                         </div>
                       </div>
@@ -707,13 +771,6 @@ export const AnkiStudyModal: React.FC<AnkiStudyModalProps> = ({
                           </div>
                         </div>
                       )}
-                    </div>
-
-                    {/* Back Bottom Hint */}
-                    <div className="pt-2 border-t border-white/10 text-center">
-                      <span className="text-[10px] text-blue-400 font-medium">
-                        ↻ Ön yüze dönmek için tıklayın
-                      </span>
                     </div>
                   </div>
                 </div>

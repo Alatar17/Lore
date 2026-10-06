@@ -563,6 +563,12 @@ export function safeLocalStorageGet(key: string): string | null {
   }
 }
 
+export function safeLocalStorageRemove(key: string): void {
+  try {
+    localStorage.removeItem(key);
+  } catch {}
+}
+
 export function loadDataFromLocalStorage(): AppData {
   try {
     const raw = safeLocalStorageGet(LOCAL_STORAGE_KEY) || safeLocalStorageGet('yapim_arsivim_app_data_v3');

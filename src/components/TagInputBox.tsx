@@ -14,6 +14,11 @@ interface TagInputBoxProps {
   highlightRemovedTags?: string[];
   onRestoreRemovedTag?: (tag: string) => void;
   hideCount?: boolean;
+  // Anki Front Tags Selection Mode
+  isAnkiMode?: boolean;
+  isEligibleForAnki?: boolean;
+  selectedAnkiTags?: string[];
+  onToggleAnkiTag?: (tag: string) => void;
 }
 
 export const TagInputBox: React.FC<TagInputBoxProps> = ({
@@ -29,6 +34,10 @@ export const TagInputBox: React.FC<TagInputBoxProps> = ({
   highlightRemovedTags = [],
   onRestoreRemovedTag,
   hideCount = false,
+  isAnkiMode = false,
+  isEligibleForAnki = false,
+  selectedAnkiTags = [],
+  onToggleAnkiTag,
 }) => {
   const [inputValue, setInputValue] = useState('');
   const [isOpen, setIsOpen] = useState(false);
@@ -119,7 +128,7 @@ export const TagInputBox: React.FC<TagInputBoxProps> = ({
         <div className="flex items-center gap-2">
           {tags.length > 0 && !hideCount && (
             <span className="text-[10px] text-slate-400 font-medium">
-              {tags.length} seçili
+              {isAnkiMode && isEligibleForAnki ? `${tags.length} mevcut` : `${tags.length} seçili`}
             </span>
           )}
           {rightElement}
@@ -129,107 +138,168 @@ export const TagInputBox: React.FC<TagInputBoxProps> = ({
       {/* Box container with pills and input */}
       <div
         onClick={() => {
-          inputRef.current?.focus();
-          setIsOpen(true);
+          if (!isAnkiMode || !isEligibleForAnki) {
+            inputRef.current?.focus();
+            setIsOpen(true);
+          }
         }}
-        className={`min-h-[38px] p-1.5 bg-black/35 border rounded-xl flex flex-wrap items-center gap-1.5 cursor-text transition-all ${
-          isOpen
-            ? 'border-blue-500/70 ring-1 ring-blue-500/30'
-            : 'border-white/10 hover:border-white/20'
+        className={`min-h-[38px] p-1.5 border rounded-xl flex flex-wrap items-center gap-1.5 transition-all ${
+          isAnkiMode && isEligibleForAnki
+            ? 'bg-emerald-950/20 border-emerald-500/35 ring-1 ring-emerald-500/20'
+            : isOpen
+            ? 'bg-black/35 border-blue-500/70 ring-1 ring-blue-500/30 cursor-text'
+            : 'bg-black/35 border-white/10 hover:border-white/20 cursor-text'
         }`}
       >
-        {/* Rendered Selected Tag Chips */}
-        {tags.map((tag, idx) => {
-          const isNewAi = highlightNewTags.some(
-            (t) => t.trim().toLowerCase() === tag.trim().toLowerCase()
-          );
-          return (
-            <span
-              key={idx}
-              className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium group transition-all ${
-                isNewAi
-                  ? 'bg-emerald-500/20 border border-emerald-500/60 text-emerald-300 ring-1 ring-emerald-500/30 shadow-xs shadow-emerald-500/20'
-                  : 'bg-blue-500/15 border border-blue-500/30 text-blue-300'
-              }`}
-            >
-              {isNewAi && <Sparkles className="w-2.5 h-2.5 text-emerald-400 shrink-0" />}
-              <span>{tag}</span>
+        {isAnkiMode && isEligibleForAnki ? (
+          /* Anki Tag Selection Mode: Chips are clickable toggle buttons, no delete buttons, no text inputs */
+          <>
+            {tags.length === 0 ? (
+              <span className="text-[11px] text-slate-500 italic px-2 py-0.5 select-none">
+                (Seçilebilir etiket yok)
+              </span>
+            ) : (
+              tags.map((tag, idx) => {
+                const ankiIndex = selectedAnkiTags
+                  ? selectedAnkiTags.findIndex(
+                      (t) => t.trim().toLowerCase() === tag.trim().toLowerCase()
+                    )
+                  : -1;
+                const isSelected = ankiIndex !== -1;
+                const isMaxReached =
+                  !isSelected && (selectedAnkiTags?.length ?? 0) >= 2;
+
+                return (
+                  <button
+                    key={idx}
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onToggleAnkiTag?.(tag);
+                    }}
+                    className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold transition-all select-none cursor-pointer ${
+                      isSelected
+                        ? 'bg-emerald-500/25 border border-emerald-400 text-emerald-200 ring-2 ring-emerald-400/50 shadow-md shadow-emerald-500/30 hover:bg-emerald-500/35 scale-[1.02]'
+                        : isMaxReached
+                        ? 'bg-white/5 border border-white/5 text-slate-500 opacity-60 hover:opacity-80'
+                        : 'bg-white/5 border border-white/10 text-slate-300 hover:border-emerald-500/50 hover:bg-emerald-500/10 hover:text-emerald-200'
+                    }`}
+                    title={
+                      isSelected
+                        ? `Seçimi kaldır (${ankiIndex === 0 ? '1. Rozet' : '2. Rozet'})`
+                        : isMaxReached
+                        ? 'En fazla 2 etiket seçilebilir (önce birini kaldırın)'
+                        : 'Anki ön yüz etiketi olarak seç'
+                    }
+                  >
+                    {isSelected && (
+                      <span className="w-5 h-5 rounded-full bg-emerald-300 text-slate-950 font-black text-xs flex items-center justify-center shrink-0 shadow-sm ring-1 ring-emerald-200 select-none leading-none">
+                        {ankiIndex === 0 ? '1' : '2'}
+                      </span>
+                    )}
+                    <span>{tag}</span>
+                  </button>
+                );
+              })
+            )}
+          </>
+        ) : (
+          /* Standard Tag Management Mode */
+          <>
+            {/* Rendered Selected Tag Chips */}
+            {tags.map((tag, idx) => {
+              const isNewAi = highlightNewTags.some(
+                (t) => t.trim().toLowerCase() === tag.trim().toLowerCase()
+              );
+              return (
+                <span
+                  key={idx}
+                  className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium group transition-all ${
+                    isNewAi
+                      ? 'bg-emerald-500/20 border border-emerald-500/60 text-emerald-300 ring-1 ring-emerald-500/30 shadow-xs shadow-emerald-500/20'
+                      : 'bg-blue-500/15 border border-blue-500/30 text-blue-300'
+                  }`}
+                >
+                  {isNewAi && <Sparkles className="w-2.5 h-2.5 text-emerald-400 shrink-0" />}
+                  <span>{tag}</span>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      removeTag(idx);
+                    }}
+                    className={`p-0.5 rounded-full transition-colors cursor-pointer ${
+                      isNewAi
+                        ? 'text-emerald-400/80 hover:text-white hover:bg-emerald-500/30'
+                        : 'text-blue-400/70 hover:text-white hover:bg-blue-500/30'
+                    }`}
+                    title="Etiketi kaldır"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </span>
+              );
+            })}
+
+            {/* Removed tags that AI omitted (dashed red chip, click to restore) */}
+            {highlightRemovedTags.map((tag, idx) => (
+              <button
+                key={`removed-${idx}`}
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onRestoreRemovedTag?.(tag);
+                }}
+                className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-rose-500/15 border border-dashed border-rose-500/50 text-rose-300/85 text-xs font-medium line-through hover:no-underline hover:text-rose-100 hover:bg-rose-500/30 hover:border-rose-400 transition-all cursor-pointer group"
+                title={`"${tag}" AI önerisinde yer almıyor. Korumak / geri eklemek için tıklayın`}
+              >
+                <span>{tag}</span>
+                <RotateCcw className="w-2.5 h-2.5 text-rose-400 group-hover:text-rose-200 shrink-0 ml-0.5" />
+              </button>
+            ))}
+
+            {/* Inline Input Field */}
+            <div className="flex-1 min-w-[120px] flex items-center">
+              <input
+                ref={inputRef}
+                type="text"
+                value={inputValue}
+                onChange={(e) => {
+                  setInputValue(e.target.value);
+                  setIsOpen(true);
+                }}
+                onFocus={() => setIsOpen(true)}
+                onKeyDown={handleKeyDown}
+                placeholder={tags.length === 0 ? placeholder : 'Yeni ekle veya seç...'}
+                className="w-full bg-transparent text-slate-100 text-xs focus:outline-none placeholder-slate-500 py-1 px-1"
+              />
+            </div>
+
+            {/* Dropdown Indicator Button */}
+            {availableTags.length > 0 && (
               <button
                 type="button"
                 onClick={(e) => {
                   e.stopPropagation();
-                  removeTag(idx);
+                  setIsOpen((prev) => !prev);
+                  inputRef.current?.focus();
                 }}
-                className={`p-0.5 rounded-full transition-colors cursor-pointer ${
-                  isNewAi
-                    ? 'text-emerald-400/80 hover:text-white hover:bg-emerald-500/30'
-                    : 'text-blue-400/70 hover:text-white hover:bg-blue-500/30'
-                }`}
-                title="Etiketi kaldır"
+                className="p-1 rounded-md text-slate-400 hover:text-slate-200 hover:bg-white/5 transition-colors cursor-pointer shrink-0"
+                title="Tüm etiketleri göster"
               >
-                <X className="w-3 h-3" />
+                <ChevronDown
+                  className={`w-3.5 h-3.5 transition-transform duration-150 ${
+                    isOpen ? 'rotate-180 text-blue-400' : ''
+                  }`}
+                />
               </button>
-            </span>
-          );
-        })}
-
-        {/* Removed tags that AI omitted (dashed red chip, click to restore) */}
-        {highlightRemovedTags.map((tag, idx) => (
-          <button
-            key={`removed-${idx}`}
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              onRestoreRemovedTag?.(tag);
-            }}
-            className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-rose-500/15 border border-dashed border-rose-500/50 text-rose-300/85 text-xs font-medium line-through hover:no-underline hover:text-rose-100 hover:bg-rose-500/30 hover:border-rose-400 transition-all cursor-pointer group"
-            title={`"${tag}" AI önerisinde yer almıyor. Korumak / geri eklemek için tıklayın`}
-          >
-            <span>{tag}</span>
-            <RotateCcw className="w-2.5 h-2.5 text-rose-400 group-hover:text-rose-200 shrink-0 ml-0.5" />
-          </button>
-        ))}
-
-        {/* Inline Input Field */}
-        <div className="flex-1 min-w-[120px] flex items-center">
-          <input
-            ref={inputRef}
-            type="text"
-            value={inputValue}
-            onChange={(e) => {
-              setInputValue(e.target.value);
-              setIsOpen(true);
-            }}
-            onFocus={() => setIsOpen(true)}
-            onKeyDown={handleKeyDown}
-            placeholder={tags.length === 0 ? placeholder : 'Yeni ekle veya seç...'}
-            className="w-full bg-transparent text-slate-100 text-xs focus:outline-none placeholder-slate-500 py-1 px-1"
-          />
-        </div>
-
-        {/* Dropdown Indicator Button */}
-        {availableTags.length > 0 && (
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              setIsOpen((prev) => !prev);
-              inputRef.current?.focus();
-            }}
-            className="p-1 rounded-md text-slate-400 hover:text-slate-200 hover:bg-white/5 transition-colors cursor-pointer shrink-0"
-            title="Tüm etiketleri göster"
-          >
-            <ChevronDown
-              className={`w-3.5 h-3.5 transition-transform duration-150 ${
-                isOpen ? 'rotate-180 text-blue-400' : ''
-              }`}
-            />
-          </button>
+            )}
+          </>
         )}
       </div>
 
       {/* Autocomplete / Eagle Style Tag Chips (Oval Pills Side-by-Side) */}
-      {isOpen && (filteredSuggestions.length > 0 || canCreateNew) && (
+      {(!isAnkiMode || !isEligibleForAnki) && isOpen && (filteredSuggestions.length > 0 || canCreateNew) && (
         <div
           ref={dropdownRef}
           className="absolute left-0 right-0 top-full mt-1.5 z-50 bg-[#151822]/98 backdrop-blur-xl border border-white/20 rounded-xl shadow-2xl overflow-hidden p-2.5 max-h-56 overflow-y-auto custom-scrollbar animate-in fade-in zoom-in-95 duration-100"
