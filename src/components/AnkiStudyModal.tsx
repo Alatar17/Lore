@@ -491,7 +491,7 @@ export const AnkiStudyModal: React.FC<AnkiStudyModalProps> = ({
             <div className="w-full flex flex-col items-center select-none">
               {/* 3D Flippable Flashcard Container: 2:3 Aspect Ratio identically matching AnkiEditorModal */}
               <div
-                className="relative w-auto h-[53vh] sm:h-[54vh] max-h-[520px] aspect-[2/3] mx-auto"
+                className="relative w-auto h-[57vh] sm:h-[54vh] max-h-[550px] sm:max-h-[520px] aspect-[2/3] mx-auto"
                 style={{ perspective: 1000 }}
               >
                 <div
@@ -781,12 +781,12 @@ export const AnkiStudyModal: React.FC<AnkiStudyModalProps> = ({
 
         {/* Bottom Control & Rating Bar (Anki Style - Rock-solid static height) */}
         {queue.length > 0 && (
-          <div className="px-3 sm:px-4 py-2.5 bg-neutral-950/95 border-t border-white/10 flex flex-col items-center justify-center shrink-0 h-[88px] sm:h-[92px]">
+          <div className="px-0 sm:px-4 py-0 sm:py-2.5 bg-neutral-950/95 border-t border-white/10 flex flex-col items-center justify-center shrink-0 h-[68px] sm:h-[92px] overflow-hidden">
             {!isAnswerShown ? (
               /* Phase 1: Anki-style "Cevabı Göster" (Show Answer) + Counters */
-              <div className="flex flex-col items-center justify-center w-full animate-in fade-in duration-150">
+              <div className="flex flex-col items-center justify-between sm:justify-center w-full h-full pt-1.5 sm:pt-0 animate-in fade-in duration-150">
                 {/* 0 + 3 + 49 Anki Counts Indicator: Only visible in Phase 1 before answer is revealed */}
-                <div className="flex items-center gap-1.5 text-xs font-mono font-semibold mb-2 select-none">
+                <div className="flex items-center gap-1.5 text-xs font-mono font-semibold mb-1 sm:mb-2 select-none">
                   <span className="text-blue-400" title="Yeni">
                     {deckCounts.newCount}
                   </span>
@@ -806,26 +806,30 @@ export const AnkiStudyModal: React.FC<AnkiStudyModalProps> = ({
                 <button
                   type="button"
                   onClick={() => setIsAnswerShown(true)}
-                  className="w-full sm:w-auto px-8 py-2.5 sm:py-2 rounded-xl bg-neutral-800/95 hover:bg-neutral-700 text-white font-semibold text-xs border border-white/15 shadow-md flex items-center justify-center gap-2 transition-all cursor-pointer active:scale-95 hover:border-white/30"
+                  className="w-full sm:w-auto h-11 sm:h-auto px-8 py-0 sm:py-2 rounded-none sm:rounded-xl bg-neutral-800 hover:bg-neutral-700 active:bg-neutral-600 text-white font-bold text-xs border-t sm:border border-white/15 shadow-md flex items-center justify-center gap-2 transition-all cursor-pointer select-none"
                 >
                   <Eye className="w-3.5 h-3.5 text-slate-300" />
                   <span>Cevabı Göster</span>
                 </button>
               </div>
             ) : (
-              /* Phase 2: Anki-style 4 Rating Buttons - 2 satırlı (Üstte Süre, Altta İsim) & PC Renk Paleti */
-              <div className="w-full grid grid-cols-4 gap-1.5 sm:gap-2 animate-in fade-in duration-150">
+              /* Phase 2: Anki-style 4 Rating Buttons - Mobilde Kenardan Kenara Orijinal Bloklar, PC'de Şık Kartlar */
+              <div className="w-full h-full grid grid-cols-4 gap-0 sm:gap-2 animate-in fade-in duration-150">
                 {repeatOptions.map((opt) => {
-                  let styleClasses = 'text-slate-200 bg-neutral-800 border-white/10 hover:bg-neutral-700';
+                  let styleClasses = 'text-white bg-neutral-800 sm:text-slate-200 sm:bg-neutral-800 sm:border-white/10 sm:hover:bg-neutral-700';
 
                   if (opt.rating === Rating.Again) {
-                    styleClasses = 'text-red-400 bg-red-500/15 border-red-500/35 hover:bg-red-500/25 active:bg-red-500/30';
+                    // Kırmızı Blok
+                    styleClasses = 'bg-[#c62828] text-white hover:bg-[#b71c1c] active:bg-[#d32f2f] sm:bg-red-500/15 sm:text-red-400 sm:border-red-500/35 sm:hover:bg-red-500/25 sm:active:bg-red-500/30';
                   } else if (opt.rating === Rating.Hard) {
-                    styleClasses = 'text-amber-400 bg-amber-500/15 border-amber-500/35 hover:bg-amber-500/25 active:bg-amber-500/30';
+                    // Koyu Füme/Gri Blok
+                    styleClasses = 'bg-[#37474f] text-white hover:bg-[#263238] active:bg-[#455a64] sm:bg-amber-500/15 sm:text-amber-400 sm:border-amber-500/35 sm:hover:bg-amber-500/25 sm:active:bg-amber-500/30';
                   } else if (opt.rating === Rating.Good) {
-                    styleClasses = 'text-emerald-400 bg-emerald-500/15 border-emerald-500/35 hover:bg-emerald-500/25 active:bg-emerald-500/30';
+                    // Canlı Yeşil Blok
+                    styleClasses = 'bg-[#2e7d32] text-white hover:bg-[#1b5e20] active:bg-[#388e3c] sm:bg-emerald-500/15 sm:text-emerald-400 sm:border-emerald-500/35 sm:hover:bg-emerald-500/25 sm:active:bg-emerald-500/30';
                   } else if (opt.rating === Rating.Easy) {
-                    styleClasses = 'text-blue-400 bg-blue-500/15 border-blue-500/35 hover:bg-blue-500/25 active:bg-blue-500/30';
+                    // Canlı Mavi Blok
+                    styleClasses = 'bg-[#0288d1] text-white hover:bg-[#01579b] active:bg-[#039be5] sm:bg-blue-500/15 sm:text-blue-400 sm:border-blue-500/35 sm:hover:bg-blue-500/25 sm:active:bg-blue-500/30';
                   }
 
                   return (
@@ -833,10 +837,10 @@ export const AnkiStudyModal: React.FC<AnkiStudyModalProps> = ({
                       key={opt.rating}
                       type="button"
                       onClick={() => handleRate(opt)}
-                      className={`w-full py-2 sm:py-2.5 px-1 rounded-xl transition-all cursor-pointer active:scale-95 shadow-sm border flex flex-col items-center justify-center gap-1 select-none ${styleClasses}`}
+                      className={`w-full h-full sm:h-auto py-1 sm:py-2.5 px-0.5 sm:px-1 rounded-none sm:rounded-xl transition-all cursor-pointer active:scale-98 sm:active:scale-95 shadow-none sm:shadow-sm border-0 sm:border flex flex-col items-center justify-center gap-0.5 sm:gap-1 select-none ${styleClasses}`}
                     >
                       {/* Süre (Üstte: <1dk, <6dk, vb.) */}
-                      <span className="text-[10px] sm:text-[11px] font-mono font-medium opacity-90 leading-none">
+                      <span className="text-[11px] sm:text-[11px] font-mono font-medium opacity-95 sm:opacity-90 leading-none">
                         {opt.intervalText}
                       </span>
                       {/* Buton Adı (Altta: Yeniden, Zor, İyi, Kolay) */}

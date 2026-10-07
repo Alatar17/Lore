@@ -1041,10 +1041,9 @@ export const AiAssistantModal: React.FC<AiAssistantModalProps> = ({
                     <h2 className="text-sm sm:text-base font-bold text-white tracking-wide whitespace-nowrap">
                       Lore AI Asistan
                     </h2>
-                    {/* Desktop: yan yana ve yeşil noktalı tam rozet */}
-                    <span className="hidden sm:inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-[10px] font-medium text-emerald-300 shrink-0">
-                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                      {safeItemsCount} yapım hafızada
+                    {/* Desktop: yan yana kutu içinde sadece '108 yapım' */}
+                    <span className="hidden sm:inline-flex items-center px-2 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-[10px] font-medium text-emerald-300 shrink-0">
+                      {safeItemsCount} yapım
                     </span>
                   </div>
                   {/* Mobil: başlığın hemen altında noktasız, sade alt bilgi */}
