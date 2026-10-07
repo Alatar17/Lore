@@ -260,7 +260,7 @@ export const AnkiHubModal: React.FC<AnkiHubModalProps> = ({
         {/* Top Header */}
         <div className="flex items-center justify-between px-4 sm:px-5 py-3.5 border-b border-white/10 bg-white/[0.02]">
           <div className="flex items-center gap-2.5 min-w-0">
-            <div className="w-8 h-8 rounded-xl bg-white/10 border border-white/15 flex items-center justify-center text-slate-200 shrink-0">
+            <div className="hidden sm:flex w-8 h-8 rounded-xl bg-white/10 border border-white/15 items-center justify-center text-slate-200 shrink-0">
               <Layers className="w-4 h-4" />
             </div>
             <div className="min-w-0">
@@ -409,15 +409,15 @@ export const AnkiHubModal: React.FC<AnkiHubModalProps> = ({
               <div className="border border-white/10 rounded-xl overflow-hidden bg-black/20">
                 {/* Table Header */}
                 <div className="flex items-center px-3 sm:px-4 py-2 bg-white/5 border-b border-white/10 text-[11px] font-bold uppercase tracking-wider text-slate-400 select-none">
-                  <div className="flex-1 min-w-0 pr-2 flex items-center gap-1.5">
+                  <div className="flex-1 min-w-0 pr-1 sm:pr-2 flex items-center gap-1.5">
                     <span>Deste</span>
                     <span className="text-[10px] text-slate-500 font-mono font-normal">
                       ({ankiItems.length})
                     </span>
                   </div>
-                  <div className="w-14 sm:w-16 shrink-0 text-center text-blue-400" title="Yeni: Henüz çalışılmamış kartlar">Yeni</div>
-                  <div className="w-20 sm:w-22 shrink-0 text-center text-rose-400" title="Öğreniliyor: Öğrenme adımında olan kartlar">Öğreniliyor</div>
-                  <div className="w-14 sm:w-16 shrink-0 text-center text-emerald-400" title="Tekrar: Gün sonu kuralı dahilinde vadesi gelen kartlar">Tekrar</div>
+                  <div className="w-10 sm:w-16 shrink-0 text-center text-blue-400" title="Yeni: Henüz çalışılmamış kartlar">Yeni</div>
+                  <div className="w-14 sm:w-22 shrink-0 text-center text-rose-400" title="Öğreniliyor: Öğrenme adımında olan kartlar">Öğreniliyor</div>
+                  <div className="w-10 sm:w-16 shrink-0 text-center text-emerald-400" title="Tekrar: Gün sonu kuralı dahilinde vadesi gelen kartlar">Tekrar</div>
                 </div>
 
                 {/* Table Rows (Hierarchical Tree) */}
@@ -435,7 +435,7 @@ export const AnkiHubModal: React.FC<AnkiHubModalProps> = ({
                             if (hasChildren) toggleNodeCollapse(mainNode.id);
                           }}
                         >
-                          <div className="flex-1 min-w-0 pr-2 flex items-center gap-2">
+                          <div className="flex-1 min-w-0 pr-1 sm:pr-2 flex items-center gap-1.5 sm:gap-2">
                             {hasChildren ? (
                               <button
                                 type="button"
@@ -450,7 +450,7 @@ export const AnkiHubModal: React.FC<AnkiHubModalProps> = ({
                             ) : (
                               <span className="w-4 inline-block shrink-0" />
                             )}
-                            <span className="font-bold text-slate-200 tracking-wide truncate">
+                            <span className="font-bold text-slate-200 tracking-wide truncate shrink-0 max-w-[110px] sm:max-w-none">
                               {mainNode.name}
                             </span>
                             <span className="text-[10px] text-slate-500 font-mono shrink-0">
@@ -472,7 +472,7 @@ export const AnkiHubModal: React.FC<AnkiHubModalProps> = ({
                                   }
                                 }}
                                 title={`"${mainNode.name}" destesini çalış`}
-                                className="ml-1 px-1.5 py-0.5 rounded bg-emerald-500/20 hover:bg-emerald-500/35 text-emerald-300 text-[10px] font-semibold flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer shrink-0"
+                                className="ml-1 px-1.5 py-0.5 rounded bg-emerald-500/20 hover:bg-emerald-500/35 text-emerald-300 text-[10px] font-semibold flex items-center gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity cursor-pointer shrink-0"
                               >
                                 <Play className="w-2.5 h-2.5 fill-emerald-300" />
                                 <span>Çalış</span>
@@ -482,7 +482,7 @@ export const AnkiHubModal: React.FC<AnkiHubModalProps> = ({
 
                           {/* Counters: New (Blue), Learning (Red), Review (Green) */}
                           <div
-                            className={`w-14 sm:w-16 shrink-0 text-center font-mono font-semibold ${
+                            className={`w-10 sm:w-16 shrink-0 text-center font-mono font-semibold ${
                               mainNode.counts.newCount > 0
                                 ? 'text-blue-400'
                                 : 'text-neutral-600'
@@ -491,7 +491,7 @@ export const AnkiHubModal: React.FC<AnkiHubModalProps> = ({
                             {mainNode.counts.newCount}
                           </div>
                           <div
-                            className={`w-20 sm:w-22 shrink-0 text-center font-mono font-semibold ${
+                            className={`w-14 sm:w-22 shrink-0 text-center font-mono font-semibold ${
                               mainNode.counts.learningCount > 0
                                 ? 'text-rose-400'
                                 : 'text-neutral-600'
@@ -500,7 +500,7 @@ export const AnkiHubModal: React.FC<AnkiHubModalProps> = ({
                             {mainNode.counts.learningCount}
                           </div>
                           <div
-                            className={`w-14 sm:w-16 shrink-0 text-center font-mono font-semibold ${
+                            className={`w-10 sm:w-16 shrink-0 text-center font-mono font-semibold ${
                               mainNode.counts.reviewCount > 0
                                 ? 'text-emerald-400'
                                 : 'text-neutral-600'
@@ -526,7 +526,7 @@ export const AnkiHubModal: React.FC<AnkiHubModalProps> = ({
                                     if (hasSubChildren) toggleNodeCollapse(catNode.id);
                                   }}
                                 >
-                                  <div className="flex-1 min-w-0 pr-2 flex items-center gap-2 pl-6 sm:pl-7">
+                                  <div className="flex-1 min-w-0 pr-1 sm:pr-2 flex items-center gap-1.5 sm:gap-2 pl-5 sm:pl-7">
                                     {hasSubChildren ? (
                                       <button
                                         type="button"
@@ -563,7 +563,7 @@ export const AnkiHubModal: React.FC<AnkiHubModalProps> = ({
                                           }
                                         }}
                                         title={`"${catNode.name}" destesini çalış`}
-                                        className="ml-1 px-1.5 py-0.5 rounded bg-emerald-500/20 hover:bg-emerald-500/35 text-emerald-300 text-[10px] font-semibold flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer shrink-0"
+                                        className="ml-1 px-1.5 py-0.5 rounded bg-emerald-500/20 hover:bg-emerald-500/35 text-emerald-300 text-[10px] font-semibold flex items-center gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity cursor-pointer shrink-0"
                                       >
                                         <Play className="w-2 h-2 fill-emerald-300" />
                                         <span>Çalış</span>
@@ -572,7 +572,7 @@ export const AnkiHubModal: React.FC<AnkiHubModalProps> = ({
                                   </div>
 
                                   <div
-                                    className={`w-14 sm:w-16 shrink-0 text-center font-mono text-xs ${
+                                    className={`w-10 sm:w-16 shrink-0 text-center font-mono text-xs ${
                                       catNode.counts.newCount > 0
                                         ? 'text-blue-400 font-semibold'
                                         : 'text-neutral-600'
@@ -581,7 +581,7 @@ export const AnkiHubModal: React.FC<AnkiHubModalProps> = ({
                                     {catNode.counts.newCount}
                                   </div>
                                   <div
-                                    className={`w-20 sm:w-22 shrink-0 text-center font-mono text-xs ${
+                                    className={`w-14 sm:w-22 shrink-0 text-center font-mono text-xs ${
                                       catNode.counts.learningCount > 0
                                         ? 'text-rose-400 font-semibold'
                                         : 'text-neutral-600'
@@ -590,7 +590,7 @@ export const AnkiHubModal: React.FC<AnkiHubModalProps> = ({
                                     {catNode.counts.learningCount}
                                   </div>
                                   <div
-                                    className={`w-14 sm:w-16 shrink-0 text-center font-mono text-xs ${
+                                    className={`w-10 sm:w-16 shrink-0 text-center font-mono text-xs ${
                                       catNode.counts.reviewCount > 0
                                         ? 'text-emerald-400 font-semibold'
                                         : 'text-neutral-600'
@@ -607,7 +607,7 @@ export const AnkiHubModal: React.FC<AnkiHubModalProps> = ({
                                       key={subNode.id}
                                       className="flex items-center px-3 sm:px-4 py-1.5 bg-white/[0.015] hover:bg-white/[0.05] transition-colors text-[11px]"
                                     >
-                                      <div className="flex-1 min-w-0 pr-2 flex items-center gap-2 pl-12 sm:pl-14 text-slate-400">
+                                      <div className="flex-1 min-w-0 pr-1 sm:pr-2 flex items-center gap-1.5 sm:gap-2 pl-10 sm:pl-14 text-slate-400">
                                         <span className="w-2 h-[1px] bg-slate-600 shrink-0" />
                                         <span className="min-w-0 truncate">{subNode.name}</span>
                                         <span className="text-[10px] text-slate-500 font-mono shrink-0">
@@ -632,7 +632,7 @@ export const AnkiHubModal: React.FC<AnkiHubModalProps> = ({
                                               }
                                             }}
                                             title={`"${subNode.name}" alt grubunu çalış`}
-                                            className="ml-1 px-1.5 py-0.5 rounded bg-emerald-500/20 hover:bg-emerald-500/35 text-emerald-300 text-[10px] font-semibold flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer shrink-0"
+                                            className="ml-1 px-1.5 py-0.5 rounded bg-emerald-500/20 hover:bg-emerald-500/35 text-emerald-300 text-[10px] font-semibold flex items-center gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity cursor-pointer shrink-0"
                                           >
                                             <Play className="w-2 h-2 fill-emerald-300" />
                                             <span>Çalış</span>
@@ -641,7 +641,7 @@ export const AnkiHubModal: React.FC<AnkiHubModalProps> = ({
                                       </div>
 
                                       <div
-                                        className={`w-14 sm:w-16 shrink-0 text-center font-mono ${
+                                        className={`w-10 sm:w-16 shrink-0 text-center font-mono ${
                                           subNode.counts.newCount > 0
                                             ? 'text-blue-400 font-semibold'
                                             : 'text-neutral-600'
@@ -650,7 +650,7 @@ export const AnkiHubModal: React.FC<AnkiHubModalProps> = ({
                                         {subNode.counts.newCount}
                                       </div>
                                       <div
-                                        className={`w-20 sm:w-22 shrink-0 text-center font-mono ${
+                                        className={`w-14 sm:w-22 shrink-0 text-center font-mono ${
                                           subNode.counts.learningCount > 0
                                             ? 'text-rose-400 font-semibold'
                                             : 'text-neutral-600'
@@ -659,7 +659,7 @@ export const AnkiHubModal: React.FC<AnkiHubModalProps> = ({
                                         {subNode.counts.learningCount}
                                       </div>
                                       <div
-                                        className={`w-14 sm:w-16 shrink-0 text-center font-mono ${
+                                        className={`w-10 sm:w-16 shrink-0 text-center font-mono ${
                                           subNode.counts.reviewCount > 0
                                             ? 'text-emerald-400 font-semibold'
                                             : 'text-neutral-600'

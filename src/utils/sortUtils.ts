@@ -135,10 +135,10 @@ export function sortArchiveItems(items: ArchiveItem[], sortOption: SortOption = 
         const timeA = parseDateValue(a.date);
         const timeB = parseDateValue(b.date);
 
-        // If both are unknown ('??' or '??.??'), sort by fallback (updatedAt or createdAt or title)
+        // If both are unknown ('??' or '??.??'), sort stably by creation time (createdAt) then title
         if (timeA === null && timeB === null) {
-          const fallbackA = a.updatedAt || a.createdAt || 0;
-          const fallbackB = b.updatedAt || b.createdAt || 0;
+          const fallbackA = a.createdAt || 0;
+          const fallbackB = b.createdAt || 0;
           if (fallbackA !== fallbackB) return fallbackB - fallbackA;
           return a.title.localeCompare(b.title, 'tr', { sensitivity: 'base' });
         }
@@ -150,9 +150,9 @@ export function sortArchiveItems(items: ArchiveItem[], sortOption: SortOption = 
           return timeB - timeA; // Newest first
         }
 
-        // Secondary sort if dates are exact same
-        const fallbackA = a.updatedAt || a.createdAt || 0;
-        const fallbackB = b.updatedAt || b.createdAt || 0;
+        // Secondary sort if dates are exact same: use stable createdAt
+        const fallbackA = a.createdAt || 0;
+        const fallbackB = b.createdAt || 0;
         if (fallbackA !== fallbackB) return fallbackB - fallbackA;
         return a.title.localeCompare(b.title, 'tr', { sensitivity: 'base' });
       }
@@ -162,6 +162,9 @@ export function sortArchiveItems(items: ArchiveItem[], sortOption: SortOption = 
         const timeB = parseDateValue(b.date);
 
         if (timeA === null && timeB === null) {
+          const fallbackA = a.createdAt || 0;
+          const fallbackB = b.createdAt || 0;
+          if (fallbackA !== fallbackB) return fallbackA - fallbackB;
           return a.title.localeCompare(b.title, 'tr', { sensitivity: 'base' });
         }
         if (timeA === null) return 1;
@@ -170,6 +173,9 @@ export function sortArchiveItems(items: ArchiveItem[], sortOption: SortOption = 
         if (timeA !== timeB) {
           return timeA - timeB; // Oldest first
         }
+        const fallbackA = a.createdAt || 0;
+        const fallbackB = b.createdAt || 0;
+        if (fallbackA !== fallbackB) return fallbackA - fallbackB;
         return a.title.localeCompare(b.title, 'tr', { sensitivity: 'base' });
       }
 

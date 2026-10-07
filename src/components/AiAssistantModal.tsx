@@ -319,30 +319,27 @@ const AiRecommendationCardView: React.FC<{
           {/* Medya / Oyun Etiketleri (Firma, Yönetmen / Geliştirici) & Kütüphaneye Ekle Buton Satırı */}
           <div className="mt-2.5 pt-2 border-t border-white/5 flex items-center justify-between gap-2">
             <div className="min-w-0">
-              {/* Medya İse: Firma ve Yönetmen Alt Alta (Kutusuz, Temiz Metin) */}
-              {card.mainTab !== 'game' ? (
+              {/* Kitap İse: Yazar, Yayınevi ve Çevirmen */}
+              {card.mainTab === 'book' ? (
                 <div className="flex flex-col gap-1">
-                  {/* 1. Satır (Üstte): Firma Etiketi (Mavi / Sky) */}
-                  {card.firms && card.firms.length > 0 && (
+                  {card.authors && card.authors.length > 0 && (
                     <div className="flex items-center gap-1.5 text-[11px] leading-tight">
-                      <span className="text-slate-400 text-[10px] font-medium shrink-0">Firma:</span>
-                      <span className="text-sky-300 font-semibold text-[11px] truncate">
-                        {card.firms.join(', ')}
+                      <span className="text-slate-400 text-[10px] font-medium shrink-0">Yazar:</span>
+                      <span className="text-amber-300 font-semibold text-[11px] truncate">
+                        {card.authors.join(', ')}
                       </span>
                     </div>
                   )}
-
-                  {/* 2. Satır (Altta): Yönetmen Etiketi (Amber / Sarı) */}
-                  {card.directors && card.directors.length > 0 && (
+                  {card.publishers && card.publishers.length > 0 && (
                     <div className="flex items-center gap-1.5 text-[11px] leading-tight">
-                      <span className="text-slate-400 text-[10px] font-medium shrink-0">Yönetmen:</span>
-                      <span className="text-amber-300 font-semibold text-[11px] truncate">
-                        {card.directors.join(', ')}
+                      <span className="text-slate-400 text-[10px] font-medium shrink-0">Yayınevi:</span>
+                      <span className="text-purple-300 font-semibold text-[11px] truncate">
+                        {card.publishers.join(', ')}
                       </span>
                     </div>
                   )}
                 </div>
-              ) : (
+              ) : card.mainTab === 'game' ? (
                 /* Oyun İse: Geliştirici Etiketi (Tek Satır, Mavi / Sky, Kutusuz) */
                 <>
                   {card.developers && card.developers.length > 0 && (
@@ -354,10 +351,31 @@ const AiRecommendationCardView: React.FC<{
                     </div>
                   )}
                 </>
+              ) : (
+                /* Medya İse: Firma ve Yönetmen Alt Alta (Kutusuz, Temiz Metin) */
+                <div className="flex flex-col gap-1">
+                  {card.firms && card.firms.length > 0 && (
+                    <div className="flex items-center gap-1.5 text-[11px] leading-tight">
+                      <span className="text-slate-400 text-[10px] font-medium shrink-0">Firma:</span>
+                      <span className="text-sky-300 font-semibold text-[11px] truncate">
+                        {card.firms.join(', ')}
+                      </span>
+                    </div>
+                  )}
+
+                  {card.directors && card.directors.length > 0 && (
+                    <div className="flex items-center gap-1.5 text-[11px] leading-tight">
+                      <span className="text-slate-400 text-[10px] font-medium shrink-0">Yönetmen:</span>
+                      <span className="text-amber-300 font-semibold text-[11px] truncate">
+                        {card.directors.join(', ')}
+                      </span>
+                    </div>
+                  )}
+                </div>
               )}
 
-              {/* Ek Tür Etiketleri (Eğer firma, yönetmen ve geliştirici yoksa) */}
-              {(!card.firms?.length && !card.directors?.length && !card.developers?.length && card.genres && card.genres.length > 0) && (
+              {/* Ek Tür Etiketleri (Eğer firma, yönetmen, yazar ve geliştirici yoksa) */}
+              {(!card.firms?.length && !card.directors?.length && !card.developers?.length && !card.authors?.length && card.genres && card.genres.length > 0) && (
                 <div className="flex items-center gap-1.5 text-[11px] leading-tight">
                   <span className="text-slate-400 text-[10px] font-medium shrink-0">Tür:</span>
                   <span className="text-slate-300 font-medium text-[11px] truncate">
@@ -514,7 +532,8 @@ const formatMessageForClipboard = (msg: AiChatMessage): string => {
 
   const formattedCards = cards.map((card) => {
     const isGame = card.mainTab === 'game';
-    const icon = isGame ? '🎮' : '🎬';
+    const isBook = card.mainTab === 'book';
+    const icon = isBook ? '📚' : isGame ? '🎮' : '🎬';
     const yearStr = card.releaseYear ? ` (${card.releaseYear})` : '';
     const header = `${icon} ${card.title}${yearStr}`;
 
@@ -523,16 +542,26 @@ const formatMessageForClipboard = (msg: AiChatMessage): string => {
       metadataLines.push(`• Tür: ${card.genres.join(', ')}`);
     }
 
-    if (!isGame) {
+    if (isBook) {
+      if (card.authors && card.authors.length > 0) {
+        metadataLines.push(`• Yazar: ${card.authors.join(', ')}`);
+      }
+      if (card.publishers && card.publishers.length > 0) {
+        metadataLines.push(`• Yayınevi: ${card.publishers.join(', ')}`);
+      }
+      if (card.translators && card.translators.length > 0) {
+        metadataLines.push(`• Çevirmen: ${card.translators.join(', ')}`);
+      }
+    } else if (isGame) {
+      if (card.developers && card.developers.length > 0) {
+        metadataLines.push(`• Geliştirici: ${card.developers.join(', ')}`);
+      }
+    } else {
       if (card.directors && card.directors.length > 0) {
         metadataLines.push(`• Yönetmen: ${card.directors.join(', ')}`);
       }
       if (card.firms && card.firms.length > 0) {
         metadataLines.push(`• Yapımcı: ${card.firms.join(', ')}`);
-      }
-    } else {
-      if (card.developers && card.developers.length > 0) {
-        metadataLines.push(`• Geliştirici: ${card.developers.join(', ')}`);
       }
     }
 
@@ -1006,18 +1035,23 @@ export const AiAssistantModal: React.FC<AiAssistantModalProps> = ({
           <>
             {/* Header Bar */}
             <div className="flex items-center justify-between px-4 sm:px-6 py-3 sm:py-3.5 border-b border-white/10 bg-black/40 shrink-0">
-              <div className="flex items-center gap-2 sm:gap-2.5">
-                <div>
-                  <div className="flex items-center gap-2">
-                    <h2 className="text-sm sm:text-base font-bold text-white tracking-wide">
+              <div className="flex items-center gap-2 sm:gap-2.5 min-w-0">
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <h2 className="text-sm sm:text-base font-bold text-white tracking-wide whitespace-nowrap">
                       Lore AI Asistan
                     </h2>
-                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-[10px] font-medium text-emerald-300">
+                    {/* Desktop: yan yana ve yeşil noktalı tam rozet */}
+                    <span className="hidden sm:inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-[10px] font-medium text-emerald-300 shrink-0">
                       <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
                       {safeItemsCount} yapım hafızada
                     </span>
                   </div>
-                  <p className="text-[11px] text-slate-400 hidden xs:block">
+                  {/* Mobil: başlığın hemen altında noktasız, sade alt bilgi */}
+                  <div className="sm:hidden text-[10px] text-emerald-400 font-medium tracking-tight">
+                    {safeItemsCount} yapım
+                  </div>
+                  <p className="text-[11px] text-slate-400 hidden sm:block">
                     Zevk profili ve kütüphane hafızası aktif
                   </p>
                 </div>

@@ -13,6 +13,9 @@ export interface CompactItemBrief {
   directors?: string[];
   developers?: string[];
   actors?: string[];
+  authors?: string[];
+  publishers?: string[];
+  translators?: string[];
   characters?: { name: string; actor?: string }[];
   firms?: string[];
   genres?: string[];
@@ -23,14 +26,16 @@ export interface CompactItemBrief {
 export interface TasteProfile {
   totalCount: number;
   topMasterpieces: CompactItemBrief[]; // 9-10 puan veya S/A tier
+  strongFavorites: CompactItemBrief[]; // 8 puan alan yapımlar (kullanıcının güçlü çekirdek beğeni havuzu)
   dislikedItems: CompactItemBrief[]; // 2-5 puan (1 puan devam eden yapımlar için hariç tutulur)
-  currentlyActive: CompactItemBrief[]; // İzleniyor / Oynanıyor
+  currentlyActive: CompactItemBrief[]; // İzleniyor / Oynanıyor / Okunuyor
   droppedItems: CompactItemBrief[]; // Yarım bırakılanlar
   followingItems: CompactItemBrief[]; // Takip edilenler
   recentCompleted: CompactItemBrief[]; // En son tamamlanan/izlenenler
   topGenres: { name: string; count: number }[];
   topDirectors: { name: string; count: number }[];
   topDevelopers: { name: string; count: number }[];
+  topAuthors: { name: string; count: number }[];
   topFirms: { name: string; count: number }[];
   actorToWorks: { actor: string; works: string[] }[]; // Aktör/Seiyuu -> Yapım ve Karakter eşleştirmesi
   libraryCatalog: CompactItemBrief[]; // Kütüphanedeki tüm güvenli yapımların kompakt fihristi
@@ -76,11 +81,13 @@ export function generateTasteProfile(
   const genreCounts: Record<string, number> = {};
   const directorCounts: Record<string, number> = {};
   const developerCounts: Record<string, number> = {};
+  const authorCounts: Record<string, number> = {};
   const firmCounts: Record<string, number> = {};
   const actorWorkMap: Record<string, Set<string>> = {};
 
   const catalog: CompactItemBrief[] = [];
   const topMasterpieces: CompactItemBrief[] = [];
+  const strongFavorites: CompactItemBrief[] = [];
   const dislikedItems: CompactItemBrief[] = [];
   const currentlyActive: CompactItemBrief[] = [];
   const droppedItems: CompactItemBrief[] = [];
@@ -136,6 +143,9 @@ export function generateTasteProfile(
       directors: it.director && it.director.length > 0 ? it.director : undefined,
       developers: it.developer && it.developer.length > 0 ? it.developer : undefined,
       actors: combinedActors ? combinedActors.slice(0, 6) : undefined,
+      authors: it.author && it.author.length > 0 ? it.author : undefined,
+      publishers: it.publisher && it.publisher.length > 0 ? it.publisher : undefined,
+      translators: it.translator && it.translator.length > 0 ? it.translator : undefined,
       characters: charList && charList.length > 0 ? charList.slice(0, 6) : undefined,
       firms: it.firm && it.firm.length > 0 ? it.firm : undefined,
       genres: it.genre && it.genre.length > 0 ? it.genre : undefined,
@@ -147,6 +157,15 @@ export function generateTasteProfile(
       brief.status = it.status;
       if (it.status === 'Oynanıyor') currentlyActive.push(brief);
       if (it.status === 'Yarım Bırakıldı') droppedItems.push(brief);
+    } else if (it.mainTab === 'book') {
+      if (it.reading) {
+        brief.status = 'Okunuyor';
+        currentlyActive.push(brief);
+      }
+      if (it.dropped) {
+        brief.status = 'Yarım Bırakıldı';
+        droppedItems.push(brief);
+      }
     } else {
       if (it.watching) {
         brief.status = 'İzleniyor';
@@ -170,11 +189,13 @@ export function generateTasteProfile(
 
     if (it.rating >= 9 || isHighTier) {
       topMasterpieces.push(brief);
+    } else if (it.rating === 8) {
+      strongFavorites.push(brief);
     } else if (it.rating > 1 && it.rating <= 5) {
       dislikedItems.push(brief);
     }
 
-    // Weight genres and directors by rating
+    // Weight genres, directors, developers, firms and authors by rating
     const weight = it.rating >= 8 ? 2 : 1;
     if (it.rating >= 6) {
       it.genre?.forEach((g) => {
@@ -188,6 +209,9 @@ export function generateTasteProfile(
       });
       it.firm?.forEach((f) => {
         firmCounts[f] = (firmCounts[f] || 0) + weight;
+      });
+      it.author?.forEach((a) => {
+        authorCounts[a] = (authorCounts[a] || 0) + weight;
       });
     }
 
@@ -215,6 +239,7 @@ export function generateTasteProfile(
         date: it.date || undefined,
         lastCompletedDate: it.lastCompletedDate || undefined,
         actors: it.actors && it.actors.length > 0 ? it.actors.slice(0, 5) : undefined,
+        authors: it.author,
         directors: it.director,
         developers: it.developer,
         genres: it.genre,
@@ -241,6 +266,7 @@ export function generateTasteProfile(
   return {
     totalCount: safeItems.length,
     topMasterpieces: topMasterpieces.slice(0, 15),
+    strongFavorites: strongFavorites.slice(0, 15),
     dislikedItems: dislikedItems.slice(0, 10),
     currentlyActive: currentlyActive.slice(0, 10),
     droppedItems: droppedItems.slice(0, 10),
@@ -249,6 +275,7 @@ export function generateTasteProfile(
     topGenres: toSortedArray(genreCounts, 10),
     topDirectors: toSortedArray(directorCounts, 6),
     topDevelopers: toSortedArray(developerCounts, 6),
+    topAuthors: toSortedArray(authorCounts, 6),
     topFirms: toSortedArray(firmCounts, 6),
     actorToWorks,
     libraryCatalog: catalog,
@@ -270,10 +297,24 @@ export function formatTasteProfileForPrompt(profile: TasteProfile): string {
         const charInfo = m.characters && m.characters.length > 0
           ? ` [Karakterler: ${m.characters.map((c) => c.actor ? `${c.name} (${c.actor})` : c.name).join(', ')}]`
           : '';
-        return `• [id: ${m.id}] ${m.title} (${m.category}${m.sub ? ` - ${m.sub}` : ''}, Puan: ${m.rating ?? 'Yok'}${m.tierName ? `, Tier: ${m.tierName}` : ''}${m.year ? `, ${m.year}` : ''})${charInfo}`;
+        const authorInfo = m.authors?.length ? ` [Yazar: ${m.authors.join(', ')}]` : '';
+        return `• [id: ${m.id}] ${m.title} (${m.category}${m.sub ? ` - ${m.sub}` : ''}, Puan: ${m.rating ?? 'Yok'}${m.tierName ? `, Tier: ${m.tierName}` : ''}${m.year ? `, ${m.year}` : ''})${charInfo}${authorInfo}`;
       })
       .join('\n');
-    lines.push(`\n[EN ÇOK BEĞENİLEN BAŞYAPITLAR (9-10 Puan veya S-Tier Zirvesi)]:\n${list}`);
+    lines.push(`\n[EN ÇOK BEĞENİLEN ZİRVE BAŞYAPITLAR (9-10 Puan veya S-Tier Zirvesi)]:\n${list}`);
+  }
+
+  if (profile.strongFavorites.length > 0) {
+    const list = profile.strongFavorites
+      .map((m) => {
+        const charInfo = m.characters && m.characters.length > 0
+          ? ` [Karakterler: ${m.characters.map((c) => c.actor ? `${c.name} (${c.actor})` : c.name).join(', ')}]`
+          : '';
+        const authorInfo = m.authors?.length ? ` [Yazar: ${m.authors.join(', ')}]` : '';
+        return `• [id: ${m.id}] ${m.title} (${m.category}${m.sub ? ` - ${m.sub}` : ''}, Puan: ${m.rating}${m.year ? `, ${m.year}` : ''})${charInfo}${authorInfo}`;
+      })
+      .join('\n');
+    lines.push(`\n[GÜÇLÜ FAVORİLER & YÜKSEK KALİTE STANDARDI (8 Puan - Not: Kullanıcı 10 puanı çok nadir verir, bu 8 puanlık yapımlar kullanıcının çekirdek beğeni havuzudur)]:\n${list}`);
   }
 
   if (profile.dislikedItems.length > 0) {
@@ -287,7 +328,7 @@ export function formatTasteProfileForPrompt(profile: TasteProfile): string {
     const list = profile.currentlyActive
       .map((m) => `• [id: ${m.id}] ${m.title} (${m.category}, Durum: ${m.status})`)
       .join('\n');
-    lines.push(`\n[ŞU AN DEVAM EDENLER (İzleniyor / Oynanıyor)]:\n${list}`);
+    lines.push(`\n[ŞU AN DEVAM EDENLER (İzleniyor / Oynanıyor / Okunuyor)]:\n${list}`);
   }
 
   if (profile.droppedItems.length > 0) {
@@ -330,6 +371,10 @@ export function formatTasteProfileForPrompt(profile: TasteProfile): string {
     lines.push(`[FAVORİ GELİŞTİRİCİLER]: ${profile.topDevelopers.map((d) => `${d.name}`).join(', ')}`);
   }
 
+  if (profile.topAuthors.length > 0) {
+    lines.push(`[FAVORİ YAZARLAR]: ${profile.topAuthors.map((a) => `${a.name}`).join(', ')}`);
+  }
+
   if (profile.topFirms.length > 0) {
     lines.push(`[FAVORİ STÜDYOLAR]: ${profile.topFirms.map((f) => `${f.name}`).join(', ')}`);
   }
@@ -343,8 +388,6 @@ export function formatTasteProfileForPrompt(profile: TasteProfile): string {
     return `[id: ${c.id}] ${c.title} (${c.category}${c.rating ? `, ${c.rating}/10` : ''}${chars})`;
   });
   lines.push(catalogEntries.join(' | '));
-
-  return lines.join('\n');
 
   return lines.join('\n');
 }

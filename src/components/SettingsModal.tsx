@@ -2279,6 +2279,19 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
                   <div className="flex items-center justify-between p-3 rounded-xl bg-white/5 border border-white/10">
                     <div className="space-y-0.5">
+                      <span className="text-sm font-semibold text-slate-100 flex items-center gap-1.5">
+                        <Search className="w-3.5 h-3.5 text-neutral-400" />
+                        Arama Çubuğunu Aç & Odaklan
+                      </span>
+                      <p className="text-xs text-slate-400">Arama çubuğunu açar ve doğrudan yazmaya başlamak için imleci odaklar</p>
+                    </div>
+                    <kbd className="px-3 py-1.5 rounded-lg bg-black/60 border border-white/20 text-slate-200 text-xs font-mono font-bold shadow-inner">
+                      T
+                    </kbd>
+                  </div>
+
+                  <div className="flex items-center justify-between p-3 rounded-xl bg-white/5 border border-white/10">
+                    <div className="space-y-0.5">
                       <span className="text-sm font-semibold text-slate-100">Yapımı Düzenle (Detay Penceresi)</span>
                       <p className="text-xs text-slate-400">Kart detay penceresi açıkken yapım düzenleme modunu açar</p>
                     </div>

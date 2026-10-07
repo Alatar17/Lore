@@ -491,7 +491,7 @@ export const AnkiStudyModal: React.FC<AnkiStudyModalProps> = ({
             <div className="w-full flex flex-col items-center select-none">
               {/* 3D Flippable Flashcard Container: 2:3 Aspect Ratio identically matching AnkiEditorModal */}
               <div
-                className="relative w-auto h-[48vh] sm:h-[54vh] max-h-[500px] aspect-[2/3] mx-auto"
+                className="relative w-auto h-[53vh] sm:h-[54vh] max-h-[520px] aspect-[2/3] mx-auto"
                 style={{ perspective: 1000 }}
               >
                 <div
@@ -781,7 +781,7 @@ export const AnkiStudyModal: React.FC<AnkiStudyModalProps> = ({
 
         {/* Bottom Control & Rating Bar (Anki Style - Rock-solid static height) */}
         {queue.length > 0 && (
-          <div className="px-4 py-2.5 bg-neutral-950/95 border-t border-white/10 flex flex-col items-center justify-center shrink-0 h-[88px] sm:h-[92px]">
+          <div className="px-3 sm:px-4 py-2.5 bg-neutral-950/95 border-t border-white/10 flex flex-col items-center justify-center shrink-0 h-[88px] sm:h-[92px]">
             {!isAnswerShown ? (
               /* Phase 1: Anki-style "Cevabı Göster" (Show Answer) + Counters */
               <div className="flex flex-col items-center justify-center w-full animate-in fade-in duration-150">
@@ -806,32 +806,46 @@ export const AnkiStudyModal: React.FC<AnkiStudyModalProps> = ({
                 <button
                   type="button"
                   onClick={() => setIsAnswerShown(true)}
-                  className="px-8 py-2 rounded-xl bg-neutral-800/95 hover:bg-neutral-700 text-white font-semibold text-xs border border-white/15 shadow-md flex items-center justify-center gap-2 transition-all cursor-pointer active:scale-95 hover:border-white/30"
+                  className="w-full sm:w-auto px-8 py-2.5 sm:py-2 rounded-xl bg-neutral-800/95 hover:bg-neutral-700 text-white font-semibold text-xs border border-white/15 shadow-md flex items-center justify-center gap-2 transition-all cursor-pointer active:scale-95 hover:border-white/30"
                 >
                   <Eye className="w-3.5 h-3.5 text-slate-300" />
                   <span>Cevabı Göster</span>
                 </button>
               </div>
             ) : (
-              /* Phase 2: Anki-style 4 Rating Buttons - Clean without counters, matching official Anki */
-              <div className="w-full grid grid-cols-4 gap-2 animate-in fade-in duration-150">
-                {repeatOptions.map((opt) => (
-                  <div key={opt.rating} className="flex flex-col items-center gap-1">
-                    {/* Time interval ABOVE the button */}
-                    <span className="text-[11px] font-mono font-medium text-slate-300 select-none">
-                      {opt.intervalText}
-                    </span>
+              /* Phase 2: Anki-style 4 Rating Buttons - 2 satırlı (Üstte Süre, Altta İsim) & PC Renk Paleti */
+              <div className="w-full grid grid-cols-4 gap-1.5 sm:gap-2 animate-in fade-in duration-150">
+                {repeatOptions.map((opt) => {
+                  let styleClasses = 'text-slate-200 bg-neutral-800 border-white/10 hover:bg-neutral-700';
 
-                    {/* Button */}
+                  if (opt.rating === Rating.Again) {
+                    styleClasses = 'text-red-400 bg-red-500/15 border-red-500/35 hover:bg-red-500/25 active:bg-red-500/30';
+                  } else if (opt.rating === Rating.Hard) {
+                    styleClasses = 'text-amber-400 bg-amber-500/15 border-amber-500/35 hover:bg-amber-500/25 active:bg-amber-500/30';
+                  } else if (opt.rating === Rating.Good) {
+                    styleClasses = 'text-emerald-400 bg-emerald-500/15 border-emerald-500/35 hover:bg-emerald-500/25 active:bg-emerald-500/30';
+                  } else if (opt.rating === Rating.Easy) {
+                    styleClasses = 'text-blue-400 bg-blue-500/15 border-blue-500/35 hover:bg-blue-500/25 active:bg-blue-500/30';
+                  }
+
+                  return (
                     <button
+                      key={opt.rating}
                       type="button"
                       onClick={() => handleRate(opt)}
-                      className="w-full py-2 px-1 rounded-xl text-xs font-semibold transition-all cursor-pointer active:scale-95 shadow-sm bg-neutral-800 hover:bg-neutral-700 text-slate-200 hover:text-white border border-white/10 hover:border-white/25"
+                      className={`w-full py-2 sm:py-2.5 px-1 rounded-xl transition-all cursor-pointer active:scale-95 shadow-sm border flex flex-col items-center justify-center gap-1 select-none ${styleClasses}`}
                     >
-                      {opt.label}
+                      {/* Süre (Üstte: <1dk, <6dk, vb.) */}
+                      <span className="text-[10px] sm:text-[11px] font-mono font-medium opacity-90 leading-none">
+                        {opt.intervalText}
+                      </span>
+                      {/* Buton Adı (Altta: Yeniden, Zor, İyi, Kolay) */}
+                      <span className="font-bold text-xs sm:text-xs leading-none">
+                        {opt.label}
+                      </span>
                     </button>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>

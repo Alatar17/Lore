@@ -1651,103 +1651,113 @@ export const HeaderTabs: React.FC<HeaderTabsProps> = ({
           )}
 
           {/* Search Box / Toggle with Switchable Mode (Search <-> Tag) */}
-          {isSearchOpen ? (
-            <div
-              ref={searchContainerRef}
-              data-search-container="true"
-              className="flex items-center gap-1.5 bg-neutral-900 border border-white/20 rounded-lg px-2 min-w-[220px] max-w-sm sm:max-w-md h-8 animate-in fade-in"
+          <div
+            ref={searchContainerRef}
+            data-search-container="true"
+            className={`${
+              isSearchOpen
+                ? 'flex items-center gap-1.5 bg-neutral-900 border border-white/20 rounded-lg px-2 min-w-[220px] max-w-sm sm:max-w-md h-8 animate-in fade-in'
+                : 'opacity-0 pointer-events-none absolute w-0 h-0 overflow-hidden'
+            }`}
+          >
+            {/* Mode Toggle Button: Click to switch between Normal Search and Tag Search */}
+            <button
+              type="button"
+              id="search-mode-toggle-btn"
+              onClick={toggleSearchMode}
+              title={
+                searchMode === 'search'
+                  ? 'Etiket Arama Moduna Geç (🏷️)'
+                  : 'Normal Arama Moduna Geç (🔍)'
+              }
+              className={`p-1 rounded-md transition-all cursor-pointer flex items-center justify-center shrink-0 ${
+                searchMode === 'tag'
+                  ? 'bg-blue-600/40 text-white border border-blue-400/50'
+                  : 'text-neutral-400 hover:text-white hover:bg-white/10'
+              }`}
             >
-              {/* Mode Toggle Button: Click to switch between Normal Search and Tag Search */}
-              <button
-                type="button"
-                id="search-mode-toggle-btn"
-                onClick={toggleSearchMode}
-                title={
-                  searchMode === 'search'
-                    ? 'Etiket Arama Moduna Geç (🏷️)'
-                    : 'Normal Arama Moduna Geç (🔍)'
-                }
-                className={`p-1 rounded-md transition-all cursor-pointer flex items-center justify-center shrink-0 ${
-                  searchMode === 'tag'
-                    ? 'bg-blue-600/40 text-white border border-blue-400/50'
-                    : 'text-neutral-400 hover:text-white hover:bg-white/10'
-                }`}
-              >
-                {searchMode === 'tag' ? (
-                  <Tag className="w-3.5 h-3.5 text-white" />
-                ) : (
-                  <Search className="w-3.5 h-3.5 text-neutral-300" />
-                )}
-              </button>
-
-              {/* TAG MODE: Render oval tag chips */}
-              {searchMode === 'tag' &&
-                tagChips.map((chip, index) => (
-                  <span
-                    key={`${chip}_${index}`}
-                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-blue-600/25 border border-blue-500/40 text-blue-300 text-[11px] font-medium shrink-0 animate-in fade-in zoom-in-95 duration-100"
-                  >
-                    <span>{chip}</span>
-                    <button
-                      type="button"
-                      onClick={() => handleRemoveTagChip(index)}
-                      className="hover:text-white rounded-full p-0.5 cursor-pointer text-blue-400 hover:bg-blue-500/30"
-                    >
-                      <X className="w-2.5 h-2.5" />
-                    </button>
-                  </span>
-                ))}
-
-              {/* INPUT ELEMENT: Changes behavior based on searchMode */}
               {searchMode === 'tag' ? (
-                <input
-                  ref={searchInputRef}
-                  id="search-header-input"
-                  type="text"
-                  value={typedTagInput}
-                  onChange={handleTagInputChange}
-                  onKeyDown={handleTagKeyDown}
-                  placeholder={
-                    tagChips.length === 0
-                      ? 'Etiket ara (örn: mappa, 2024)...'
-                      : '+ etiket...'
-                  }
-                  className="flex-1 min-w-[90px] bg-transparent text-xs text-neutral-100 placeholder-neutral-500 focus:outline-none py-0.5"
-                />
+                <Tag className="w-3.5 h-3.5 text-white" />
               ) : (
-                <input
-                  ref={searchInputRef}
-                  id="search-header-input"
-                  type="text"
-                  value={searchTextInput}
-                  onChange={handleNormalSearchChange}
-                  placeholder="Yapım ara..."
-                  className="flex-1 min-w-[120px] bg-transparent text-xs text-neutral-100 placeholder-neutral-500 focus:outline-none py-0.5"
-                />
+                <Search className="w-3.5 h-3.5 text-neutral-300" />
               )}
+            </button>
 
-              {/* Clear / Close Button */}
-              <button
-                type="button"
-                id="search-close-btn"
-                onClick={() => {
-                  setSearchTextInput('');
-                  setTagChips([]);
-                  setTypedTagInput('');
-                  setSearchMode('search');
-                  onSearchChange('');
-                  onToggleSearch();
-                }}
-                className="text-neutral-400 hover:text-white p-1 rounded hover:bg-white/5 text-xs ml-auto cursor-pointer shrink-0"
-                title="Aramayı Kapat ve Temizle"
-              >
-                <X className="w-3.5 h-3.5" />
-              </button>
-            </div>
-          ) : (
+            {/* TAG MODE: Render oval tag chips */}
+            {searchMode === 'tag' &&
+              tagChips.map((chip, index) => (
+                <span
+                  key={`${chip}_${index}`}
+                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-blue-600/25 border border-blue-500/40 text-blue-300 text-[11px] font-medium shrink-0 animate-in fade-in zoom-in-95 duration-100"
+                >
+                  <span>{chip}</span>
+                  <button
+                    type="button"
+                    onClick={() => handleRemoveTagChip(index)}
+                    className="hover:text-white rounded-full p-0.5 cursor-pointer text-blue-400 hover:bg-blue-500/30"
+                  >
+                    <X className="w-2.5 h-2.5" />
+                  </button>
+                </span>
+              ))}
+
+            {/* INPUT ELEMENT: Changes behavior based on searchMode */}
+            {searchMode === 'tag' ? (
+              <input
+                ref={searchInputRef}
+                id="search-header-input"
+                type="text"
+                value={typedTagInput}
+                onChange={handleTagInputChange}
+                onKeyDown={handleTagKeyDown}
+                placeholder={
+                  tagChips.length === 0
+                    ? 'Etiket ara (örn: mappa, 2024)...'
+                    : '+ etiket...'
+                }
+                className="flex-1 min-w-[90px] bg-transparent text-xs text-neutral-100 placeholder-neutral-500 focus:outline-none py-0.5"
+              />
+            ) : (
+              <input
+                ref={searchInputRef}
+                id="search-header-input"
+                type="text"
+                value={searchTextInput}
+                onChange={handleNormalSearchChange}
+                placeholder="Yapım ara..."
+                className="flex-1 min-w-[120px] bg-transparent text-xs text-neutral-100 placeholder-neutral-500 focus:outline-none py-0.5"
+              />
+            )}
+
+            {/* Clear / Close Button */}
+            <button
+              type="button"
+              id="search-close-btn"
+              onClick={() => {
+                setSearchTextInput('');
+                setTagChips([]);
+                setTypedTagInput('');
+                setSearchMode('search');
+                onSearchChange('');
+                onToggleSearch();
+              }}
+              className="text-neutral-400 hover:text-white p-1 rounded hover:bg-white/5 text-xs ml-auto cursor-pointer shrink-0"
+              title="Aramayı Kapat ve Temizle"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+
+          {!isSearchOpen && (
             <button
               id="search-toggle-btn"
-              onClick={onToggleSearch}
+              onClick={() => {
+                onToggleSearch();
+                setTimeout(() => {
+                  searchInputRef.current?.focus();
+                }, 10);
+                searchInputRef.current?.focus();
+              }}
               title="Arama (🔍)"
               className={`h-8 w-8 rounded-lg border transition-all cursor-pointer flex items-center justify-center ${
                 searchQuery.trim()

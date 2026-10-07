@@ -825,6 +825,22 @@ export default function App() {
         return;
       }
 
+      // 'T' or 't' key -> Open Search Bar and focus input
+      if (e.key === 't' || e.key === 'T') {
+        if (e.ctrlKey || e.metaKey || e.altKey) return;
+        if (selectedItem || isAddModalOpen || isSettingsOpen || isStatisticsOpen || isRecentActivityOpen || isAiAssistantOpen || isBulkMoveOpen || isEditingFabMode || previewItem) {
+          return;
+        }
+        e.preventDefault();
+        closeAllPanels();
+        setIsSearchOpen(true);
+        setTimeout(() => {
+          const searchInput = document.getElementById('search-header-input') as HTMLInputElement | null;
+          searchInput?.focus();
+        }, 50);
+        return;
+      }
+
       // '1' key -> Nerede olursan ol Medya Ana Sayfasına götürür
       if (e.key === '1') {
         e.preventDefault();
@@ -2426,7 +2442,7 @@ export default function App() {
                 {!isEditingFabMode && (
                   <div
                     id="mobile-bottom-dock"
-                    className="fixed bottom-2 left-1/2 -translate-x-1/2 z-40 md:hidden flex items-center p-0.5 bg-neutral-900/95 backdrop-blur-xl border border-white/20 rounded-xl shadow-2xl shadow-black/80 select-none animate-in fade-in zoom-in-95 duration-200"
+                    className="fixed bottom-2 left-1/2 -translate-x-1/2 z-40 md:hidden flex items-center py-0.5 px-1 bg-neutral-900/95 backdrop-blur-xl border border-white/20 rounded-xl shadow-2xl shadow-black/80 select-none animate-in fade-in zoom-in-95 duration-200"
                     onClick={(e) => e.stopPropagation()}
                   >
                     {/* Sol Grup: 4 İkon [ 📊 İstatistik | ⏱ Geçmiş | 📚 Anki Hub | ✨ AI Asistan ] */}
@@ -2440,7 +2456,7 @@ export default function App() {
                           setIsStatisticsOpen((p) => !p);
                         }}
                         title="İstatistikler"
-                        className={`w-8.5 h-8 rounded-lg flex items-center justify-center transition-all cursor-pointer ${
+                        className={`w-[34px] h-[34px] rounded-lg flex items-center justify-center transition-all cursor-pointer ${
                           isStatisticsOpen
                             ? 'bg-blue-600 text-white shadow'
                             : 'text-neutral-400 hover:text-white hover:bg-white/10 active:scale-95'
@@ -2458,7 +2474,7 @@ export default function App() {
                           setIsRecentActivityOpen((p) => !p);
                         }}
                         title="Son Aktiviteler"
-                        className={`w-8.5 h-8 rounded-lg flex items-center justify-center transition-all cursor-pointer ${
+                        className={`w-[34px] h-[34px] rounded-lg flex items-center justify-center transition-all cursor-pointer ${
                           isRecentActivityOpen
                             ? 'bg-blue-600 text-white shadow'
                             : 'text-neutral-400 hover:text-white hover:bg-white/10 active:scale-95'
@@ -2476,7 +2492,7 @@ export default function App() {
                           setIsAnkiHubOpen((p) => !p);
                         }}
                         title="Anki Deste Hub'ı"
-                        className={`w-8.5 h-8 rounded-lg flex items-center justify-center transition-all cursor-pointer ${
+                        className={`w-[34px] h-[34px] rounded-lg flex items-center justify-center transition-all cursor-pointer ${
                           isAnkiHubOpen
                             ? 'bg-blue-600 text-white shadow'
                             : 'text-neutral-400 hover:text-white hover:bg-white/10 active:scale-95'
@@ -2494,7 +2510,7 @@ export default function App() {
                           setIsAiAssistantOpen((p) => !p);
                         }}
                         title="Lore AI Asistan"
-                        className={`w-8.5 h-8 rounded-lg flex items-center justify-center transition-all cursor-pointer ${
+                        className={`w-[34px] h-[34px] rounded-lg flex items-center justify-center transition-all cursor-pointer ${
                           isAiAssistantOpen
                             ? 'bg-gradient-to-tr from-amber-500 to-indigo-600 text-white shadow ring-1 ring-amber-400/60'
                             : 'text-amber-400/90 hover:text-white hover:bg-white/10 active:scale-95'
@@ -2514,10 +2530,19 @@ export default function App() {
                         type="button"
                         id="mob-dock-search-btn"
                         onClick={() => {
-                          setIsSearchOpen((p) => !p);
+                          const willOpen = !isSearchOpen;
+                          setIsSearchOpen(willOpen);
+                          if (willOpen) {
+                            const el = document.getElementById('search-header-input') as HTMLInputElement | null;
+                            el?.focus();
+                            setTimeout(() => {
+                              const elLater = document.getElementById('search-header-input') as HTMLInputElement | null;
+                              elLater?.focus();
+                            }, 50);
+                          }
                         }}
                         title="Arama"
-                        className={`w-8.5 h-8 rounded-lg flex items-center justify-center transition-all cursor-pointer ${
+                        className={`w-[34px] h-[34px] rounded-lg flex items-center justify-center transition-all cursor-pointer ${
                           isSearchOpen || searchQuery.trim()
                             ? 'bg-blue-600/30 text-blue-200 shadow-sm'
                             : 'text-neutral-400 hover:text-white hover:bg-white/10 active:scale-95'
@@ -2537,7 +2562,7 @@ export default function App() {
                             setIsFilterOpen((p) => !p);
                           }}
                           title="Filtrele"
-                          className={`w-8.5 h-8 rounded-lg flex items-center justify-center transition-all relative cursor-pointer ${
+                          className={`w-[34px] h-[34px] rounded-lg flex items-center justify-center transition-all relative cursor-pointer ${
                             isFilterOpen || activeFiltersCount > 0
                               ? 'bg-neutral-800 text-white shadow-sm'
                               : 'text-neutral-400 hover:text-white hover:bg-white/10 active:scale-95'
@@ -2576,7 +2601,7 @@ export default function App() {
                             setIsViewOpen((p) => !p);
                           }}
                           title="Görünüm Ayarları"
-                          className={`w-8.5 h-8 rounded-lg flex items-center justify-center transition-all cursor-pointer select-none ${
+                          className={`w-[34px] h-[34px] rounded-lg flex items-center justify-center transition-all cursor-pointer select-none ${
                             isViewOpen
                               ? 'bg-neutral-800 text-white shadow-sm'
                               : 'text-neutral-400 hover:text-white hover:bg-white/10 active:scale-95'

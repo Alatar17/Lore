@@ -1377,7 +1377,7 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
             {/* Left: Compact Poster Column */}
             <div className="w-28 sm:w-32 shrink-0 mx-auto sm:mx-0 flex flex-col gap-1.5">
               <div
-                className={`relative w-full aspect-[2/3] ${isBook ? 'rounded-none' : 'rounded-xl'} overflow-hidden border border-white/15 shadow-md flex items-center justify-center text-center group`}
+                className="relative w-full aspect-[2/3] rounded-xl overflow-hidden border border-white/15 shadow-md flex items-center justify-center text-center group"
                 style={{
                   backgroundColor: formData.thumbnail ? '#0b0e14' : `${baseColor}22`,
                   borderColor: formData.thumbnail ? 'rgba(255,255,255,0.15)' : `${baseColor}60`,
@@ -1388,7 +1388,7 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
                     <img
                       src={formData.thumbnail}
                       alt={formData.title}
-                      className={`w-full h-full object-cover ${isBook ? 'rounded-none' : 'rounded-xl'}`}
+                      className="w-full h-full object-cover rounded-xl"
                     />
                     {/* Top-Right "X" icon to remove image */}
                     <button

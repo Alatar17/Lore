@@ -520,7 +520,7 @@ export const ImagePreviewModal: React.FC<ImagePreviewModalProps> = ({
         {/* Sol Sütun: Büyütülmüş Afiş, Rozetler & Afiş Altında Tür ve Yapım Yılı */}
         <div className="w-[380px] lg:w-[430px] xl:w-[450px] shrink-0 h-full bg-black/60 border-r border-white/10 p-5 lg:p-6 flex flex-col justify-start relative overflow-y-auto custom-scrollbar">
           {/* 1. Afişin Konumu ve Boşlukların Giderilmesi: Afiş en tepeye yaslanır, aspect-[2/3], rozetler doğrudan afiş sınırlarına oturur */}
-          <div className={`w-full aspect-[2/3] max-h-[560px] ${isBook ? 'rounded-none' : 'rounded-xl'} overflow-hidden border border-white/15 bg-[#12141c] shadow-2xl relative shrink-0`}>
+          <div className="w-full aspect-[2/3] max-h-[560px] rounded-xl overflow-hidden border border-white/15 bg-[#12141c] shadow-2xl relative shrink-0">
             {item.thumbnail ? (
               <img
                 src={item.thumbnail}

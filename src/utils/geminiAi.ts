@@ -260,7 +260,7 @@ Kurallar:
 3. "authors": Kitabın yazar(lar)ı (dizi olarak, örn: ["Fyodor Dostoyevski"]). Mevcut yazar havuzundaki isimler önceliklidir.
 4. "publishers": Türkiye'de bu kitabın en bilinen/yaygın yayınevi veya orijinal yayıncısı (dizi olarak, örn: ["İş Bankası Kültür Yayınları", "Can Yayınları", "İthaki Yayınları"]). Mevcut yayınevi havuzundaki isimler önceliklidir.
 5. "translators": Varsa en popüler Türkçe çevirmen(ler)i (örn: ["Mazlum Beyhan"]). Türk edebiyatı ise veya çevirmeni yoksa boş dizi [] bırak. Mevcut çevirmen havuzu önceliklidir.
-6. "characters": Kitaptaki en önemli ana karakterler (en fazla 8 adet). Her karakter için: "name" (Karakterin adı) ve "actor" alanına karakterin romandaki öz rolü/kimliği (EN FAZLA 2-4 KELİME, kısa ve öz; örn: "Yoksul Hukuk Öğrencisi", "Özel Dedektif", "Müfettiş", "Bakanlık Memuru", "Köy Muhtarı", "Ağabeyi"). Asla uzun cümle veya paragraf yazma, sadece kısa unvan/rol yaz.
+6. "characters": Kitaptaki en önemli ana ve olay örgüsünü taşıyan kilit yan karakterler (en fazla 12 adet, eserin derinliğine ve kapsamına göre; zorla 12'ye tamamlama veya önemsiz figüranları ekleme). Her karakter için: "name" (Karakterin adı) ve "actor" alanına karakterin romandaki öz rolü/kimliği (EN FAZLA 2-4 KELİME, kısa ve öz; örn: "Eski Hukuk Öğrencisi", "Özel Dedektif", "Müfettiş", "Bakanlık Memuru", "Köy Muhtarı", "Ağabeyi"). Asla uzun cümle veya paragraf yazma, sadece kısa unvan/rol yaz.
 7. "description": LORE ANLATI KÜRATÖRÜ SİNOPSİS ALGORİTMASI:
    - Sen bir pazarlamacı veya arka kapak yazarı değilsin. "Harika", "başyapıt", "sarsıcı", "okuyucuyu büyülüyor" gibi boş ve yapay övgüler KESİNLİKLE YASAKTIR. Sadece HİKAYE, DÜNYA ve KARAKTER anlatılır.
    - SPOILER SINIRI: Kitabın ilk 1/3'lük diliminin ötesindeki sürpriz gelişmeler veya final asla ifşa edilemez.
@@ -585,8 +585,8 @@ export async function askAiAssistant(options: AskAssistantOptions): Promise<AskA
     };
   }
 
-  const systemInstruction = `Sen dünya çapında sinema, dizi, anime ve oyun anlatı sanatını derinlemesine çözümleyen, karakter psikolojisini ve eserin ruhunu gören usta bir ANLATI KÜRATÖRÜSÜN (Lore AI Küratör).
-Kullanıcının kütüphanesini, izlediği/oynadığı yapımları, puanlarını, Tier List sıralamalarını, yarım bıraktıklarını ve zevk haritasını çok iyi biliyorsun.
+  const systemInstruction = `Sen dünya çapında sinema, dizi, anime, oyun ve edebiyat/kitap anlatı sanatını derinlemesine çözümleyen, karakter psikolojisini ve eserin ruhunu gören usta bir ANLATI KÜRATÖRÜSÜN (Lore AI Küratör).
+Kullanıcının kütüphanesini, izlediği/oynadığı/okuduğu yapımları ve kitapları, puanlarını, Tier List sıralamalarını, yarım bıraktıklarını ve zevk haritasını çok iyi biliyorsun.
 
 ======================================================================
 1. ANLATI KÜRATÖRÜ ROLÜ & KESİN YASAKLAR (konu_derinligi.tsx)
@@ -613,8 +613,7 @@ Kullanıcının kütüphanesini, izlediği/oynadığı yapımları, puanlarını
 ======================================================================
 3. KÜTÜPHANE, ZEVK VE OYUNCU KURALLARI:
 ======================================================================
-- 1 PUAN KURALI: 1 puan kütüphanede henüz devam eden yapımlara verilir; ASLA kötü puan değildir, tamamen nötr kabul et. Negatif filtre yalnızca 2 ila 5 puan arasını kapsar.
-- 9-10 Puanlar ve S/A Tier kullanıcının kalite çıtasıdır.
+- PUANLAMA VE BEĞENİ HİYERARŞİSİ: Kullanıcı 10 puanı çok nadir ve elit bir seçicilikle verir. 9 ve 10 puanlar ile S-Tier kullanıcının zirve başyapıtlarıdır. 8 PUANLAR ise kullanıcının çok severek deneyimlediği, yüksek kaliteli 'Güçlü Çekirdek Beğeni' standardıdır (özellikle oyunlarda ve dizilerde asıl zengin zevk pusulası 8 puanlı yapımlardır). 1 puan kütüphanede devam eden yapımlardır ve nötrdür. 2 ila 5 puanlar ise negatif filtredir.
 - Kütüphanede zaten var olan yapımları tekrar önerme.
 - OYUNCU VE KADRO ADLARI (KESİN KURAL): Kullanıcı en sevdiği oyuncuyu veya yönetmeni sorduğunda, sadece doğrudan o kişinin adını yaz (Örn: Leonardo DiCaprio, Matt Damon, Tom Hardy).
   ASLA aktör adlarının yanına parantez içinde ham id kodları veya yapım referansı (Örn: ([id: media_...|Film])) EKLEME!
@@ -628,17 +627,20 @@ Kullanıcının kütüphanesini, izlediği/oynadığı yapımları, puanlarını
 \`\`\`recommendation-cards
 [
   {
-    "title": "Resmi Yapım Adı",
+    "title": "Resmi Yapım / Kitap Adı",
     "releaseYear": 2024 veya "2022-2024",
-    "mainTab": "media" veya "game",
+    "mainTab": "media", "game" veya "book",
     "badge": "🎯 KÜTÜPHANE İMZASI",
     "matchScore": 94,
     "shortDesc": "KAPALI KART VURUCU KANCASI (25-45 kelime, 1-2 akıcı cümle): Karakterin kimliği + huzuru bozan temel kırılma anı + ortaya çıkan gizem veya tehdit. Asla boş övgü yapma!",
     "detailedDesc": "AÇIK KART DERİN SİNOPSİS (Aralarında çift satır sonu \\n\\n olan KESİNLİKLE 3 AYRI PARAGRAF, 120-220 kelime):\\n\\n1. Paragraf: Karakter kimdir, hangi evrende yaşar ve hayatının olağan akışı hangi kırılma anıyla rayından çıkar?\\n\\n2. Paragraf: Karakter neyle yüzleşmek zorundadır, karşısındaki varoluşsal kriz ve ahlaki ikilem nedir, neyi kaybetme tehlikesiyle karşı karşıyadır?\\n\\n3. Paragraf: Eserin temposunu, duygusal ağırlığını ve izleyicide bıraktığı psikolojik/atmosferik tonu özetleyen güçlü kapanış. (NOT: Asla 1 veya 2 paragrafa düşürme; kesinlikle aralarında boşluk olan 3 ayrı paragraf üret!)",
     "matchReason": "KÜTÜPHANE VE ZEVK BAĞLANTISI: Bu yapımın kullanıcının kütüphanesindeki [[item:id|Mevcut Yapım]] sevgisine ve puanlarına dayanma gerekçesi.",
-    "directors": ["Yönetmen Adı"],
-    "firms": ["Yapımcı Stüdyo"],
+    "directors": ["Yönetmen Adı (Medya)"],
+    "firms": ["Yapımcı Stüdyo (Medya)"],
     "developers": ["Geliştirici Stüdyo (Sadece Oyunlar)"],
+    "authors": ["Yazar(lar) (Sadece Kitaplar)"],
+    "publishers": ["Yayınevi (Sadece Kitaplar)"],
+    "translators": ["Çevirmen (Sadece Kitaplar)"],
     "genres": ["Tür 1", "Tür 2"],
     "thumbnailUrl": "https://... (dikey poster linki; bilinmiyorsa boş bırak)"
   }
@@ -722,7 +724,7 @@ Kullanıcının kütüphanesini, izlediği/oynadığı yapımları, puanlarını
             return {
               title: String(raw.title).trim(),
               releaseYear: raw.releaseYear,
-              mainTab: raw.mainTab === 'game' ? 'game' : 'media',
+              mainTab: raw.mainTab === 'game' ? 'game' : raw.mainTab === 'book' ? 'book' : 'media',
               badge: raw.badge ? String(raw.badge).trim() : undefined,
               matchScore:
                 typeof raw.matchScore === 'number'
@@ -742,6 +744,9 @@ Kullanıcının kütüphanesini, izlediği/oynadığı yapımları, puanlarını
               firms: toStringArray(raw.firms),
               directors: toStringArray(raw.directors),
               developers: toStringArray(raw.developers),
+              authors: toStringArray(raw.authors),
+              publishers: toStringArray(raw.publishers),
+              translators: toStringArray(raw.translators),
               genres: toStringArray(raw.genres),
             };
           };

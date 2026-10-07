@@ -27,6 +27,7 @@ const SHORTCUT_GROUPS: ShortcutItem[][] = [
     { label: 'Yeni Yapım Ekle (FAB)', keyName: 'W' },
     { label: 'Tam Ekran Aç / Kapat', keyName: 'F' },
     { label: 'Kart Başlıklarını Aç / Kapat', keyName: 'B' },
+    { label: 'Arama Yap', keyName: 'T' },
     { label: 'Yapımı Düzenle', keyName: 'Space' },
     { label: 'Blur Önizle / Şeffaf Yap (Anki Editörü)', keyName: 'Space' },
   ],
