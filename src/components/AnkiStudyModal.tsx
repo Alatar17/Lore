@@ -784,9 +784,9 @@ export const AnkiStudyModal: React.FC<AnkiStudyModalProps> = ({
           <div className="px-0 sm:px-4 py-0 sm:py-2.5 bg-neutral-950/95 border-t border-white/10 flex flex-col items-center justify-center shrink-0 overflow-hidden h-[68px] sm:h-[92px]">
             {!isAnswerShown ? (
               /* Phase 1: Anki-style "Cevabı Göster" (Show Answer) + Counters */
-              <div className="flex flex-col items-center justify-between sm:justify-center w-full h-full pt-1.5 sm:pt-0 animate-in fade-in duration-150">
-                {/* 0 + 3 + 49 Anki Counts Indicator: Only visible in Phase 1 before answer is revealed */}
-                <div className="flex items-center gap-1.5 text-xs font-mono font-semibold mb-1 sm:mb-2 select-none">
+              <div className="flex flex-col items-center justify-between sm:justify-center w-full h-full animate-in fade-in duration-150">
+                {/* 0 + 3 + 49 Anki Counts Indicator: Tam 24px kilitli alan */}
+                <div className="h-6 shrink-0 flex items-center justify-center gap-1.5 text-xs font-mono font-semibold select-none">
                   <span className="text-blue-400" title="Yeni">
                     {deckCounts.newCount}
                   </span>
@@ -806,7 +806,7 @@ export const AnkiStudyModal: React.FC<AnkiStudyModalProps> = ({
                 <button
                   type="button"
                   onClick={() => setIsAnswerShown(true)}
-                  className="w-full sm:w-auto h-11 sm:h-auto px-8 py-0 sm:py-2 rounded-none sm:rounded-xl bg-neutral-800 hover:bg-neutral-700 active:bg-neutral-600 text-white font-bold text-xs border-t sm:border border-white/15 shadow-md flex items-center justify-center gap-2 transition-all cursor-pointer select-none"
+                  className="w-full sm:w-auto h-11 shrink-0 sm:h-auto px-8 py-0 sm:py-2 rounded-none sm:rounded-xl bg-neutral-800 hover:bg-neutral-700 active:bg-neutral-600 text-white font-bold text-xs border-t sm:border border-white/15 shadow-md flex items-center justify-center gap-2 transition-colors active:scale-98 sm:active:scale-95 cursor-pointer select-none"
                 >
                   <Eye className="w-3.5 h-3.5 text-slate-300" />
                   <span>Cevabı Göster</span>
@@ -815,7 +815,7 @@ export const AnkiStudyModal: React.FC<AnkiStudyModalProps> = ({
             ) : (
               /* Phase 2: Anki-style 4 Rating Buttons - "Cevabı Göster" ile milimetrik aynı alt konumda ve yükseklikte (h-11) */
               <div className="flex flex-col items-center justify-end sm:justify-center w-full h-full animate-in fade-in duration-150">
-                <div className="w-full h-11 sm:h-auto grid grid-cols-4 gap-0 sm:gap-2">
+                <div className="w-full h-11 shrink-0 sm:h-auto grid grid-cols-4 gap-0 sm:gap-2">
                   {repeatOptions.map((opt) => {
                     let styleClasses = 'text-white bg-neutral-800 sm:text-slate-200 sm:bg-neutral-800 sm:border-white/10 sm:hover:bg-neutral-700';
 
@@ -838,7 +838,7 @@ export const AnkiStudyModal: React.FC<AnkiStudyModalProps> = ({
                         key={opt.rating}
                         type="button"
                         onClick={() => handleRate(opt)}
-                        className={`w-full h-11 sm:h-auto py-0.5 sm:py-2.5 px-0.5 sm:px-1 rounded-none sm:rounded-xl transition-all cursor-pointer active:scale-98 sm:active:scale-95 shadow-none sm:shadow-sm border-0 sm:border flex flex-col items-center justify-center gap-0.5 sm:gap-1 select-none ${styleClasses}`}
+                        className={`w-full h-11 shrink-0 sm:h-auto py-0.5 sm:py-2.5 px-0.5 sm:px-1 rounded-none sm:rounded-xl transition-colors cursor-pointer active:scale-98 sm:active:scale-95 shadow-none sm:shadow-sm border-0 sm:border flex flex-col items-center justify-center gap-0.5 sm:gap-1 select-none ${styleClasses}`}
                       >
                         {/* Süre (Üstte: <1dk, <6dk, vb.) */}
                         <span className="text-[10px] sm:text-[11px] font-mono font-medium opacity-90 leading-tight">
