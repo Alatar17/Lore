@@ -781,11 +781,7 @@ export const AnkiStudyModal: React.FC<AnkiStudyModalProps> = ({
 
         {/* Bottom Control & Rating Bar (Anki Style - Rock-solid static height) */}
         {queue.length > 0 && (
-          <div
-            className={`px-0 sm:px-4 py-0 sm:py-2.5 bg-neutral-950/95 border-t border-white/10 flex flex-col items-center justify-center shrink-0 overflow-hidden transition-all duration-150 ${
-              isAnswerShown ? 'h-[46px] sm:h-[92px]' : 'h-[68px] sm:h-[92px]'
-            }`}
-          >
+          <div className="px-0 sm:px-4 py-0 sm:py-2.5 bg-neutral-950/95 border-t border-white/10 flex flex-col items-center justify-center shrink-0 overflow-hidden h-[68px] sm:h-[92px]">
             {!isAnswerShown ? (
               /* Phase 1: Anki-style "Cevabı Göster" (Show Answer) + Counters */
               <div className="flex flex-col items-center justify-between sm:justify-center w-full h-full pt-1.5 sm:pt-0 animate-in fade-in duration-150">
@@ -817,43 +813,45 @@ export const AnkiStudyModal: React.FC<AnkiStudyModalProps> = ({
                 </button>
               </div>
             ) : (
-              /* Phase 2: Anki-style 4 Rating Buttons - Mobilde 46px Kibar Orijinal Anki Şeridi, PC'de Şık Kartlar */
-              <div className="w-full h-full grid grid-cols-4 gap-0 sm:gap-2 animate-in fade-in duration-150">
-                {repeatOptions.map((opt) => {
-                  let styleClasses = 'text-white bg-neutral-800 sm:text-slate-200 sm:bg-neutral-800 sm:border-white/10 sm:hover:bg-neutral-700';
+              /* Phase 2: Anki-style 4 Rating Buttons - "Cevabı Göster" ile milimetrik aynı alt konumda ve yükseklikte (h-11) */
+              <div className="flex flex-col items-center justify-end sm:justify-center w-full h-full animate-in fade-in duration-150">
+                <div className="w-full h-11 sm:h-auto grid grid-cols-4 gap-0 sm:gap-2">
+                  {repeatOptions.map((opt) => {
+                    let styleClasses = 'text-white bg-neutral-800 sm:text-slate-200 sm:bg-neutral-800 sm:border-white/10 sm:hover:bg-neutral-700';
 
-                  if (opt.rating === Rating.Again) {
-                    // Kırmızı Blok
-                    styleClasses = 'bg-[#c62828] text-white hover:bg-[#b71c1c] active:bg-[#d32f2f] sm:bg-red-500/15 sm:text-red-400 sm:border-red-500/35 sm:hover:bg-red-500/25 sm:active:bg-red-500/30';
-                  } else if (opt.rating === Rating.Hard) {
-                    // Koyu Füme/Gri Blok
-                    styleClasses = 'bg-[#37474f] text-white hover:bg-[#263238] active:bg-[#455a64] sm:bg-amber-500/15 sm:text-amber-400 sm:border-amber-500/35 sm:hover:bg-amber-500/25 sm:active:bg-amber-500/30';
-                  } else if (opt.rating === Rating.Good) {
-                    // Canlı Yeşil Blok
-                    styleClasses = 'bg-[#2e7d32] text-white hover:bg-[#1b5e20] active:bg-[#388e3c] sm:bg-emerald-500/15 sm:text-emerald-400 sm:border-emerald-500/35 sm:hover:bg-emerald-500/25 sm:active:bg-emerald-500/30';
-                  } else if (opt.rating === Rating.Easy) {
-                    // Canlı Mavi Blok
-                    styleClasses = 'bg-[#0288d1] text-white hover:bg-[#01579b] active:bg-[#039be5] sm:bg-blue-500/15 sm:text-blue-400 sm:border-blue-500/35 sm:hover:bg-blue-500/25 sm:active:bg-blue-500/30';
-                  }
+                    if (opt.rating === Rating.Again) {
+                      // Kırmızı Blok
+                      styleClasses = 'bg-[#c62828] text-white hover:bg-[#b71c1c] active:bg-[#d32f2f] sm:bg-red-500/15 sm:text-red-400 sm:border-red-500/35 sm:hover:bg-red-500/25 sm:active:bg-red-500/30';
+                    } else if (opt.rating === Rating.Hard) {
+                      // Koyu Füme/Gri Blok
+                      styleClasses = 'bg-[#37474f] text-white hover:bg-[#263238] active:bg-[#455a64] sm:bg-amber-500/15 sm:text-amber-400 sm:border-amber-500/35 sm:hover:bg-amber-500/25 sm:active:bg-amber-500/30';
+                    } else if (opt.rating === Rating.Good) {
+                      // Canlı Yeşil Blok
+                      styleClasses = 'bg-[#2e7d32] text-white hover:bg-[#1b5e20] active:bg-[#388e3c] sm:bg-emerald-500/15 sm:text-emerald-400 sm:border-emerald-500/35 sm:hover:bg-emerald-500/25 sm:active:bg-emerald-500/30';
+                    } else if (opt.rating === Rating.Easy) {
+                      // Canlı Mavi Blok
+                      styleClasses = 'bg-[#0288d1] text-white hover:bg-[#01579b] active:bg-[#039be5] sm:bg-blue-500/15 sm:text-blue-400 sm:border-blue-500/35 sm:hover:bg-blue-500/25 sm:active:bg-blue-500/30';
+                    }
 
-                  return (
-                    <button
-                      key={opt.rating}
-                      type="button"
-                      onClick={() => handleRate(opt)}
-                      className={`w-full h-full sm:h-auto py-0.5 sm:py-2.5 px-0.5 sm:px-1 rounded-none sm:rounded-xl transition-all cursor-pointer active:scale-98 sm:active:scale-95 shadow-none sm:shadow-sm border-0 sm:border flex flex-col items-center justify-center gap-0.5 sm:gap-1 select-none ${styleClasses}`}
-                    >
-                      {/* Süre (Üstte: <1dk, <6dk, vb.) */}
-                      <span className="text-[10px] sm:text-[11px] font-mono font-medium opacity-90 leading-tight">
-                        {opt.intervalText}
-                      </span>
-                      {/* Buton Adı (Altta: Yeniden, Zor, İyi, Kolay) */}
-                      <span className="font-bold text-[11px] sm:text-xs leading-tight">
-                        {opt.label}
-                      </span>
-                    </button>
-                  );
-                })}
+                    return (
+                      <button
+                        key={opt.rating}
+                        type="button"
+                        onClick={() => handleRate(opt)}
+                        className={`w-full h-11 sm:h-auto py-0.5 sm:py-2.5 px-0.5 sm:px-1 rounded-none sm:rounded-xl transition-all cursor-pointer active:scale-98 sm:active:scale-95 shadow-none sm:shadow-sm border-0 sm:border flex flex-col items-center justify-center gap-0.5 sm:gap-1 select-none ${styleClasses}`}
+                      >
+                        {/* Süre (Üstte: <1dk, <6dk, vb.) */}
+                        <span className="text-[10px] sm:text-[11px] font-mono font-medium opacity-90 leading-tight">
+                          {opt.intervalText}
+                        </span>
+                        {/* Buton Adı (Altta: Yeniden, Zor, İyi, Kolay) */}
+                        <span className="font-bold text-[11px] sm:text-xs leading-tight">
+                          {opt.label}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
             )}
           </div>

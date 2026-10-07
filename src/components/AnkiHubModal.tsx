@@ -416,7 +416,10 @@ export const AnkiHubModal: React.FC<AnkiHubModalProps> = ({
                     </span>
                   </div>
                   <div className="w-10 sm:w-16 shrink-0 text-center text-blue-400" title="Yeni: Henüz çalışılmamış kartlar">Yeni</div>
-                  <div className="w-14 sm:w-22 shrink-0 text-center text-rose-400" title="Öğreniliyor: Öğrenme adımında olan kartlar">Öğreniliyor</div>
+                  <div className="w-14 sm:w-22 shrink-0 text-center text-rose-400 truncate" title="Öğreniliyor: Öğrenme adımında olan kartlar">
+                    <span className="sm:hidden">Öğr.</span>
+                    <span className="hidden sm:inline">Öğreniliyor</span>
+                  </div>
                   <div className="w-10 sm:w-16 shrink-0 text-center text-emerald-400" title="Tekrar: Gün sonu kuralı dahilinde vadesi gelen kartlar">Tekrar</div>
                 </div>
 
