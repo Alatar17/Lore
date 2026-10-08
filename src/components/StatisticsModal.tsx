@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { ArchiveItem, MainTabType } from '../types';
 import {
   X,
@@ -20,6 +20,8 @@ import {
   Play,
   BookMarked,
   FileText,
+  ChevronDown,
+  Check,
 } from 'lucide-react';
 
 interface StatisticsModalProps {
@@ -36,6 +38,26 @@ export const StatisticsModal: React.FC<StatisticsModalProps> = ({
 }) => {
   const [activeTab, setActiveTab] = useState<MainTabType>(initialTab);
   const [selectedYear, setSelectedYear] = useState<string>('all');
+  const [isYearDropdownOpen, setIsYearDropdownOpen] = useState(false);
+  const yearDropdownRef = useRef<HTMLDivElement>(null);
+
+  // Close year dropdown on click outside
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (
+        yearDropdownRef.current &&
+        !yearDropdownRef.current.contains(e.target as Node)
+      ) {
+        setIsYearDropdownOpen(false);
+      }
+    };
+    if (isYearDropdownOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [isYearDropdownOpen]);
 
   // Close with Escape key
   useEffect(() => {
@@ -177,7 +199,7 @@ export const StatisticsModal: React.FC<StatisticsModalProps> = ({
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header: Centered Media/Game Switcher, Right: Year Selector & Close */}
-        <div className="flex items-center justify-between px-3 sm:px-6 py-2.5 sm:py-3.5 border-b border-white/10 bg-black/40 gap-1.5 sm:gap-4">
+        <div className="flex items-center justify-between px-2 sm:px-6 py-2 sm:py-3.5 border-b border-white/10 bg-black/40 gap-1 sm:gap-4">
           {/* Left spacing to balance right side on desktop */}
           <div className="w-28 hidden sm:block shrink-0" />
 
@@ -186,69 +208,115 @@ export const StatisticsModal: React.FC<StatisticsModalProps> = ({
             <button
               id="stats-tab-media-btn"
               onClick={() => setActiveTab('media')}
-              className={`flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-4 py-1 sm:py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+              className={`flex items-center gap-1 sm:gap-2 px-2 sm:px-4 py-1 sm:py-1.5 rounded-lg text-[11px] sm:text-xs font-semibold transition-all cursor-pointer ${
                 activeTab === 'media'
                   ? 'bg-neutral-800 text-white shadow-sm border border-white/20'
                   : 'text-neutral-400 hover:text-white hover:bg-neutral-900 border border-transparent'
               }`}
             >
-              <Film className="w-3.5 h-3.5 text-neutral-300" />
+              <Film className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-neutral-300" />
               <span>Medya</span>
             </button>
             <button
               id="stats-tab-game-btn"
               onClick={() => setActiveTab('game')}
-              className={`flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-4 py-1 sm:py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+              className={`flex items-center gap-1 sm:gap-2 px-2 sm:px-4 py-1 sm:py-1.5 rounded-lg text-[11px] sm:text-xs font-semibold transition-all cursor-pointer ${
                 activeTab === 'game'
                   ? 'bg-neutral-800 text-white shadow-sm border border-white/20'
                   : 'text-neutral-400 hover:text-white hover:bg-neutral-900 border border-transparent'
               }`}
             >
-              <Gamepad2 className="w-3.5 h-3.5 text-neutral-300" />
+              <Gamepad2 className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-neutral-300" />
               <span>Oyun</span>
             </button>
             <button
               id="stats-tab-book-btn"
               onClick={() => setActiveTab('book')}
-              className={`flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-4 py-1 sm:py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+              className={`flex items-center gap-1 sm:gap-2 px-2 sm:px-4 py-1 sm:py-1.5 rounded-lg text-[11px] sm:text-xs font-semibold transition-all cursor-pointer ${
                 activeTab === 'book'
                   ? 'bg-neutral-800 text-white shadow-sm border border-white/20'
                   : 'text-neutral-400 hover:text-white hover:bg-neutral-900 border border-transparent'
               }`}
             >
-              <BookOpen className="w-3.5 h-3.5 text-neutral-300" />
+              <BookOpen className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-neutral-300" />
               <span>Kitap</span>
             </button>
           </div>
 
           {/* Right Controls: Year Filter Dropdown + Close Button */}
-          <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0 ml-auto sm:ml-0">
-            <div className="flex items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 py-1 sm:py-1.5 rounded-xl bg-white/5 border border-white/10 hover:border-white/20 transition-all">
-              <Calendar className="w-3.5 h-3.5 text-blue-400 shrink-0 hidden min-[360px]:block" />
-              <select
+          <div className="flex items-center gap-1 sm:gap-2.5 shrink-0 ml-auto sm:ml-0">
+            {/* Custom Theme-Matched Year Dropdown */}
+            <div ref={yearDropdownRef} className="relative">
+              <button
+                type="button"
                 id="stats-year-select"
-                value={selectedYear}
-                onChange={(e) => setSelectedYear(e.target.value)}
-                className="bg-transparent text-[11px] sm:text-xs font-semibold text-slate-200 focus:outline-none cursor-pointer max-w-[85px] sm:max-w-none pr-0.5"
+                onClick={() => setIsYearDropdownOpen((prev) => !prev)}
+                className="flex items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 py-1 sm:py-1.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/20 transition-all text-[11px] sm:text-xs font-semibold text-slate-200 cursor-pointer"
+                title="Yıl Seç"
               >
-                <option value="all" className="bg-slate-900 text-white">
-                  Tüm Yıllar
-                </option>
-                {availableYears.map((yr) => (
-                  <option key={yr} value={yr} className="bg-slate-900 text-white">
-                    {yr} Yılı
-                  </option>
-                ))}
-              </select>
+                <Calendar className="w-3.5 h-3.5 text-blue-400 shrink-0" />
+                {/* Mobile text: Tümü veya 2026 */}
+                <span className="sm:hidden">
+                  {selectedYear === 'all' ? 'Tümü' : selectedYear}
+                </span>
+                {/* Desktop text: Tüm Yıllar veya 2026 Yılı */}
+                <span className="hidden sm:inline">
+                  {selectedYear === 'all' ? 'Tüm Yıllar' : `${selectedYear} Yılı`}
+                </span>
+                <ChevronDown className="w-3 h-3 text-slate-400 shrink-0 ml-0.5" />
+              </button>
+
+              {isYearDropdownOpen && (
+                <div className="absolute right-0 top-full mt-1.5 min-w-[130px] sm:min-w-[140px] py-1 bg-[#181b22] border border-white/15 rounded-xl shadow-2xl z-50 overflow-hidden backdrop-blur-xl animate-in fade-in zoom-in-95 duration-100 max-h-60 overflow-y-auto custom-scrollbar">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedYear('all');
+                      setIsYearDropdownOpen(false);
+                    }}
+                    className={`w-full text-left px-3 py-1.5 text-xs flex items-center justify-between transition-colors cursor-pointer ${
+                      selectedYear === 'all'
+                        ? 'bg-blue-600/20 text-blue-300 font-bold'
+                        : 'text-slate-200 hover:bg-white/10'
+                    }`}
+                  >
+                    <span>Tüm Yıllar</span>
+                    {selectedYear === 'all' && (
+                      <Check className="w-3.5 h-3.5 text-blue-400" />
+                    )}
+                  </button>
+
+                  {availableYears.map((yr) => (
+                    <button
+                      key={yr}
+                      type="button"
+                      onClick={() => {
+                        setSelectedYear(yr);
+                        setIsYearDropdownOpen(false);
+                      }}
+                      className={`w-full text-left px-3 py-1.5 text-xs flex items-center justify-between transition-colors cursor-pointer ${
+                        selectedYear === yr
+                          ? 'bg-blue-600/20 text-blue-300 font-bold'
+                        : 'text-slate-200 hover:bg-white/10'
+                      }`}
+                    >
+                      <span>{yr} Yılı</span>
+                      {selectedYear === yr && (
+                        <Check className="w-3.5 h-3.5 text-blue-400" />
+                      )}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
 
             <button
               id="close-stats-btn"
               onClick={onClose}
-              className="p-1 sm:p-1.5 rounded-xl text-slate-400 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+              className="p-1 sm:p-1.5 rounded-xl text-slate-400 hover:text-white hover:bg-white/10 transition-colors cursor-pointer shrink-0"
               title="Kapat"
             >
-              <X className="w-5 h-5" />
+              <X className="w-4 h-4 sm:w-5 sm:h-5" />
             </button>
           </div>
         </div>
