@@ -125,6 +125,7 @@ interface SettingsModalProps {
   onUpdateCategories: (mainTab: MainTabType, newCategories: Category[]) => void;
   onUpdateItems?: (newItems: ArchiveItem[]) => void;
   onSelectItem?: (item: ArchiveItem) => void;
+  onPreviewItem?: (item: ArchiveItem) => void;
   onReplaceAllData: (newData: AppData) => void;
   onClose: () => void;
   initialTab?: 'categories' | 'tags' | 'themes' | 'shortcuts' | 'storage';
@@ -227,6 +228,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   onUpdateCategories,
   onUpdateItems,
   onSelectItem,
+  onPreviewItem,
   onReplaceAllData,
   onClose,
   initialTab,
@@ -1824,8 +1826,18 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                                         key={item.id}
                                         type="button"
                                         onClick={() => {
-                                          if (onSelectItem) {
-                                            onSelectItem(item);
+                                          const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
+                                          setActiveTagPopover(null);
+                                          if (isMobile) {
+                                            if (onPreviewItem) {
+                                              onPreviewItem(item);
+                                            } else if (onSelectItem) {
+                                              onSelectItem(item);
+                                            }
+                                          } else {
+                                            if (onSelectItem) {
+                                              onSelectItem(item);
+                                            }
                                           }
                                         }}
                                         className="w-full text-left px-2.5 py-1.5 rounded-lg text-xs text-slate-200 hover:bg-blue-600/20 hover:text-blue-200 border border-transparent hover:border-blue-500/30 transition-all cursor-pointer flex items-center gap-2 group/item"

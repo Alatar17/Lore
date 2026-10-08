@@ -3498,8 +3498,16 @@ export default function App() {
             setAppData((prev) => ({ ...prev, items: newItems }));
           }}
           onSelectItem={(item) => {
+            const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
+            if (isMobile) {
+              setPreviewItem(item);
+              return;
+            }
             if (!requireFolderOnDesktop()) return;
             setSelectedItem(item);
+          }}
+          onPreviewItem={(item) => {
+            setPreviewItem(item);
           }}
           onReplaceAllData={(newData) => {
             setAppData(newData);
