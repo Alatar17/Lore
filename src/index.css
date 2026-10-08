@@ -136,6 +136,15 @@ select:-webkit-autofill:focus {
   scrollbar-color: var(--border-medium, #252f44) transparent;
 }
 
+/* No-scrollbar utility for clean mobile scrolling */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
 /* Eye-catching Highlight / Pulse Animation for Bottom Quick Appearance Bar */
 @keyframes quickBarPulseGlow {
   0% {

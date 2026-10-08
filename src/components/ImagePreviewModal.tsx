@@ -708,8 +708,8 @@ export const ImagePreviewModal: React.FC<ImagePreviewModalProps> = ({
           {/* 2. Afişin Altındaki Alana Bilgilerin Taşınması */}
           {/* Ana Kategori (Dizi, Film, Anime, Oyun, Kitap vb.) ve Yapım/Basım Yılı */}
           <div className="w-full mt-3 pt-1 flex items-center justify-between gap-2 px-0.5 shrink-0">
-            {/* İçerik Türü */}
-            <div className="flex items-center gap-2 text-xs font-semibold text-slate-200">
+            {/* İçerik Türü & Breadcrumb */}
+            <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-200 min-w-0">
               <span
                 className="w-2.5 h-2.5 rounded-full shadow-sm shrink-0"
                 style={{ backgroundColor: baseColor }}
@@ -717,6 +717,12 @@ export const ImagePreviewModal: React.FC<ImagePreviewModalProps> = ({
               <span className="tracking-wide">
                 {catObj?.name || (isBook ? 'Kitap' : isGame ? 'Oyun' : 'Medya')}
               </span>
+              {item.sub && (
+                <>
+                  <span className="text-slate-500 font-normal select-none">›</span>
+                  <span className="text-slate-300 font-medium truncate">{item.sub}</span>
+                </>
+              )}
             </div>
 
             {/* Yapım / Basım Yılı */}
@@ -729,31 +735,13 @@ export const ImagePreviewModal: React.FC<ImagePreviewModalProps> = ({
             ) : null}
           </div>
 
-          {/* Kitap İçin: Format & Sayfa Sayısı Rozetleri */}
-          {isBook && (item.format || (item.pageCount && item.pageCount > 0)) && (
+          {/* Kitap İçin: Format Rozeti (Sayfa sayısı afişin sağ altında yer aldığı için mükerrer gösterilmez) */}
+          {isBook && item.format && (
             <div className="w-full mt-2.5 flex items-center gap-2 px-0.5 flex-wrap">
-              {item.format && (
-                <span className="px-2 py-0.5 rounded-md bg-indigo-500/10 border border-indigo-500/25 text-indigo-300 text-xs font-medium flex items-center gap-1">
-                  <BookOpen className="w-3 h-3 text-indigo-400" />
-                  <span>{item.format}</span>
-                </span>
-              )}
-              {item.pageCount && item.pageCount > 0 ? (
-                <span className="px-2 py-0.5 rounded-md bg-white/[0.06] border border-white/10 text-slate-300 text-xs font-medium">
-                  📄 {item.pageCount} Sayfa
-                </span>
-              ) : null}
-            </div>
-          )}
-
-          {/* Kitap İçin: Çevirmen */}
-          {isBook && item.translator && item.translator.length > 0 && (
-            <div className="w-full mt-2 flex items-center gap-1.5 px-0.5 text-xs">
-              <span className="text-slate-400 font-semibold shrink-0">Çevirmen:</span>
-              <div className="px-2 py-0.5 rounded-md bg-sky-500/10 border border-sky-500/20 text-sky-300 flex items-center gap-1 font-medium">
-                <Globe className="w-3 h-3 text-sky-400 shrink-0" />
-                <span>{item.translator.join(', ')}</span>
-              </div>
+              <span className="px-2 py-0.5 rounded-md bg-indigo-500/10 border border-indigo-500/25 text-indigo-300 text-xs font-medium flex items-center gap-1">
+                <BookOpen className="w-3 h-3 text-indigo-400" />
+                <span>{item.format}</span>
+              </span>
             </div>
           )}
 
@@ -824,10 +812,10 @@ export const ImagePreviewModal: React.FC<ImagePreviewModalProps> = ({
             )}
           </div>
 
-          {/* Stüdyo / Firma / Geliştirici / Yazar & Yönetmen Rozetleri */}
+          {/* Stüdyo / Firma / Geliştirici / Yazar & Yönetmen & Çevirmen Rozetleri */}
           {((!isGame && !isBook && ((item.firm && item.firm.length > 0) || (item.director && item.director.length > 0))) ||
             (isGame && item.developer && item.developer.length > 0) ||
-            (isBook && ((item.author && item.author.length > 0) || (item.publisher && item.publisher.length > 0)))) && (
+            (isBook && ((item.author && item.author.length > 0) || (item.publisher && item.publisher.length > 0) || (item.translator && item.translator.length > 0)))) && (
             <div className="flex flex-col gap-1.5 pt-0.5">
               {/* Kitap İçin: Yazar */}
               {isBook && item.author && item.author.length > 0 && (
@@ -840,13 +828,32 @@ export const ImagePreviewModal: React.FC<ImagePreviewModalProps> = ({
                 </div>
               )}
 
-              {/* Kitap İçin: Yayınevi */}
-              {isBook && item.publisher && item.publisher.length > 0 && (
+              {/* Kitap İçin: Çevirmen & Yayınevi (Tek Satırda) */}
+              {isBook && ((item.translator && item.translator.length > 0) || (item.publisher && item.publisher.length > 0)) && (
                 <div className="flex items-center gap-1.5 text-xs">
-                  <span className="text-slate-400 font-semibold shrink-0">Yayınevi:</span>
-                  <div className="px-2.5 py-0.5 rounded-md bg-purple-500/10 border border-purple-500/20 text-purple-300 flex items-center gap-1.5 font-medium">
-                    <Building2 className="w-3.5 h-3.5 text-purple-400 shrink-0" />
-                    <span>{item.publisher.join(', ')}</span>
+                  <span className="text-slate-400 font-semibold shrink-0">
+                    {item.translator && item.translator.length > 0 && item.publisher && item.publisher.length > 0
+                      ? 'Çevirmen, Yayınevi:'
+                      : item.translator && item.translator.length > 0
+                      ? 'Çevirmen:'
+                      : 'Yayınevi:'}
+                  </span>
+                  <div className="px-2.5 py-0.5 rounded-md bg-purple-500/10 border border-purple-500/20 text-purple-200 flex items-center gap-1.5 font-medium">
+                    {item.translator && item.translator.length > 0 && (
+                      <span className="flex items-center gap-1 text-sky-300">
+                        <Globe className="w-3.5 h-3.5 text-sky-400 shrink-0" />
+                        <span>{item.translator.join(', ')}</span>
+                      </span>
+                    )}
+                    {item.translator && item.translator.length > 0 && item.publisher && item.publisher.length > 0 && (
+                      <span className="text-slate-500 font-normal">,</span>
+                    )}
+                    {item.publisher && item.publisher.length > 0 && (
+                      <span className="flex items-center gap-1 text-purple-300">
+                        <Building2 className="w-3.5 h-3.5 text-purple-400 shrink-0" />
+                        <span>{item.publisher.join(', ')}</span>
+                      </span>
+                    )}
                   </div>
                 </div>
               )}
@@ -1328,7 +1335,7 @@ export const ImagePreviewModal: React.FC<ImagePreviewModalProps> = ({
                 ) : null}
               </div>
 
-              {/* Kitap İçin: Yazar, Yayınevi, Format & Çevirmen */}
+              {/* Kitap İçin: Yazar, Çevirmen & Yayınevi (Tek Satır), Format */}
               {isBook && ((item.author && item.author.length > 0) || (item.publisher && item.publisher.length > 0) || item.format || (item.translator && item.translator.length > 0)) && (
                 <div className="flex flex-col gap-1 mt-2">
                   {item.author && item.author.length > 0 && (
@@ -1341,33 +1348,43 @@ export const ImagePreviewModal: React.FC<ImagePreviewModalProps> = ({
                     </div>
                   )}
 
-                  {item.publisher && item.publisher.length > 0 && (
-                    <div className="flex items-center gap-1.5 text-[11px]">
-                      <span className="text-slate-400 font-semibold shrink-0 text-[10px]">Yayınevi:</span>
-                      <div className="px-2 py-0.5 rounded-md bg-purple-500/10 border border-purple-500/20 text-purple-300 flex items-center gap-1 font-medium text-[10px]">
-                        <Building2 className="w-2.5 h-2.5 text-purple-400 shrink-0" />
-                        <span className="truncate max-w-[200px]">{item.publisher.join(', ')}</span>
+                  {/* Çevirmen, Yayınevi: Tek Satırda */}
+                  {((item.translator && item.translator.length > 0) || (item.publisher && item.publisher.length > 0)) && (
+                    <div className="flex items-center gap-1.5 text-[11px] min-w-0">
+                      <span className="text-slate-400 font-semibold shrink-0 text-[10px]">
+                        {item.translator && item.translator.length > 0 && item.publisher && item.publisher.length > 0
+                          ? 'Çevirmen, Yayınevi:'
+                          : item.translator && item.translator.length > 0
+                          ? 'Çevirmen:'
+                          : 'Yayınevi:'}
+                      </span>
+                      <div className="px-2 py-0.5 rounded-md bg-purple-500/10 border border-purple-500/20 text-purple-200 flex items-center gap-1 font-medium text-[10px] min-w-0 truncate">
+                        {item.translator && item.translator.length > 0 && (
+                          <span className="flex items-center gap-1 text-sky-300 truncate">
+                            <Globe className="w-2.5 h-2.5 text-sky-400 shrink-0" />
+                            <span className="truncate max-w-[110px]">{item.translator.join(', ')}</span>
+                          </span>
+                        )}
+                        {item.translator && item.translator.length > 0 && item.publisher && item.publisher.length > 0 && (
+                          <span className="text-slate-500 shrink-0">,</span>
+                        )}
+                        {item.publisher && item.publisher.length > 0 && (
+                          <span className="flex items-center gap-1 text-purple-300 truncate">
+                            <Building2 className="w-2.5 h-2.5 text-purple-400 shrink-0" />
+                            <span className="truncate max-w-[110px]">{item.publisher.join(', ')}</span>
+                          </span>
+                        )}
                       </div>
                     </div>
                   )}
 
-                  <div className="flex items-center gap-2 flex-wrap text-[10px]">
-                    {item.format && (
+                  {item.format && (
+                    <div className="flex items-center gap-2 text-[10px]">
                       <span className="px-1.5 py-0.5 rounded bg-indigo-500/10 border border-indigo-500/25 text-indigo-300 font-medium">
                         📖 {item.format}
                       </span>
-                    )}
-                    {item.pageCount !== undefined && item.pageCount > 0 && (
-                      <span className="px-1.5 py-0.5 rounded bg-white/[0.06] border border-white/10 text-slate-300">
-                        📄 {item.pageCount} Sayfa
-                      </span>
-                    )}
-                    {item.translator && item.translator.length > 0 && (
-                      <span className="text-slate-400 truncate">
-                        Çev: {item.translator.join(', ')}
-                      </span>
-                    )}
-                  </div>
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -1411,8 +1428,8 @@ export const ImagePreviewModal: React.FC<ImagePreviewModalProps> = ({
               )}
             </div>
 
-            {/* Scrollable Center: Desc + Quotes + Characters */}
-            <div className="flex-1 overflow-y-auto custom-scrollbar my-2.5 space-y-3 pr-1 text-left">
+            {/* Scrollable Center: Desc + Quotes + Characters + Genres (Scrollbar gizli, parmakla kaydırılır) */}
+            <div className="flex-1 overflow-y-auto no-scrollbar my-2.5 space-y-3 text-left">
               {/* Konu */}
               <div>
                 <span className="block text-[10px] uppercase font-bold tracking-wider text-slate-400 mb-1">
@@ -1501,6 +1518,25 @@ export const ImagePreviewModal: React.FC<ImagePreviewModalProps> = ({
                   </p>
                 )}
               </div>
+
+              {/* Türler (Mobil için Karakterlerin Altında) */}
+              {item.genre && item.genre.length > 0 && (
+                <div className="pt-0.5">
+                  <span className="block text-[10px] uppercase font-bold tracking-wider text-slate-400 mb-1 flex items-center gap-1">
+                    <Tags className="w-3 h-3 text-emerald-400" /> Türler
+                  </span>
+                  <div className="flex flex-wrap gap-1.5">
+                    {item.genre.map((g) => (
+                      <span
+                        key={g}
+                        className="px-2 py-0.5 rounded-md bg-white/[0.06] border border-white/10 text-slate-300 text-[10px] font-medium"
+                      >
+                        {g}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>
