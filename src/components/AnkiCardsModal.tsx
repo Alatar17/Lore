@@ -479,8 +479,11 @@ export const AnkiCardsModal: React.FC<AnkiCardsModalProps> = ({
     <>
       <div
         id="anki-cards-modal-backdrop"
-        className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-2 sm:p-4 animate-in fade-in duration-150"
-        onClick={onClose}
+        className="fixed inset-0 z-[60] bg-black/60 backdrop-blur-sm flex items-center justify-center p-2 sm:p-4 animate-in fade-in duration-150"
+        onClick={(e) => {
+          e.stopPropagation();
+          onClose();
+        }}
       >
         <div
           id="anki-cards-modal-window"

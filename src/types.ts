@@ -152,6 +152,22 @@ export interface BookItem extends ArchiveItem {
   quotes?: BookQuote[];
 }
 
+export type RecommendationPoolType = 'radar' | 'blacklist' | 'archive';
+export type RecommendationCategory = 'movie' | 'series' | 'anime' | 'animation' | 'game' | 'book';
+
+export interface RecommendationMemoryItem {
+  id: string; // Benzersiz kayıt id'si (uuid / timestamp)
+  title: string; // Yapım adı (Örn: 'Arrival', 'The Witcher 3')
+  releaseYear?: number | string; // Yapım yılı (Örn: 2016)
+  mainTab: 'media' | 'game' | 'book'; // 'media', 'game' veya 'book'
+  subType?: RecommendationCategory; // 'movie' | 'series' | 'anime' | 'animation' | 'game' | 'book'
+  genres?: string[]; // Türler (Örn: ['Bilim Kurgu', 'Gizem'])
+  thumbnailUrl?: string; // Küçük afiş linki (Sadece web URL'i, hafif)
+  pool: RecommendationPoolType; // 'radar' | 'blacklist' | 'archive'
+  recommendedAt: number; // İlk önerilme zaman damgası (Date.now())
+  updatedAt?: number; // Havuz değiştirilme tarihi
+}
+
 export interface AppData {
   version: number;
   lastUpdated: string;
@@ -161,6 +177,8 @@ export interface AppData {
     book: Category[];
   };
   items: ArchiveItem[];
+  recommendationMemory?: RecommendationMemoryItem[];
+  aiChatHistory?: AiChatMessage[];
 }
 
 export type RatingFilterType = 'all' | '9-plus' | '8-plus' | '7-plus' | '6-below' | 'unrated';

@@ -2239,42 +2239,115 @@ export default function App() {
 
             return (
               <>
-                {/* 1. Desktop & FAB Edit Mode: Individual Draggable FABs */}
-                <div className={isEditingFabMode ? 'contents' : 'hidden md:contents'}>
-                  {/* 1. Statistics Button */}
+                {/* 1. Desktop & FAB Edit Mode */}
+                {!isEditingFabMode ? (
+                  /* 1.1. Desktop Unified Bottom-Left Control Dock (md:flex) */
                   <div
-                    className={`fixed transition-all duration-150 ${
-                      isEditingFabMode ? 'z-[65]' : 'z-40'
-                    }`}
-                    style={{ bottom: `${statPos.bottom}px`, left: `${statPos.side}px` }}
+                    id="desktop-bottom-dock"
+                    className="fixed bottom-2.5 left-2.5 z-40 hidden md:flex items-center gap-0.5 py-0.5 px-1 bg-neutral-900/95 backdrop-blur-xl border border-white/20 rounded-xl shadow-2xl shadow-black/80 select-none animate-in fade-in zoom-in-95 duration-200"
+                    onClick={(e) => e.stopPropagation()}
                   >
+                    {/* 1. Statistics */}
                     <button
+                      type="button"
                       id="fab-statistics-btn"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        if (isEditingFabMode) {
-                          setSelectedFab('statistics');
-                          return;
-                        }
+                      onClick={() => {
                         closeAllPanels();
                         setIsStatisticsOpen((prev) => !prev);
                       }}
-                      title={
-                        isEditingFabMode
-                          ? `İstatistikler (${statPos.bottom}px x ${statPos.side}px)`
-                          : 'İstatistikler & Grafikler (Kısayol: Q)'
-                      }
-                      className={`relative w-8 h-8 rounded-full flex items-center justify-center transition-all duration-150 backdrop-blur-md cursor-pointer group ${
-                        isEditingFabMode
-                          ? selectedFab === 'statistics'
-                            ? 'bg-blue-600 text-white ring-2 ring-blue-400 ring-offset-1 ring-offset-slate-950 shadow-lg shadow-blue-500/40 opacity-100'
-                            : 'bg-slate-900/90 text-slate-300 ring-1 ring-dashed ring-blue-400/50 hover:ring-blue-400 opacity-80 hover:opacity-100 border border-white/20'
-                          : 'bg-slate-900/80 hover:bg-blue-600 text-slate-400 hover:text-white shadow-md hover:shadow-blue-600/30 hover:scale-105 active:scale-95 border border-white/10 hover:border-blue-400/40 opacity-70 hover:opacity-100'
+                      title="İstatistikler & Grafikler (Kısayol: Q)"
+                      className={`w-7 h-7 rounded-lg flex items-center justify-center transition-all cursor-pointer ${
+                        isStatisticsOpen
+                          ? 'bg-blue-600 text-white shadow'
+                          : 'text-neutral-400 hover:text-white hover:bg-white/10 active:scale-95'
                       }`}
                     >
-                      <BarChart3 className="w-3.5 h-3.5 transition-transform duration-200 group-hover:scale-110" />
+                      <BarChart3 className="w-3.5 h-3.5" />
+                    </button>
 
-                      {isEditingFabMode && (
+                    {/* 2. Recent Activity */}
+                    <button
+                      type="button"
+                      id="fab-recent-activity-btn"
+                      onClick={() => {
+                        closeAllPanels();
+                        setIsRecentActivityOpen((prev) => !prev);
+                      }}
+                      title="Son Aktiviteler (Kısayol: E)"
+                      className={`w-7 h-7 rounded-lg flex items-center justify-center transition-all cursor-pointer ${
+                        isRecentActivityOpen
+                          ? 'bg-blue-600 text-white shadow'
+                          : 'text-neutral-400 hover:text-white hover:bg-white/10 active:scale-95'
+                      }`}
+                    >
+                      <History
+                        className={`w-3.5 h-3.5 transition-transform duration-200 ${
+                          isHideModeActive ? '' : '-scale-x-100'
+                        }`}
+                      />
+                    </button>
+
+                    {/* Dikey İnce Ayraç */}
+                    <div className="w-[1px] h-3.5 bg-white/20 mx-0.5" />
+
+                    {/* 3. Anki Hub */}
+                    <button
+                      type="button"
+                      id="fab-anki-hub-btn"
+                      onClick={() => {
+                        closeAllPanels();
+                        setIsAnkiHubOpen((prev) => !prev);
+                      }}
+                      title="Anki Deste Hub'ı"
+                      className={`w-7 h-7 rounded-lg flex items-center justify-center transition-all cursor-pointer ${
+                        isAnkiHubOpen
+                          ? 'bg-blue-600 text-white shadow ring-1 ring-blue-400/50'
+                          : 'text-neutral-400 hover:text-white hover:bg-white/10 active:scale-95'
+                      }`}
+                    >
+                      <Layers className="w-3.5 h-3.5" />
+                    </button>
+
+                    {/* 4. Lore AI Assistant */}
+                    <button
+                      type="button"
+                      id="fab-ai-assistant-btn"
+                      onClick={() => {
+                        closeAllPanels();
+                        setIsAiAssistantOpen((prev) => !prev);
+                      }}
+                      title="Lore AI Asistan & Küratör (Kısayol: A)"
+                      className={`w-7 h-7 rounded-lg flex items-center justify-center transition-all cursor-pointer ${
+                        isAiAssistantOpen
+                          ? 'bg-gradient-to-tr from-amber-500 to-indigo-600 text-white shadow ring-1 ring-amber-400/60'
+                          : 'text-amber-400/90 hover:text-white hover:bg-white/10 active:scale-95'
+                      }`}
+                    >
+                      <Sparkles className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                ) : (
+                  /* 1.2. FAB Edit Mode: Individual Draggable FABs with coordinates */
+                  <div className="contents">
+                    {/* 1. Statistics Button */}
+                    <div
+                      className="fixed transition-all duration-150 z-[65]"
+                      style={{ bottom: `${statPos.bottom}px`, left: `${statPos.side}px` }}
+                    >
+                      <button
+                        id="fab-statistics-btn"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedFab('statistics');
+                        }}
+                        title={`İstatistikler (${statPos.bottom}px x ${statPos.side}px)`}
+                        className={`relative w-8 h-8 rounded-full flex items-center justify-center transition-all duration-150 backdrop-blur-md cursor-pointer group ${
+                          selectedFab === 'statistics'
+                            ? 'bg-blue-600 text-white ring-2 ring-blue-400 ring-offset-1 ring-offset-slate-950 shadow-lg shadow-blue-500/40 opacity-100'
+                            : 'bg-slate-900/90 text-slate-300 ring-1 ring-dashed ring-blue-400/50 hover:ring-blue-400 opacity-80 hover:opacity-100 border border-white/20'
+                        }`}
+                      >
+                        <BarChart3 className="w-3.5 h-3.5" />
                         <span
                           className={`absolute -top-6 left-1/2 -translate-x-1/2 px-1.5 py-0.5 rounded text-[9px] font-mono whitespace-nowrap pointer-events-none shadow-md ${
                             selectedFab === 'statistics'
@@ -2284,48 +2357,30 @@ export default function App() {
                         >
                           {statPos.bottom}x{statPos.side}px
                         </span>
-                      )}
-                    </button>
-                  </div>
+                      </button>
+                    </div>
 
-                  {/* 2. Recent Activity Button */}
-                  <div
-                    className={`fixed transition-all duration-150 ${
-                      isEditingFabMode ? 'z-[65]' : 'z-40'
-                    }`}
-                    style={{ bottom: `${recentPos.bottom}px`, left: `${recentPos.side}px` }}
-                  >
-                    <button
-                      id="fab-recent-activity-btn"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        if (isEditingFabMode) {
+                    {/* 2. Recent Activity Button */}
+                    <div
+                      className="fixed transition-all duration-150 z-[65]"
+                      style={{ bottom: `${recentPos.bottom}px`, left: `${recentPos.side}px` }}
+                    >
+                      <button
+                        id="fab-recent-activity-btn"
+                        onClick={(e) => {
+                          e.stopPropagation();
                           setSelectedFab('recentActivity');
-                          return;
-                        }
-                        closeAllPanels();
-                        setIsRecentActivityOpen((prev) => !prev);
-                      }}
-                      title={
-                        isEditingFabMode
-                          ? `Son Aktiviteler (${recentPos.bottom}px x ${recentPos.side}px)`
-                          : 'Son Aktiviteler (Kısayol: E)'
-                      }
-                      className={`relative w-8 h-8 rounded-full flex items-center justify-center transition-all duration-150 backdrop-blur-md cursor-pointer group ${
-                        isEditingFabMode
-                          ? selectedFab === 'recentActivity'
+                        }}
+                        title={`Son Aktiviteler (${recentPos.bottom}px x ${recentPos.side}px)`}
+                        className={`relative w-8 h-8 rounded-full flex items-center justify-center transition-all duration-150 backdrop-blur-md cursor-pointer group ${
+                          selectedFab === 'recentActivity'
                             ? 'bg-blue-600 text-white ring-2 ring-blue-400 ring-offset-1 ring-offset-slate-950 shadow-lg shadow-blue-500/40 opacity-100'
                             : 'bg-slate-900/90 text-slate-300 ring-1 ring-dashed ring-blue-400/50 hover:ring-blue-400 opacity-80 hover:opacity-100 border border-white/20'
-                          : 'bg-slate-900/80 hover:bg-blue-600 text-slate-400 hover:text-white shadow-md hover:shadow-blue-600/30 hover:scale-105 active:scale-95 border border-white/10 hover:border-blue-400/40 opacity-70 hover:opacity-100'
-                      }`}
-                    >
-                      <History
-                        className={`w-3.5 h-3.5 transition-transform duration-200 group-hover:scale-110 ${
-                          isHideModeActive ? '' : '-scale-x-100'
                         }`}
-                      />
-
-                      {isEditingFabMode && (
+                      >
+                        <History
+                          className={`w-3.5 h-3.5 ${isHideModeActive ? '' : '-scale-x-100'}`}
+                        />
                         <span
                           className={`absolute -top-6 left-1/2 -translate-x-1/2 px-1.5 py-0.5 rounded text-[9px] font-mono whitespace-nowrap pointer-events-none shadow-md ${
                             selectedFab === 'recentActivity'
@@ -2335,46 +2390,28 @@ export default function App() {
                         >
                           {recentPos.bottom}x{recentPos.side}px
                         </span>
-                      )}
-                    </button>
-                  </div>
+                      </button>
+                    </div>
 
-                  {/* 2.3. Anki Hub Button */}
-                  <div
-                    className={`fixed transition-all duration-150 ${
-                      isEditingFabMode ? 'z-[65]' : 'z-40'
-                    }`}
-                    style={{ bottom: `${ankiPos.bottom}px`, left: `${ankiPos.side}px` }}
-                  >
-                    <button
-                      id="fab-anki-hub-btn"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        if (isEditingFabMode) {
+                    {/* 2.3. Anki Hub Button */}
+                    <div
+                      className="fixed transition-all duration-150 z-[65]"
+                      style={{ bottom: `${ankiPos.bottom}px`, left: `${ankiPos.side}px` }}
+                    >
+                      <button
+                        id="fab-anki-hub-btn"
+                        onClick={(e) => {
+                          e.stopPropagation();
                           setSelectedFab('ankiHub');
-                          return;
-                        }
-                        closeAllPanels();
-                        setIsAnkiHubOpen((prev) => !prev);
-                      }}
-                      title={
-                        isEditingFabMode
-                          ? `Anki Hub (${ankiPos.bottom}px x ${ankiPos.side}px)`
-                          : 'Anki Deste Hub\'ı'
-                      }
-                      className={`relative w-8 h-8 rounded-full flex items-center justify-center transition-all duration-150 backdrop-blur-md cursor-pointer group ${
-                        isEditingFabMode
-                          ? selectedFab === 'ankiHub'
+                        }}
+                        title={`Anki Hub (${ankiPos.bottom}px x ${ankiPos.side}px)`}
+                        className={`relative w-8 h-8 rounded-full flex items-center justify-center transition-all duration-150 backdrop-blur-md cursor-pointer group ${
+                          selectedFab === 'ankiHub'
                             ? 'bg-blue-600 text-white ring-2 ring-blue-400 ring-offset-1 ring-offset-slate-950 shadow-lg shadow-blue-500/40 opacity-100'
                             : 'bg-slate-900/90 text-slate-300 ring-1 ring-dashed ring-blue-400/50 hover:ring-blue-400 opacity-80 hover:opacity-100 border border-white/20'
-                          : isAnkiHubOpen
-                          ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/40 ring-2 ring-blue-400/60 opacity-100 scale-105'
-                          : 'bg-slate-900/80 hover:bg-blue-600 text-slate-400 hover:text-white shadow-md hover:shadow-blue-600/30 hover:scale-105 active:scale-95 border border-white/10 hover:border-blue-400/40 opacity-70 hover:opacity-100'
-                      }`}
-                    >
-                      <Layers className="w-3.5 h-3.5 transition-transform duration-200 group-hover:scale-110" />
-
-                      {isEditingFabMode && (
+                        }`}
+                      >
+                        <Layers className="w-3.5 h-3.5" />
                         <span
                           className={`absolute -top-6 left-1/2 -translate-x-1/2 px-1.5 py-0.5 rounded text-[9px] font-mono whitespace-nowrap pointer-events-none shadow-md ${
                             selectedFab === 'ankiHub'
@@ -2384,46 +2421,28 @@ export default function App() {
                         >
                           {ankiPos.bottom}x{ankiPos.side}px
                         </span>
-                      )}
-                    </button>
-                  </div>
+                      </button>
+                    </div>
 
-                  {/* 2.5. AI Assistant Button */}
-                  <div
-                    className={`fixed transition-all duration-150 ${
-                      isEditingFabMode ? 'z-[65]' : 'z-40'
-                    }`}
-                    style={{ bottom: `${aiPos.bottom}px`, left: `${aiPos.side}px` }}
-                  >
-                    <button
-                      id="fab-ai-assistant-btn"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        if (isEditingFabMode) {
+                    {/* 2.5. AI Assistant Button */}
+                    <div
+                      className="fixed transition-all duration-150 z-[65]"
+                      style={{ bottom: `${aiPos.bottom}px`, left: `${aiPos.side}px` }}
+                    >
+                      <button
+                        id="fab-ai-assistant-btn"
+                        onClick={(e) => {
+                          e.stopPropagation();
                           setSelectedFab('aiAssistant');
-                          return;
-                        }
-                        closeAllPanels();
-                        setIsAiAssistantOpen((prev) => !prev);
-                      }}
-                      title={
-                        isEditingFabMode
-                          ? `AI Asistan (${aiPos.bottom}px x ${aiPos.side}px)`
-                          : 'Lore AI Asistan & Küratör (Kısayol: A)'
-                      }
-                      className={`relative w-8 h-8 rounded-full flex items-center justify-center transition-all duration-150 backdrop-blur-md cursor-pointer group ${
-                        isEditingFabMode
-                          ? selectedFab === 'aiAssistant'
+                        }}
+                        title={`AI Asistan (${aiPos.bottom}px x ${aiPos.side}px)`}
+                        className={`relative w-8 h-8 rounded-full flex items-center justify-center transition-all duration-150 backdrop-blur-md cursor-pointer group ${
+                          selectedFab === 'aiAssistant'
                             ? 'bg-amber-500 text-white ring-2 ring-amber-400 ring-offset-1 ring-offset-slate-950 shadow-lg shadow-amber-500/40 opacity-100'
                             : 'bg-slate-900/90 text-amber-300 ring-1 ring-dashed ring-amber-400/50 hover:ring-amber-400 opacity-80 hover:opacity-100 border border-white/20'
-                          : isAiAssistantOpen
-                          ? 'bg-gradient-to-tr from-amber-500 to-indigo-600 text-white shadow-lg shadow-amber-500/40 ring-2 ring-amber-400/60 opacity-100 scale-105'
-                          : 'bg-slate-900/80 hover:bg-gradient-to-tr hover:from-amber-500 hover:to-indigo-600 text-amber-400/90 hover:text-white shadow-md hover:shadow-amber-500/30 hover:scale-105 active:scale-95 border border-white/10 hover:border-amber-400/40 opacity-80 hover:opacity-100'
-                      }`}
-                    >
-                      <Sparkles className="w-3.5 h-3.5 transition-transform duration-200 group-hover:scale-110" />
-
-                      {isEditingFabMode && (
+                        }`}
+                      >
+                        <Sparkles className="w-3.5 h-3.5" />
                         <span
                           className={`absolute -top-6 left-1/2 -translate-x-1/2 px-1.5 py-0.5 rounded text-[9px] font-mono whitespace-nowrap pointer-events-none shadow-md ${
                             selectedFab === 'aiAssistant'
@@ -2433,10 +2452,10 @@ export default function App() {
                         >
                           {aiPos.bottom}x{aiPos.side}px
                         </span>
-                      )}
-                    </button>
+                      </button>
+                    </div>
                   </div>
-                </div>
+                )}
 
                 {/* 2. Mobile Floating Pill Dock (md:hidden) */}
                 {!isEditingFabMode && (

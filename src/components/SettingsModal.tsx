@@ -646,7 +646,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         if (onUpdateItems) {
           const updatedItems = appData.items.map((it) => {
             if (it.mainTab === settingsMainTab && it.cat === cat.id) {
-              return { ...it, sub: null };
+              return { ...it, cat: '', sub: null, tier: null };
             }
             return it;
           });
@@ -1880,10 +1880,13 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   </label>
                 </div>
 
-                {/* Altına bir çizgi */}
-                <hr className="border-white/10 my-1" />
+                {/* Yüzen Buton (FAB) Konumları ve Presetleri - UI'da geçici olarak gizlendi (silinmedi, ileride gerekirse tekrar açılabilir) */}
+                {false && (
+                  <>
+                    {/* Altına bir çizgi */}
+                    <hr className="border-white/10 my-1" />
 
-                {/* 2. Yüzen Buton (FAB) Konumları */}
+                    {/* 2. Yüzen Buton (FAB) Konumları */}
                 <div className="space-y-3">
                   <div>
                     <span className="text-sm font-bold text-slate-100 block">
@@ -2174,6 +2177,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     })()}
                   </div>
                 </div>
+                  </>
+                )}
               </div>
             )}
 

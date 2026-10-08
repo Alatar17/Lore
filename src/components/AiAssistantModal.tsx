@@ -619,6 +619,18 @@ export const AiAssistantModal: React.FC<AiAssistantModalProps> = ({
   const [recommendationMemory, setRecommendationMemory] = useState<RecommendationMemoryItem[]>(() =>
     loadRecommendationMemory()
   );
+
+  useEffect(() => {
+    const handleMemoryUpdated = (e: any) => {
+      if (e?.detail && Array.isArray(e.detail)) {
+        setRecommendationMemory(e.detail);
+      } else {
+        setRecommendationMemory(loadRecommendationMemory());
+      }
+    };
+    window.addEventListener('lore-recommendation-memory-updated', handleMemoryUpdated);
+    return () => window.removeEventListener('lore-recommendation-memory-updated', handleMemoryUpdated);
+  }, []);
   const [viewMode, setViewMode] = useState<'chat' | 'memory'>('chat');
   const [activePopover, setActivePopover] = useState<{
     messageId: string;

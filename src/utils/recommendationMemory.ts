@@ -1,22 +1,13 @@
-import { AiRecommendationCard } from '../types';
+import {
+  AiRecommendationCard,
+  RecommendationMemoryItem,
+  RecommendationPoolType,
+  RecommendationCategory,
+} from '../types';
 
-export type RecommendationPoolType = 'radar' | 'blacklist' | 'archive';
+export type { RecommendationMemoryItem, RecommendationPoolType, RecommendationCategory };
 export type RecommendationFilterTab = 'all' | 'radar' | 'archive' | 'blacklist';
 export type RecommendationCategoryFilter = 'all' | 'media' | 'game' | 'book';
-export type RecommendationCategory = 'movie' | 'series' | 'anime' | 'animation' | 'game' | 'book';
-
-export interface RecommendationMemoryItem {
-  id: string; // Benzersiz kayıt id'si (uuid / timestamp)
-  title: string; // Yapım adı (Örn: 'Arrival', 'The Witcher 3')
-  releaseYear?: number | string; // Yapım yılı (Örn: 2016)
-  mainTab: 'media' | 'game' | 'book'; // 'media', 'game' veya 'book'
-  subType?: RecommendationCategory; // 'movie' | 'series' | 'anime' | 'animation' | 'game' | 'book'
-  genres?: string[]; // Türler (Örn: ['Bilim Kurgu', 'Gizem'])
-  thumbnailUrl?: string; // Küçük afiş linki (Sadece web URL'i, hafif)
-  pool: RecommendationPoolType; // 'radar' | 'blacklist' | 'archive'
-  recommendedAt: number; // İlk önerilme zaman damgası (Date.now())
-  updatedAt?: number; // Havuz değiştirilme tarihi
-}
 
 export const RECOMMENDATION_MEMORY_STORAGE_KEY = 'lore_recommendation_memory';
 export const MAX_ARCHIVE_LIMIT = 500;
@@ -40,12 +31,15 @@ export function loadRecommendationMemory(): RecommendationMemoryItem[] {
 }
 
 /**
- * Saves the recommendation memory items to LocalStorage safely.
+ * Saves the recommendation memory items to LocalStorage safely and dispatches sync event.
  */
 export function saveRecommendationMemory(items: RecommendationMemoryItem[]): void {
   if (typeof window === 'undefined') return;
   try {
     localStorage.setItem(RECOMMENDATION_MEMORY_STORAGE_KEY, JSON.stringify(items));
+    window.dispatchEvent(
+      new CustomEvent('lore-recommendation-memory-updated', { detail: items })
+    );
   } catch (err) {
     console.warn('Could not save recommendation memory to localStorage:', err);
   }

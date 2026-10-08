@@ -248,13 +248,15 @@ export const AnkiHubModal: React.FC<AnkiHubModalProps> = ({
     <div
       id="anki-hub-modal-backdrop"
       className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-2.5 sm:p-4 animate-in fade-in duration-200"
-      onClick={onClose}
+      onClick={(e) => {
+        if (!isCardsModalOpen) {
+          onClose();
+        }
+      }}
     >
       <div
         id="anki-hub-modal-window"
-        className={`w-full max-w-xl sm:max-w-[580px] h-[82vh] sm:h-[640px] max-h-[92vh] bg-[#14161f] border border-white/15 rounded-2xl shadow-2xl flex flex-col overflow-hidden text-slate-100 animate-in zoom-in-95 duration-150 transition-opacity ${
-          isCardsModalOpen ? 'opacity-0 pointer-events-none select-none' : 'opacity-100'
-        }`}
+        className="w-full max-w-xl sm:max-w-[580px] h-[82vh] sm:h-[640px] max-h-[92vh] bg-[#14161f] border border-white/15 rounded-2xl shadow-2xl flex flex-col overflow-hidden text-slate-100 animate-in zoom-in-95 duration-150"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Top Header */}

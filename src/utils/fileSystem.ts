@@ -3,6 +3,7 @@ import { INITIAL_DATA } from '../data/initialData';
 import JSZip from 'jszip';
 import { renderTierListToPngBlob } from './tierImageExport';
 import { ensureAnkiCardDates } from './ankiUtils';
+import { loadRecommendationMemory, saveRecommendationMemory } from './recommendationMemory';
 
 // Helper to get formatted date string for export files (e.g., 2026-08-24_11-50 or 2026-08-24)
 export function getFormattedDateForFilename(): string {
@@ -312,6 +313,11 @@ export async function readDataFromFolder(dirHandle: FileSystemDirectoryHandle): 
       }));
     }
 
+    // Restore recommendation memory if stored in folder
+    if (json && Array.isArray(json.recommendationMemory) && json.recommendationMemory.length > 0) {
+      saveRecommendationMemory(json.recommendationMemory);
+    }
+
     return json;
   } catch (err: any) {
     if (err.name === 'NotFoundError') {
@@ -392,6 +398,7 @@ export async function writeDataToFolder(dirHandle: FileSystemDirectoryHandle, da
     const dataToWrite: AppData = {
       ...data,
       items: cleanItems,
+      recommendationMemory: data.recommendationMemory || loadRecommendationMemory(),
     };
     await writable.write(JSON.stringify(dataToWrite, null, 2));
     await writable.close();
@@ -633,7 +640,11 @@ export function saveDataToLocalStorage(data: AppData): void {
 // --- Export / Import JSON File ---
 
 export function downloadJsonFile(data: AppData, filename = 'yapim-arsivim-data.json'): void {
-  const jsonStr = JSON.stringify(data, null, 2);
+  const fullData: AppData = {
+    ...data,
+    recommendationMemory: data.recommendationMemory || loadRecommendationMemory(),
+  };
+  const jsonStr = JSON.stringify(fullData, null, 2);
   const blob = new Blob([jsonStr], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
@@ -769,12 +780,18 @@ export function parseUploadedJson(file: File, existingAppData?: AppData): Promis
               }
             : existingAppData?.categories || INITIAL_DATA.categories;
 
+          // Restore recommendation memory if present in JSON
+          if (Array.isArray(json.recommendationMemory) && json.recommendationMemory.length > 0) {
+            saveRecommendationMemory(json.recommendationMemory);
+          }
+
           return resolve({
             appData: {
               version: json.version || existingAppData?.version || 1,
               lastUpdated: new Date().toISOString(),
               categories,
               items: sanitizedItems,
+              recommendationMemory: json.recommendationMemory,
             },
             isItemListOnly: !hasCategories,
             importedItems: sanitizedItems,
@@ -868,11 +885,18 @@ export async function buildUnifiedZipBlob(data: AppData): Promise<Blob> {
     cleanItems.push(itemCopy);
   }
 
+  const recMemory = data.recommendationMemory || loadRecommendationMemory();
   const exportData: AppData = {
     ...data,
     items: cleanItems,
+    recommendationMemory: recMemory,
   };
   libZip.file(DATA_FILE_NAME, JSON.stringify(exportData, null, 2));
+
+  // Also include a standalone modular copy of recommendation memory inside the library zip
+  if (recMemory && recMemory.length > 0) {
+    libZip.file('lore_recommendation_memory.json', JSON.stringify(recMemory, null, 2));
+  }
 
   const libZipBlob = await libZip.generateAsync({
     type: 'blob',
@@ -904,7 +928,7 @@ export async function buildUnifiedZipBlob(data: AppData): Promise<Blob> {
           items: catItems,
         };
         const safeName = sanitizeFilename(cat.name);
-        const tabPrefix = tab === 'game' ? 'Oyun' : 'Medya';
+        const tabPrefix = tab === 'game' ? 'Oyun' : tab === 'book' ? 'Kitap' : 'Medya';
         const jsonFileName = `${tabPrefix}_${safeName}_TierList.json`;
         const pngFileName = `${tabPrefix}_${safeName}_TierList.png`;
 
@@ -989,6 +1013,23 @@ export async function importAppDataFromZip(
 
   if (!rawAppData.categories || !rawAppData.items) {
     throw new Error('Geçersiz Yapım Arşivim verisi.');
+  }
+
+  // Restore recommendation memory from backup if present
+  if (Array.isArray(rawAppData.recommendationMemory) && rawAppData.recommendationMemory.length > 0) {
+    saveRecommendationMemory(rawAppData.recommendationMemory);
+  } else {
+    // Check if zip contains a modular lore_recommendation_memory.json file
+    const recFile = (innerZip || zip).file(/(?:lore_)?recommendation_memory\.json|oneri_hafizasi\.json/i)[0];
+    if (recFile) {
+      try {
+        const text = await recFile.async('text');
+        const parsed = JSON.parse(text);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          saveRecommendationMemory(parsed);
+        }
+      } catch {}
+    }
   }
 
   // 2. Read images in zip (check innerZip first, then master zip)
