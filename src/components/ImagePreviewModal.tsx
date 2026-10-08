@@ -706,14 +706,10 @@ export const ImagePreviewModal: React.FC<ImagePreviewModalProps> = ({
           </div>
 
           {/* 2. Afişin Altındaki Alana Bilgilerin Taşınması */}
-          {/* Ana Kategori (Dizi, Film, Anime, Oyun, Kitap vb.) ve Yapım/Basım Yılı */}
+          {/* Ana Kategori (Dizi, Film, Anime, Oyun, Kitap vb.), Format (Kitap için) ve Yapım/Basım Yılı */}
           <div className="w-full mt-3 pt-1 flex items-center justify-between gap-2 px-0.5 shrink-0">
-            {/* İçerik Türü & Breadcrumb */}
+            {/* İçerik Türü & Breadcrumb (Başındaki nokta kaldırıldı) */}
             <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-200 min-w-0">
-              <span
-                className="w-2.5 h-2.5 rounded-full shadow-sm shrink-0"
-                style={{ backgroundColor: baseColor }}
-              />
               <span className="tracking-wide">
                 {catObj?.name || (isBook ? 'Kitap' : isGame ? 'Oyun' : 'Medya')}
               </span>
@@ -725,25 +721,25 @@ export const ImagePreviewModal: React.FC<ImagePreviewModalProps> = ({
               )}
             </div>
 
-            {/* Yapım / Basım Yılı */}
-            {item.releaseYear ? (
-              <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/[0.05] border border-white/10 text-xs font-medium text-slate-200 shrink-0">
-                <Calendar className="w-3 h-3 text-neutral-400" />
-                <span className="text-slate-400 text-[11px]">{isBook ? 'Basım:' : 'Yapım:'}</span>
-                <span className="font-bold text-slate-100">{formatReleaseYear(item.releaseYear)}</span>
-              </div>
-            ) : null}
-          </div>
+            {/* Sağ Taraf: Format Rozeti (Yapım/Basım Yılının Solunda) + Yapım / Basım Yılı */}
+            <div className="flex items-center gap-1.5 shrink-0">
+              {/* Kitap İçin: Format Rozeti (Yapım/Basım yılının solunda) */}
+              {isBook && item.format && (
+                <span className="px-2 py-0.5 rounded-md bg-indigo-500/10 border border-indigo-500/25 text-indigo-300 text-[11px] font-medium flex items-center gap-1">
+                  <BookOpen className="w-3 h-3 text-indigo-400" />
+                  <span>{item.format}</span>
+                </span>
+              )}
 
-          {/* Kitap İçin: Format Rozeti (Sayfa sayısı afişin sağ altında yer aldığı için mükerrer gösterilmez) */}
-          {isBook && item.format && (
-            <div className="w-full mt-2.5 flex items-center gap-2 px-0.5 flex-wrap">
-              <span className="px-2 py-0.5 rounded-md bg-indigo-500/10 border border-indigo-500/25 text-indigo-300 text-xs font-medium flex items-center gap-1">
-                <BookOpen className="w-3 h-3 text-indigo-400" />
-                <span>{item.format}</span>
-              </span>
+              {/* Yapım / Basım Yılı (İkon kaldırıldı) */}
+              {item.releaseYear ? (
+                <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/[0.05] border border-white/10 text-xs font-medium text-slate-200">
+                  <span className="text-slate-400 text-[11px]">{isBook ? 'Basım:' : 'Yapım:'}</span>
+                  <span className="font-bold text-slate-100">{formatReleaseYear(item.releaseYear)}</span>
+                </div>
+              ) : null}
             </div>
-          )}
+          </div>
 
           {/* Anime / Kategori ve Yapım Yılı ile Türler arasına ayırıcı çizgi */}
           <div className="w-full border-t border-white/10 my-3 shrink-0" />
@@ -1328,15 +1324,14 @@ export const ImagePreviewModal: React.FC<ImagePreviewModalProps> = ({
                 {/* Zarif, minimal ve ince Yapım / Basım Yılı Rozeti */}
                 {item.releaseYear ? (
                   <div className="flex items-center gap-1 px-2 py-0.5 rounded-md bg-white/[0.06] border border-white/10 text-[11px] font-medium text-slate-200 shrink-0 shadow-xs">
-                    <Calendar className="w-2.5 h-2.5 text-neutral-400 shrink-0" />
                     <span className="text-slate-400 text-[10px]">{isBook ? 'Basım:' : 'Yapım:'}</span>
                     <span className="font-semibold text-slate-100 text-[11px]">{formatReleaseYear(item.releaseYear)}</span>
                   </div>
                 ) : null}
               </div>
 
-              {/* Kitap İçin: Yazar, Çevirmen & Yayınevi (Tek Satır), Format */}
-              {isBook && ((item.author && item.author.length > 0) || (item.publisher && item.publisher.length > 0) || item.format || (item.translator && item.translator.length > 0)) && (
+              {/* Kitap İçin: Yazar, Çevirmen & Yayınevi (Tek Satır) */}
+              {isBook && ((item.author && item.author.length > 0) || (item.publisher && item.publisher.length > 0) || (item.translator && item.translator.length > 0)) && (
                 <div className="flex flex-col gap-1 mt-2">
                   {item.author && item.author.length > 0 && (
                     <div className="flex items-center gap-1.5 text-[11px]">
@@ -1375,14 +1370,6 @@ export const ImagePreviewModal: React.FC<ImagePreviewModalProps> = ({
                           </span>
                         )}
                       </div>
-                    </div>
-                  )}
-
-                  {item.format && (
-                    <div className="flex items-center gap-2 text-[10px]">
-                      <span className="px-1.5 py-0.5 rounded bg-indigo-500/10 border border-indigo-500/25 text-indigo-300 font-medium">
-                        📖 {item.format}
-                      </span>
                     </div>
                   )}
                 </div>
@@ -1534,6 +1521,20 @@ export const ImagePreviewModal: React.FC<ImagePreviewModalProps> = ({
                         {g}
                       </span>
                     ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Kitap Formatı (Ciltli / Ciltsiz vb. - Türler Altında) */}
+              {isBook && item.format && (
+                <div className="pt-0.5">
+                  <span className="block text-[10px] uppercase font-bold tracking-wider text-slate-400 mb-1 flex items-center gap-1">
+                    <BookOpen className="w-3 h-3 text-indigo-400" /> Format
+                  </span>
+                  <div className="flex items-center">
+                    <span className="px-2 py-0.5 rounded-md bg-indigo-500/15 border border-indigo-500/30 text-indigo-300 text-[10px] font-medium flex items-center gap-1">
+                      📖 {item.format}
+                    </span>
                   </div>
                 </div>
               )}
