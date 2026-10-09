@@ -124,7 +124,7 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
       id="filter-panel"
       className={`z-50 w-72 max-w-[calc(100vw-2rem)] p-4 bg-[#181818]/95 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl text-sm animate-in fade-in zoom-in-95 duration-150 text-neutral-200 max-h-[75vh] overflow-y-auto custom-scrollbar ${
         placement === 'bottom'
-          ? 'absolute bottom-11 mb-1 left-1/2 -translate-x-1/2 sm:left-auto sm:right-0 sm:translate-x-0'
+          ? 'fixed bottom-[52px] left-1/2 -translate-x-1/2 sm:absolute sm:bottom-11 sm:left-auto sm:right-0 sm:translate-x-0 sm:mb-1'
           : 'absolute top-12 right-0'
       }`}
       onClick={(e) => e.stopPropagation()}
