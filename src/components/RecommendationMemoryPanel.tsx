@@ -137,14 +137,9 @@ export const RecommendationMemoryPanel: React.FC<RecommendationMemoryPanelProps>
           </button>
 
           <div className="min-w-0">
-            <div className="flex items-center gap-2">
-              <h2 className="text-sm sm:text-base font-bold text-white tracking-wide truncate">
-                Öneri Hafızası & Dinamik Havuzlar
-              </h2>
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-indigo-500/15 border border-indigo-500/30 text-[10px] font-bold text-indigo-300 shrink-0">
-                {memoryItems.length} Yapım
-              </span>
-            </div>
+            <h2 className="text-sm sm:text-base font-bold text-white tracking-wide truncate">
+              Öneri Hafızası
+            </h2>
             <p className="text-[11px] text-slate-400 hidden xs:block truncate">
               Sıfır tekrar garantisi: Radar, Kara Liste ve Öneri Arşivi yönetimi
             </p>
@@ -182,9 +177,9 @@ export const RecommendationMemoryPanel: React.FC<RecommendationMemoryPanelProps>
               type="button"
               onClick={() => setIsSearchOpen(true)}
               title="Hafızada Ara"
-              className="p-1.5 sm:p-2 rounded-xl text-neutral-400 hover:text-white hover:bg-white/10 border border-transparent hover:border-white/10 transition-colors cursor-pointer"
+              className="w-8 h-8 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-slate-300 hover:text-white transition-all flex items-center justify-center cursor-pointer active:scale-95"
             >
-              <Search className="w-4.5 h-4.5 sm:w-5 sm:h-5" />
+              <Search className="w-4 h-4 text-slate-300" />
             </button>
           )}
 
@@ -192,22 +187,22 @@ export const RecommendationMemoryPanel: React.FC<RecommendationMemoryPanelProps>
             type="button"
             onClick={onClose}
             title="Kapat"
-            className="p-1.5 sm:p-2 rounded-xl text-neutral-400 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+            className="w-8 h-8 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-slate-300 hover:text-white transition-all flex items-center justify-center cursor-pointer active:scale-95"
           >
-            <X className="w-4.5 h-4.5 sm:w-5 sm:h-5" />
+            <X className="w-4 h-4 text-slate-300" />
           </button>
         </div>
       </div>
 
-      {/* Control Area: Segment Switcher (Left) + Pool Tabs (Right) - Tek Satır */}
-      <div className="px-3 sm:px-5 py-2.5 border-b border-white/10 bg-[#161c2c]/70 shrink-0">
-        <div className="flex items-center justify-between gap-2 overflow-x-auto no-scrollbar custom-scrollbar">
+      {/* Control Area: Segment Switcher (Left) + Pool Tabs (Right) - Tek Satır & PC Uyumlu */}
+      <div className="px-2.5 sm:px-4 py-2 border-b border-white/10 bg-[#161c2c]/70 shrink-0">
+        <div className="flex items-center justify-between gap-1.5 sm:gap-2 overflow-x-auto no-scrollbar custom-scrollbar">
           {/* Sol: 1. Üst Kategori Seçici (Segment Switcher) */}
-          <div className="inline-flex p-1 rounded-xl bg-black/40 border border-white/10 shrink-0">
+          <div className="inline-flex p-0.5 sm:p-1 rounded-xl bg-black/40 border border-white/10 shrink-0">
             <button
               type="button"
               onClick={() => setActiveCategory('all')}
-              className={`px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+              className={`px-2 sm:px-2.5 py-1 sm:py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
                 activeCategory === 'all'
                   ? 'bg-indigo-600 text-white shadow-xs'
                   : 'text-slate-400 hover:text-slate-200 hover:bg-white/5'
@@ -218,7 +213,7 @@ export const RecommendationMemoryPanel: React.FC<RecommendationMemoryPanelProps>
             <button
               type="button"
               onClick={() => setActiveCategory('media')}
-              className={`inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+              className={`inline-flex items-center gap-1 px-2 sm:px-2.5 py-1 sm:py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
                 activeCategory === 'media'
                   ? 'bg-sky-600 text-white shadow-xs'
                   : 'text-slate-400 hover:text-slate-200 hover:bg-white/5'
@@ -230,7 +225,7 @@ export const RecommendationMemoryPanel: React.FC<RecommendationMemoryPanelProps>
             <button
               type="button"
               onClick={() => setActiveCategory('game')}
-              className={`inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+              className={`inline-flex items-center gap-1 px-2 sm:px-2.5 py-1 sm:py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
                 activeCategory === 'game'
                   ? 'bg-purple-600 text-white shadow-xs'
                   : 'text-slate-400 hover:text-slate-200 hover:bg-white/5'
@@ -242,7 +237,7 @@ export const RecommendationMemoryPanel: React.FC<RecommendationMemoryPanelProps>
             <button
               type="button"
               onClick={() => setActiveCategory('book')}
-              className={`inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+              className={`inline-flex items-center gap-1 px-2 sm:px-2.5 py-1 sm:py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
                 activeCategory === 'book'
                   ? 'bg-emerald-600 text-white shadow-xs'
                   : 'text-slate-400 hover:text-slate-200 hover:bg-white/5'
@@ -254,12 +249,12 @@ export const RecommendationMemoryPanel: React.FC<RecommendationMemoryPanelProps>
           </div>
 
           {/* Sağ: Havuz Sekmeleri (Tümü, Radar, Arşiv, Kara Liste) */}
-          <div className="flex items-center gap-1.5 shrink-0">
-            {/* Tümü Tab (İkonsuz) */}
+          <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
+            {/* Tümü Tab */}
             <button
               type="button"
               onClick={() => setActivePool('all')}
-              className={`inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer border whitespace-nowrap ${
+              className={`inline-flex items-center gap-1 px-2 sm:px-2.5 py-1 sm:py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer border whitespace-nowrap ${
                 activePool === 'all'
                   ? 'bg-indigo-500/25 border-indigo-400/50 text-indigo-200 shadow-xs'
                   : 'bg-white/[0.03] border-white/10 text-slate-400 hover:text-white hover:bg-white/[0.06]'
@@ -271,11 +266,11 @@ export const RecommendationMemoryPanel: React.FC<RecommendationMemoryPanelProps>
               </span>
             </button>
 
-            {/* Radar Tab (Tek 🎯 ikonu var) */}
+            {/* Radar Tab */}
             <button
               type="button"
               onClick={() => setActivePool('radar')}
-              className={`inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer border whitespace-nowrap ${
+              className={`inline-flex items-center gap-1 px-2 sm:px-2.5 py-1 sm:py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer border whitespace-nowrap ${
                 activePool === 'radar'
                   ? 'bg-emerald-500/25 border-emerald-400/50 text-emerald-200 shadow-xs'
                   : 'bg-white/[0.03] border-white/10 text-slate-400 hover:text-emerald-300 hover:bg-white/[0.06]'
@@ -287,11 +282,12 @@ export const RecommendationMemoryPanel: React.FC<RecommendationMemoryPanelProps>
               </span>
             </button>
 
-            {/* Arşiv Tab (📦 Arşiv) */}
+            {/* Arşiv Tab */}
             <button
               type="button"
               onClick={() => setActivePool('archive')}
-              className={`inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer border whitespace-nowrap ${
+              title={`Öneri Arşivi (${poolCounts.archive} / ${MAX_ARCHIVE_LIMIT})`}
+              className={`inline-flex items-center gap-1 px-2 sm:px-2.5 py-1 sm:py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer border whitespace-nowrap ${
                 activePool === 'archive'
                   ? 'bg-sky-500/25 border-sky-400/50 text-sky-200 shadow-xs'
                   : 'bg-white/[0.03] border-white/10 text-slate-400 hover:text-sky-300 hover:bg-white/[0.06]'
@@ -299,15 +295,15 @@ export const RecommendationMemoryPanel: React.FC<RecommendationMemoryPanelProps>
             >
               <span>📦 Arşiv</span>
               <span className="inline-flex items-center justify-center leading-none px-1.5 py-0.5 rounded-md bg-sky-500/20 text-sky-300 text-[10px] font-mono font-bold">
-                {poolCounts.archive} / {MAX_ARCHIVE_LIMIT}
+                {poolCounts.archive}
               </span>
             </button>
 
-            {/* Kara Liste Tab (Tek 🚫 ikonu var) */}
+            {/* Kara Liste Tab */}
             <button
               type="button"
               onClick={() => setActivePool('blacklist')}
-              className={`inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer border whitespace-nowrap ${
+              className={`inline-flex items-center gap-1 px-2 sm:px-2.5 py-1 sm:py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer border whitespace-nowrap ${
                 activePool === 'blacklist'
                   ? 'bg-rose-500/25 border-rose-400/50 text-rose-200 shadow-xs'
                   : 'bg-white/[0.03] border-white/10 text-slate-400 hover:text-rose-300 hover:bg-white/[0.06]'
@@ -326,10 +322,10 @@ export const RecommendationMemoryPanel: React.FC<RecommendationMemoryPanelProps>
                   <button
                     type="button"
                     onClick={() => setShowClearArchiveConfirm(true)}
-                    className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-semibold text-rose-400 hover:text-rose-200 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 transition-all cursor-pointer active:scale-95"
+                    className="inline-flex items-center gap-1 px-2 py-1 sm:px-2.5 sm:py-1.5 rounded-xl text-xs font-semibold text-rose-400 hover:text-rose-200 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 transition-all cursor-pointer active:scale-95"
                   >
                     <Trash2 className="w-3.5 h-3.5" />
-                    <span>Temizle</span>
+                    <span className="hidden sm:inline">Temizle</span>
                   </button>
                 ) : (
                   <div className="flex items-center gap-1.5 bg-rose-950/90 border border-rose-500/60 px-2 py-1 rounded-xl shadow-lg">
@@ -574,14 +570,10 @@ export const RecommendationMemoryPanel: React.FC<RecommendationMemoryPanelProps>
       {/* Bottom Information Footer */}
       <div className="p-3 px-4 sm:px-6 bg-black/40 border-t border-white/10 shrink-0 flex items-center justify-between text-[11px] text-slate-400">
         <div className="flex items-center gap-3">
-          <span>🎯 Radar & 🚫 Kara Liste: <strong>Kalıcı</strong></span>
-          <span className="hidden sm:inline">•</span>
-          <span className="hidden sm:inline">📦 Arşiv: <strong>500 yapım FIFO</strong> ({totalArchiveCount}/{MAX_ARCHIVE_LIMIT})</span>
+          <span>🎯 Radar & 🚫 Kara Liste: <strong className="text-slate-300">Kalıcı</strong></span>
+          <span className="hidden sm:inline text-slate-600">•</span>
+          <span className="hidden sm:inline">📦 Öneri Arşivi: <strong className="text-slate-300 font-mono">{totalArchiveCount} / {MAX_ARCHIVE_LIMIT}</strong></span>
         </div>
-
-        <span className="text-[10px] text-slate-400">
-          Lore AI Deduping v1.0
-        </span>
       </div>
     </div>
   );

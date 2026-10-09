@@ -2993,6 +2993,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                           <span>{testingGh ? 'Test Ediliyor...' : 'Bağlantıyı Test Et'}</span>
                         </button>
 
+                        {/* Manuel Push / Pull butonları kullanıcı isteğiyle geçici olarak gizlendi (istendiğinde geri açılabilir) */}
+                        {/*
                         {onTriggerPcSync && (
                           <button
                             id="manual-push-gh-btn"
@@ -3032,6 +3034,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                             <span>GitHub'dan Güncelle (Çek)</span>
                           </button>
                         )}
+                        */}
                       </div>
                     </div>
                     <div className="p-4 rounded-xl bg-white/5 border border-white/10 space-y-3">

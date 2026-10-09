@@ -1471,7 +1471,7 @@ export const AiAssistantModal: React.FC<AiAssistantModalProps> = ({
         {/* Floating Bottom Bar Area */}
         <div className="p-3 sm:p-4 pt-1 bg-gradient-to-t from-[#141824] via-[#141824]/95 to-transparent shrink-0">
           {/* Floating Pill Input Box (Textarea with Enter for newline, Ctrl+Enter or ArrowUp button to submit) */}
-          <div className="bg-[#1c2234]/95 border border-white/15 hover:border-white/25 focus-within:border-blue-400/60 focus-within:ring-2 focus-within:ring-blue-500/20 backdrop-blur-xl rounded-2xl px-3 py-2 flex items-end gap-2 shadow-2xl shadow-black/70 transition-all">
+          <div className="bg-[#1c2234]/95 border border-white/15 hover:border-white/25 focus-within:border-blue-400/60 focus-within:ring-2 focus-within:ring-blue-500/20 backdrop-blur-xl rounded-2xl px-3 py-1.5 sm:py-2 flex items-center gap-2 shadow-2xl shadow-black/70 transition-all">
             <textarea
               ref={textareaRef}
               rows={1}
@@ -1487,11 +1487,11 @@ export const AiAssistantModal: React.FC<AiAssistantModalProps> = ({
                   ? 'Mikrofon dinleniyor, konuşabilirsiniz...'
                   : 'İstediğin bir şeyi sor'
               }
-              className="flex-1 bg-transparent px-2 text-xs sm:text-sm text-white placeholder-slate-400 focus:outline-none min-w-0 resize-none max-h-[125px] overflow-y-auto no-scrollbar [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden disabled:opacity-60 leading-normal py-1"
+              className="flex-1 bg-transparent px-2 text-xs sm:text-sm text-white placeholder-slate-400 focus:outline-none min-w-0 resize-none max-h-[125px] overflow-y-auto no-scrollbar [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden disabled:opacity-60 leading-normal py-1 self-center"
             />
 
-            {/* Right Controls: Voice Mic + Send (ArrowUp) Button (Aligned items-end to bottom right) */}
-            <div className="flex items-center gap-1.5 shrink-0 pb-0.5">
+            {/* Right Controls: Voice Mic + Send (ArrowUp) Button */}
+            <div className="flex items-center gap-1.5 shrink-0 self-center">
               {/* Mic button */}
               <button
                 type="button"
