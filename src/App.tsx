@@ -22,6 +22,9 @@ import {
   normalizeFabPositions,
   PcSyncStatus,
   MobileSyncStatus,
+  getMediaStatus,
+  getGameStatus,
+  getBookStatus,
 } from './types';
 import {
   GitHubSyncConfig,
@@ -98,6 +101,7 @@ import {
   Search,
   SlidersHorizontal,
   Eye,
+  Bookmark,
 } from 'lucide-react';
 
 export default function App() {
@@ -476,6 +480,9 @@ export default function App() {
     safeLocalStorageSet('yapim_hide_mode_active', String(isHideModeActive));
   }, [isHideModeActive]);
 
+  // Sıradakiler (Backlog) Filter Mode (İzlenecek / Oynanacak / Okunacak)
+  const [isBacklogOnly, setIsBacklogOnly] = useState<boolean>(false);
+
   // Items visible under current hide mode (for Tier List, Statistics, Recent Activity, and PNG Export)
   const visibleItems = useMemo(() => {
     if (isHideModeActive) {
@@ -590,11 +597,13 @@ export default function App() {
     isStatisticsOpen ||
     isRecentActivityOpen ||
     isAnkiHubOpen ||
+    isAnkiStudyOpen ||
     isAiAssistantOpen ||
     isShortcutsModalOpen ||
     previewItem ||
     isBulkMoveOpen ||
-    isEditingFabMode
+    isEditingFabMode ||
+    dialogOptions
   );
 
   useEffect(() => {
@@ -892,6 +901,7 @@ export default function App() {
         setIsSettingsOpen(false);
         setIsSearchOpen(false);
         setSearchQuery('');
+        setIsBacklogOnly(false);
         setMainTab('media');
         setActiveCatId(null);
         setActiveSub(null);
@@ -908,6 +918,7 @@ export default function App() {
         setIsSettingsOpen(false);
         setIsSearchOpen(false);
         setSearchQuery('');
+        setIsBacklogOnly(false);
         setMainTab('game');
         setActiveCatId(null);
         setActiveSub(null);
@@ -924,6 +935,7 @@ export default function App() {
         setIsSettingsOpen(false);
         setIsSearchOpen(false);
         setSearchQuery('');
+        setIsBacklogOnly(false);
         setMainTab('book');
         setActiveCatId(null);
         setActiveSub(null);
@@ -947,12 +959,25 @@ export default function App() {
         return;
       }
 
-      // 'W' or 'w' key -> Open Add Item Modal (FAB action)
+      // 'W' or 'w' key -> Open Add Item Modal (FAB action) - Blocked if any modal is open
       if (e.key === 'w' || e.key === 'W') {
+        if (e.ctrlKey || e.metaKey || e.altKey) return;
+        if (isAnyModalOpen) return;
         e.preventDefault();
         closeAllPanels();
         if (!requireFolderOnDesktop()) return;
         setIsAddModalOpen(true);
+        return;
+      }
+
+      // 'Space' key -> Toggle Backlog / Sıradakiler mode (Only when on main screen and NO modal/panel is open)
+      if (e.code === 'Space' || e.key === ' ') {
+        if (e.ctrlKey || e.metaKey || e.altKey) return;
+        if (isAnyModalOpen || isFilterOpen || isViewOpen || isSearchOpen || isSelectionMode) {
+          return;
+        }
+        e.preventDefault();
+        setIsBacklogOnly((prev) => !prev);
         return;
       }
 
@@ -1019,7 +1044,7 @@ export default function App() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [closeAllPanels, selectedItem, isAddModalOpen, isSettingsOpen, isFilterOpen, isViewOpen, isSearchOpen, activeCategory, hoveredItem, previewItem, isAiAssistantOpen, isShortcutsModalOpen]);
+  }, [closeAllPanels, selectedItem, isAddModalOpen, isSettingsOpen, isFilterOpen, isViewOpen, isSearchOpen, activeCategory, hoveredItem, previewItem, isAiAssistantOpen, isShortcutsModalOpen, isAnyModalOpen, isSelectionMode, isBacklogOnly]);
 
   // Directory Connection Handlers
   const handleConnectFolder = async () => {
@@ -1756,6 +1781,18 @@ export default function App() {
         if (filters.hiddenOnly && !item.isHidden) return false;
       }
 
+      // Backlog / Sıradakiler Filter (Aşama 2: İzlenecek / Oynanacak / Okunacak)
+      if (isBacklogOnly) {
+        const itemTab = item.mainTab || mainTab;
+        if (itemTab === 'media') {
+          if (getMediaStatus(item) !== 'İzlenecek') return false;
+        } else if (itemTab === 'game') {
+          if (getGameStatus(item) !== 'Oynanacak') return false;
+        } else if (itemTab === 'book') {
+          if (getBookStatus(item) !== 'Okunacak') return false;
+        }
+      }
+
       // 1. Tab match: When seriesOnly filter is active, show both media and game items together (e.g. Cuphead, Cyberpunk, Witcher)
       if (!filters.seriesOnly && item.mainTab !== mainTab) return false;
 
@@ -1899,7 +1936,7 @@ export default function App() {
 
     // Apply Sorting: Default to 'date-desc' (Last Watched/Finished first, ?? dates safely placed at the end)
     return sortArchiveItems(result, viewSettings.sortBy || 'date-desc');
-  }, [appData.items, appData.categories, mainTab, activeCatId, activeSub, searchQuery, filters, viewSettings.sortBy, isHideModeActive]);
+  }, [appData.items, appData.categories, mainTab, activeCatId, activeSub, searchQuery, filters, viewSettings.sortBy, isHideModeActive, isBacklogOnly]);
 
   // Card size calculation for CSS Grid auto-fill (1: 150px [Küçük], 2: 185px [Standart], 3: 215px [Orta-Büyük], 4: 250px [Büyük], 5: 295px [Ekstra])
   const cardMinWidth = useMemo(() => {
@@ -2168,7 +2205,9 @@ export default function App() {
                   className="py-20 text-center rounded-2xl border border-dashed border-white/10 bg-white/5 p-8 space-y-4 max-w-lg mx-auto"
                 >
                   <p className="text-slate-300 text-sm font-medium">
-                    Bu filtreye veya kategoriye uyan yapım bulunamadı.
+                    {isBacklogOnly
+                      ? 'Sıradakiler listesinde henüz yapım bulunmuyor.'
+                      : 'Bu filtreye veya kategoriye uyan yapım bulunamadı.'}
                   </p>
                   <button
                     onClick={() => {
@@ -2373,6 +2412,28 @@ export default function App() {
                       }`}
                     >
                       <Sparkles className="w-3.5 h-3.5" />
+                    </button>
+
+                    {/* 5. Sıradakiler (Backlog) */}
+                    <button
+                      type="button"
+                      id="fab-backlog-btn"
+                      onClick={() => {
+                        closeAllPanels();
+                        setIsBacklogOnly((prev) => !prev);
+                      }}
+                      title={
+                        isBacklogOnly
+                          ? 'Sıradakiler Modu: Aktif (Kısayol: Space)'
+                          : 'Sıradakiler Modu (Kısayol: Space) - İzlenecek / Oynanacak / Okunacak'
+                      }
+                      className={`w-7 h-7 rounded-lg flex items-center justify-center transition-all cursor-pointer ${
+                        isBacklogOnly
+                          ? 'bg-purple-600 text-white shadow ring-1 ring-purple-400/60'
+                          : 'text-neutral-400 hover:text-white hover:bg-white/10 active:scale-95'
+                      }`}
+                    >
+                      <Bookmark className={`w-3.5 h-3.5 ${isBacklogOnly ? 'fill-current' : ''}`} />
                     </button>
                   </div>
                 ) : (
@@ -2585,6 +2646,28 @@ export default function App() {
                         }`}
                       >
                         <Sparkles className="w-4 h-4" />
+                      </button>
+
+                      {/* 5. Sıradakiler (Backlog) */}
+                      <button
+                        type="button"
+                        id="mob-dock-backlog-btn"
+                        onClick={() => {
+                          closeAllPanels();
+                          setIsBacklogOnly((p) => !p);
+                        }}
+                        title={
+                          isBacklogOnly
+                            ? 'Sıradakiler Modu: Aktif'
+                            : 'Sıradakiler Modu: İzlenecek / Oynanacak / Okunacak'
+                        }
+                        className={`w-[34px] h-[34px] rounded-lg flex items-center justify-center transition-all cursor-pointer ${
+                          isBacklogOnly
+                            ? 'bg-purple-600 text-white shadow ring-1 ring-purple-400/60'
+                            : 'text-neutral-400 hover:text-white hover:bg-white/10 active:scale-95'
+                        }`}
+                      >
+                        <Bookmark className={`w-4 h-4 ${isBacklogOnly ? 'fill-current' : ''}`} />
                       </button>
                     </div>
 

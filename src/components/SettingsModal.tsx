@@ -2309,6 +2309,16 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
                   <div className="flex items-center justify-between p-3 rounded-xl bg-white/5 border border-white/10">
                     <div className="space-y-0.5">
+                      <span className="text-sm font-semibold text-slate-100">Sıradakiler Modu (Aç / Kapa)</span>
+                      <p className="text-xs text-slate-400">Yalnızca izlenecek, oynanacak veya okunacak sıradaki yapımları listeler</p>
+                    </div>
+                    <kbd className="px-3 py-1.5 rounded-lg bg-black/60 border border-white/20 text-slate-200 text-xs font-mono font-bold shadow-inner">
+                      SPACE
+                    </kbd>
+                  </div>
+
+                  <div className="flex items-center justify-between p-3 rounded-xl bg-white/5 border border-white/10">
+                    <div className="space-y-0.5">
                       <span className="text-sm font-semibold text-slate-100">Yapımı Düzenle (Detay Penceresi)</span>
                       <p className="text-xs text-slate-400">Kart detay penceresi açıkken yapım düzenleme modunu açar</p>
                     </div>

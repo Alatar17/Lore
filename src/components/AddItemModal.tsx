@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
-import { ArchiveItem, Category, GameStatus, MainTabType, ItemCharacter, BookFormat, BookQuote, AnkiBlurBox, AnkiExtraImage } from '../types';
+import { ArchiveItem, Category, GameStatus, MediaStatus, BookStatus, MainTabType, ItemCharacter, BookFormat, BookQuote, AnkiBlurBox, AnkiExtraImage } from '../types';
 import { MEDIA_COLORS, GAME_COLORS, BOOK_COLORS } from '../data/initialData';
 import { optimizeImageFile } from '../utils/imageOptimizer';
 import { TagInputBox } from './TagInputBox';
@@ -80,7 +80,7 @@ export const AddItemModal: React.FC<AddItemModalProps> = ({
   const [sub, setSub] = useState<string | null>(validDefaultSub);
   const [rating, setRating] = useState<number>(8);
   const [date, setDate] = useState<string>(
-    isGame ? '' : new Date().toISOString().split('T')[0]
+    new Date().toISOString().split('T')[0]
   );
   const [desc, setDesc] = useState('');
   const [thumbnail, setThumbnail] = useState<string | undefined>(undefined);
@@ -96,6 +96,7 @@ export const AddItemModal: React.FC<AddItemModalProps> = ({
   // Book specific states
   const [pageCount, setPageCount] = useState<number | string>('');
   const [bookFormat, setBookFormat] = useState<BookFormat>('Ciltsiz');
+  const [bookStatus, setBookStatus] = useState<BookStatus>('Tamamlandı');
   const [reading, setReading] = useState(false);
   const [author, setAuthor] = useState<string[]>([]);
   const [publisher, setPublisher] = useState<string[]>([]);
@@ -194,6 +195,7 @@ export const AddItemModal: React.FC<AddItemModalProps> = ({
   );
 
   // Media Specific
+  const [mediaStatus, setMediaStatus] = useState<MediaStatus>('Tamamlandı');
   const [watching, setWatching] = useState(false);
   const [following, setFollowing] = useState(false);
   const [dropped, setDropped] = useState(false);
@@ -828,49 +830,40 @@ export const AddItemModal: React.FC<AddItemModalProps> = ({
     setCharacters((prev) => prev.filter((_, i) => i !== index));
   };
 
-  // Mutually exclusive toggle for media statuses
-  const handleMediaStatusToggle = (type: 'watching' | 'following' | 'dropped') => {
-    if (type === 'watching') {
-      const next = !watching;
-      setWatching(next);
-      if (next) {
-        setFollowing(false);
-        setDropped(false);
-        setDate('');
-      }
-    } else if (type === 'following') {
-      const next = !following;
-      setFollowing(next);
-      if (next) {
-        setWatching(false);
-        setDropped(false);
-        setShowFollowDetails(true);
-        setDate('');
-      }
-    } else if (type === 'dropped') {
-      const next = !dropped;
-      setDropped(next);
-      if (next) {
-        setWatching(false);
-        setFollowing(false);
+  // Status Handlers for Media, Book, Game
+  const handleMediaStatusChange = (newStatus: MediaStatus) => {
+    setMediaStatus(newStatus);
+    setWatching(newStatus === 'İzleniyor');
+    setDropped(newStatus === 'Yarım Bırakıldı');
+    if (newStatus === 'İzleniyor' || newStatus === 'İzlenecek') {
+      setDate('');
+    } else if (newStatus === 'Tamamlandı') {
+      if (!date || date === '??') {
+        setDate(new Date().toISOString().split('T')[0]);
       }
     }
   };
 
-  // Mutually exclusive toggle for book statuses (reading vs dropped)
-  const handleBookStatusToggle = (type: 'reading' | 'dropped') => {
-    if (type === 'reading') {
-      const next = !reading;
-      setReading(next);
-      if (next) {
-        setDropped(false);
-        setDate('');
+  const handleBookStatusChange = (newStatus: BookStatus) => {
+    setBookStatus(newStatus);
+    setReading(newStatus === 'Okunuyor');
+    setDropped(newStatus === 'Yarım Bırakıldı');
+    if (newStatus === 'Okunuyor' || newStatus === 'Okunacak') {
+      setDate('');
+    } else if (newStatus === 'Tamamlandı') {
+      if (!date || date === '??') {
+        setDate(new Date().toISOString().split('T')[0]);
       }
-    } else if (type === 'dropped') {
-      const next = !dropped;
-      setDropped(next);
-      if (next) {
-        setReading(false);
+    }
+  };
+
+  const handleGameStatusChange = (newStatus: GameStatus) => {
+    setStatus(newStatus);
+    if (newStatus === 'Oynanıyor' || newStatus === 'Oynanacak') {
+      setDate('');
+    } else if (newStatus === 'Tamamlandı') {
+      if (!date || date === '??') {
+        setDate(new Date().toISOString().split('T')[0]);
       }
     }
   };
@@ -900,7 +893,7 @@ export const AddItemModal: React.FC<AddItemModalProps> = ({
   };
 
   // Game Specific
-  const [status, setStatus] = useState<GameStatus>('Oynanıyor');
+  const [status, setStatus] = useState<GameStatus>('Tamamlandı');
   const [achPercent, setAchPercent] = useState<number | null>(null);
   const [achMax, setAchMax] = useState<number>(100);
   const [hours, setHours] = useState<number>(0);
@@ -908,8 +901,8 @@ export const AddItemModal: React.FC<AddItemModalProps> = ({
   const isDateDisabled = isGame
     ? status === 'Oynanıyor' || status === 'Oynanacak'
     : isBook
-    ? reading
-    : watching;
+    ? bookStatus === 'Okunuyor' || bookStatus === 'Okunacak'
+    : mediaStatus === 'İzleniyor' || mediaStatus === 'İzlenecek';
 
   // Common
   const [anki, setAnki] = useState(false);
@@ -1078,7 +1071,9 @@ export const AddItemModal: React.FC<AddItemModalProps> = ({
       seriesName: seriesName.trim() || undefined,
       seriesOrder: seriesOrder !== '' && !isNaN(Number(seriesOrder)) ? Number(seriesOrder) : undefined,
       // Book specific
-      reading: isBook ? reading : undefined,
+      reading: isBook ? (bookStatus === 'Okunuyor') : undefined,
+      toRead: isBook ? (bookStatus === 'Okunacak') : undefined,
+      bookStatus: isBook ? bookStatus : undefined,
       pageCount: isBook && pageCount !== '' && !isNaN(Number(pageCount)) ? Number(pageCount) : undefined,
       format: isBook ? bookFormat : undefined,
       author: isBook && author.length > 0 ? author : undefined,
@@ -1108,9 +1103,11 @@ export const AddItemModal: React.FC<AddItemModalProps> = ({
       // Common tags
       genre: genre.length > 0 ? genre : undefined,
       // Media flags
-      watching: !isGame && !isBook ? watching : undefined,
+      watching: !isGame && !isBook ? (mediaStatus === 'İzleniyor') : undefined,
+      toWatch: !isGame && !isBook ? (mediaStatus === 'İzlenecek') : undefined,
+      mediaStatus: !isGame && !isBook ? mediaStatus : undefined,
       following: !isGame && !isBook ? following : undefined,
-      dropped: isBook ? dropped : (!isGame ? dropped : undefined),
+      dropped: isBook ? (bookStatus === 'Yarım Bırakıldı') : (!isGame ? (mediaStatus === 'Yarım Bırakıldı') : (status === 'Yarım Bırakıldı')),
       expectedDate: !isGame && !isBook && expectedDate.trim() ? expectedDate.trim() : undefined,
       followNotes: !isGame && !isBook && followNotes.trim() ? followNotes.trim() : undefined,
       // Game flags
@@ -1600,7 +1597,21 @@ export const AddItemModal: React.FC<AddItemModalProps> = ({
                             : 'bg-amber-500/10 text-amber-300 border border-amber-500/30'
                         }`}
                       >
-                        <span className="truncate">{isDateDisabled ? 'Devam Ediyor (Kilitli)' : 'Bilinmiyor (??)'}</span>
+                        <span className="truncate">
+                          {isDateDisabled
+                            ? isGame
+                              ? status === 'Oynanacak'
+                                ? 'Oynanacak (Kilitli)'
+                                : 'Oynanıyor (Kilitli)'
+                              : isBook
+                              ? bookStatus === 'Okunacak'
+                                ? 'Okunacak (Kilitli)'
+                                : 'Okunuyor (Kilitli)'
+                              : mediaStatus === 'İzlenecek'
+                                ? 'İzlenecek (Kilitli)'
+                                : 'İzleniyor (Kilitli)'
+                            : 'Bilinmiyor (??)'}
+                        </span>
                       </div>
                     ) : (
                       <input
@@ -1612,10 +1623,16 @@ export const AddItemModal: React.FC<AddItemModalProps> = ({
                         placeholder={
                           isDateDisabled
                             ? isGame
-                              ? 'Oynanıyor (Kilitli)'
+                              ? status === 'Oynanacak'
+                                ? 'Oynanacak (Kilitli)'
+                                : 'Oynanıyor (Kilitli)'
                               : isBook
-                              ? 'Okunuyor... (Kilitli)'
-                              : 'İzleniyor (Kilitli)'
+                              ? bookStatus === 'Okunacak'
+                                ? 'Okunacak (Kilitli)'
+                                : 'Okunuyor (Kilitli)'
+                              : mediaStatus === 'İzlenecek'
+                                ? 'İzlenecek (Kilitli)'
+                                : 'İzleniyor (Kilitli)'
                             : ''
                         }
                         className={`flex-1 min-w-0 h-8 border rounded-xl px-2 text-xs focus:outline-none transition-all ${
@@ -1723,18 +1740,34 @@ export const AddItemModal: React.FC<AddItemModalProps> = ({
               DURUM
             </label>
             {isBook ? (
-              /* Book Status Options (Format, Okunuyor, Yarım Bırakıldı, Anki) */
-              <div className="flex flex-wrap items-center gap-2.5 sm:gap-3.5 p-2 rounded-xl bg-white/[0.02] border border-white/5">
-                {/* Format Dropdown - Compact & Neat */}
-                <div className="flex items-center gap-1.5 shrink-0">
-                  <label htmlFor="add-book-format-select" className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold flex items-center gap-1 shrink-0">
-                    <BookOpen className="w-3.5 h-3.5 text-indigo-400" /> Format:
+              /* Book Status Options: [Okuma Durumu] [Format] [Anki - Sabit Rezervli] */
+              <div className="grid grid-cols-1 sm:grid-cols-[1.2fr_1.1fr_115px] gap-3 p-2 rounded-xl bg-white/[0.02] border border-white/5 items-end">
+                <div>
+                  <label className="block text-[10px] uppercase tracking-wider text-slate-400 font-semibold mb-0.5">
+                    Okuma Durumu
+                  </label>
+                  <select
+                    id="add-book-status-select"
+                    value={bookStatus}
+                    onChange={(e) => handleBookStatusChange(e.target.value as BookStatus)}
+                    className="w-full bg-black/30 text-slate-200 border border-white/10 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:border-indigo-500 cursor-pointer font-medium"
+                  >
+                    <option value="Tamamlandı" className="bg-slate-900 text-white">✅ Tamamlandı</option>
+                    <option value="Okunacak" className="bg-slate-900 text-white">📖 Okunacak</option>
+                    <option value="Okunuyor" className="bg-slate-900 text-white">📚 Okunuyor</option>
+                    <option value="Yarım Bırakıldı" className="bg-slate-900 text-white">⏸ Yarım Bırakıldı</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-[10px] uppercase tracking-wider text-slate-400 font-semibold mb-0.5 flex items-center gap-1">
+                    <BookOpen className="w-3 h-3 text-indigo-400" /> Format
                   </label>
                   <select
                     id="add-book-format-select"
                     value={bookFormat}
                     onChange={(e) => setBookFormat(e.target.value as BookFormat)}
-                    className="bg-black/30 text-slate-200 border border-white/10 rounded-lg px-2 py-1 text-xs focus:outline-none focus:border-indigo-500 cursor-pointer font-medium"
+                    className="w-full bg-black/30 text-slate-200 border border-white/10 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:border-indigo-500 cursor-pointer font-medium"
                   >
                     <option value="Ciltsiz" className="bg-slate-900 text-white">📖 Ciltsiz</option>
                     <option value="Ciltli" className="bg-slate-900 text-white">📚 Ciltli</option>
@@ -1743,35 +1776,7 @@ export const AddItemModal: React.FC<AddItemModalProps> = ({
                   </select>
                 </div>
 
-                {/* Status Badges: Okunuyor, Yarım Bırakıldı, Anki */}
-                <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap shrink-0">
-                  {/* Okunuyor... */}
-                  <label className="flex items-center gap-1.5 text-xs text-slate-300 cursor-pointer select-none hover:text-white px-2 py-1 rounded-lg hover:bg-white/5 transition-colors whitespace-nowrap">
-                    <input
-                      id="add-book-reading-cb"
-                      type="checkbox"
-                      checked={reading}
-                      onChange={() => handleBookStatusToggle('reading')}
-                      className="w-4 h-4 rounded border-slate-600 bg-slate-800 text-blue-500 focus:ring-0 cursor-pointer"
-                    />
-                    <BookOpen className="w-3.5 h-3.5 text-blue-400 shrink-0" />
-                    <span className="text-xs">Okunuyor...</span>
-                  </label>
-
-                  {/* Yarım Bırakıldı */}
-                  <label className="flex items-center gap-1.5 text-xs text-slate-300 cursor-pointer select-none hover:text-white px-2 py-1 rounded-lg hover:bg-white/5 transition-colors whitespace-nowrap">
-                    <input
-                      id="add-book-dropped-cb"
-                      type="checkbox"
-                      checked={dropped}
-                      onChange={() => handleBookStatusToggle('dropped')}
-                      className="w-4 h-4 rounded border-slate-600 bg-slate-800 text-rose-500 focus:ring-0 cursor-pointer"
-                    />
-                    <PauseCircle className="w-3.5 h-3.5 text-rose-400 shrink-0" />
-                    <span className="text-xs">Yarım Bırakıldı</span>
-                  </label>
-
-                  {/* Anki */}
+                <div className="flex items-center justify-start h-[30px] sm:h-[32px] mb-0.5 shrink-0 w-[115px]">
                   <div className="flex items-center gap-1.5">
                     <label className="flex items-center gap-1.5 text-xs text-slate-300 cursor-pointer select-none hover:text-white px-2 py-1 rounded-lg hover:bg-white/5 transition-colors whitespace-nowrap">
                       <input
@@ -1787,117 +1792,122 @@ export const AddItemModal: React.FC<AddItemModalProps> = ({
                       <Layers className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
                       <span className="text-xs">Anki</span>
                     </label>
-                    {anki && (
-                      <button
-                        type="button"
-                        id="btn-open-anki-editor-book"
-                        onClick={() => setShowAnkiEditor(true)}
-                        className="p-1 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 transition-all cursor-pointer shadow-xs"
-                        title="Anki Editörü"
-                      >
-                        <Crop className="w-3.5 h-3.5" />
-                      </button>
-                    )}
+                    <div className="w-6 h-6 flex items-center justify-center shrink-0">
+                      {anki && (
+                        <button
+                          type="button"
+                          id="btn-open-anki-editor-book"
+                          onClick={() => setShowAnkiEditor(true)}
+                          className="p-1 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 transition-all cursor-pointer shadow-xs"
+                          title="Anki Editörü"
+                        >
+                          <Crop className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>
             ) : !isGame ? (
-              /* Media Status Options (İzlenen, Takip, Yarım Bırakıldı, Anki) */
+              /* Media Status Options: [İzleme Durumu (kompakt)] [Takip] [Anki (Sabit Rezervli)] */
               <>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 p-2 rounded-xl bg-white/[0.02] border border-white/5">
-                <label className="flex items-center gap-2 text-xs text-slate-300 cursor-pointer select-none hover:text-white p-1.5 rounded-lg hover:bg-white/5 transition-colors">
-                  <input
-                    id="add-watching-cb"
-                    type="checkbox"
-                    checked={watching}
-                    onChange={() => handleMediaStatusToggle('watching')}
-                    className="w-4 h-4 rounded border-slate-600 bg-slate-800 text-cyan-500 focus:ring-0 cursor-pointer"
-                  />
-                  <Tv className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
-                  <span className="text-xs">İzleniyor...</span>
-                </label>
-
-                <label className="flex items-center gap-1.5 text-xs text-slate-300 cursor-pointer select-none hover:text-white p-1.5 rounded-lg hover:bg-white/5 transition-colors">
-                  <input
-                    id="add-following-cb"
-                    type="checkbox"
-                    checked={following}
-                    onChange={() => handleMediaStatusToggle('following')}
-                    className="w-4 h-4 rounded border-slate-600 bg-slate-800 text-amber-500 focus:ring-0 cursor-pointer"
-                  />
-                  <Bookmark className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-                  <span className="text-xs">Takip</span>
-                  {following && (
-                    <button
-                      type="button"
-                      id="btn-toggle-add-follow-details"
-                      title={
-                        hasFollowData
-                          ? showFollowDetails
-                            ? 'Gelişme kutusunu gizle (Not/tarih mevcut)'
-                            : 'Takip ve çıkış bilgilerini düzenle (Not/tarih mevcut)'
-                          : showFollowDetails
-                          ? 'Gelişme kutusunu gizle'
-                          : 'Takip ve çıkış bilgilerini düzenle'
-                      }
-                      onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        setShowFollowDetails(!showFollowDetails);
-                      }}
-                      className={`ml-auto p-1 rounded-md transition-colors cursor-pointer border ${
-                        hasFollowData
-                          ? 'text-sky-400 bg-sky-500/20 hover:bg-sky-500/30 border-sky-500/40 shadow-xs'
-                          : showFollowDetails
-                          ? 'text-slate-200 bg-white/15 hover:bg-white/20 border-white/10'
-                          : 'text-slate-400 hover:text-white hover:bg-white/10 border-transparent'
-                      }`}
+                <div className="flex flex-wrap items-end gap-3 sm:gap-4 p-2 rounded-xl bg-white/[0.02] border border-white/5">
+                  <div className="w-full sm:w-[170px] shrink-0">
+                    <label className="block text-[10px] uppercase tracking-wider text-slate-400 font-semibold mb-0.5">
+                      İzleme Durumu
+                    </label>
+                    <select
+                      id="add-media-status-select"
+                      value={mediaStatus}
+                      onChange={(e) => handleMediaStatusChange(e.target.value as MediaStatus)}
+                      className="w-full bg-black/30 text-slate-200 border border-white/10 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:border-blue-500 cursor-pointer font-medium"
                     >
-                      <Megaphone className="w-3 h-3" />
-                    </button>
-                  )}
-                </label>
+                      <option value="Tamamlandı" className="bg-slate-900 text-white">✅ Tamamlandı</option>
+                      <option value="İzlenecek" className="bg-slate-900 text-white">🎬 İzlenecek</option>
+                      <option value="İzleniyor" className="bg-slate-900 text-white">📺 İzleniyor</option>
+                      <option value="Yarım Bırakıldı" className="bg-slate-900 text-white">⏸ Yarım Bırakıldı</option>
+                    </select>
+                  </div>
 
-                <label className="flex items-center gap-2 text-xs text-slate-300 cursor-pointer select-none hover:text-white p-1.5 rounded-lg hover:bg-white/5 transition-colors">
-                  <input
-                    id="add-dropped-cb"
-                    type="checkbox"
-                    checked={dropped}
-                    onChange={() => handleMediaStatusToggle('dropped')}
-                    className="w-4 h-4 rounded border-slate-600 bg-slate-800 text-rose-500 focus:ring-0 cursor-pointer"
-                  />
-                  <PauseCircle className="w-3.5 h-3.5 text-rose-400 shrink-0" />
-                  <span className="text-xs">Yarım Bırakıldı</span>
-                </label>
+                  <div className="flex items-center h-[30px] sm:h-[32px] mb-0.5 shrink-0 min-w-[92px]">
+                    <label className="flex items-center gap-1.5 text-xs text-slate-300 cursor-pointer select-none hover:text-white p-1.5 rounded-lg hover:bg-white/5 transition-colors">
+                      <input
+                        id="add-following-cb"
+                        type="checkbox"
+                        checked={following}
+                        onChange={() => {
+                          const next = !following;
+                          setFollowing(next);
+                          if (next) setShowFollowDetails(true);
+                        }}
+                        className="w-4 h-4 rounded border-slate-600 bg-slate-800 text-amber-500 focus:ring-0 cursor-pointer"
+                      />
+                      <Bookmark className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                      <span className="text-xs">Takip</span>
+                      {following && (
+                        <button
+                          type="button"
+                          id="btn-toggle-add-follow-details"
+                          title={
+                            hasFollowData
+                              ? showFollowDetails
+                                ? 'Gelişme kutusunu gizle (Not/tarih mevcut)'
+                                : 'Takip ve çıkış bilgilerini düzenle (Not/tarih mevcut)'
+                              : showFollowDetails
+                              ? 'Gelişme kutusunu gizle'
+                              : 'Takip ve çıkış bilgilerini düzenle'
+                          }
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            setShowFollowDetails(!showFollowDetails);
+                          }}
+                          className={`ml-1 p-1 rounded-md transition-colors cursor-pointer border ${
+                            hasFollowData
+                              ? 'text-sky-400 bg-sky-500/20 hover:bg-sky-500/30 border-sky-500/40 shadow-xs'
+                              : showFollowDetails
+                              ? 'text-slate-200 bg-white/15 hover:bg-white/20 border-white/10'
+                              : 'text-slate-400 hover:text-white hover:bg-white/10 border-transparent'
+                          }`}
+                        >
+                          <Megaphone className="w-3 h-3" />
+                        </button>
+                      )}
+                    </label>
+                  </div>
 
-                <div className="flex items-center gap-1.5">
-                  <label className="flex items-center gap-2 text-xs text-slate-300 cursor-pointer select-none hover:text-white p-1.5 rounded-lg hover:bg-white/5 transition-colors">
-                    <input
-                      id="add-anki-cb"
-                      type="checkbox"
-                      checked={anki}
-                      onChange={(e) => {
-                        setAnki(e.target.checked);
-                        if (!e.target.checked) setAnkiTagSelectionMode(false);
-                      }}
-                      className="w-4 h-4 rounded border-slate-600 bg-slate-800 text-emerald-500 focus:ring-0 cursor-pointer"
-                    />
-                    <Layers className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-                    <span className="text-xs">Anki</span>
-                  </label>
-                  {anki && (
-                    <button
-                      type="button"
-                      id="btn-open-anki-editor-media"
-                      onClick={() => setShowAnkiEditor(true)}
-                      className="p-1 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 transition-all cursor-pointer shadow-xs"
-                      title="Anki Editörü"
-                    >
-                      <Crop className="w-3.5 h-3.5" />
-                    </button>
-                  )}
+                  <div className="flex items-center justify-start h-[30px] sm:h-[32px] mb-0.5 shrink-0 w-[115px]">
+                    <div className="flex items-center gap-1.5">
+                      <label className="flex items-center gap-1.5 text-xs text-slate-300 cursor-pointer select-none hover:text-white px-2 py-1 rounded-lg hover:bg-white/5 transition-colors whitespace-nowrap">
+                        <input
+                          id="add-anki-cb"
+                          type="checkbox"
+                          checked={anki}
+                          onChange={(e) => {
+                            setAnki(e.target.checked);
+                            if (!e.target.checked) setAnkiTagSelectionMode(false);
+                          }}
+                          className="w-4 h-4 rounded border-slate-600 bg-slate-800 text-emerald-500 focus:ring-0 cursor-pointer"
+                        />
+                        <Layers className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                        <span className="text-xs">Anki</span>
+                      </label>
+                      <div className="w-6 h-6 flex items-center justify-center shrink-0">
+                        {anki && (
+                          <button
+                            type="button"
+                            id="btn-open-anki-editor-media"
+                            onClick={() => setShowAnkiEditor(true)}
+                            className="p-1 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 transition-all cursor-pointer shadow-xs"
+                            title="Anki Editörü"
+                          >
+                            <Crop className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
                 </div>
-              </div>
 
               {/* Takip Listesi Gelişmeleri & Beklenen Tarih Kutusu (Takip aktifken ve butona tıklandığında açılır, bilgiler asla silinmez) */}
               {following && showFollowDetails && (
@@ -1961,17 +1971,12 @@ export const AddItemModal: React.FC<AddItemModalProps> = ({
                   <select
                     id="add-game-status-select"
                     value={status}
-                    onChange={(e) => {
-                      const next = e.target.value as GameStatus;
-                      setStatus(next);
-                      if (next === 'Oynanıyor' || next === 'Oynanacak') {
-                        setDate('');
-                      }
-                    }}
-                    className="w-full bg-black/30 text-slate-200 border border-white/10 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:border-blue-500 cursor-pointer"
+                    onChange={(e) => handleGameStatusChange(e.target.value as GameStatus)}
+                    className="w-full bg-black/30 text-slate-200 border border-white/10 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:border-blue-500 cursor-pointer font-medium"
                   >
-                    <option value="Oynanıyor" className="bg-slate-900 text-white">🎮 Oynanıyor</option>
                     <option value="Tamamlandı" className="bg-slate-900 text-white">✅ Tamamlandı</option>
+                    <option value="Oynanacak" className="bg-slate-900 text-white">⏳ Oynanacak</option>
+                    <option value="Oynanıyor" className="bg-slate-900 text-white">🎮 Oynanıyor</option>
                     <option value="Yarım Bırakıldı" className="bg-slate-900 text-white">⏸ Yarım Bırakıldı</option>
                   </select>
                 </div>

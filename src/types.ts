@@ -2,12 +2,24 @@ import type { Card } from 'ts-fsrs';
 
 export type MainTabType = 'media' | 'game' | 'book';
 
-export type GameStatus =
-  | 'Oynanıyor'
+export type MediaStatus =
   | 'Tamamlandı'
-  | '%100 Başarım'
+  | 'İzlenecek'
+  | 'İzleniyor'
+  | 'Yarım Bırakıldı';
+
+export type GameStatus =
+  | 'Tamamlandı'
+  | 'Oynanacak'
+  | 'Oynanıyor'
   | 'Yarım Bırakıldı'
-  | 'Oynanacak';
+  | '%100 Başarım';
+
+export type BookStatus =
+  | 'Tamamlandı'
+  | 'Okunacak'
+  | 'Okunuyor'
+  | 'Yarım Bırakıldı';
 
 export type BookFormat = 'Ciltsiz' | 'Ciltli' | 'E-Kitap' | 'Sesli Kitap';
 
@@ -55,6 +67,27 @@ export function isTierListAvailable(
   return enabledSubs.length > 0;
 }
 
+export function getMediaStatus(item: Partial<ArchiveItem>): MediaStatus {
+  if (item.mediaStatus) return item.mediaStatus;
+  if (item.toWatch) return 'İzlenecek';
+  if (item.watching) return 'İzleniyor';
+  if (item.dropped) return 'Yarım Bırakıldı';
+  return 'Tamamlandı';
+}
+
+export function getBookStatus(item: Partial<ArchiveItem>): BookStatus {
+  if (item.bookStatus) return item.bookStatus;
+  if (item.toRead) return 'Okunacak';
+  if (item.reading) return 'Okunuyor';
+  if (item.dropped) return 'Yarım Bırakıldı';
+  return 'Tamamlandı';
+}
+
+export function getGameStatus(item: Partial<ArchiveItem>): GameStatus {
+  if (item.status) return item.status;
+  return 'Tamamlandı';
+}
+
 export interface ItemCharacter {
   name: string;
   actor?: string;
@@ -94,6 +127,8 @@ export interface ArchiveItem {
   watching?: boolean;
   following?: boolean;
   dropped?: boolean;
+  toWatch?: boolean;
+  mediaStatus?: MediaStatus;
   expectedDate?: string; // Beklenen Çıkış / Dönem (örn: '2027', '2026 Güz', '2025 Sonu')
   followNotes?: string; // Takip notları ve gelişmeler (örn: '3. sezon duyuruldu, stüdyo değişti')
 
@@ -105,6 +140,8 @@ export interface ArchiveItem {
 
   // Book specific
   reading?: boolean; // Okunuyor...
+  toRead?: boolean; // Okunacak...
+  bookStatus?: BookStatus;
   pageCount?: number; // Sayfa Sayısı
   format?: BookFormat; // Baskı / Format Türü (Ciltsiz, Ciltli, E-Kitap, Sesli Kitap)
   author?: string[]; // Yazar(lar)

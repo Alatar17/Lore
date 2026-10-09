@@ -25,8 +25,9 @@ interface FilterPanelProps {
 
 const GAME_STATUS_OPTIONS: { label: string; value: GameStatus | 'all' }[] = [
   { label: 'Tüm Durumlar', value: 'all' },
-  { label: 'Oynanıyor', value: 'Oynanıyor' },
   { label: 'Tamamlandı', value: 'Tamamlandı' },
+  { label: 'Oynanacak', value: 'Oynanacak' },
+  { label: 'Oynanıyor', value: 'Oynanıyor' },
   { label: '%100 Başarım', value: '%100 Başarım' },
   { label: 'Yarım Bırakıldı', value: 'Yarım Bırakıldı' },
 ];
