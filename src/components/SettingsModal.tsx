@@ -2814,10 +2814,11 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                             id="clear-gemini-key-btn"
                             type="button"
                             onClick={handleClearGeminiKey}
+                            title="Gemini API Anahtarını Kaldır"
                             className="py-2 px-3 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-300 border border-red-500/30 text-xs font-medium flex items-center gap-1.5 transition-all cursor-pointer ml-auto"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
-                            <span>Anahtarı Kaldır</span>
+                            <span className="hidden sm:inline">Anahtarı Kaldır</span>
                           </button>
                         )}
                       </div>

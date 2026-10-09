@@ -756,6 +756,26 @@ export default function App() {
       ? currentCategories.find((c) => c?.id === activeCatId)
       : null;
 
+  // Category Integrity & Auto-Recovery Guard:
+  // If activeCatId is set but doesn't exist in current tab's categories (e.g. deleted in settings or orphaned),
+  // immediately reset activeCatId and activeSub so the view never renders empty unintentionally!
+  useEffect(() => {
+    if (!activeCatId || activeCatId === TRACKED_TAB_ID) return;
+    const exists = currentCategories.some((c) => c?.id === activeCatId);
+    if (!exists) {
+      setActiveCatId(null);
+      setActiveSub(null);
+    }
+  }, [currentCategories, activeCatId]);
+
+  // Subgroup Integrity Guard: If activeSub is set but the category no longer has it, reset activeSub
+  useEffect(() => {
+    if (!activeCategory || !activeSub) return;
+    if (!activeCategory.subgroups || !activeCategory.subgroups.includes(activeSub)) {
+      setActiveSub(null);
+    }
+  }, [activeCategory, activeSub]);
+
   // --- 3. Global Keyboard Shortcuts (1: Media Home, 2: Game Home, 3: Tracked, 'W': Add, 'Escape': Smart ESC/Settings, 'Tab': Grid/Tier, 'Space': Fullscreen, 'B': Card Titles) ---
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -1241,6 +1261,13 @@ export default function App() {
         [tab]: newCategories,
       },
     }));
+    // If the currently active category was deleted, safely clear activeCatId and activeSub
+    if (tab === mainTab && activeCatId && activeCatId !== TRACKED_TAB_ID) {
+      if (!newCategories.some((c) => c.id === activeCatId)) {
+        setActiveCatId(null);
+        setActiveSub(null);
+      }
+    }
     markDataDirty();
   };
 
