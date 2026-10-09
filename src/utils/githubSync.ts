@@ -326,9 +326,17 @@ export async function pushDataToGitHub(
 
   // 2. Prepare clean JSON payload
   // Keep thumbnailFileName and ankiExtraImages.fileName; drop inline heavy base64 strings so JSON stays tiny (1-2 MB)
+  // Meanwhile, capture in-memory base64 strings so we can push missing/new images to GitHub even if dirHandle is null!
+  const memoryImageBase64Map = new Map<string, string>();
+
   const cleanItems: ArchiveItem[] = (appData.items || []).map((item) => {
     const copy = { ...item };
     if (copy.thumbnailFileName && copy.thumbnail?.startsWith('data:image/')) {
+      const cleanFileName = copy.thumbnailFileName.replace(/^images\//, '');
+      const base64Data = copy.thumbnail.split(',')[1] || '';
+      if (base64Data) {
+        memoryImageBase64Map.set(cleanFileName, base64Data);
+      }
       delete copy.thumbnail;
     }
     if (copy.ankiExtraImages && copy.ankiExtraImages.length > 0) {
@@ -337,6 +345,11 @@ export async function pushDataToGitHub(
         const fileName = extraCopy.fileName || `images/${copy.id}_extra_${idx}.jpg`;
         extraCopy.fileName = fileName;
         if (extraCopy.url && extraCopy.url.startsWith('data:image/')) {
+          const cleanExtraName = fileName.replace(/^images\//, '');
+          const base64Data = extraCopy.url.split(',')[1] || '';
+          if (base64Data) {
+            memoryImageBase64Map.set(cleanExtraName, base64Data);
+          }
           extraCopy.url = fileName;
         }
         return extraCopy;
@@ -345,93 +358,102 @@ export async function pushDataToGitHub(
     return copy;
   });
 
-  // 3. Incrementally upload missing local images to GitHub images/ directory
+  // 3. Incrementally upload missing local images to GitHub images/ directory (from dirHandle or memory)
   let uploadedImagesCount = 0;
-  if (dirHandle) {
-    try {
-      let imagesDir: FileSystemDirectoryHandle | null = null;
+  try {
+    let imagesDir: FileSystemDirectoryHandle | null = null;
+    if (dirHandle) {
       try {
         imagesDir = await dirHandle.getDirectoryHandle('images', { create: false });
       } catch {
         imagesDir = null;
       }
+    }
 
-      if (imagesDir) {
-        // Collect all image filenames referenced by active items (both thumbnails and ankiExtraImages)
-        const neededImageNames = new Set<string>();
-        for (const item of cleanItems) {
-          if (item.thumbnailFileName) {
-            neededImageNames.add(item.thumbnailFileName.replace(/^images\//, ''));
-          }
-          if (item.ankiExtraImages && Array.isArray(item.ankiExtraImages)) {
-            for (const extra of item.ankiExtraImages) {
-              if (extra.fileName) {
-                neededImageNames.add(extra.fileName.replace(/^images\//, ''));
-              }
-            }
-          }
-        }
-
-        if (neededImageNames.size > 0) {
-          // Check what images already exist on GitHub
-          const existingOnGh = new Set<string>();
-          try {
-            const listRes = await fetch(
-              `https://api.github.com/repos/${owner}/${repo}/contents/images?ref=${cleanBranch}&_nocache=${Date.now()}`,
-              {
-                headers: {
-                  Authorization: `Bearer ${token}`,
-                  Accept: 'application/vnd.github.v3+json',
-                },
-              }
-            );
-            if (listRes.ok) {
-              const files = await listRes.json();
-              if (Array.isArray(files)) {
-                for (const f of files) {
-                  if (f.name) existingOnGh.add(f.name);
-                }
-              }
-            }
-          } catch (e) {
-            console.warn('Could not list GitHub images directory:', e);
-          }
-
-          // Upload missing images only
-          for (const imgName of neededImageNames) {
-            if (existingOnGh.has(imgName)) continue;
-            try {
-              const fileHandle = await imagesDir.getFileHandle(imgName);
-              const file = await fileHandle.getFile();
-              const base64 = await blobToBase64Raw(file);
-              const uploadRes = await fetch(
-                `https://api.github.com/repos/${owner}/${repo}/contents/images/${imgName}`,
-                {
-                  method: 'PUT',
-                  headers: {
-                    Authorization: `Bearer ${token}`,
-                    Accept: 'application/vnd.github.v3+json',
-                    'Content-Type': 'application/json',
-                  },
-                  body: JSON.stringify({
-                    message: `Afiş Yükle: ${imgName} [skip ci]`,
-                    content: base64,
-                    branch: cleanBranch,
-                  }),
-                }
-              );
-              if (uploadRes.ok) {
-                uploadedImagesCount++;
-              }
-            } catch (err) {
-              console.warn(`Could not upload image ${imgName} to GitHub:`, err);
-            }
+    // Collect all image filenames referenced by active items (both thumbnails and ankiExtraImages)
+    const neededImageNames = new Set<string>();
+    for (const item of cleanItems) {
+      if (item.thumbnailFileName) {
+        neededImageNames.add(item.thumbnailFileName.replace(/^images\//, ''));
+      }
+      if (item.ankiExtraImages && Array.isArray(item.ankiExtraImages)) {
+        for (const extra of item.ankiExtraImages) {
+          if (extra.fileName) {
+            neededImageNames.add(extra.fileName.replace(/^images\//, ''));
           }
         }
       }
-    } catch (imgSyncErr) {
-      console.warn('Image push to GitHub had warnings:', imgSyncErr);
     }
+
+    if (neededImageNames.size > 0) {
+      // Check what images already exist on GitHub
+      const existingOnGh = new Set<string>();
+      try {
+        const listRes = await fetch(
+          `https://api.github.com/repos/${owner}/${repo}/contents/images?ref=${cleanBranch}&_nocache=${Date.now()}`,
+          {
+            headers: {
+              Authorization: `Bearer ${token}`,
+              Accept: 'application/vnd.github.v3+json',
+            },
+          }
+        );
+        if (listRes.ok) {
+          const files = await listRes.json();
+          if (Array.isArray(files)) {
+            for (const f of files) {
+              if (f.name) existingOnGh.add(f.name);
+            }
+          }
+        }
+      } catch (e) {
+        console.warn('Could not list GitHub images directory:', e);
+      }
+
+      // Upload missing images only
+      for (const imgName of neededImageNames) {
+        if (existingOnGh.has(imgName)) continue;
+        try {
+          let base64 = memoryImageBase64Map.get(imgName);
+
+          if (!base64 && imagesDir) {
+            try {
+              const fileHandle = await imagesDir.getFileHandle(imgName);
+              const file = await fileHandle.getFile();
+              base64 = await blobToBase64Raw(file);
+            } catch (fhErr) {
+              // File not in folder
+            }
+          }
+
+          if (base64) {
+            const uploadRes = await fetch(
+              `https://api.github.com/repos/${owner}/${repo}/contents/images/${imgName}`,
+              {
+                method: 'PUT',
+                headers: {
+                  Authorization: `Bearer ${token}`,
+                  Accept: 'application/vnd.github.v3+json',
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                  message: `Afiş Yükle: ${imgName} [skip ci]`,
+                  content: base64,
+                  branch: cleanBranch,
+                }),
+              }
+            );
+            if (uploadRes.ok) {
+              uploadedImagesCount++;
+            }
+          }
+        } catch (err) {
+          console.warn(`Could not upload image ${imgName} to GitHub:`, err);
+        }
+      }
+    }
+  } catch (imgSyncErr) {
+    console.warn('Image push to GitHub had warnings:', imgSyncErr);
   }
 
   const nowIso = new Date().toISOString();

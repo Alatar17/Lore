@@ -84,6 +84,62 @@ export async function setCachedImageBlob(fileName: string, blob: Blob): Promise<
   }
 }
 
+export async function deleteCachedImageBlob(fileName: string): Promise<void> {
+  try {
+    const cleanName = fileName.replace(/^images\//, '');
+    const db = await openDB();
+    const tx = db.transaction(IMAGE_CACHE_STORE, 'readwrite');
+    const store = tx.objectStore(IMAGE_CACHE_STORE);
+    store.delete(cleanName);
+    await new Promise((resolve, reject) => {
+      tx.oncomplete = resolve;
+      tx.onerror = reject;
+    });
+  } catch (err) {
+    console.warn('Failed to delete cached image from IndexedDB:', err);
+  }
+}
+
+/**
+ * Hydrates items with missing thumbnail Data URLs directly from local IndexedDB image cache.
+ * Ensures instant, offline poster restoration on app startup without network or user interaction.
+ */
+export async function hydrateThumbnailsFromCache(items: ArchiveItem[]): Promise<ArchiveItem[]> {
+  if (!Array.isArray(items) || items.length === 0) return items;
+
+  const itemsNeedingCache = items.filter(
+    (it) => (!it.thumbnail || it.thumbnail.trim() === '' || it.thumbnail.startsWith('blob:')) && it.thumbnailFileName
+  );
+
+  if (itemsNeedingCache.length === 0) return items;
+
+  const resolvedMap = new Map<string, string>();
+  await Promise.all(
+    itemsNeedingCache.map(async (item) => {
+      if (!item.thumbnailFileName) return;
+      const cleanName = item.thumbnailFileName.replace(/^images\//, '');
+      try {
+        const cachedBlob = await getCachedImageBlob(cleanName);
+        if (cachedBlob) {
+          const dataUrl = await readFileAsBase64(new File([cachedBlob], cleanName, { type: cachedBlob.type || 'image/jpeg' }));
+          if (dataUrl) {
+            resolvedMap.set(item.id, dataUrl);
+          }
+        }
+      } catch (err) {
+        // Ignore individual cache lookup errors
+      }
+    })
+  );
+
+  if (resolvedMap.size === 0) return items;
+
+  return items.map((it) => {
+    const cachedUrl = resolvedMap.get(it.id);
+    return cachedUrl ? { ...it, thumbnail: cachedUrl } : it;
+  });
+}
+
 export async function getStoredDirectoryHandle(): Promise<FileSystemDirectoryHandle | null> {
   try {
     const db = await openDB();

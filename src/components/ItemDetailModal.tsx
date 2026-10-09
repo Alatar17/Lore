@@ -1024,19 +1024,24 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
   const applyImageBase64 = async (rawInput: File | Blob | string, name?: string) => {
     try {
       const optimized = await optimizeImageFile(rawInput, 800, 1200, 0.88);
+      const mimeMatch = optimized.match(/data:image\/([a-zA-Z0-9]+);/);
+      const ext = mimeMatch ? (mimeMatch[1] === 'jpeg' ? 'jpg' : mimeMatch[1]) : 'jpg';
+      const uniqueFileName = `images/${formData.id}_${Date.now()}.${ext}`;
+
       setFormData((prev) => ({
         ...prev,
         thumbnail: optimized,
-        thumbnailFileName: name || prev.thumbnailFileName || 'image.png',
+        thumbnailFileName: uniqueFileName,
       }));
       setPasteNotice('Resim güncellendi!');
       setTimeout(() => setPasteNotice(null), 2500);
     } catch {
       if (typeof rawInput === 'string') {
+        const uniqueFileName = `images/${formData.id}_${Date.now()}.jpg`;
         setFormData((prev) => ({
           ...prev,
           thumbnail: rawInput,
-          thumbnailFileName: name || prev.thumbnailFileName || 'image.png',
+          thumbnailFileName: uniqueFileName,
         }));
       }
     }

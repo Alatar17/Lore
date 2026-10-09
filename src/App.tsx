@@ -52,6 +52,7 @@ import {
   parseTierListBackupFile,
   checkDirectoryHandleAccessibility,
   importAppDataFromZip,
+  hydrateThumbnailsFromCache,
 } from './utils/fileSystem';
 import { sortArchiveItems } from './utils/sortUtils';
 import { downloadTierListAsPng } from './utils/tierImageExport';
@@ -343,20 +344,37 @@ export default function App() {
     try {
       const res = await pullDataFromGitHub(cfg);
       if (res.appData && Array.isArray(res.appData.items)) {
-        // 1. Preserve ALL existing thumbnails from current state (NEVER wipe out an image already on screen!)
-        const existingThumbs = new Map<string, string>();
+        // Smart merge: Map current local items to determine which thumbnails to preserve, replace, or delete
+        const localItemsMap = new Map<string, ArchiveItem>();
         for (const it of (appDataRef.current?.items || [])) {
-          if (it.thumbnail && it.thumbnail.trim() !== '') {
-            existingThumbs.set(it.id, it.thumbnail);
-          }
+          localItemsMap.set(it.id, it);
         }
 
-        const mergedItems = res.appData.items.map((it) => {
-          const existingThumb = existingThumbs.get(it.id);
-          const withThumb = existingThumb ? { ...it, thumbnail: existingThumb } : it;
+        const mergedItems = res.appData.items.map((remoteItem) => {
+          const localItem = localItemsMap.get(remoteItem.id);
+          let thumbnailToUse: string | undefined = remoteItem.thumbnail;
+
+          // 1. If remote item has NO thumbnailFileName, it was deleted on PC! Remove thumbnail completely.
+          if (!remoteItem.thumbnailFileName || remoteItem.thumbnailFileName.trim() === '') {
+            thumbnailToUse = undefined;
+          } else if (
+            localItem &&
+            localItem.thumbnail &&
+            localItem.thumbnail.trim() !== '' &&
+            !localItem.thumbnail.startsWith('blob:') &&
+            localItem.thumbnailFileName === remoteItem.thumbnailFileName
+          ) {
+            // 2. If image filename is identical to what we have locally, keep existing local image (saves bandwidth)
+            thumbnailToUse = localItem.thumbnail;
+          } else {
+            // 3. New image or changed image (different filename) -> clear to let syncImagesForItems fetch it
+            thumbnailToUse = undefined;
+          }
+
           return {
-            ...withThumb,
-            ankiCard: withThumb.ankiCard ? ensureAnkiCardDates(withThumb.ankiCard) : undefined,
+            ...remoteItem,
+            thumbnail: thumbnailToUse,
+            ankiCard: remoteItem.ankiCard ? ensureAnkiCardDates(remoteItem.ankiCard) : undefined,
           };
         });
 
@@ -373,7 +391,7 @@ export default function App() {
         setGitHubConfig(getGitHubSyncConfig());
         setMobileSyncStatus('synced');
 
-        // 2. Incrementally load missing posters or upgrade blob: URLs in the background without UI flicker
+        // 2. Incrementally load missing or updated posters in the background without UI flicker
         syncImagesForItems(mergedData.items, cfg, (itemId, dataUrl) => {
           setAppData((prev) => {
             const updatedItems = prev.items.map((it) => (it.id === itemId ? { ...it, thumbnail: dataUrl } : it));
@@ -617,15 +635,19 @@ export default function App() {
         let currentBestData: AppData | null = null;
 
         if (idbData && idbData.categories && Array.isArray(idbData.items) && idbData.items.length > 0) {
-          setAppData(idbData);
-          currentBestData = idbData;
+          const hydratedItems = await hydrateThumbnailsFromCache(idbData.items);
+          const hydratedData = { ...idbData, items: hydratedItems };
+          setAppData(hydratedData);
+          currentBestData = hydratedData;
         } else {
           // Fallback to localStorage
           const rawLocal = loadDataFromLocalStorage();
           const local = sanitize(rawLocal);
           if (local && local.categories && Array.isArray(local.items) && local.items.length > 0) {
-            setAppData(local);
-            currentBestData = local;
+            const hydratedItems = await hydrateThumbnailsFromCache(local.items);
+            const hydratedData = { ...local, items: hydratedItems };
+            setAppData(hydratedData);
+            currentBestData = hydratedData;
           }
         }
 

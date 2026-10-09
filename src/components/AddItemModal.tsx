@@ -1054,8 +1054,16 @@ export const AddItemModal: React.FC<AddItemModalProps> = ({
       }
     }
 
+    const generatedId = `${mainTab}_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
+    let generatedThumbnailFileName: string | undefined = undefined;
+    if (thumbnail) {
+      const mimeMatch = thumbnail.match(/data:image\/([a-zA-Z0-9]+);/);
+      const ext = mimeMatch ? (mimeMatch[1] === 'jpeg' ? 'jpg' : mimeMatch[1]) : 'jpg';
+      generatedThumbnailFileName = `images/${generatedId}_${Date.now()}.${ext}`;
+    }
+
     const newItem: ArchiveItem = {
-      id: `${mainTab}_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+      id: generatedId,
       mainTab,
       cat,
       sub: sub || null,
@@ -1065,6 +1073,7 @@ export const AddItemModal: React.FC<AddItemModalProps> = ({
       releaseYear: computedReleaseYear,
       desc: desc.trim(),
       thumbnail,
+      thumbnailFileName: generatedThumbnailFileName,
       characters: cleanedCharacters.length > 0 ? cleanedCharacters : undefined,
       seriesName: seriesName.trim() || undefined,
       seriesOrder: seriesOrder !== '' && !isNaN(Number(seriesOrder)) ? Number(seriesOrder) : undefined,
