@@ -108,6 +108,10 @@ export const ImagePreviewModal: React.FC<ImagePreviewModalProps> = ({
   const mobileSeriesPopoverRef = useRef<HTMLDivElement>(null);
   const desktopModalCardRef = useRef<HTMLDivElement>(null);
 
+  // Orbit Deep Link Triple-Tap Refs (Media Only, Title Click on Mobile)
+  const titleTapCountRef = useRef(0);
+  const titleTapTimerRef = useRef<NodeJS.Timeout | null>(null);
+
   const followModel = getFollowModel(viewSettings?.followIndicatorModel);
   const followColor = getFollowColor(viewSettings?.followIndicatorColor);
   const hasFollowInfo = Boolean(item.expectedDate?.trim() || item.followNotes?.trim());
@@ -202,7 +206,19 @@ export const ImagePreviewModal: React.FC<ImagePreviewModalProps> = ({
     setSelectedCharIndex(null);
     setShowAnnouncementModal(false);
     setShowSeriesPopover(false);
+    titleTapCountRef.current = 0;
+    if (titleTapTimerRef.current) {
+      clearTimeout(titleTapTimerRef.current);
+    }
   }, [item.id]);
+
+  useEffect(() => {
+    return () => {
+      if (titleTapTimerRef.current) {
+        clearTimeout(titleTapTimerRef.current);
+      }
+    };
+  }, []);
 
   // Connected series items in the library
   const seriesItems = useMemo(() => {
@@ -330,6 +346,62 @@ export const ImagePreviewModal: React.FC<ImagePreviewModalProps> = ({
         return <Bookmark className="w-3.5 h-3.5 text-purple-400 fill-purple-400" />;
       default:
         return <Gamepad2 className="w-3.5 h-3.5 text-purple-400" />;
+    }
+  };
+
+  // Orbit Deep Link Triple-Tap Handler (Only for Media items when tapping title)
+  const handleTitleTripleClick = (e: React.MouseEvent | React.TouchEvent) => {
+    // 1. Her durumda tıklamanın karta ulaşıp kartı çevirmesini (flip) kesinlikle engelle
+    e.stopPropagation();
+
+    // 2. Yalnızca Medya sekmesi için çalışır (Oyun veya Kitap hariç)
+    if (item.mainTab !== 'media') return;
+
+    // 3. Tıklama sayacını artır
+    titleTapCountRef.current += 1;
+
+    if (titleTapTimerRef.current) {
+      clearTimeout(titleTapTimerRef.current);
+    }
+
+    if (titleTapCountRef.current >= 3) {
+      titleTapCountRef.current = 0;
+
+      // Orbit Media Type belirle (Anime, Dizi, Belgesel veya fallback: Film)
+      const catName = (catObj?.name || '').toLowerCase();
+      const subName = (item.sub || '').toLowerCase();
+      const combined = `${catName} ${subName}`;
+
+      let mediaType = 'Film';
+      if (combined.includes('anime')) {
+        mediaType = 'Anime';
+      } else if (combined.includes('dizi') || combined.includes('series')) {
+        mediaType = 'Dizi';
+      } else if (combined.includes('belgesel') || combined.includes('doc')) {
+        mediaType = 'Belgesel';
+      } else {
+        mediaType = 'Film';
+      }
+
+      const overviewText = (item.desc || '').trim();
+
+      const params = new URLSearchParams();
+      params.set('title', (item.title || '').trim());
+      params.set('category', 'MAIN');
+      params.set('media_type', mediaType);
+      if (overviewText) {
+        params.set('overview', overviewText);
+      }
+
+      const orbitDeepLink = `orbit://library/add?${params.toString()}`;
+
+      // Sessizce Orbit uygulamasını tetikle (Sıfır toast, sıfır bildirim)
+      window.location.href = orbitDeepLink;
+    } else {
+      // 800ms içinde 3. tıklama gelmezse sayacı sıfırla
+      titleTapTimerRef.current = setTimeout(() => {
+        titleTapCountRef.current = 0;
+      }, 800);
     }
   };
 
@@ -1097,7 +1169,10 @@ export const ImagePreviewModal: React.FC<ImagePreviewModalProps> = ({
               ) : (
                 <div className="w-full h-full flex flex-col items-center justify-center p-6 text-center">
                   <span
-                    className="text-xl font-bold leading-snug drop-shadow"
+                    onClick={handleTitleTripleClick}
+                    className={`text-xl font-bold leading-snug drop-shadow pointer-events-auto select-none ${
+                      item.mainTab === 'media' ? 'cursor-pointer active:scale-95 transition-transform' : ''
+                    }`}
                     style={{ color: baseColor }}
                   >
                     {item.title}
@@ -1152,7 +1227,10 @@ export const ImagePreviewModal: React.FC<ImagePreviewModalProps> = ({
                 <div className="relative z-20 mt-auto w-full pt-12 pb-3.5 px-3.5 bg-gradient-to-t from-black/95 via-black/65 to-transparent rounded-b-2xl pointer-events-none flex flex-col items-center">
                   {/* Kart Başlığı: Ortalanmış ve %10 Daha Büyük */}
                   <h3
-                    className={`text-[20px] sm:text-[22px] font-extrabold text-white leading-snug drop-shadow-lg line-clamp-2 text-center w-full px-2 ${
+                    onClick={handleTitleTripleClick}
+                    className={`text-[20px] sm:text-[22px] font-extrabold text-white leading-snug drop-shadow-lg line-clamp-2 text-center w-full px-2 pointer-events-auto select-none ${
+                      item.mainTab === 'media' ? 'cursor-pointer active:scale-95 transition-transform' : ''
+                    } ${
                       hasBottomBadges ? 'mb-3' : ''
                     }`}
                   >

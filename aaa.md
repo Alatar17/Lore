@@ -83,16 +83,79 @@ Mevcut açılır menü (`<select>`) tasarımı (Oyun sekmesindeki koyu arayüzl�
 
 ## 2. BÖLÜM: Orbit Entegrasyon Planı (Lore -> Orbit Köprüsü)
 
-> **NOT:** Yukarıdaki "İzlenecek / Okunacak / Oynanacak" sistemi bittikten sonra bu konu üzerine konuşulacak ve başlanacaktır.
+> **NOT:** Öncelikli olarak 1. Bölüm ("İzlenecek / Okunacak / Oynanacak" sistemi) tamamlandıktan sonra bu aşamaya geçilecektir.
 
-### 🎯 Amaç
-Lore'daki bir karttan Android native olan Orbit uygulamasına veri (başlık, konu ve afiş) aktarımı.
+### 🎯 Amaç & UI Prensibi (Sıfır Kalabalık / Gizli Tetikleyici)
+* **Yalnızca Medya Sekmesi:** Bu özellik **sadece Medya (Film, Dizi, Anime vb.) sekmesindeki kartlarda** geçerlidir. **Oyun ve Kitap sekmelerinde kesinlikle çalışmayacaktır.**
+* **Arayüzde Sıfır Kalabalık:** Ekranlara yeni butonlar, simgeler veya ekstra menüler **kesinlikle eklenmeyecek**.
+* **Tetikleme Noktası (Easter Egg):** Mobildeki kart detay/önizleme ekranında (`ImagePreviewModal`) Medya kartının ön yüzündeki **yapım adına (başlığa) hızlıca 3 kez (triple tap) tıklandığında** tetiklenecek. (İzlenecek yapımlarda henüz izlenme tarihi olmadığı için başlık tetikleyici olarak belirlenmiştir).
+* **Flip Engeli:** Başlığa 1, 2 veya 3 kez tıklandığında kart **kesinlikle dönmeyecek (flip olmayacak)** (`e.stopPropagation()`).
+* **Sıfır Bildirim:** Lore tarafında hiçbir toast, alert, banner veya bildirim çıkmayacak; işlem tamamen sessizce gerçekleşecek.
 
-### 📱 Fikirler & Seçenekler:
-1. **Mobilde Tarihe Dokunarak Kopyalama:**  
-   * Kart detay sayfasında sol üstteki tarihe tıklandığında; başlık, konu özeti ve afiş linki Orbit formatında panoya (clipboard) kopyalanır.
-2. **Orbit Tarafında İçe Aktarma:**  
-   * Orbit'te kütüphaneye "Panodan İçe Aktar / Yapıştır" seçeneğiyle tek tıkla ekleme yapılır.
-3. **Alternatif (Deep Link):**  
-   * Özel bir şema (`orbit://import?...`) ile tek tıkla doğrudan Orbit'in açılması.
+---
+
+### 📡 Onaylanan Deep Link Şeması & Parametre Standartları
+
+**URL Formatı:**
+```text
+orbit://library/add?title={title}&category=MAIN&media_type={media_type}&overview={overview}
+```
+
+#### 1. Parametre Tanımları ve Kesin Kurallar:
+* **`title` (Zorunlu):** Yapımın adı (`encodeURIComponent` ile kodlanmış).
+* **`category` (Sabit):** 
+  * Her zaman sabit olarak **`MAIN`** gönderilecek. (Orbit içinde kullanıcı ihtiyaca göre "Ana" veya "Ara" olarak kendisi değiştirebilir).
+* **`media_type` (Medya Formatı):**
+  * Orbit'in sabit listesi: `"Anime"`, `"Film"`, `"Dizi"`, `"Belgesel"`, `"Diğer"` (Title Case, Türkçe uyumlu).
+  * **Lore Eşleştirmesi:**
+    * Lore kategorisi veya alt grubu "Anime" içeriyorsa -> `"Anime"`
+    * "Film" / "Sinema" ise -> `"Film"`
+    * "Dizi" / "Series" ise -> `"Dizi"`
+    * "Belgesel" / "Doc" ise -> `"Belgesel"`
+    * **Eşleşmeyen tüm durumlarda varsayılan fallback her zaman:** -> `"Film"`
+* **`overview` (Konu / Özet):**
+  * Lore'daki açıklama veya notlar metni (`encodeURIComponent` ile kodlanmış). Orbit'te `description` alanını doldurur.
+* **`poster` (Afiş Görseli):**
+  * Kullanıcı resimleri her zaman yerel galeriden yüklediği veya panodan kopyala-yapıştır yaptığı için **link üzerinden afiş gönderilmeyecek (`poster` parametresi eklenmeyecek)**. Orbit formunda afiş kutusu boş gelecek; kullanıcı alıştığı şekilde galeriden veya panodan yapıştırarak afişini ekleyecek.
+* **`episodes` (Bölüm Sayısı):**
+  * Lore'da bölüm sayısı bilgisi tutulmadığı için **kesinlikle gönderilmeyecek (iptal edildi)**.
+
+---
+
+### 📋 Orbit Geliştiricisine / AI'ına İletilecek Hazır Görev Kartı (Tek Parça Kopyala-Yapıştır)
+> Orbit chat'indeki yapay zekaya doğrudan bu kutuyu kopyalayıp iletebilirsin:
+
+```text
+Selam! Orbit uygulamamıza dışarıdan (Lore web uygulamamızdan) bir Deep Link köprüsü eklemek istiyoruz. 
+
+Lütfen şu 2 dosyada gerekli minimal düzenlemeleri eksiksiz yap:
+
+1. AndroidManifest.xml:
+   MainActivity içerisine aşağıdaki intent-filter'ı ekle:
+   - action: android.intent.action.VIEW
+   - category: DEFAULT ve BROWSABLE
+   - scheme: "orbit"
+   - host: "library"
+   - pathPrefix: "/add"
+
+2. MainActivity.kt (veya ilgili Navigation/UI katmanı):
+   Uygulama açılışında (onCreate ve onNewIntent) gelen "orbit://library/add" linkini yakala:
+   - intent.data üzerinden şu query parametrelerini oku:
+     * title: String (Yapım adı)
+     * category: String (Varsayılan "MAIN", UI'da "Ana")
+     * media_type: String ("Anime" | "Film" | "Dizi" | "Belgesel" | "Diğer")
+     * overview: String (Konu / Açıklama -> description alanına)
+   - Uygulama açıldığında Pager'ı Kütüphane sekmesine (page = 1) kaydır.
+   - Sağ alttaki FAB butonuna basılmış gibi AddContentDialog penceresini bu değerler (başlık, kategori, medya türü, özet) doldurulmuş olarak ekranda aç.
+
+Orbit'in mevcut veri tabanına ve işleyişine zarar vermeden, sadece bu intent'i karşılayacak kodları verir misin?
+```
+
+---
+
+### 💻 Lore Tarafında Yapılacak Kodlama (Tek Seferde)
+1. `ImagePreviewModal.tsx` içinde kartın `item.mainTab === 'media'` (yani Medya sekmesinde) olduğu kontrol edilecek; Oyun veya Kitap ise sayaç çalışmayacak ve normal davranışı korunacak.
+2. Medya kartının ön yüzündeki başlığa (`item.title`) tıklandığında `e.stopPropagation()` ile kartın flip hareketi durdurulacak.
+3. 3 tık sayacı (örn. 800ms içinde 3 hızlı tıklama) kurulacak.
+4. 3. tıklamada link arka planda `window.location.href = "orbit://library/add?..."` ile sessizce tetiklenecek.
 

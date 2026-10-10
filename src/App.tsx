@@ -901,7 +901,6 @@ export default function App() {
         setIsSettingsOpen(false);
         setIsSearchOpen(false);
         setSearchQuery('');
-        setIsBacklogOnly(false);
         setMainTab('media');
         setActiveCatId(null);
         setActiveSub(null);
@@ -918,7 +917,6 @@ export default function App() {
         setIsSettingsOpen(false);
         setIsSearchOpen(false);
         setSearchQuery('');
-        setIsBacklogOnly(false);
         setMainTab('game');
         setActiveCatId(null);
         setActiveSub(null);
@@ -935,7 +933,6 @@ export default function App() {
         setIsSettingsOpen(false);
         setIsSearchOpen(false);
         setSearchQuery('');
-        setIsBacklogOnly(false);
         setMainTab('book');
         setActiveCatId(null);
         setActiveSub(null);
@@ -1782,15 +1779,18 @@ export default function App() {
       }
 
       // Backlog / Sıradakiler Filter (Aşama 2: İzlenecek / Oynanacak / Okunacak)
+      const itemTab = item.mainTab || mainTab;
+      const isBacklogItem =
+        (itemTab === 'media' && getMediaStatus(item) === 'İzlenecek') ||
+        (itemTab === 'game' && getGameStatus(item) === 'Oynanacak') ||
+        (itemTab === 'book' && getBookStatus(item) === 'Okunacak');
+
       if (isBacklogOnly) {
-        const itemTab = item.mainTab || mainTab;
-        if (itemTab === 'media') {
-          if (getMediaStatus(item) !== 'İzlenecek') return false;
-        } else if (itemTab === 'game') {
-          if (getGameStatus(item) !== 'Oynanacak') return false;
-        } else if (itemTab === 'book') {
-          if (getBookStatus(item) !== 'Okunacak') return false;
-        }
+        // Sıradakiler modu AÇIK: Yalnızca İzlenecek / Oynanacak / Okunacak olanlar gösterilir
+        if (!isBacklogItem) return false;
+      } else {
+        // Sıradakiler modu KAPALI: İzlenecek / Oynanacak / Okunacak olanlar ana arşivde GİZLENİR!
+        if (isBacklogItem) return false;
       }
 
       // 1. Tab match: When seriesOnly filter is active, show both media and game items together (e.g. Cuphead, Cyberpunk, Witcher)
