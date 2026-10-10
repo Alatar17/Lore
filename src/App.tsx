@@ -182,6 +182,7 @@ export default function App() {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [addModalInitialTitle, setAddModalInitialTitle] = useState<string | undefined>(undefined);
   const [selectedItem, setSelectedItem] = useState<ArchiveItem | null>(null);
+  const [highlightedTagInDetail, setHighlightedTagInDetail] = useState<string | null>(null);
   const [hoveredItem, setHoveredItem] = useState<ArchiveItem | null>(null);
   const [previewItem, setPreviewItem] = useState<ArchiveItem | null>(null);
   const [settingsInitialTab, setSettingsInitialTab] = useState<
@@ -2612,6 +2613,9 @@ export default function App() {
                         <History className={`w-4 h-4 ${isHideModeActive ? '' : '-scale-x-100'}`} />
                       </button>
 
+                      {/* Dikey İnce Ayraç */}
+                      <div className="w-[1px] h-3.5 bg-white/20 mx-0.5" />
+
                       {/* 3. Anki Hub */}
                       <button
                         type="button"
@@ -3565,9 +3569,13 @@ export default function App() {
           item={selectedItem}
           categories={currentCategories}
           allItems={appData.items}
+          highlightedTag={highlightedTagInDetail}
           onSave={handleSaveItem}
           onDelete={handleDeleteItem}
-          onClose={() => setSelectedItem(null)}
+          onClose={() => {
+            setSelectedItem(null);
+            setHighlightedTagInDetail(null);
+          }}
         />
       )}
 
@@ -3629,7 +3637,7 @@ export default function App() {
           onUpdateItems={(newItems) => {
             setAppData((prev) => ({ ...prev, items: newItems }));
           }}
-          onSelectItem={(item) => {
+          onSelectItem={(item, targetTag) => {
             const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
             if (isMobile) {
               setPreviewItem(item);
@@ -3637,6 +3645,7 @@ export default function App() {
             }
             if (!requireFolderOnDesktop()) return;
             setSelectedItem(item);
+            setHighlightedTagInDetail(targetTag || null);
           }}
           onPreviewItem={(item) => {
             setPreviewItem(item);

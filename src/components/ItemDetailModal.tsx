@@ -52,6 +52,7 @@ interface ItemDetailModalProps {
   categories: Category[];
   allItems?: ArchiveItem[];
   isReadOnly?: boolean;
+  highlightedTag?: string | null;
   onSave: (updatedItem: ArchiveItem) => void;
   onDelete: (id: string) => void;
   onClose: () => void;
@@ -62,6 +63,7 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
   categories,
   allItems = [],
   isReadOnly = false,
+  highlightedTag,
   onSave,
   onDelete,
   onClose,
@@ -2382,6 +2384,7 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <TagInputBox
+                    highlightedTag={highlightedTag || undefined}
                     label="Yazar"
                     placeholder="Örn: Fyodor Dostoyevski, J.R.R. Tolkien..."
                     tags={author}
@@ -2425,6 +2428,7 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
 
                 <div>
                   <TagInputBox
+                    highlightedTag={highlightedTag || undefined}
                     label="Yayınevi"
                     placeholder="Örn: İş Bankası Kültür Yayınları, İthaki, Can..."
                     tags={publisher}
@@ -2468,6 +2472,7 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
 
                 <div>
                   <TagInputBox
+                    highlightedTag={highlightedTag || undefined}
                     label="Çevirmen"
                     placeholder="Örn: Nihal Yalaza Taluy, Roza Hakmen..."
                     tags={translator}
@@ -2511,6 +2516,7 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
 
                 <div>
                   <TagInputBox
+                    highlightedTag={highlightedTag || undefined}
                     label="Tür"
                     placeholder="Örn: Klasik, Bilim Kurgu, Felsefe, Distopya..."
                     tags={formData.genre || []}
@@ -2555,6 +2561,7 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <TagInputBox
+                    highlightedTag={highlightedTag || undefined}
                     label="Firma / Stüdyo"
                     placeholder="Örn: MAPPA, WIT Studio, Ufotable..."
                     tags={formData.firm || []}
@@ -2598,6 +2605,7 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
 
                 <div>
                   <TagInputBox
+                    highlightedTag={highlightedTag || undefined}
                     label="Yönetmen"
                     placeholder="Örn: Christopher Nolan, Miyazaki..."
                     tags={formData.director || []}
@@ -2641,6 +2649,7 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
 
                 <div>
                   <TagInputBox
+                    highlightedTag={highlightedTag || undefined}
                     label="Oyuncular / Seslendirme"
                     placeholder="Örn: Kenjiro Tsuda, Cillian Murphy..."
                     tags={formData.actors || []}
@@ -2684,6 +2693,7 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
 
                 <div>
                   <TagInputBox
+                    highlightedTag={highlightedTag || undefined}
                     label="Tür"
                     placeholder="Örn: Aksiyon, Dram, Bilim Kurgu, Seinen..."
                     tags={formData.genre || []}
@@ -2728,6 +2738,7 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <TagInputBox
+                    highlightedTag={highlightedTag || undefined}
                     label="Geliştirici / Stüdyo"
                     placeholder="Örn: FromSoftware, CD Projekt RED, Larian..."
                     tags={formData.developer || []}
@@ -2771,6 +2782,7 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
 
                 <div>
                   <TagInputBox
+                    highlightedTag={highlightedTag || undefined}
                     label="Tür"
                     placeholder="Örn: Souls-like, RPG, Açık Dünya, CRPG..."
                     tags={formData.genre || []}

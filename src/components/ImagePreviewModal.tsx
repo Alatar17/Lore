@@ -371,11 +371,11 @@ export const ImagePreviewModal: React.FC<ImagePreviewModalProps> = ({
 
   const hasCharacters = Boolean(item.characters && item.characters.length > 0);
 
-  // Oyun Durum İkonu (Yazısız Sadece Rozet)
+  // Oyun Durum İkonu (Yazısız Sadece Rozet - Tamamlandı için gereksiz ikon kaldırıldı)
   const renderGameStatusIcon = (status: GameStatus) => {
     switch (status) {
       case 'Tamamlandı':
-        return <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />;
+        return null;
       case '%100 Başarım':
         return <Trophy className="w-3.5 h-3.5 text-amber-400" />;
       case 'Yarım Bırakıldı':
@@ -385,7 +385,7 @@ export const ImagePreviewModal: React.FC<ImagePreviewModalProps> = ({
       case 'Oynanacak':
         return <Bookmark className="w-3.5 h-3.5 text-purple-400 fill-purple-400" />;
       default:
-        return <Gamepad2 className="w-3.5 h-3.5 text-purple-400" />;
+        return null;
     }
   };
 
@@ -755,7 +755,7 @@ export const ImagePreviewModal: React.FC<ImagePreviewModalProps> = ({
                 )}
                 {item.dropped && (
                   <div
-                    title="Bırakıldı"
+                    title="Yarım Bırakıldı"
                     className="p-1.5 rounded-lg bg-rose-950/85 backdrop-blur-md border border-rose-400/40 text-rose-300 shadow-lg flex items-center justify-center"
                   >
                     <PauseCircle className="w-3.5 h-3.5 text-rose-400" />
@@ -786,8 +786,8 @@ export const ImagePreviewModal: React.FC<ImagePreviewModalProps> = ({
               </div>
             )}
 
-            {/* Oyun İçin: SOL ALT: Oynama Süresi + Yanında Durum Rozeti (Yazısız Sadece Rozet) */}
-            {isGame && ((item.hours !== undefined && item.hours > 0) || item.status) && (
+            {/* Oyun İçin: SOL ALT: Oynama Süresi + Yanında Varsa Durum Rozeti (Yazısız Sadece Rozet) */}
+            {isGame && Boolean((item.hours !== undefined && item.hours > 0) || (item.status && renderGameStatusIcon(item.status))) && (
               <div className="absolute bottom-2.5 left-2.5 z-20 flex items-center gap-1.5 pointer-events-none">
                 {item.hours !== undefined && item.hours > 0 && (
                   <div className="px-2 py-1 rounded-lg bg-black/85 backdrop-blur-md border border-white/15 text-[11px] font-semibold text-slate-200 flex items-center gap-1 shadow-lg">
@@ -795,10 +795,14 @@ export const ImagePreviewModal: React.FC<ImagePreviewModalProps> = ({
                     <span>{item.hours}s</span>
                   </div>
                 )}
-                {item.status && (
+                {item.status && renderGameStatusIcon(item.status) && (
                   <div
                     title={item.status}
-                    className="p-1.5 rounded-lg bg-black/85 backdrop-blur-md border border-white/15 shadow-lg flex items-center justify-center"
+                    className={`p-1.5 rounded-lg backdrop-blur-md shadow-lg flex items-center justify-center ${
+                      item.status === 'Yarım Bırakıldı'
+                        ? 'bg-rose-950/85 border border-rose-400/40 text-rose-300'
+                        : 'bg-black/85 border border-white/15'
+                    }`}
                   >
                     {renderGameStatusIcon(item.status)}
                   </div>
@@ -1266,7 +1270,7 @@ export const ImagePreviewModal: React.FC<ImagePreviewModalProps> = ({
             {(() => {
               const hasGameBottomBadges = isGame && Boolean(
                 (item.hours !== undefined && item.hours > 0) ||
-                item.status ||
+                (item.status && renderGameStatusIcon(item.status)) ||
                 item.anki ||
                 (item.achPercent !== null && item.achPercent !== undefined && item.achPercent > 0)
               );
@@ -1346,10 +1350,14 @@ export const ImagePreviewModal: React.FC<ImagePreviewModalProps> = ({
                             <span>{item.hours}s</span>
                           </div>
                         )}
-                        {item.status && (
+                        {item.status && renderGameStatusIcon(item.status) && (
                           <div
                             title={item.status}
-                            className="w-[26px] h-[26px] rounded-lg bg-black/85 backdrop-blur-md border border-white/20 shadow flex items-center justify-center shrink-0"
+                            className={`w-[26px] h-[26px] rounded-lg backdrop-blur-md shadow flex items-center justify-center shrink-0 ${
+                              item.status === 'Yarım Bırakıldı'
+                                ? 'bg-rose-950/85 border border-rose-400/40 text-rose-300'
+                                : 'bg-black/85 border border-white/20'
+                            }`}
                           >
                             {renderGameStatusIcon(item.status)}
                           </div>
@@ -1409,7 +1417,7 @@ export const ImagePreviewModal: React.FC<ImagePreviewModalProps> = ({
                         )}
                         {item.dropped && (
                           <div
-                            title="Bırakıldı"
+                            title="Yarım Bırakıldı"
                             className="w-[26px] h-[26px] rounded-lg bg-rose-950/85 backdrop-blur-md border border-rose-400/40 text-rose-300 shadow flex items-center justify-center shrink-0"
                           >
                             <PauseCircle className="w-3.5 h-3.5 text-rose-400" />

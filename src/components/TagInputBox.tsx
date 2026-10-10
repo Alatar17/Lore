@@ -19,6 +19,7 @@ interface TagInputBoxProps {
   isEligibleForAnki?: boolean;
   selectedAnkiTags?: string[];
   onToggleAnkiTag?: (tag: string) => void;
+  highlightedTag?: string;
 }
 
 export const TagInputBox: React.FC<TagInputBoxProps> = ({
@@ -38,6 +39,7 @@ export const TagInputBox: React.FC<TagInputBoxProps> = ({
   isEligibleForAnki = false,
   selectedAnkiTags = [],
   onToggleAnkiTag,
+  highlightedTag,
 }) => {
   const [inputValue, setInputValue] = useState('');
   const [isOpen, setIsOpen] = useState(false);
@@ -211,16 +213,24 @@ export const TagInputBox: React.FC<TagInputBoxProps> = ({
               const isNewAi = highlightNewTags.some(
                 (t) => t.trim().toLowerCase() === tag.trim().toLowerCase()
               );
+              const isHighlighted = Boolean(
+                highlightedTag &&
+                  highlightedTag.trim().toLowerCase() === tag.trim().toLowerCase()
+              );
               return (
                 <span
                   key={idx}
                   className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium group transition-all ${
-                    isNewAi
+                    isHighlighted
+                      ? 'bg-emerald-500/30 border-2 border-emerald-400 text-emerald-200 ring-2 ring-emerald-400/50 shadow-md shadow-emerald-500/30 font-bold scale-[1.04] animate-pulse'
+                      : isNewAi
                       ? 'bg-emerald-500/20 border border-emerald-500/60 text-emerald-300 ring-1 ring-emerald-500/30 shadow-xs shadow-emerald-500/20'
                       : 'bg-blue-500/15 border border-blue-500/30 text-blue-300'
                   }`}
                 >
-                  {isNewAi && <Sparkles className="w-2.5 h-2.5 text-emerald-400 shrink-0" />}
+                  {(isNewAi || isHighlighted) && (
+                    <Sparkles className="w-2.5 h-2.5 text-emerald-400 shrink-0" />
+                  )}
                   <span>{tag}</span>
                   <button
                     type="button"
@@ -229,7 +239,9 @@ export const TagInputBox: React.FC<TagInputBoxProps> = ({
                       removeTag(idx);
                     }}
                     className={`p-0.5 rounded-full transition-colors cursor-pointer ${
-                      isNewAi
+                      isHighlighted
+                        ? 'text-emerald-300 hover:text-white hover:bg-emerald-500/40'
+                        : isNewAi
                         ? 'text-emerald-400/80 hover:text-white hover:bg-emerald-500/30'
                         : 'text-blue-400/70 hover:text-white hover:bg-blue-500/30'
                     }`}

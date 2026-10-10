@@ -152,6 +152,25 @@ export const HeaderTabs: React.FC<HeaderTabsProps> = ({
   const viewTimerRef = useRef<NodeJS.Timeout | null>(null);
   const viewLongPressRef = useRef<boolean>(false);
 
+  // PC Sync icon hover reveal (mouse held for 2 seconds on sync slot reveals sync icon even when idle)
+  const [isSyncHoverRevealed, setIsSyncHoverRevealed] = useState(false);
+  const syncHoverTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  const handleSyncSlotMouseEnter = () => {
+    if (syncHoverTimerRef.current) clearTimeout(syncHoverTimerRef.current);
+    syncHoverTimerRef.current = setTimeout(() => {
+      setIsSyncHoverRevealed(true);
+    }, 2000);
+  };
+
+  const handleSyncSlotMouseLeave = () => {
+    if (syncHoverTimerRef.current) {
+      clearTimeout(syncHoverTimerRef.current);
+      syncHoverTimerRef.current = null;
+    }
+    setIsSyncHoverRevealed(false);
+  };
+
   useEffect(() => {
     return () => {
       if (settingsTimerRef.current) {
@@ -159,6 +178,9 @@ export const HeaderTabs: React.FC<HeaderTabsProps> = ({
       }
       if (viewTimerRef.current) {
         clearTimeout(viewTimerRef.current);
+      }
+      if (syncHoverTimerRef.current) {
+        clearTimeout(syncHoverTimerRef.current);
       }
     };
   }, []);
@@ -1109,41 +1131,52 @@ export const HeaderTabs: React.FC<HeaderTabsProps> = ({
             {totalFilteredCount}
           </button>
 
-          {/* PC GitHub Sync Status Icon (Sayaç rozetinin hemen sağında, daire/arkaplan yok, sadece yalın ikon, eşitliyken gizli) */}
-          {pcSyncStatus && pcSyncStatus !== 'idle' && (
-            <button
-              id="desktop-github-sync-btn"
-              type="button"
-              onClick={onTriggerPcSync}
-              disabled={pcSyncStatus === 'syncing'}
-              title={
-                pcSyncStatus === 'unsynced'
-                  ? 'GitHub’a aktarılmamış değişiklikler var (Eşitlemek için tıklayın)'
-                  : pcSyncStatus === 'syncing'
-                  ? 'GitHub ile eşitleniyor...'
-                  : pcSyncStatus === 'synced'
-                  ? 'GitHub ile eşitlendi!'
-                  : 'GitHub eşitleme hatası (Tekrar denemek için tıklayın)'
-              }
-              className={`p-1 transition-all duration-200 cursor-pointer select-none flex items-center justify-center ${
-                pcSyncStatus === 'unsynced'
-                  ? 'text-rose-500 hover:text-rose-400 hover:scale-125 active:scale-90 animate-pulse'
-                  : pcSyncStatus === 'syncing'
-                  ? 'text-sky-400 animate-pulse scale-110 cursor-wait'
-                  : pcSyncStatus === 'synced'
-                  ? 'text-emerald-400 scale-110'
-                  : 'text-amber-400 hover:text-amber-300'
-              }`}
-            >
-              {pcSyncStatus === 'syncing' ? (
-                <RotateCw className="w-4 h-4 animate-spin text-sky-400" />
-              ) : pcSyncStatus === 'synced' ? (
-                <Check className="w-4 h-4 text-emerald-400 animate-in zoom-in-75 duration-150 stroke-[2.5]" />
-              ) : (
-                <CloudUpload className="w-4 h-4 text-rose-500 hover:text-rose-400" />
-              )}
-            </button>
-          )}
+          {/* PC GitHub Sync Status Slot (Hover 2 sn tutulunca veya senkronize değilken görünür) */}
+          <div
+            id="desktop-sync-hover-slot"
+            onMouseEnter={handleSyncSlotMouseEnter}
+            onMouseLeave={handleSyncSlotMouseLeave}
+            className="flex items-center justify-center min-w-[20px] min-h-[24px]"
+          >
+            {((pcSyncStatus && pcSyncStatus !== 'idle') || isSyncHoverRevealed) && (
+              <button
+                id="desktop-github-sync-btn"
+                type="button"
+                onClick={onTriggerPcSync}
+                disabled={pcSyncStatus === 'syncing'}
+                title={
+                  pcSyncStatus === 'unsynced'
+                    ? 'GitHub’a aktarılmamış değişiklikler var (Eşitlemek için tıklayın)'
+                    : pcSyncStatus === 'syncing'
+                    ? 'GitHub ile eşitleniyor...'
+                    : pcSyncStatus === 'synced'
+                    ? 'GitHub ile eşitlendi!'
+                    : pcSyncStatus === 'error'
+                    ? 'GitHub eşitleme hatası (Tekrar denemek için tıklayın)'
+                    : 'Verileri GitHub’a manuel aktar (Eşitlemek için tıklayın)'
+                }
+                className={`p-1 transition-all duration-200 cursor-pointer select-none flex items-center justify-center animate-in fade-in zoom-in-90 ${
+                  pcSyncStatus === 'unsynced'
+                    ? 'text-rose-500 hover:text-rose-400 hover:scale-125 active:scale-90 animate-pulse'
+                    : pcSyncStatus === 'syncing'
+                    ? 'text-sky-400 animate-pulse scale-110 cursor-wait'
+                    : pcSyncStatus === 'synced'
+                    ? 'text-emerald-400 scale-110'
+                    : pcSyncStatus === 'error'
+                    ? 'text-amber-400 hover:text-amber-300'
+                    : 'text-sky-400 hover:text-sky-300 hover:scale-125 active:scale-90'
+                }`}
+              >
+                {pcSyncStatus === 'syncing' ? (
+                  <RotateCw className="w-4 h-4 animate-spin text-sky-400" />
+                ) : pcSyncStatus === 'synced' ? (
+                  <Check className="w-4 h-4 text-emerald-400 animate-in zoom-in-75 duration-150 stroke-[2.5]" />
+                ) : (
+                  <CloudUpload className="w-4 h-4 text-current" />
+                )}
+              </button>
+            )}
+          </div>
 
           {/* Active Uncategorized Filter Indicator Pill */}
           {filters.uncategorizedOnly && (

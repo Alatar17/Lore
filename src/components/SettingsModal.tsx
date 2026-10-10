@@ -124,7 +124,7 @@ interface SettingsModalProps {
   onDisconnectFolder: () => void;
   onUpdateCategories: (mainTab: MainTabType, newCategories: Category[]) => void;
   onUpdateItems?: (newItems: ArchiveItem[]) => void;
-  onSelectItem?: (item: ArchiveItem) => void;
+  onSelectItem?: (item: ArchiveItem, highlightedTag?: string) => void;
   onPreviewItem?: (item: ArchiveItem) => void;
   onReplaceAllData: (newData: AppData) => void;
   onClose: () => void;
@@ -1836,7 +1836,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                                             }
                                           } else {
                                             if (onSelectItem) {
-                                              onSelectItem(item);
+                                              onSelectItem(item, tag);
                                             }
                                           }
                                         }}
