@@ -86,11 +86,12 @@ Mevcut açılır menü (`<select>`) tasarımı (Oyun sekmesindeki koyu arayüzl�
 > **NOT:** Öncelikli olarak 1. Bölüm ("İzlenecek / Okunacak / Oynanacak" sistemi) tamamlandıktan sonra bu aşamaya geçilecektir.
 
 ### 🎯 Amaç & UI Prensibi (Sıfır Kalabalık / Gizli Tetikleyici)
-* **Yalnızca Medya Sekmesi:** Bu özellik **sadece Medya (Film, Dizi, Anime vb.) sekmesindeki kartlarda** geçerlidir. **Oyun ve Kitap sekmelerinde kesinlikle çalışmayacaktır.**
-* **Arayüzde Sıfır Kalabalık:** Ekranlara yeni butonlar, simgeler veya ekstra menüler **kesinlikle eklenmeyecek**.
-* **Tetikleme Noktası (Easter Egg):** Mobildeki kart detay/önizleme ekranında (`ImagePreviewModal`) Medya kartının ön yüzündeki **yapım adına (başlığa) hızlıca 3 kez (triple tap) tıklandığında** tetiklenecek. (İzlenecek yapımlarda henüz izlenme tarihi olmadığı için başlık tetikleyici olarak belirlenmiştir).
-* **Flip Engeli:** Başlığa 1, 2 veya 3 kez tıklandığında kart **kesinlikle dönmeyecek (flip olmayacak)** (`e.stopPropagation()`).
-* **Sıfır Bildirim:** Lore tarafında hiçbir toast, alert, banner veya bildirim çıkmayacak; işlem tamamen sessizce gerçekleşecek.
+* **Yalnızca Medya Sekmesi:** Bu özellik **sadece Medya (Film, Dizi, Anime vb.) sekmesindeki kartlarda** geçerlidir. **Oyun ve Kitap sekmelerinde kesinlikle çalışmaz.**
+* **Duruma Göre Ayrım (Flip vs Orbit):**
+  * **Sadece "İzlenecek" ve "İzleniyor" Kartlarında:** Başlığa tıklanınca flip engellenir (`e.stopPropagation()`) ve 3 hızlı tıklama ile Orbit tetiklenir.
+  * **"Tamamlandı" ve "Yarım Bırakıldı" Kartlarında:** Başlığa tıklanınca hiçbir şey engellenmez; kullanıcı dokunduğu anda kart eskisi gibi doğal olarak arka yüzüne döner (flip olur).
+* **Arayüzde Sıfır Kalabalık:** Ekranlara yeni butonlar, simgeler veya ekstra menüler **kesinlikle eklenmez**.
+* **Sıfır Bildirim:** Lore tarafında hiçbir toast, alert, banner veya bildirim çıkmaz; işlem tamamen sessizce gerçekleşir.
 
 ---
 
@@ -104,7 +105,7 @@ orbit://library/add?title={title}&category=MAIN&media_type={media_type}&overview
 #### 1. Parametre Tanımları ve Kesin Kurallar:
 * **`title` (Zorunlu):** Yapımın adı (`encodeURIComponent` ile kodlanmış).
 * **`category` (Sabit):** 
-  * Her zaman sabit olarak **`MAIN`** gönderilecek. (Orbit içinde kullanıcı ihtiyaca göre "Ana" veya "Ara" olarak kendisi değiştirebilir).
+  * Her zaman sabit olarak **`MAIN`** gönderilecek.
 * **`media_type` (Medya Formatı):**
   * Orbit'in sabit listesi: `"Anime"`, `"Film"`, `"Dizi"`, `"Belgesel"`, `"Diğer"` (Title Case, Türkçe uyumlu).
   * **Lore Eşleştirmesi:**
@@ -112,13 +113,12 @@ orbit://library/add?title={title}&category=MAIN&media_type={media_type}&overview
     * "Film" / "Sinema" ise -> `"Film"`
     * "Dizi" / "Series" ise -> `"Dizi"`
     * "Belgesel" / "Doc" ise -> `"Belgesel"`
-    * **Eşleşmeyen tüm durumlarda varsayılan fallback her zaman:** -> `"Film"`
+    * **Eşleşmeyen tüm durumlarda varsayılan fallback:** -> `"Film"`
 * **`overview` (Konu / Özet):**
   * Lore'daki açıklama veya notlar metni (`encodeURIComponent` ile kodlanmış). Orbit'te `description` alanını doldurur.
-* **`poster` (Afiş Görseli):**
-  * Kullanıcı resimleri her zaman yerel galeriden yüklediği veya panodan kopyala-yapıştır yaptığı için **link üzerinden afiş gönderilmeyecek (`poster` parametresi eklenmeyecek)**. Orbit formunda afiş kutusu boş gelecek; kullanıcı alıştığı şekilde galeriden veya panodan yapıştırarak afişini ekleyecek.
-* **`episodes` (Bölüm Sayısı):**
-  * Lore'da bölüm sayısı bilgisi tutulmadığı için **kesinlikle gönderilmeyecek (iptal edildi)**.
+* **`poster` (Afiş Görseli - Pano / Clipboard Köprüsü):**
+  * Android Intent / Deep Link URL karakter sınırı (ve Base64 megabayt boyutu) nedeniyle URL query'si içine ham resim verisi konulamaz.
+  * **Çözüm:** Lore'da 3. tıklama gerçekleştiğinde, Lore arka planda mevcut afişi (`thumbnail`) sessizce cihazın **Panosuna (Clipboard)** kopyalar. Orbit tarafında `AddContentDialog` açıldığında panodan otomatik okunur veya tek tıkla afiş kutusuna yapıştırılır.
 
 ---
 
@@ -126,7 +126,7 @@ orbit://library/add?title={title}&category=MAIN&media_type={media_type}&overview
 > Orbit chat'indeki yapay zekaya doğrudan bu kutuyu kopyalayıp iletebilirsin:
 
 ```text
-Selam! Orbit uygulamamıza dışarıdan (Lore web uygulamamızdan) bir Deep Link köprüsü eklemek istiyoruz. 
+Selam! Orbit uygulamamıza dışarıdan (Lore web uygulamamızdan) bir Deep Link ve Afiş Aktarım köprüsü eklemek istiyoruz.
 
 Lütfen şu 2 dosyada gerekli minimal düzenlemeleri eksiksiz yap:
 
@@ -138,24 +138,29 @@ Lütfen şu 2 dosyada gerekli minimal düzenlemeleri eksiksiz yap:
    - host: "library"
    - pathPrefix: "/add"
 
-2. MainActivity.kt (veya ilgili Navigation/UI katmanı):
+2. MainActivity.kt (veya ilgili Navigation/AddContentDialog katmanı):
    Uygulama açılışında (onCreate ve onNewIntent) gelen "orbit://library/add" linkini yakala:
    - intent.data üzerinden şu query parametrelerini oku:
      * title: String (Yapım adı)
      * category: String (Varsayılan "MAIN", UI'da "Ana")
      * media_type: String ("Anime" | "Film" | "Dizi" | "Belgesel" | "Diğer")
      * overview: String (Konu / Açıklama -> description alanına)
-   - Uygulama açıldığında Pager'ı Kütüphane sekmesine (page = 1) kaydır.
-   - Sağ alttaki FAB butonuna basılmış gibi AddContentDialog penceresini bu değerler (başlık, kategori, medya türü, özet) doldurulmuş olarak ekranda aç.
+   - Afiş Görseli Yakalama:
+     * Lore, deep link'i tetiklemeden hemen önce afiş görselini cihazın sistem panosuna (Clipboard) kopyalıyor.
+     * Uygulama açılıp AddContentDialog başlatıldığında ClipboardManager üzerinden (veya AddContentDialog'daki afiş seçme alanına 'Panodan Yapıştır' desteği vererek) panodaki görseli oku ve formun poster alanına ata.
+   - UI Akışı:
+     * Uygulama açıldığında Pager'ı Kütüphane sekmesine (page = 1) kaydır.
+     * Sağ alttaki FAB butonuna basılmış gibi AddContentDialog penceresini bu değerler (başlık, kategori, medya türü, özet ve panodaki afiş) doldurulmuş olarak ekranda aç.
 
-Orbit'in mevcut veri tabanına ve işleyişine zarar vermeden, sadece bu intent'i karşılayacak kodları verir misin?
+Orbit'in mevcut veri tabanına ve işleyişine zarar vermeden, sadece bu intent ve pano akışını karşılayacak kodları verir misin?
 ```
 
 ---
 
-### 💻 Lore Tarafında Yapılacak Kodlama (Tek Seferde)
-1. `ImagePreviewModal.tsx` içinde kartın `item.mainTab === 'media'` (yani Medya sekmesinde) olduğu kontrol edilecek; Oyun veya Kitap ise sayaç çalışmayacak ve normal davranışı korunacak.
-2. Medya kartının ön yüzündeki başlığa (`item.title`) tıklandığında `e.stopPropagation()` ile kartın flip hareketi durdurulacak.
-3. 3 tık sayacı (örn. 800ms içinde 3 hızlı tıklama) kurulacak.
-4. 3. tıklamada link arka planda `window.location.href = "orbit://library/add?..."` ile sessizce tetiklenecek.
+### 💻 Lore Tarafında Yapılan Kodlama
+1. `ImagePreviewModal.tsx` içinde sadece Medya sekmesindeki `İzlenecek` ve `İzleniyor` durumundaki kartlar için başlık tıklaması ayrıştırıldı (`isOrbitEligible`).
+2. `Tamamlandı` ve `Yarım Bırakıldı` kartlarında başlığa dokunulduğunda kart eskisi gibi anında arkaya dönüyor (flip).
+3. `İzlenecek` ve `İzleniyor` kartlarında başlığa 3 kez tıklandığında:
+   - Varsa afiş görseli cihazın panosuna (`navigator.clipboard.write`) kopyalanıyor.
+   - `orbit://library/add?...` linki arka planda sessizce tetikleniyor.
 

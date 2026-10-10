@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
-import { ArchiveItem, Category, GameStatus, ItemCharacter, ViewSettings } from '../types';
+import { ArchiveItem, Category, GameStatus, ItemCharacter, ViewSettings, getMediaStatus } from '../types';
 import {
   X,
   Pencil,
@@ -27,6 +27,46 @@ import {
 } from 'lucide-react';
 import { MEDIA_COLORS, GAME_COLORS, BOOK_COLORS } from '../data/initialData';
 import { FollowBadge, getFollowColor, getFollowModel, RatingBadgeIcon } from './FollowIndicatorIcon';
+
+// Safely copy an image to the device clipboard as PNG blob
+async function copyImageToClipboard(imageSource?: string): Promise<boolean> {
+  if (!imageSource) return false;
+  try {
+    if (!navigator.clipboard || typeof ClipboardItem === 'undefined') {
+      return false;
+    }
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    await new Promise<void>((resolve, reject) => {
+      img.onload = () => resolve();
+      img.onerror = () => reject(new Error('Image load failed'));
+      img.src = imageSource;
+    });
+
+    const canvas = document.createElement('canvas');
+    canvas.width = img.naturalWidth || img.width;
+    canvas.height = img.naturalHeight || img.height;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return false;
+    ctx.drawImage(img, 0, 0);
+
+    const blob = await new Promise<Blob | null>((resolve) => {
+      canvas.toBlob((b) => resolve(b), 'image/png');
+    });
+
+    if (!blob) return false;
+
+    await navigator.clipboard.write([
+      new ClipboardItem({
+        'image/png': blob,
+      }),
+    ]);
+    return true;
+  } catch (err) {
+    console.warn('Görsel panoya kopyalanamadı:', err);
+    return false;
+  }
+}
 
 interface ImagePreviewModalProps {
   item: ArchiveItem;
@@ -349,13 +389,19 @@ export const ImagePreviewModal: React.FC<ImagePreviewModalProps> = ({
     }
   };
 
-  // Orbit Deep Link Triple-Tap Handler (Only for Media items when tapping title)
-  const handleTitleTripleClick = (e: React.MouseEvent | React.TouchEvent) => {
-    // 1. Her durumda tıklamanın karta ulaşıp kartı çevirmesini (flip) kesinlikle engelle
-    e.stopPropagation();
+  // Orbit Deep Link Triple-Tap Handler (Only for Media items in 'İzlenecek' or 'İzleniyor' status)
+  const isOrbitEligible = item.mainTab === 'media' && (() => {
+    const status = getMediaStatus(item);
+    return status === 'İzlenecek' || status === 'İzleniyor';
+  })();
 
-    // 2. Yalnızca Medya sekmesi için çalışır (Oyun veya Kitap hariç)
-    if (item.mainTab !== 'media') return;
+  const handleTitleTripleClick = async (e: React.MouseEvent | React.TouchEvent) => {
+    // 1. Sadece 'İzlenecek' ve 'İzleniyor' durumundaki Medya kartlarında engelleme ve sayaç çalışır.
+    // 'Tamamlandı' ve 'Yarım Bırakıldı' kartlarında hiçbir şey engellenmez; kart doğal olarak arkaya döner (flip olur).
+    if (!isOrbitEligible) return;
+
+    // 2. Yalnızca uygun kartlarda tıklamanın karta ulaşıp çevirmesini (flip) durdur
+    e.stopPropagation();
 
     // 3. Tıklama sayacını artır
     titleTapCountRef.current += 1;
@@ -366,6 +412,15 @@ export const ImagePreviewModal: React.FC<ImagePreviewModalProps> = ({
 
     if (titleTapCountRef.current >= 3) {
       titleTapCountRef.current = 0;
+
+      // Afiş görseli varsa cihazın panosuna (Clipboard) sessizce kopyala
+      if (item.thumbnail) {
+        try {
+          await copyImageToClipboard(item.thumbnail);
+        } catch {
+          // Panoya kopyalama tarayıcı kısıtlamasına takılsa bile Orbit yine de açılacaktır
+        }
+      }
 
       // Orbit Media Type belirle (Anime, Dizi, Belgesel veya fallback: Film)
       const catName = (catObj?.name || '').toLowerCase();
@@ -1169,9 +1224,9 @@ export const ImagePreviewModal: React.FC<ImagePreviewModalProps> = ({
               ) : (
                 <div className="w-full h-full flex flex-col items-center justify-center p-6 text-center">
                   <span
-                    onClick={handleTitleTripleClick}
-                    className={`text-xl font-bold leading-snug drop-shadow pointer-events-auto select-none ${
-                      item.mainTab === 'media' ? 'cursor-pointer active:scale-95 transition-transform' : ''
+                    onClick={isOrbitEligible ? handleTitleTripleClick : () => setIsFlipped((prev) => !prev)}
+                    className={`text-xl font-bold leading-snug drop-shadow select-none pointer-events-auto ${
+                      isOrbitEligible ? 'cursor-pointer active:scale-95 transition-transform' : 'cursor-pointer'
                     }`}
                     style={{ color: baseColor }}
                   >
@@ -1227,9 +1282,9 @@ export const ImagePreviewModal: React.FC<ImagePreviewModalProps> = ({
                 <div className="relative z-20 mt-auto w-full pt-12 pb-3.5 px-3.5 bg-gradient-to-t from-black/95 via-black/65 to-transparent rounded-b-2xl pointer-events-none flex flex-col items-center">
                   {/* Kart Başlığı: Ortalanmış ve %10 Daha Büyük */}
                   <h3
-                    onClick={handleTitleTripleClick}
-                    className={`text-[20px] sm:text-[22px] font-extrabold text-white leading-snug drop-shadow-lg line-clamp-2 text-center w-full px-2 pointer-events-auto select-none ${
-                      item.mainTab === 'media' ? 'cursor-pointer active:scale-95 transition-transform' : ''
+                    onClick={isOrbitEligible ? handleTitleTripleClick : () => setIsFlipped((prev) => !prev)}
+                    className={`text-[20px] sm:text-[22px] font-extrabold text-white leading-snug drop-shadow-lg line-clamp-2 text-center w-full px-2 pointer-events-auto select-none cursor-pointer ${
+                      isOrbitEligible ? 'active:scale-95 transition-transform' : ''
                     } ${
                       hasBottomBadges ? 'mb-3' : ''
                     }`}
