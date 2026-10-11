@@ -402,7 +402,10 @@ export async function writeDataToFolder(dirHandle: FileSystemDirectoryHandle, da
         try {
           const mimeMatch = item.thumbnail.match(/data:image\/([a-zA-Z0-9]+);/);
           const ext = mimeMatch ? (mimeMatch[1] === 'jpeg' ? 'jpg' : mimeMatch[1]) : 'jpg';
-          const imgName = `${item.id}.${ext}`;
+
+          // Preserve unique thumbnailFileName if already set (keeps timestamp intact), otherwise generate one
+          const existingCleanName = item.thumbnailFileName ? item.thumbnailFileName.replace(/^images\//, '') : '';
+          const imgName = existingCleanName || `${item.id}_${Date.now()}.${ext}`;
           const blob = dataURLtoBlob(item.thumbnail);
 
           const imgHandle = await imagesDir.getFileHandle(imgName, { create: true });
@@ -939,7 +942,8 @@ export async function buildUnifiedZipBlob(data: AppData): Promise<Blob> {
       try {
         const mimeMatch = item.thumbnail.match(/data:image\/([a-zA-Z0-9]+);/);
         const ext = mimeMatch ? (mimeMatch[1] === 'jpeg' ? 'jpg' : mimeMatch[1]) : 'jpg';
-        const imgName = `${item.id}.${ext}`;
+        const existingCleanName = item.thumbnailFileName ? item.thumbnailFileName.replace(/^images\//, '') : '';
+        const imgName = existingCleanName || `${item.id}.${ext}`;
         const blob = dataURLtoBlob(item.thumbnail);
         if (imgFolder) {
           imgFolder.file(imgName, blob);

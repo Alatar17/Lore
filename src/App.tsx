@@ -36,6 +36,7 @@ import {
   pullDataFromGitHub,
   checkGitHubUpdateAvailable,
   syncImagesForItems,
+  clearMemoryDataUrlCache,
 } from './utils/githubSync';
 import { INITIAL_DATA } from './data/initialData';
 import {
@@ -51,6 +52,7 @@ import {
   safeLocalStorageGet,
   safeLocalStorageRemove,
   deleteImageFromFolder,
+  deleteCachedImageBlob,
   exportTierListBackup,
   parseTierListBackupFile,
   checkDirectoryHandleAccessibility,
@@ -359,9 +361,13 @@ export default function App() {
           const localItem = localItemsMap.get(remoteItem.id);
           let thumbnailToUse: string | undefined = remoteItem.thumbnail;
 
-          // 1. If remote item has NO thumbnailFileName, it was deleted on PC! Remove thumbnail completely.
+          // 1. If remote item has NO thumbnailFileName, it was deleted on PC! Remove thumbnail completely & evict cache
           if (!remoteItem.thumbnailFileName || remoteItem.thumbnailFileName.trim() === '') {
             thumbnailToUse = undefined;
+            if (localItem?.thumbnailFileName) {
+              deleteCachedImageBlob(localItem.thumbnailFileName).catch(() => {});
+              clearMemoryDataUrlCache(localItem.thumbnailFileName);
+            }
           } else if (
             localItem &&
             localItem.thumbnail &&
@@ -374,6 +380,11 @@ export default function App() {
           } else {
             // 3. New image or changed image (different filename) -> clear to let syncImagesForItems fetch it
             thumbnailToUse = undefined;
+            // Evict old cached image blob so it never resurrects!
+            if (localItem?.thumbnailFileName && localItem.thumbnailFileName !== remoteItem.thumbnailFileName) {
+              deleteCachedImageBlob(localItem.thumbnailFileName).catch(() => {});
+              clearMemoryDataUrlCache(localItem.thumbnailFileName);
+            }
           }
 
           return {
@@ -1182,6 +1193,10 @@ export default function App() {
 
   const handleDeleteItem = (itemId: string) => {
     const itemToDelete = appData.items.find((it) => it.id === itemId);
+    if (itemToDelete?.thumbnailFileName) {
+      deleteCachedImageBlob(itemToDelete.thumbnailFileName).catch(() => {});
+      clearMemoryDataUrlCache(itemToDelete.thumbnailFileName);
+    }
     if (dirHandle) {
       deleteImageFromFolder(dirHandle, itemToDelete?.thumbnailFileName, itemId).catch((e) => {
         console.warn('Failed to delete image from folder:', e);

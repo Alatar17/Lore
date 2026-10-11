@@ -386,8 +386,8 @@ export async function pushDataToGitHub(
     }
 
     if (neededImageNames.size > 0) {
-      // Check what images already exist on GitHub
-      const existingOnGh = new Set<string>();
+      // Check what images already exist on GitHub and record their sha for update support
+      const existingGhFiles = new Map<string, string>();
       try {
         const listRes = await fetch(
           `https://api.github.com/repos/${owner}/${repo}/contents/images?ref=${cleanBranch}&_nocache=${Date.now()}`,
@@ -402,7 +402,7 @@ export async function pushDataToGitHub(
           const files = await listRes.json();
           if (Array.isArray(files)) {
             for (const f of files) {
-              if (f.name) existingOnGh.add(f.name);
+              if (f.name && f.sha) existingGhFiles.set(f.name, f.sha);
             }
           }
         }
@@ -410,9 +410,14 @@ export async function pushDataToGitHub(
         console.warn('Could not list GitHub images directory:', e);
       }
 
-      // Upload missing images only
+      // Upload missing images, or overwrite images that were modified in memory
       for (const imgName of neededImageNames) {
-        if (existingOnGh.has(imgName)) continue;
+        const existingSha = existingGhFiles.get(imgName);
+        const isModifiedInMemory = memoryImageBase64Map.has(imgName);
+
+        // If file already exists on GitHub and was NOT newly set in memory during this session, skip it (saves bandwidth)
+        if (existingSha && !isModifiedInMemory) continue;
+
         try {
           let base64 = memoryImageBase64Map.get(imgName);
 
@@ -427,6 +432,15 @@ export async function pushDataToGitHub(
           }
 
           if (base64) {
+            const putPayload: Record<string, any> = {
+              message: existingSha ? `Afiş Güncelle: ${imgName} [skip ci]` : `Afiş Yükle: ${imgName} [skip ci]`,
+              content: base64,
+              branch: cleanBranch,
+            };
+            if (existingSha) {
+              putPayload.sha = existingSha;
+            }
+
             const uploadRes = await fetch(
               `https://api.github.com/repos/${owner}/${repo}/contents/images/${imgName}`,
               {
@@ -436,11 +450,7 @@ export async function pushDataToGitHub(
                   Accept: 'application/vnd.github.v3+json',
                   'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({
-                  message: `Afiş Yükle: ${imgName} [skip ci]`,
-                  content: base64,
-                  branch: cleanBranch,
-                }),
+                body: JSON.stringify(putPayload),
               }
             );
             if (uploadRes.ok) {
@@ -626,6 +636,15 @@ export function blobToDataUrl(blob: Blob): Promise<string> {
 // In-memory cache for permanent Data URLs to prevent repeated conversions
 const memoryDataUrlCache = new Map<string, string>();
 
+export function clearMemoryDataUrlCache(fileName?: string): void {
+  if (fileName) {
+    const clean = fileName.replace(/^images\//, '');
+    memoryDataUrlCache.delete(clean);
+  } else {
+    memoryDataUrlCache.clear();
+  }
+}
+
 /**
  * Resolves an image filename from GitHub or IndexedDB cache.
  * Returns a permanent base64 Data URL (data:image/...) identical to ZIP import.
@@ -668,7 +687,7 @@ export async function resolveGitHubImage(
     }
 
     const res = await fetch(
-      `https://api.github.com/repos/${owner}/${repo}/contents/images/${cleanName}?ref=${cleanBranch}`,
+      `https://api.github.com/repos/${owner}/${repo}/contents/images/${cleanName}?ref=${cleanBranch}&_nocache=${Date.now()}`,
       { headers }
     );
 
