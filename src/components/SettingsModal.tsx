@@ -947,12 +947,12 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     if (!dirHandle) return;
     setCleaningImages(true);
     try {
-      const res = await cleanOrphanImagesInFolder(dirHandle, appData.items);
+      const res = await cleanOrphanImagesInFolder(dirHandle, appData.items, appData.customBadges);
       if (res.cleanedCount === 0) {
         setDialogOptions({
           type: 'alert',
           title: 'Disk Düzeni Kusursuz',
-          message: 'Diskinizdeki "images/" klasörü kontrol edildi: Hiçbir gereksiz/öksüz afiş görseli bulunamadı. Tüm dosyalarınız düzenli.',
+          message: 'Diskinizdeki "images/" alt klasörleri (afişler, karakterler, anki, rozetler) kontrol edildi: Hiçbir gereksiz/öksüz görsel bulunamadı. Tüm dosyalarınız düzenli.',
         });
       } else {
         setDialogOptions({

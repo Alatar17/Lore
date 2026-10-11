@@ -1,5 +1,5 @@
 import { AppData, ArchiveItem } from '../types';
-import { getCachedImageBlob, setCachedImageBlob } from './fileSystem';
+import { getCachedImageBlob, setCachedImageBlob, getFileHandleFromRelativePath } from './fileSystem';
 
 export interface GitHubSyncConfig {
   owner: string;
@@ -325,7 +325,7 @@ export async function pushDataToGitHub(
   }
 
   // 2. Prepare clean JSON payload
-  // Keep thumbnailFileName and ankiExtraImages.fileName; drop inline heavy base64 strings so JSON stays tiny (1-2 MB)
+  // Keep thumbnailFileName, characters.fileName, ankiExtraImages.fileName, badges.fileName; drop inline heavy base64 strings
   // Meanwhile, capture in-memory base64 strings so we can push missing/new images to GitHub even if dirHandle is null!
   const memoryImageBase64Map = new Map<string, string>();
 
@@ -339,10 +339,26 @@ export async function pushDataToGitHub(
       }
       delete copy.thumbnail;
     }
+    if (copy.characters && copy.characters.length > 0) {
+      copy.characters = copy.characters.map((char, idx) => {
+        const charCopy = { ...char };
+        const fileName = charCopy.fileName || `images/characters/${copy.id}_char_${idx}.jpg`;
+        charCopy.fileName = fileName;
+        if (charCopy.image && charCopy.image.startsWith('data:image/')) {
+          const cleanCharName = fileName.replace(/^images\//, '');
+          const base64Data = charCopy.image.split(',')[1] || '';
+          if (base64Data) {
+            memoryImageBase64Map.set(cleanCharName, base64Data);
+          }
+          charCopy.image = fileName;
+        }
+        return charCopy;
+      });
+    }
     if (copy.ankiExtraImages && copy.ankiExtraImages.length > 0) {
       copy.ankiExtraImages = copy.ankiExtraImages.map((extra, idx) => {
         const extraCopy = { ...extra };
-        const fileName = extraCopy.fileName || `images/${copy.id}_extra_${idx}.jpg`;
+        const fileName = extraCopy.fileName || `images/anki/${copy.id}_extra_${idx}.jpg`;
         extraCopy.fileName = fileName;
         if (extraCopy.url && extraCopy.url.startsWith('data:image/')) {
           const cleanExtraName = fileName.replace(/^images\//, '');
@@ -358,6 +374,20 @@ export async function pushDataToGitHub(
     return copy;
   });
 
+  // Custom Badges in memory image map
+  if (appData.customBadges && Array.isArray(appData.customBadges)) {
+    for (const badge of appData.customBadges) {
+      if (badge.iconData && badge.iconData.startsWith('data:image/')) {
+        const fileName = badge.fileName || `images/badges/badge_${badge.id}.webp`;
+        const cleanBadgeName = fileName.replace(/^images\//, '');
+        const base64Data = badge.iconData.split(',')[1] || '';
+        if (base64Data) {
+          memoryImageBase64Map.set(cleanBadgeName, base64Data);
+        }
+      }
+    }
+  }
+
   // 3. Incrementally upload missing local images to GitHub images/ directory (from dirHandle or memory)
   let uploadedImagesCount = 0;
   try {
@@ -370,11 +400,18 @@ export async function pushDataToGitHub(
       }
     }
 
-    // Collect all image filenames referenced by active items (both thumbnails and ankiExtraImages)
+    // Collect all image filenames referenced by active items, characters, anki, and badges
     const neededImageNames = new Set<string>();
     for (const item of cleanItems) {
       if (item.thumbnailFileName) {
         neededImageNames.add(item.thumbnailFileName.replace(/^images\//, ''));
+      }
+      if (item.characters && Array.isArray(item.characters)) {
+        for (const char of item.characters) {
+          if (char.fileName) {
+            neededImageNames.add(char.fileName.replace(/^images\//, ''));
+          }
+        }
       }
       if (item.ankiExtraImages && Array.isArray(item.ankiExtraImages)) {
         for (const extra of item.ankiExtraImages) {
@@ -384,35 +421,50 @@ export async function pushDataToGitHub(
         }
       }
     }
+    if (appData.customBadges && Array.isArray(appData.customBadges)) {
+      for (const badge of appData.customBadges) {
+        if (badge.fileName) {
+          neededImageNames.add(badge.fileName.replace(/^images\//, ''));
+        }
+      }
+    }
 
     if (neededImageNames.size > 0) {
-      // Check what images already exist on GitHub and record their sha for update support
+      // Check what images already exist on GitHub across subdirectories
       const existingGhFiles = new Map<string, string>();
-      try {
-        const listRes = await fetch(
-          `https://api.github.com/repos/${owner}/${repo}/contents/images?ref=${cleanBranch}&_nocache=${Date.now()}`,
-          {
-            headers: {
-              Authorization: `Bearer ${token}`,
-              Accept: 'application/vnd.github.v3+json',
-            },
-          }
-        );
-        if (listRes.ok) {
-          const files = await listRes.json();
-          if (Array.isArray(files)) {
-            for (const f of files) {
-              if (f.name && f.sha) existingGhFiles.set(f.name, f.sha);
+      const checkDirs = ['', 'posters', 'characters', 'anki', 'badges'];
+      for (const subDir of checkDirs) {
+        try {
+          const pathSuffix = subDir ? `/${subDir}` : '';
+          const listRes = await fetch(
+            `https://api.github.com/repos/${owner}/${repo}/contents/images${pathSuffix}?ref=${cleanBranch}&_nocache=${Date.now()}`,
+            {
+              headers: {
+                Authorization: `Bearer ${token}`,
+                Accept: 'application/vnd.github.v3+json',
+              },
+            }
+          );
+          if (listRes.ok) {
+            const files = await listRes.json();
+            if (Array.isArray(files)) {
+              for (const f of files) {
+                if (f.type === 'file' && f.path && f.sha) {
+                  const relPath = f.path.replace(/^images\//, '');
+                  existingGhFiles.set(relPath, f.sha);
+                  existingGhFiles.set(f.name, f.sha);
+                }
+              }
             }
           }
+        } catch (e) {
+          // Ignore individual subfolder listing errors
         }
-      } catch (e) {
-        console.warn('Could not list GitHub images directory:', e);
       }
 
       // Upload missing images, or overwrite images that were modified in memory
       for (const imgName of neededImageNames) {
-        const existingSha = existingGhFiles.get(imgName);
+        const existingSha = existingGhFiles.get(imgName) || existingGhFiles.get(imgName.split('/').pop() || '');
         const isModifiedInMemory = memoryImageBase64Map.has(imgName);
 
         // If file already exists on GitHub and was NOT newly set in memory during this session, skip it (saves bandwidth)
@@ -423,7 +475,7 @@ export async function pushDataToGitHub(
 
           if (!base64 && imagesDir) {
             try {
-              const fileHandle = await imagesDir.getFileHandle(imgName);
+              const fileHandle = await getFileHandleFromRelativePath(imagesDir, imgName, false);
               const file = await fileHandle.getFile();
               base64 = await blobToBase64Raw(file);
             } catch (fhErr) {
@@ -433,7 +485,7 @@ export async function pushDataToGitHub(
 
           if (base64) {
             const putPayload: Record<string, any> = {
-              message: existingSha ? `Afiş Güncelle: ${imgName} [skip ci]` : `Afiş Yükle: ${imgName} [skip ci]`,
+              message: existingSha ? `Görsel Güncelle: ${imgName} [skip ci]` : `Görsel Yükle: ${imgName} [skip ci]`,
               content: base64,
               branch: cleanBranch,
             };

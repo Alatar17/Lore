@@ -116,6 +116,7 @@ export interface ItemCharacter {
   name: string;
   actor?: string;
   image?: string;
+  fileName?: string; // images/characters/ klasöründeki dosya referansı
 }
 
 export interface AnkiBlurBox {
@@ -130,7 +131,7 @@ export interface AnkiExtraImage {
   id: string;
   url: string;             // sadece 2. ve 3. sahne görselleri için base64 / path
   blurs: AnkiBlurBox[];    // bu ek görsele özel bağımsız blur kutuları
-  fileName?: string;       // images/ klasöründeki dosya referansı (örn: images/item_extra_1.jpg)
+  fileName?: string;       // images/anki/ klasöründeki dosya referansı (örn: images/anki/item_extra_1.jpg)
 }
 
 export interface ArchiveItem {
@@ -210,9 +211,10 @@ export interface ArchiveItem {
 export interface CustomBadge {
   id: string; // Benzersiz kimlik (örn: 'badge_1789301234')
   name: string; // Rozet Adı (örn: 'En İyi Metroidvania')
-  iconData: string; // Görselin base64 / dataUrl verisi (optimize edilmiş 64x64 / 80x80 şeffaf)
+  iconData: string; // Görselin base64 / dataUrl verisi (optimize edilmiş 64x64 / 80x80 şeffaf) veya dosya yolu
   color: string; // Rozet glow / vurgu rengi (örn: '#f59e0b', 'gold', vb.)
   targetTab: 'media' | 'game' | 'book'; // Medya, Oyun veya Kitap
+  fileName?: string; // images/badges/ klasöründeki dosya referansı
   createdAt?: number;
   updatedAt?: number;
 }
