@@ -101,7 +101,10 @@ import {
   Search,
   SlidersHorizontal,
   Eye,
-  Bookmark,
+  FastForward,
+  Hourglass,
+  Telescope,
+  CalendarClock,
 } from 'lucide-react';
 
 export default function App() {
@@ -465,10 +468,12 @@ export default function App() {
     followingOnly: false,
     droppedOnly: false,
     readingOnly: false,
+    fullAchOnly: false,
     ankiFilter: 'all',
     uncategorizedOnly: false,
     hiddenOnly: false,
     seriesOnly: false,
+    hasBadgesOnly: false,
   });
 
   // Secret Global Hidden Mode (Default: true / active - remembered in localStorage)
@@ -483,6 +488,31 @@ export default function App() {
 
   // Sıradakiler (Backlog) Filter Mode (İzlenecek / Oynanacak / Okunacak)
   const [isBacklogOnly, setIsBacklogOnly] = useState<boolean>(false);
+
+  // Sıradakiler İkon Test Durumu (1: ListOrdered, 2: Hourglass, 3: PlaySquare, 4: ListPlus)
+  const [backlogIconIndex, setBacklogIconIndex] = useState<number>(() => {
+    const saved = safeLocalStorageGet('temp_backlog_icon_idx');
+    return saved ? Math.min(Math.max(1, Number(saved)), 4) : 1;
+  });
+
+  const handleSelectBacklogIcon = (idx: number) => {
+    setBacklogIconIndex(idx);
+    safeLocalStorageSet('temp_backlog_icon_idx', String(idx));
+  };
+
+  const renderBacklogIcon = (sizeClass = 'w-3.5 h-3.5') => {
+    switch (backlogIconIndex) {
+      case 1:
+        return <FastForward className={`${sizeClass} ${isBacklogOnly ? 'fill-current' : ''}`} />;
+      case 2:
+        return <Hourglass className={sizeClass} />;
+      case 3:
+        return <Telescope className={sizeClass} />;
+      case 4:
+      default:
+        return <CalendarClock className={sizeClass} />;
+    }
+  };
 
   // Items visible under current hide mode (for Tier List, Statistics, Recent Activity, and PNG Export)
   const visibleItems = useMemo(() => {
@@ -506,14 +536,15 @@ export default function App() {
         const theme = parsed.theme === 'dark-slate' ? 'nordic-frost' : (parsed.theme || 'pure-dark');
         return {
           ...parsed,
-          showTitle: false,
-          showRating: true,
-          showYear: true,
-          showAnki: false,
-          showWatching: true,
-          showFollowing: true,
-          showGameStatus: true,
-          cardSize: 2,
+          showTitle: parsed.showTitle ?? false,
+          showAllBadges: parsed.showAllBadges !== false,
+          showRating: parsed.showRating !== false,
+          showYear: parsed.showYear !== false,
+          showAnki: Boolean(parsed.showAnki),
+          showWatching: parsed.showWatching !== false,
+          showFollowing: parsed.showFollowing !== false,
+          showGameStatus: parsed.showGameStatus !== false,
+          cardSize: typeof parsed.cardSize === 'number' ? parsed.cardSize : 2,
           showQuickAppearanceBar: false,
           fabPositions: (() => {
             const norm = normalizeFabPositions(parsed.fabPositions);
@@ -545,6 +576,7 @@ export default function App() {
     }
     return {
       showTitle: false,
+      showAllBadges: true,
       showRating: true,
       showYear: true,
       showAnki: false,
@@ -1918,9 +1950,26 @@ export default function App() {
       // 6. Series / Franchise filter
       if (filters.seriesOnly && (!item.seriesName || !item.seriesName.trim())) return false;
 
-      // 7. Game status filter
-      if (item.mainTab === 'game' && filters.gameStatus && filters.gameStatus !== 'all') {
-        if (item.status !== filters.gameStatus) return false;
+      // 6.5. Özel Rozetli Yapımlar filter
+      if (filters.hasBadgesOnly && (!item.badges || item.badges.length === 0)) return false;
+
+      // 7. Game status & Full Achievement filter
+      if (item.mainTab === 'game') {
+        if (filters.gameStatus && filters.gameStatus !== 'all') {
+          if (item.status !== filters.gameStatus) return false;
+        }
+        if (filters.fullAchOnly) {
+          const achCurrent = item.achPercent;
+          const achTarget = item.achMax || 100;
+          if (
+            achCurrent === null ||
+            achCurrent === undefined ||
+            achCurrent <= 0 ||
+            achCurrent < achTarget
+          ) {
+            return false;
+          }
+        }
       }
 
       // 8. Book format filter
@@ -2109,6 +2158,7 @@ export default function App() {
               items={filteredItems}
               viewSettings={viewSettings}
               uiExperiments={uiExperiments}
+              customBadges={appData.customBadges}
               onItemClick={(item) => {
                 if (isSelectionMode) {
                   handleToggleSelectItem(item.id);
@@ -2170,6 +2220,7 @@ export default function App() {
                       item={item}
                       viewSettings={viewSettings}
                       uiExperiments={uiExperiments}
+                      customBadges={appData.customBadges}
                       onClick={() => {
                         if (isSelectionMode) {
                           handleToggleSelectItem(item.id);
@@ -2323,6 +2374,7 @@ export default function App() {
               (filters.ankiFilter !== 'all' ? 1 : 0) +
               (filters.uncategorizedOnly ? 1 : 0) +
               (filters.seriesOnly ? 1 : 0) +
+              (filters.hasBadgesOnly ? 1 : 0) +
               (filters.gameStatus && filters.gameStatus !== 'all' ? 1 : 0) +
               (filters.bookFormat && filters.bookFormat !== 'all' ? 1 : 0);
 
@@ -2330,9 +2382,10 @@ export default function App() {
               <>
                 {/* 1. Desktop & FAB Edit Mode */}
                 {!isEditingFabMode ? (
-                  /* 1.1. Desktop Unified Bottom-Left Control Dock (md:flex) */
-                  <div
-                    id="desktop-bottom-dock"
+                  <>
+                    {/* 1.1. Desktop Unified Bottom-Left Control Dock (md:flex) */}
+                    <div
+                      id="desktop-bottom-dock"
                     className="fixed bottom-2.5 left-2.5 z-40 hidden md:flex items-center gap-0.5 py-0.5 px-1 bg-neutral-900/95 backdrop-blur-xl border border-white/20 rounded-xl shadow-2xl shadow-black/80 select-none animate-in fade-in zoom-in-95 duration-200"
                     onClick={(e) => e.stopPropagation()}
                   >
@@ -2434,10 +2487,43 @@ export default function App() {
                           : 'text-neutral-400 hover:text-white hover:bg-white/10 active:scale-95'
                       }`}
                     >
-                      <Bookmark className={`w-3.5 h-3.5 ${isBacklogOnly ? 'fill-current' : ''}`} />
+                      {renderBacklogIcon('w-3.5 h-3.5')}
                     </button>
                   </div>
-                ) : (
+
+                  {/* Geçici Sıradakiler İkon Test Seçicisi (Masaüstü) */}
+                  <div
+                    id="temp-backlog-icon-switcher"
+                    className="fixed bottom-12 left-2.5 z-40 hidden md:flex items-center gap-1 px-2 py-0.5 bg-neutral-900/95 backdrop-blur-md border border-purple-500/40 rounded-lg shadow-xl text-[11px] text-neutral-300 select-none animate-in fade-in duration-200"
+                    title="Sıradakiler Modu İkon Testi"
+                  >
+                    <span className="text-purple-300 font-semibold text-[10px] uppercase tracking-wider mr-0.5">İkon:</span>
+                    {[
+                      { id: 1, name: 'İleri / Geleceğe Sarma' },
+                      { id: 2, name: 'Kum Saati (Seçtiğiniz)' },
+                      { id: 3, name: 'Geleceğe Bakış (Teleskop)' },
+                      { id: 4, name: 'Gelecek Zaman (Takvim & Saat)' },
+                    ].map((item) => (
+                      <button
+                        key={item.id}
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleSelectBacklogIcon(item.id);
+                        }}
+                        title={`Tasarım ${item.id}: ${item.name}`}
+                        className={`h-5 px-1.5 rounded flex items-center justify-center font-bold text-[11px] transition-all cursor-pointer ${
+                          backlogIconIndex === item.id
+                            ? 'bg-purple-600 text-white shadow ring-1 ring-purple-300 scale-105'
+                            : 'bg-neutral-800 text-neutral-400 hover:text-white hover:bg-neutral-700'
+                        }`}
+                      >
+                        {item.id}
+                      </button>
+                    ))}
+                  </div>
+                </>
+              ) : (
                   /* 1.2. FAB Edit Mode: Individual Draggable FABs with coordinates */
                   <div className="contents">
                     {/* 1. Statistics Button */}
@@ -2570,8 +2656,9 @@ export default function App() {
 
                 {/* 2. Mobile Floating Pill Dock (md:hidden) */}
                 {!isEditingFabMode && (
-                  <div
-                    id="mobile-bottom-dock"
+                  <>
+                    <div
+                      id="mobile-bottom-dock"
                     className="fixed bottom-2 left-1/2 -translate-x-1/2 z-40 md:hidden flex items-center py-0.5 px-1 bg-neutral-900/95 backdrop-blur-xl border border-white/20 rounded-xl shadow-2xl shadow-black/80 select-none animate-in fade-in zoom-in-95 duration-200"
                     onClick={(e) => e.stopPropagation()}
                   >
@@ -2671,7 +2758,7 @@ export default function App() {
                             : 'text-neutral-400 hover:text-white hover:bg-white/10 active:scale-95'
                         }`}
                       >
-                        <Bookmark className={`w-4 h-4 ${isBacklogOnly ? 'fill-current' : ''}`} />
+                        {renderBacklogIcon('w-4 h-4')}
                       </button>
                     </div>
 
@@ -2777,7 +2864,39 @@ export default function App() {
                       </div>
                     </div>
                   </div>
-                )}
+
+                  {/* Mobil Geçici Sıradakiler İkon Test Seçicisi */}
+                  <div
+                    id="mob-temp-backlog-icon-switcher"
+                    className="fixed bottom-14 left-1/2 -translate-x-1/2 z-40 flex md:hidden items-center gap-1 px-2 py-0.5 bg-neutral-900/95 backdrop-blur-md border border-purple-500/40 rounded-lg shadow-xl text-[11px] text-neutral-300 select-none animate-in fade-in duration-200"
+                  >
+                    <span className="text-purple-300 font-semibold text-[10px] uppercase tracking-wider mr-0.5">İkon:</span>
+                    {[
+                      { id: 1, name: 'İleri / Geleceğe Sarma' },
+                      { id: 2, name: 'Kum Saati (Seçtiğiniz)' },
+                      { id: 3, name: 'Geleceğe Bakış (Teleskop)' },
+                      { id: 4, name: 'Gelecek Zaman (Takvim & Saat)' },
+                    ].map((item) => (
+                      <button
+                        key={item.id}
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleSelectBacklogIcon(item.id);
+                        }}
+                        title={`Tasarım ${item.id}: ${item.name}`}
+                        className={`h-5 px-1.5 rounded flex items-center justify-center font-bold text-[11px] transition-all cursor-pointer ${
+                          backlogIconIndex === item.id
+                            ? 'bg-purple-600 text-white shadow ring-1 ring-purple-300 scale-105'
+                            : 'bg-neutral-800 text-neutral-400 hover:text-white hover:bg-neutral-700'
+                        }`}
+                      >
+                        {item.id}
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
 
                 {/* 3. Add Item Button */}
                 {(isEditingFabMode || activeCatId !== TRACKED_TAB_ID) && (
@@ -3552,7 +3671,7 @@ export default function App() {
                     setViewSettings((p) => ({ ...p, showQuickAppearanceBar: false }));
                     setOpenUiTestMenu(null);
                   }}
-                  title="Hızlı görünüm çubuğunu gizle (Ayarlar > Görünüm'den tekrar açabilirsiniz)"
+                  title="Hızlı görünüm çubuğunu gizle (Ayarlar > Görünüm & Rozetler'den tekrar açabilirsiniz)"
                   className="p-1 rounded-lg hover:bg-white/10 text-neutral-400 hover:text-white transition-colors cursor-pointer ml-0.5 shrink-0"
                 >
                   <X className="w-3.5 h-3.5" />
@@ -3570,6 +3689,11 @@ export default function App() {
           categories={currentCategories}
           allItems={appData.items}
           highlightedTag={highlightedTagInDetail}
+          customBadges={appData.customBadges}
+          onOpenSettings={(tab) => {
+            setSettingsInitialTab(tab || 'themes');
+            setIsSettingsOpen(true);
+          }}
           onSave={handleSaveItem}
           onDelete={handleDeleteItem}
           onClose={() => {
@@ -3588,6 +3712,11 @@ export default function App() {
           activeSub={activeSub}
           allItems={appData.items}
           initialTitle={addModalInitialTitle}
+          customBadges={appData.customBadges}
+          onOpenSettings={(tab) => {
+            setSettingsInitialTab(tab || 'themes');
+            setIsSettingsOpen(true);
+          }}
           onAdd={handleAddItem}
           onClose={() => {
             setIsAddModalOpen(false);
@@ -3657,6 +3786,15 @@ export default function App() {
           onSaveGitHubConfig={(cfg) => setGitHubConfig(cfg)}
           onTriggerPcSync={handleTriggerPcSync}
           onTriggerMobileSync={handleTriggerMobileSync}
+          onUpdateCustomBadges={(newBadges) => {
+            setAppData((prev) => ({
+              ...prev,
+              customBadges: newBadges,
+              lastUpdated: new Date().toISOString(),
+            }));
+            safeLocalStorageSet('lore_custom_badges', JSON.stringify(newBadges));
+            markDataDirty();
+          }}
           onClose={() => {
             setIsSettingsOpen(false);
             setHighlightConnectFolder(false);
@@ -3729,6 +3867,7 @@ export default function App() {
           allItems={appData.items}
           allCategories={[...appData.categories.media, ...appData.categories.game, ...(appData.categories.book || [])]}
           viewSettings={viewSettings}
+          customBadges={appData.customBadges}
           onClose={() => setPreviewItem(null)}
           onSelectItem={(newItem) => setPreviewItem(newItem)}
           onEdit={(itemToEdit) => {

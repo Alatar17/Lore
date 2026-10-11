@@ -432,6 +432,7 @@ export const HeaderTabs: React.FC<HeaderTabsProps> = ({
     (filters.ankiFilter !== 'all' ? 1 : 0) +
     (filters.uncategorizedOnly ? 1 : 0) +
     (filters.seriesOnly ? 1 : 0) +
+    (filters.hasBadgesOnly ? 1 : 0) +
     (filters.gameStatus && filters.gameStatus !== 'all' ? 1 : 0);
 
   // Pure Hover handlers for Main Dropdown buttons with snappy 120ms delay

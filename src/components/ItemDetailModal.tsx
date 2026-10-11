@@ -1,5 +1,19 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
-import { ArchiveItem, Category, GameStatus, MediaStatus, BookStatus, ItemCharacter, BookFormat, BookQuote, AnkiBlurBox, AnkiExtraImage } from '../types';
+import {
+  ArchiveItem,
+  Category,
+  GameStatus,
+  MediaStatus,
+  BookStatus,
+  ItemCharacter,
+  BookFormat,
+  BookQuote,
+  AnkiBlurBox,
+  AnkiExtraImage,
+  CustomBadge,
+  getBadgeColorOption,
+  MainTabType,
+} from '../types';
 import { MEDIA_COLORS, GAME_COLORS, BOOK_COLORS } from '../data/initialData';
 import { optimizeImageFile } from '../utils/imageOptimizer';
 import { TagInputBox } from './TagInputBox';
@@ -45,6 +59,8 @@ import {
   PenTool,
   Globe,
   Crop,
+  MinusCircle,
+  Award,
 } from 'lucide-react';
 
 interface ItemDetailModalProps {
@@ -53,9 +69,21 @@ interface ItemDetailModalProps {
   allItems?: ArchiveItem[];
   isReadOnly?: boolean;
   highlightedTag?: string | null;
+  customBadges?: CustomBadge[];
+  onOpenSettings?: (tab?: 'categories' | 'tags' | 'themes' | 'shortcuts' | 'storage') => void;
   onSave: (updatedItem: ArchiveItem) => void;
   onDelete: (id: string) => void;
   onClose: () => void;
+}
+
+function formatReviewDate(dateStr?: string): string {
+  if (!dateStr) return '';
+  const trimmed = dateStr.trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+    const [y, m, d] = trimmed.split('-');
+    return `${d}.${m}.${y}`;
+  }
+  return trimmed;
 }
 
 export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
@@ -64,6 +92,8 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
   allItems = [],
   isReadOnly = false,
   highlightedTag,
+  customBadges = [],
+  onOpenSettings,
   onSave,
   onDelete,
   onClose,
@@ -95,6 +125,10 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
       toRead: bookStatus === 'Okunacak',
     };
   });
+  const [activeTextTab, setActiveTextTab] = useState<'desc' | 'review'>('desc');
+  const [isReviewDateUpdated, setIsReviewDateUpdated] = useState(false);
+  const originalReviewDateRef = useRef<string | undefined>(item.reviewDate);
+  const [titleError, setTitleError] = useState(false);
   const [pasteNotice, setPasteNotice] = useState<string | null>(null);
   const [showFollowDetails, setShowFollowDetails] = useState(false);
   const [showFranchiseTooltip, setShowFranchiseTooltip] = useState(false);
@@ -143,6 +177,11 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
     return '';
   });
 
+  // Hatırlanan son puan (Puan Verilmedi seçilip kaldırıldığında puanı kaybetmemek için)
+  const [rememberedRating, setRememberedRating] = useState<number>(() => {
+    return item.rating > 0 ? item.rating : 8;
+  });
+
   // Release Year Range / Single Mode State
   const initialYearStr = formData.releaseYear ? String(formData.releaseYear) : '';
   const isInitialRange = initialYearStr.includes('-') || initialYearStr.includes('—') || initialYearStr.includes('–');
@@ -186,6 +225,9 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
       toWatch: mediaStatus === 'İzlenecek',
       toRead: bookStatus === 'Okunacak',
     });
+    setActiveTextTab('desc');
+    setIsReviewDateUpdated(false);
+    originalReviewDateRef.current = item.reviewDate;
     if (item.lastCompletedDate) {
       setRememberedDate(item.lastCompletedDate);
     } else if (item.date && item.date !== '??' && item.date !== '??.??') {
@@ -209,6 +251,7 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
     setPublisher(item.publisher || []);
     setTranslator(item.translator || []);
     setQuotes(item.quotes || []);
+    setBadges(Array.isArray(item.badges) ? item.badges.slice(0, 4) : []);
     setAiDescState(null);
     setAiYearState(null);
     setAiTagStates({});
@@ -216,6 +259,48 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
     setTagDiffs({});
     setHighlightNewCharacters([]);
   }, [item]);
+
+  // Custom Badges State
+  const [badges, setBadges] = useState<string[]>(() =>
+    Array.isArray(item.badges) ? item.badges.slice(0, 4) : []
+  );
+  const [isBadgePopoverOpen, setIsBadgePopoverOpen] = useState(false);
+  const badgePopoverRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleOutsideClick = (e: MouseEvent) => {
+      if (
+        isBadgePopoverOpen &&
+        badgePopoverRef.current &&
+        !badgePopoverRef.current.contains(e.target as Node)
+      ) {
+        setIsBadgePopoverOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleOutsideClick);
+    return () => document.removeEventListener('mousedown', handleOutsideClick);
+  }, [isBadgePopoverOpen]);
+
+  useEffect(() => {
+    if (customBadges.length > 0) {
+      setBadges((prev) => prev.filter((id) => customBadges.some((b) => b.id === id)));
+    }
+  }, [customBadges]);
+
+  const currentItemTab: MainTabType = formData.mainTab || item.mainTab || 'media';
+  const scopedBadges = useMemo(
+    () => customBadges.filter((b) => b.targetTab === currentItemTab),
+    [customBadges, currentItemTab]
+  );
+
+  const handleToggleBadge = (badgeId: string) => {
+    if (badges.includes(badgeId)) {
+      setBadges((prev) => prev.filter((id) => id !== badgeId));
+    } else {
+      if (badges.length >= 4) return;
+      setBadges((prev) => [...prev, badgeId]);
+    }
+  };
 
   // Series name suggestions for autocomplete
   const availableSeriesNames = useMemo(() => {
@@ -457,6 +542,10 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
   // Master AI Action: "✨ AI ile Doldur"
   // Boş alanları otomatik doldurur, dolu alanlar için onay önerileri hazırlar.
   const handleAiFill = async () => {
+    // AI Safety Shield: Seamlessly switch to 'desc' tab so user sees newly populated synopsis
+    // while their personal review remains 100% untouched
+    setActiveTextTab('desc');
+
     if (!formData.title.trim() && !formData.thumbnail) {
       setAiNotice({
         text: 'Lütfen önce bir yapım başlığı girin veya afiş yükleyin.',
@@ -1030,17 +1119,26 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
 
   const currentGameStatus: GameStatus = formData.status || 'Tamamlandı';
 
-  const isDateDisabled = isGame
-    ? (currentGameStatus === 'Oynanıyor' || currentGameStatus === 'Oynanacak')
+  const isPlanned = isGame
+    ? currentGameStatus === 'Oynanacak'
     : isBook
-    ? (currentBookStatus === 'Okunuyor' || currentBookStatus === 'Okunacak')
-    : (currentMediaStatus === 'İzleniyor' || currentMediaStatus === 'İzlenecek');
+    ? currentBookStatus === 'Okunacak'
+    : currentMediaStatus === 'İzlenecek';
+
+  const isOngoing = isGame
+    ? currentGameStatus === 'Oynanıyor'
+    : isBook
+    ? currentBookStatus === 'Okunuyor'
+    : currentMediaStatus === 'İzleniyor';
+
+  const isDateDisabled = isPlanned || isOngoing;
+  const isRatingDisabled = isPlanned;
 
   const handleMediaStatusChange = (nextStatus: MediaStatus) => {
     setFormData((prev) => {
-      const isOngoing = nextStatus === 'İzleniyor' || nextStatus === 'İzlenecek';
+      const isNextOngoing = nextStatus === 'İzleniyor' || nextStatus === 'İzlenecek';
       let nextDate = prev.date;
-      if (isOngoing) {
+      if (isNextOngoing) {
         if (prev.date && prev.date !== '??' && prev.date !== '??.??') {
           setRememberedDate(prev.date);
         }
@@ -1048,6 +1146,17 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
       } else if (nextStatus === 'Tamamlandı') {
         nextDate = prev.date || rememberedDate || new Date().toISOString().split('T')[0];
       }
+
+      let nextRating = prev.rating;
+      if (nextStatus === 'İzlenecek') {
+        if (prev.rating > 0) {
+          setRememberedRating(prev.rating);
+        }
+        nextRating = 0;
+      } else if (prev.mediaStatus === 'İzlenecek' && prev.rating === 0) {
+        nextRating = rememberedRating || 8;
+      }
+
       return {
         ...prev,
         mediaStatus: nextStatus,
@@ -1055,6 +1164,7 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
         watching: nextStatus === 'İzleniyor',
         dropped: nextStatus === 'Yarım Bırakıldı',
         date: nextDate,
+        rating: nextRating,
       };
     });
   };
@@ -1062,9 +1172,9 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
   const handleBookStatusChange = (nextStatus: BookStatus) => {
     setReading(nextStatus === 'Okunuyor');
     setFormData((prev) => {
-      const isOngoing = nextStatus === 'Okunuyor' || nextStatus === 'Okunacak';
+      const isNextOngoing = nextStatus === 'Okunuyor' || nextStatus === 'Okunacak';
       let nextDate = prev.date;
-      if (isOngoing) {
+      if (isNextOngoing) {
         if (prev.date && prev.date !== '??' && prev.date !== '??.??') {
           setRememberedDate(prev.date);
         }
@@ -1072,6 +1182,17 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
       } else if (nextStatus === 'Tamamlandı') {
         nextDate = prev.date || rememberedDate || new Date().toISOString().split('T')[0];
       }
+
+      let nextRating = prev.rating;
+      if (nextStatus === 'Okunacak') {
+        if (prev.rating > 0) {
+          setRememberedRating(prev.rating);
+        }
+        nextRating = 0;
+      } else if (prev.bookStatus === 'Okunacak' && prev.rating === 0) {
+        nextRating = rememberedRating || 8;
+      }
+
       return {
         ...prev,
         bookStatus: nextStatus,
@@ -1079,15 +1200,16 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
         reading: nextStatus === 'Okunuyor',
         dropped: nextStatus === 'Yarım Bırakıldı',
         date: nextDate,
+        rating: nextRating,
       };
     });
   };
 
   const handleGameStatusChange = (nextStatus: GameStatus) => {
     setFormData((prev) => {
-      const isOngoing = nextStatus === 'Oynanıyor' || nextStatus === 'Oynanacak';
+      const isNextOngoing = nextStatus === 'Oynanıyor' || nextStatus === 'Oynanacak';
       let nextDate = prev.date;
-      if (isOngoing) {
+      if (isNextOngoing) {
         if (prev.date && prev.date !== '??' && prev.date !== '??.??') {
           setRememberedDate(prev.date);
         }
@@ -1095,11 +1217,23 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
       } else if (nextStatus === 'Tamamlandı') {
         nextDate = prev.date || rememberedDate || new Date().toISOString().split('T')[0];
       }
+
+      let nextRating = prev.rating;
+      if (nextStatus === 'Oynanacak') {
+        if (prev.rating > 0) {
+          setRememberedRating(prev.rating);
+        }
+        nextRating = 0;
+      } else if (prev.status === 'Oynanacak' && prev.rating === 0) {
+        nextRating = rememberedRating || 8;
+      }
+
       return {
         ...prev,
         status: nextStatus,
         dropped: nextStatus === 'Yarım Bırakıldı',
         date: nextDate,
+        rating: nextRating,
       };
     });
   };
@@ -1199,13 +1333,21 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
 
   const handleChange = <K extends keyof ArchiveItem>(key: K, value: ArchiveItem[K]) => {
     setFormData((prev) => ({ ...prev, [key]: value }));
+    if (key === 'title' && titleError && typeof value === 'string' && value.trim()) {
+      setTitleError(false);
+    }
   };
 
   // Save changes explicitly
   const handleSaveForm = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     if (!formData.title.trim()) {
-      window.alert('Başlık boş bırakılamaz.');
+      setTitleError(true);
+      const titleInput = document.getElementById('detail-title-input') as HTMLInputElement | null;
+      if (titleInput) {
+        titleInput.focus();
+        titleInput.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
       return;
     }
 
@@ -1247,8 +1389,16 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
         ? formData.date
         : item.lastCompletedDate);
 
+    const cleanedReview = formData.review?.trim() || undefined;
+    const finalReviewDate = cleanedReview
+      ? (formData.reviewDate || new Date().toISOString().split('T')[0])
+      : undefined;
+
     onSave({
       ...formData,
+      review: cleanedReview,
+      reviewDate: finalReviewDate,
+      rating: isRatingDisabled ? 0 : (formData.rating || 0),
       isHidden: formData.isHidden,
       date: isDateDisabled ? '' : (formData.date || '??'),
       lastCompletedDate: finalLastCompleted,
@@ -1293,6 +1443,14 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
       following: !isGame && !isBook ? formData.following : undefined,
       dropped: isBook ? (currentBookStatus === 'Yarım Bırakıldı') : (!isGame ? (currentMediaStatus === 'Yarım Bırakıldı') : (currentGameStatus === 'Yarım Bırakıldı')),
       status: isGame ? currentGameStatus : undefined,
+      achPercent:
+        isGame && formData.achPercent !== null && formData.achPercent !== undefined
+          ? Math.min(
+              Math.max(0, formData.achPercent),
+              formData.achMax && formData.achMax > 0 ? formData.achMax : 100
+            )
+          : undefined,
+      achMax: isGame ? (formData.achMax && formData.achMax > 0 ? formData.achMax : 100) : undefined,
       // Anki Front Tags
       ankiFrontTags: (() => {
         if (!formData.anki || !formData.ankiFrontTags || formData.ankiFrontTags.length === 0) return undefined;
@@ -1308,6 +1466,7 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
         ).slice(0, 2);
         return cleaned.length > 0 ? cleaned : undefined;
       })(),
+      badges: badges.length > 0 ? badges : undefined,
       updatedAt: Date.now(),
     });
   };
@@ -1539,6 +1698,204 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
                   <Check className="w-2.5 h-2.5" /> {pasteNotice}
                 </p>
               )}
+
+              {/* Rozet Yönetim Masası (Sol sütun, afiş ve Değiştir / Yapıştır butonlarının hemen altı) */}
+              <div className="relative w-full space-y-1.5 pt-1">
+                {/* Tam genişlikte [ Rozet Ekle (n/4) ] Butonu */}
+                <button
+                  type="button"
+                  onClick={() => setIsBadgePopoverOpen((prev) => !prev)}
+                  className={`w-full py-1.5 px-2 rounded-xl border text-[10px] sm:text-[11px] font-semibold flex items-center justify-between transition-all cursor-pointer ${
+                    isBadgePopoverOpen
+                      ? 'bg-blue-600/30 border-blue-500/60 text-blue-200 shadow-sm'
+                      : badges.length >= 4
+                      ? 'bg-white/5 hover:bg-white/10 border-white/10 text-amber-300/90'
+                      : 'bg-white/5 hover:bg-white/10 border-white/10 text-slate-200 hover:text-white'
+                  }`}
+                  title={badges.length >= 4 ? 'Maksimum 4 rozet sınırına ulaşıldı (Rozet değiştirmek için tıklayın)' : 'Rozet Ekle / Çıkar'}
+                >
+                  <span className="flex items-center gap-1.5 truncate">
+                    <Award className={`w-3.5 h-3.5 shrink-0 ${badges.length >= 4 ? 'text-amber-400' : 'text-amber-400'}`} />
+                    <span className="truncate">Rozet Ekle</span>
+                  </span>
+                  <span className={`text-[10px] font-mono shrink-0 ${badges.length >= 4 ? 'text-amber-400 font-bold' : 'text-slate-400'}`}>
+                    ({badges.length}/4)
+                  </span>
+                </button>
+
+                {/* Atanmış Rozetler: Yan yana 4 adet saf şeffaf nişan yuvası */}
+                <div className="grid grid-cols-4 gap-1.5 w-full">
+                  {[0, 1, 2, 3].map((slotIndex) => {
+                    const badgeId = badges[slotIndex];
+                    const badgeObj = badgeId ? customBadges.find((b) => b.id === badgeId) : null;
+                    const colorOpt = badgeObj ? getBadgeColorOption(badgeObj.color) : null;
+
+                    if (badgeObj && colorOpt) {
+                      return (
+                        <div
+                          key={slotIndex}
+                          className="group relative aspect-square flex items-center justify-center p-0.5 transition-all cursor-pointer select-none"
+                          title={badgeObj.name}
+                        >
+                          {badgeObj.iconData ? (
+                            <img
+                              src={badgeObj.iconData}
+                              alt={badgeObj.name}
+                              className="w-full h-full object-contain pointer-events-none transition-transform duration-200 group-hover:scale-110"
+                              style={{
+                                filter: `drop-shadow(0 0 8px ${colorOpt.hex}) drop-shadow(0 0 16px ${colorOpt.hex}80) drop-shadow(0 2px 6px rgba(0,0,0,0.9))`,
+                              }}
+                            />
+                          ) : (
+                            <span className="text-2xl">🏆</span>
+                          )}
+
+                          {/* Sağ üstteki minimal (×) butonu ile çıkarma (kutusu kaldırılmış, %10 daha küçük) */}
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setBadges((prev) => prev.filter((id) => id !== badgeId));
+                            }}
+                            className="absolute -top-1 -right-1 p-0.5 text-slate-400 hover:text-white transition-all cursor-pointer z-10 hover:scale-110 active:scale-90"
+                            title="Kaldır"
+                          >
+                            <X className="w-[9px] h-[9px] stroke-[2.2] drop-shadow-[0_1px_3px_rgba(0,0,0,0.95)]" />
+                          </button>
+                        </div>
+                      );
+                    }
+
+                    return (
+                      <button
+                        key={slotIndex}
+                        type="button"
+                        disabled={badges.length >= 4}
+                        onClick={() => setIsBadgePopoverOpen(true)}
+                        className={`aspect-square rounded-xl border border-dashed border-white/10 hover:border-white/25 bg-white/[0.01] hover:bg-white/[0.04] flex items-center justify-center text-slate-500 hover:text-slate-300 transition-all ${
+                          badges.length >= 4 ? 'cursor-not-allowed opacity-20' : 'cursor-pointer'
+                        }`}
+                        title="Boş Rozet Yuvası (Tıkla ve Rozet Seç)"
+                      >
+                        <Plus className="w-4 h-4" />
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* Popover Menüsü (Rozet Seçim Popover'ı) */}
+                {isBadgePopoverOpen && (
+                  <div
+                    ref={badgePopoverRef}
+                    className="absolute left-1/2 -translate-x-1/2 sm:left-0 sm:translate-x-0 top-full mt-1.5 z-50 w-64 max-w-[280px] bg-[#141722] border border-white/20 rounded-xl shadow-2xl p-2.5 space-y-2 animate-in fade-in zoom-in-95 duration-100 text-left"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    {/* Popover Header */}
+                    <div className="flex items-center justify-between pb-1.5 border-b border-white/10 text-xs font-semibold text-slate-200">
+                      <span className="flex items-center gap-1.5 text-xs text-slate-300">
+                        <Award className="w-3.5 h-3.5 text-amber-400" />
+                        <span>Rozet Seç ({badges.length}/4)</span>
+                        {badges.length >= 4 && (
+                          <span className="text-[9px] px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30 font-medium">
+                            Dolu
+                          </span>
+                        )}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setIsBadgePopoverOpen(false)}
+                        className="text-slate-400 hover:text-white p-0.5 rounded cursor-pointer"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+
+                    {badges.length >= 4 && (
+                      <p className="text-[10px] text-amber-300/90 bg-amber-500/10 border border-amber-500/20 rounded-lg p-1.5 leading-tight">
+                        Maksimum 4 rozet sınırına ulaşıldı. Yeni rozet eklemek için seçili olanlardan birini çıkarın.
+                      </p>
+                    )}
+
+                    {/* Rozet Listesi (Sadece bu alana ait rozetler) */}
+                    <div className="max-h-48 overflow-y-auto custom-scrollbar space-y-1">
+                      {scopedBadges.length === 0 ? (
+                        <div className="py-4 px-2 text-center space-y-1 text-slate-400">
+                          <p className="text-[11px] font-semibold text-slate-300">
+                            Henüz bir rozet tanımlamadınız
+                          </p>
+                          <p className="text-[10px] text-slate-500 leading-snug">
+                            {currentItemTab === 'game' ? 'Oyun' : currentItemTab === 'book' ? 'Kitap' : 'Medya'} alanı için henüz tanımlanmış rozet bulunmuyor.
+                          </p>
+                        </div>
+                      ) : (
+                        scopedBadges.map((b) => {
+                          const isSelected = badges.includes(b.id);
+                          const colorOpt = getBadgeColorOption(b.color);
+
+                          return (
+                            <button
+                              key={b.id}
+                              type="button"
+                              onClick={() => handleToggleBadge(b.id)}
+                              className={`w-full text-left px-2 py-1.5 rounded-lg text-xs transition-all flex items-center justify-between gap-2 border cursor-pointer group ${
+                                isSelected
+                                  ? 'bg-blue-600/20 border-blue-500/40 text-blue-200 font-semibold'
+                                  : badges.length >= 4
+                                  ? 'bg-white/5 border-white/5 text-slate-500 opacity-50 cursor-not-allowed'
+                                  : 'bg-white/5 hover:bg-white/10 border-white/10 text-slate-200 hover:text-white'
+                              }`}
+                              disabled={!isSelected && badges.length >= 4}
+                            >
+                              <div className="flex items-center gap-2 min-w-0 flex-1">
+                                <div className="w-8 h-8 flex items-center justify-center shrink-0">
+                                  {b.iconData ? (
+                                    <img
+                                      src={b.iconData}
+                                      alt={b.name}
+                                      className="w-7 h-7 object-contain"
+                                      style={{
+                                        filter: `drop-shadow(0 0 5px ${colorOpt.hex}) drop-shadow(0 1px 3px rgba(0,0,0,0.85))`,
+                                      }}
+                                    />
+                                  ) : (
+                                    <span className="text-base">🏆</span>
+                                  )}
+                                </div>
+                                <span className="truncate text-xs font-medium">{b.name}</span>
+                              </div>
+
+                              <span className="shrink-0 text-xs">
+                                {isSelected ? (
+                                  <span className="text-emerald-400 font-bold">✓</span>
+                                ) : (
+                                  <span className="text-slate-500 group-hover:text-slate-300">+</span>
+                                )}
+                              </span>
+                            </button>
+                          );
+                        })
+                      )}
+                    </div>
+
+                    {/* Ayarlar'da Rozetleri Yönet Kısayolu */}
+                    <div className="pt-1.5 border-t border-white/10">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsBadgePopoverOpen(false);
+                          if (onOpenSettings) {
+                            onClose();
+                            onOpenSettings('themes');
+                          }
+                        }}
+                        className="w-full py-1 px-2 rounded-lg text-[10px] font-semibold text-slate-400 hover:text-white hover:bg-white/5 flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                      >
+                        <span>⚙️ Ayarlar'da Rozetleri Yönet</span>
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
 
             {/* Right: Main Fields + Notes */}
@@ -1556,7 +1913,11 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
                     autoComplete="off"
                     value={formData.title}
                     onChange={(e) => handleChange('title', e.target.value)}
-                    className="flex-1 min-w-0 bg-black/30 text-white font-semibold border border-white/10 rounded-xl px-3 py-1.5 text-xs focus:outline-none focus:border-blue-500 transition-colors"
+                    className={`flex-1 min-w-0 bg-black/30 text-white font-semibold rounded-xl px-3 py-1.5 text-xs focus:outline-none transition-all ${
+                      titleError
+                        ? 'border-2 border-rose-500/90 ring-4 ring-rose-500/20 bg-rose-950/20 animate-input-shake'
+                        : 'border border-white/10 focus:border-blue-500'
+                    }`}
                   />
                   {!isReadOnly && (
                     <button
@@ -1576,6 +1937,12 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
                     </button>
                   )}
                 </div>
+                {titleError && (
+                  <p className="mt-1.5 text-[11px] font-medium text-rose-400 flex items-center gap-1.5 animate-fadeIn">
+                    <AlertCircle className="w-3.5 h-3.5 text-rose-400 shrink-0" />
+                    <span>Lütfen yapım başlığı girin.</span>
+                  </p>
+                )}
               </div>
 
               {/* Category & Subgroup Selectors */}
@@ -1699,21 +2066,76 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
                   <div className="flex items-center gap-1 h-5 mb-1">
                     <label className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold flex items-center gap-1 truncate">
                       <Star className="w-3 h-3 text-amber-400 fill-amber-400 shrink-0" />
-                      <span>Puan (1-10)</span>
+                      <span>{isRatingDisabled ? 'Puan (Kilitli)' : formData.rating === 0 ? 'Puan Verilmedi' : 'Puan (1-10)'}</span>
                     </label>
                   </div>
-                  <select
-                    id="detail-rating-select"
-                    value={formData.rating}
-                    onChange={(e) => handleChange('rating', Number(e.target.value))}
-                    className="w-full h-8 bg-black/30 text-amber-300 font-bold border border-white/10 rounded-xl px-2.5 text-xs focus:outline-none focus:border-blue-500 cursor-pointer"
-                  >
-                    {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((num) => (
-                      <option key={num} value={num} className="bg-slate-900 text-amber-300">
-                        ★ {num} / 10
-                      </option>
-                    ))}
-                  </select>
+                  <div className="flex items-center gap-1 min-w-0">
+                    {isRatingDisabled ? (
+                      <div className="flex-1 min-w-0 h-8 rounded-xl px-2.5 text-xs font-semibold flex items-center justify-between bg-amber-500/5 text-amber-300/40 border border-amber-500/15 opacity-40 pointer-events-none select-none">
+                        <span className="truncate">
+                          {isGame
+                            ? 'Oynanacak (Kilitli)'
+                            : isBook
+                            ? 'Okunacak (Kilitli)'
+                            : 'İzlenecek (Kilitli)'}
+                        </span>
+                      </div>
+                    ) : (
+                      <select
+                        id="detail-rating-select"
+                        value={formData.rating}
+                        disabled={isRatingDisabled}
+                        onChange={(e) => {
+                          const val = Number(e.target.value);
+                          handleChange('rating', val);
+                          if (val > 0) {
+                            setRememberedRating(val);
+                          }
+                        }}
+                        className={`flex-1 min-w-0 h-8 bg-black/30 font-bold border border-white/10 rounded-xl px-2.5 text-xs focus:outline-none focus:border-blue-500 cursor-pointer ${
+                          formData.rating === 0 ? 'text-amber-300/70' : 'text-amber-300'
+                        }`}
+                      >
+                        <option value={0} className="bg-slate-900 text-amber-300/70">
+                          ★ Puan Verilmedi
+                        </option>
+                        {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((num) => (
+                          <option key={num} value={num} className="bg-slate-900 text-amber-300">
+                            ★ {num} / 10
+                          </option>
+                        ))}
+                      </select>
+                    )}
+                    <button
+                      type="button"
+                      id="toggle-unrated-btn"
+                      disabled={isRatingDisabled}
+                      onClick={() => {
+                        if (formData.rating === 0) {
+                          handleChange('rating', rememberedRating || 8);
+                        } else {
+                          setRememberedRating(formData.rating);
+                          handleChange('rating', 0);
+                        }
+                      }}
+                      title={
+                        isRatingDisabled
+                          ? 'Gelecek yapımlar için puanlama kilitlidir'
+                          : formData.rating === 0
+                          ? 'Puan Geri Yükle'
+                          : 'Puan Henüz Verilmedi (Puansız)'
+                      }
+                      className={`h-8 w-8 rounded-xl border text-xs font-semibold transition-all flex items-center justify-center shrink-0 ${
+                        isRatingDisabled
+                          ? 'opacity-30 cursor-not-allowed pointer-events-none bg-white/5 text-neutral-500 border-white/5'
+                          : formData.rating === 0
+                          ? 'bg-amber-500/20 text-amber-300 border-amber-500/40 cursor-pointer'
+                          : 'bg-white/5 text-neutral-400 border-white/10 hover:text-white hover:bg-white/10 cursor-pointer'
+                      }`}
+                    >
+                      <MinusCircle className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
                 </div>
 
                 <div className="min-w-0">
@@ -1949,22 +2371,61 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
                 </div>
               </div>
 
-              {/* Description & Notes Area (Moved Up to Top Section next to Poster) */}
+              {/* Description & Review Area (Moved Up to Top Section next to Poster) */}
               <div>
-                <div className="flex items-center justify-between mb-0.5">
-                  <label className="block text-[10px] uppercase tracking-wider text-slate-400 font-semibold">
-                    KONUSU
-                  </label>
-                  {!isReadOnly && aiDescState && (
+                <div className="flex items-center justify-between mb-1">
+                  <div className="flex items-center gap-3">
+                    <button
+                      type="button"
+                      id="tab-detail-desc-btn"
+                      onClick={() => setActiveTextTab('desc')}
+                      className="text-[10px] uppercase tracking-wider transition-all relative cursor-pointer font-semibold"
+                    >
+                      <span
+                        className={`pb-0.5 transition-all inline-block ${
+                          activeTextTab === 'desc'
+                            ? 'text-white border-b-2 border-blue-500 font-bold'
+                            : 'text-slate-400 hover:text-slate-200 border-b-2 border-transparent'
+                        }`}
+                      >
+                        KONUSU
+                      </span>
+                    </button>
+                    <button
+                      type="button"
+                      id="tab-detail-review-btn"
+                      onClick={() => setActiveTextTab('review')}
+                      className="text-[10px] uppercase tracking-wider transition-all relative cursor-pointer font-semibold flex items-center gap-1.5"
+                    >
+                      <span
+                        className={`pb-0.5 transition-all inline-block ${
+                          activeTextTab === 'review'
+                            ? 'text-white border-b-2 border-amber-500 font-bold'
+                            : 'text-slate-400 hover:text-slate-200 border-b-2 border-transparent'
+                        }`}
+                      >
+                        YORUM
+                      </span>
+                      {formData.review && formData.review.trim().length > 0 && (
+                        <span
+                          className="w-1.5 h-1.5 rounded-full bg-amber-400 shadow-[0_0_6px_rgba(251,191,36,0.9)] inline-block mb-0.5"
+                          title="Kişisel yorum mevcut"
+                        />
+                      )}
+                    </button>
+                  </div>
+
+                  {activeTextTab === 'desc' && !isReadOnly && aiDescState && (
                     <div className="flex items-center gap-1">
                       {aiDescState.isActive ? (
                         <button
                           type="button"
                           onClick={() => {
+                            setActiveTextTab('desc');
                             handleChange('desc', aiDescState.original);
                             setAiDescState((prev) => (prev ? { ...prev, isActive: false } : null));
                           }}
-                          title="Eski haline dön"
+                          title="Konu: Eski haline dön"
                           className="p-1 rounded-md bg-white/10 hover:bg-white/20 text-slate-300 hover:text-white border border-white/20 transition-all cursor-pointer shadow-xs"
                         >
                           <RotateCcw className="w-3.5 h-3.5" />
@@ -1973,10 +2434,11 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
                         <button
                           type="button"
                           onClick={() => {
+                            setActiveTextTab('desc');
                             handleChange('desc', aiDescState.suggested);
                             setAiDescState((prev) => (prev ? { ...prev, isActive: true } : null));
                           }}
-                          title="AI önerisine geç"
+                          title="Konu: AI önerisine geç"
                           className="p-1 rounded-md bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 transition-all cursor-pointer shadow-xs"
                         >
                           <Sparkles className="w-3.5 h-3.5" />
@@ -1984,24 +2446,82 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
                       )}
                     </div>
                   )}
+
+                  {activeTextTab === 'review' && (formData.reviewDate || (formData.review && formData.review.trim().length > 0)) && (
+                    <div className="flex items-center gap-1.5">
+                      <span className={`text-[10px] font-medium transition-colors ${isReviewDateUpdated ? 'text-amber-300 font-semibold' : 'text-slate-400'}`}>
+                        {formatReviewDate(formData.reviewDate || new Date().toISOString().split('T')[0])}
+                      </span>
+                      {!isReadOnly && (
+                        <button
+                          type="button"
+                          id="btn-update-review-date-today"
+                          onClick={() => {
+                            if (isReviewDateUpdated) {
+                              handleChange('reviewDate', originalReviewDateRef.current);
+                              setIsReviewDateUpdated(false);
+                            } else {
+                              const today = new Date().toISOString().split('T')[0];
+                              handleChange('reviewDate', today);
+                              setIsReviewDateUpdated(true);
+                            }
+                          }}
+                          title={isReviewDateUpdated ? 'Orijinal Tarihe Geri Dön' : 'Tarihi Bugüne Güncelle'}
+                          className={`p-1 rounded-md transition-all cursor-pointer shadow-xs flex items-center justify-center border ${
+                            isReviewDateUpdated
+                              ? 'bg-amber-500/20 text-amber-300 border-amber-500/40 shadow-[0_0_8px_rgba(251,191,36,0.3)]'
+                              : 'bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white border-white/10'
+                          }`}
+                        >
+                          <Calendar className={`w-3 h-3 ${isReviewDateUpdated ? 'text-amber-400' : 'text-slate-300'}`} />
+                        </button>
+                      )}
+                    </div>
+                  )}
                 </div>
-                <textarea
-                  id="detail-desc-textarea"
-                  rows={3}
-                  value={formData.desc}
-                  onChange={(e) => {
-                    handleChange('desc', e.target.value);
-                    if (aiDescState?.isActive) {
-                      setAiDescState((prev) => (prev ? { ...prev, isActive: false } : null));
-                    }
-                  }}
-                  placeholder="Yıllar sonra hatırlamak için notlar, hisler, önemli detaylar..."
-                  className={`w-full text-slate-200 rounded-xl p-2.5 text-xs leading-relaxed focus:outline-none focus:border-blue-500 resize-y custom-scrollbar min-h-[82px] transition-all ${
-                    aiDescState?.isActive
-                      ? 'border border-emerald-500/80 ring-1 ring-emerald-500/40 shadow-[0_0_12px_rgba(16,185,129,0.18)] bg-emerald-500/[0.04]'
-                      : 'border border-white/10 bg-black/30'
-                  }`}
-                />
+
+                {activeTextTab === 'desc' ? (
+                  <textarea
+                    id="detail-desc-textarea"
+                    rows={3}
+                    disabled={isReadOnly}
+                    value={formData.desc}
+                    onChange={(e) => {
+                      handleChange('desc', e.target.value);
+                      if (aiDescState?.isActive) {
+                        setAiDescState((prev) => (prev ? { ...prev, isActive: false } : null));
+                      }
+                    }}
+                    placeholder="Yıllar sonra hatırlamak için notlar, hisler, önemli detaylar..."
+                    className={`w-full text-slate-200 rounded-xl p-2.5 text-xs leading-relaxed focus:outline-none focus:border-blue-500 resize-y custom-scrollbar min-h-[82px] transition-all ${
+                      aiDescState?.isActive
+                        ? 'border border-emerald-500/80 ring-1 ring-emerald-500/40 shadow-[0_0_12px_rgba(16,185,129,0.18)] bg-emerald-500/[0.04]'
+                        : 'border border-white/10 bg-black/30'
+                    } ${isReadOnly ? 'opacity-80 cursor-default' : ''}`}
+                  />
+                ) : (
+                  <textarea
+                    id="detail-review-textarea"
+                    rows={3}
+                    disabled={isReadOnly}
+                    value={formData.review || ''}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      handleChange('review', val);
+                      if (val.trim()) {
+                        if (!formData.reviewDate) {
+                          handleChange('reviewDate', new Date().toISOString().split('T')[0]);
+                        }
+                      } else {
+                        handleChange('reviewDate', undefined);
+                      }
+                    }}
+                    placeholder="Bu yapım hakkındaki kişisel eleştirin, deneyimin ve samimi düşüncelerin... (Puan ve durumdan bağımsız)"
+                    className={`w-full text-slate-200 rounded-xl p-2.5 text-xs leading-relaxed focus:outline-none border border-amber-500/30 bg-amber-500/[0.02] focus:border-amber-500/80 focus:ring-1 focus:ring-amber-500/30 resize-y custom-scrollbar min-h-[82px] transition-all ${
+                      isReadOnly ? 'opacity-80 cursor-default' : ''
+                    }`}
+                  />
+                )}
               </div>
             </div>
           </div>
@@ -2268,12 +2788,19 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
                       max={formData.achMax || 100}
                       placeholder="0"
                       value={formData.achPercent ?? ''}
-                      onChange={(e) =>
-                        handleChange(
-                          'achPercent',
-                          e.target.value ? Number(e.target.value) : null
-                        )
-                      }
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        if (val === '' || val === null) {
+                          handleChange('achPercent', null);
+                          return;
+                        }
+                        let num = Number(val);
+                        if (isNaN(num)) return;
+                        const maxVal = formData.achMax && formData.achMax > 0 ? formData.achMax : 100;
+                        if (num < 0) num = 0;
+                        if (num > maxVal) num = maxVal;
+                        handleChange('achPercent', num);
+                      }}
                       className="w-full bg-black/30 text-amber-300 font-semibold border border-white/10 rounded-lg px-2 py-1 text-xs focus:outline-none focus:border-blue-500"
                     />
                     <span className="text-slate-400 text-xs">/</span>
@@ -2282,9 +2809,45 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
                       min="1"
                       title="Üst limit"
                       value={formData.achMax ?? 100}
-                      onChange={(e) =>
-                        handleChange('achMax', Number(e.target.value) || 100)
-                      }
+                      onChange={(e) => {
+                        const raw = e.target.value;
+                        if (raw === '') {
+                          setFormData((prev) => ({ ...prev, achMax: 0 }));
+                          return;
+                        }
+                        const newMax = Number(raw);
+                        if (isNaN(newMax)) return;
+                        setFormData((prev) => {
+                          const curAch = prev.achPercent;
+                          const nextAch =
+                            newMax > 0 && curAch !== null && curAch !== undefined && curAch > newMax
+                              ? newMax
+                              : curAch;
+                          return {
+                            ...prev,
+                            achMax: newMax,
+                            achPercent: nextAch,
+                          };
+                        });
+                      }}
+                      onBlur={() => {
+                        if (!formData.achMax || formData.achMax < 1) {
+                          setFormData((prev) => ({
+                            ...prev,
+                            achMax: 100,
+                            achPercent:
+                              prev.achPercent !== null && prev.achPercent !== undefined && prev.achPercent > 100
+                                ? 100
+                                : prev.achPercent,
+                          }));
+                        } else if (
+                          formData.achPercent !== null &&
+                          formData.achPercent !== undefined &&
+                          formData.achPercent > formData.achMax
+                        ) {
+                          setFormData((prev) => ({ ...prev, achPercent: prev.achMax }));
+                        }
+                      }}
                       className="w-14 bg-black/30 text-slate-300 border border-white/10 rounded-lg px-1.5 py-1 text-xs text-center focus:outline-none focus:border-blue-500"
                     />
                   </div>
@@ -3070,16 +3633,13 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
               <div className="relative inline-flex items-center group/ftip">
                 <button
                   type="button"
-                  onClick={() => setShowFranchiseTooltip(!showFranchiseTooltip)}
                   className="p-0.5 text-slate-400 hover:text-indigo-300 rounded transition-colors cursor-pointer"
                   title="Bilgi"
                 >
                   <Info className="w-3.5 h-3.5" />
                 </button>
                 <div
-                  className={`absolute left-6 top-1/2 -translate-y-1/2 z-50 w-64 p-2.5 rounded-xl bg-slate-900/95 border border-indigo-500/30 text-[11px] text-slate-200 font-normal leading-relaxed shadow-xl backdrop-blur-md transition-opacity pointer-events-none ${
-                    showFranchiseTooltip ? 'opacity-100' : 'opacity-0 group-hover/ftip:opacity-100'
-                  }`}
+                  className="absolute left-6 top-1/2 -translate-y-1/2 z-50 w-64 p-2.5 rounded-xl bg-slate-900/95 border border-indigo-500/30 text-[11px] text-slate-200 font-normal leading-relaxed shadow-xl backdrop-blur-md transition-opacity pointer-events-none opacity-0 group-hover/ftip:opacity-100"
                 >
                   Aynı evrene veya seriye ait yapımları (örn: film, anime, dizi, oyun) birbirine bağlamak için ortak bir seri adı belirleyin.
                 </div>

@@ -1,14 +1,23 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { ArchiveItem, ViewSettings, UiExperimentsState } from '../types';
+import {
+  ArchiveItem,
+  ViewSettings,
+  UiExperimentsState,
+  isPlannedItem,
+  isOngoingItem,
+  CustomBadge,
+  getBadgeColorOption,
+} from '../types';
 import { MEDIA_COLORS, GAME_COLORS, BOOK_COLORS } from '../data/initialData';
-import { Tv, Star, Layers, Check, Calendar, X, BookmarkCheck, PauseCircle, BookOpen } from 'lucide-react';
+import { Tv, Star, Layers, Check, Calendar, X, BookmarkCheck, PauseCircle, BookOpen, Gamepad2 } from 'lucide-react';
 import { FollowBadge, getFollowColor, RatingBadgeIcon } from './FollowIndicatorIcon';
 
 interface ItemCardProps {
   item: ArchiveItem;
   viewSettings: ViewSettings;
   uiExperiments?: UiExperimentsState;
+  customBadges?: CustomBadge[];
   onClick?: () => void;
   onPreview?: () => void;
   onEdit?: () => void;
@@ -23,6 +32,7 @@ export const ItemCard: React.FC<ItemCardProps> = ({
   item,
   viewSettings,
   uiExperiments,
+  customBadges,
   onClick,
   onPreview,
   onEdit,
@@ -37,6 +47,52 @@ export const ItemCard: React.FC<ItemCardProps> = ({
   const isBook = item.mainTab === 'book';
   const palette = isGame ? GAME_COLORS : isBook ? BOOK_COLORS : MEDIA_COLORS;
   const baseColor = palette[item.cat] || (isBook ? '#8a6fbf' : '#ffffff');
+  const isPlanned = isPlannedItem(item);
+  const isOngoing = isOngoingItem(item);
+
+  // Custom Badges (prestij ve denge: maks 4 rozet)
+  const assignedBadges: CustomBadge[] = React.useMemo(() => {
+    if (!item.badges || item.badges.length === 0) return [];
+    let badgesList = customBadges;
+    if (!badgesList || badgesList.length === 0) {
+      try {
+        const stored = localStorage.getItem('lore_custom_badges');
+        if (stored) badgesList = JSON.parse(stored);
+      } catch {}
+    }
+    if (!badgesList || badgesList.length === 0) return [];
+    const map = new Map(badgesList.map((b) => [b.id, b]));
+    return item.badges
+      .map((id) => map.get(id))
+      .filter((b): b is CustomBadge => Boolean(b))
+      .slice(0, 4);
+  }, [item.badges, customBadges]);
+
+  const [activeMobileBadgeId, setActiveMobileBadgeId] = useState<string | null>(null);
+  const mobileBadgeTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (mobileBadgeTimerRef.current) {
+        clearTimeout(mobileBadgeTimerRef.current);
+      }
+    };
+  }, []);
+
+  const handleBadgeClick = (e: React.MouseEvent, badgeId: string) => {
+    e.stopPropagation();
+    if (mobileBadgeTimerRef.current) {
+      clearTimeout(mobileBadgeTimerRef.current);
+    }
+    if (activeMobileBadgeId === badgeId) {
+      setActiveMobileBadgeId(null);
+    } else {
+      setActiveMobileBadgeId(badgeId);
+      mobileBadgeTimerRef.current = setTimeout(() => {
+        setActiveMobileBadgeId(null);
+      }, 2500);
+    }
+  };
 
   // Format date as only YYYY (or null if unknown/empty)
   const formattedYear = (() => {
@@ -63,17 +119,19 @@ export const ItemCard: React.FC<ItemCardProps> = ({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [showAnnouncementModal]);
 
-  const showYear = viewSettings.showYear !== false;
-  const showRating = viewSettings.showRating !== false;
+  const showAllBadges = viewSettings.showAllBadges !== false;
+  const showYear = showAllBadges && viewSettings.showYear !== false;
+  const showRating = showAllBadges && viewSettings.showRating !== false;
   const showTitle = viewSettings.showTitle !== false;
-  const showAnki = Boolean(viewSettings.showAnki) && Boolean(item.anki);
-  const showWatching = viewSettings.showWatching !== false && !isGame && !isBook && item.watching;
-  const showFollowing = viewSettings.showFollowing !== false && !isGame && !isBook && item.following;
-  const showDropped = !isGame && !isBook && Boolean(item.dropped);
-  const showGameStatus = viewSettings.showGameStatus !== false && isGame;
-  const showBookReading = viewSettings.showWatching !== false && isBook && Boolean(item.reading);
-  const showBookDropped = isBook && Boolean(item.dropped);
-  const showBookPages = isBook && Boolean(item.pageCount && item.pageCount > 0);
+  const showAnki = showAllBadges && Boolean(viewSettings.showAnki) && Boolean(item.anki);
+  const showWatching = showAllBadges && viewSettings.showWatching !== false && !isGame && !isBook && item.watching;
+  const showFollowing = showAllBadges && viewSettings.showFollowing !== false && !isGame && !isBook && item.following;
+  const showDropped = showAllBadges && !isGame && !isBook && Boolean(item.dropped);
+  const showGameStatus = showAllBadges && viewSettings.showGameStatus !== false && isGame;
+  const showGamePlaying = showAllBadges && isGame && showGameStatus && item.status === 'Oynanıyor';
+  const showBookReading = showAllBadges && viewSettings.showWatching !== false && isBook && Boolean(item.reading);
+  const showBookDropped = showAllBadges && isBook && Boolean(item.dropped);
+  const showBookPages = showAllBadges && isBook && Boolean(item.pageCount && item.pageCount > 0);
 
   const cardVignette = uiExperiments?.cardVignette || 'none';
   const cardRadius = uiExperiments?.cardRadius || 'normal';
@@ -211,8 +269,8 @@ export const ItemCard: React.FC<ItemCardProps> = ({
           </div>
         )}
 
-        {/* Date Badge: Top Left for Both Media and Game */}
-        {showYear && !isSelectionMode && Boolean(formattedYear) && (
+        {/* Date Badge: Top Left for Both Media and Game (Hidden for -ecek and -yor) */}
+        {showYear && !isSelectionMode && !isPlanned && !isOngoing && Boolean(formattedYear) && (
           <div
             id={`badge-date-${item.id}`}
             title={isBook ? `Okunma Yılı: ${formattedYear}` : `Yıl: ${formattedYear}`}
@@ -222,50 +280,130 @@ export const ItemCard: React.FC<ItemCardProps> = ({
           </div>
         )}
 
-        {/* Rating Badge (Top Right) */}
-        {showRating && item.rating > 0 && (
-          <div
-            id={`badge-rating-${item.id}`}
-            title="Düzenle"
-            onClick={(e) => {
-              if (isSelectionMode) return;
-              e.stopPropagation();
+        {/* Top-Right Badges Column: Rating Badge and Custom Badges Stacked Vertically */}
+        <div className="absolute top-1.5 right-1.5 z-20 flex flex-col items-end gap-1.5 pointer-events-none">
+          {/* Rating Badge (Hidden for -ecek, only visible if rating > 0) */}
+          {showRating && !isPlanned && item.rating > 0 && (
+            <div
+              id={`badge-rating-${item.id}`}
+              title="Düzenle"
+              onClick={(e) => {
+                if (isSelectionMode) return;
+                e.stopPropagation();
 
-              const isTouchOrMobile =
-                typeof window !== 'undefined' &&
-                (window.innerWidth < 768 ||
-                  'ontouchstart' in window ||
-                  (navigator.maxTouchPoints && navigator.maxTouchPoints > 0));
+                const isTouchOrMobile =
+                  typeof window !== 'undefined' &&
+                  (window.innerWidth < 768 ||
+                    'ontouchstart' in window ||
+                    (navigator.maxTouchPoints && navigator.maxTouchPoints > 0));
 
-              // Mobilde (dokunmatik ekranlarda) yıldıza basılsa dahi düzenleme penceresi kesinlikle açılmayacak (engellenecek), mobilde sadece detay penceresi çalışacak
-              if (isTouchOrMobile) {
-                if (onPreview) onPreview();
-                else onClick?.();
-                return;
-              }
+                if (isTouchOrMobile) {
+                  if (onPreview) onPreview();
+                  else onClick?.();
+                  return;
+                }
 
-              // Masaüstünde yıldıza basıldığında düzenleme formu açılır
-              if (onEdit) {
-                onEdit();
-              } else {
-                onClick?.();
-              }
-            }}
-            className={`absolute top-1.5 right-1.5 px-1.5 py-0.5 rounded-md cursor-pointer ${
-              badgeStyle === 'neon'
-                ? 'bg-black/95 sm:bg-black/90 sm:backdrop-blur-md border border-amber-400 shadow-[0_0_8px_rgba(251,191,36,0.6)] text-amber-300'
-                : badgeStyle === 'minimal'
-                ? 'bg-black/60 sm:bg-black/40 sm:backdrop-blur-sm border-transparent text-amber-400'
-                : 'bg-black/60 sm:bg-black/85 border-transparent sm:border sm:border-amber-500/30 text-amber-400 sm:backdrop-blur-md'
-            } text-[11px] font-bold flex items-center gap-0.5 shadow-md z-20 ${isBadgeVisible('rating')}`}
-          >
-            <RatingBadgeIcon
-              type={viewSettings.ratingIcon || uiExperiments?.ratingIcon}
-              className="w-2.5 h-2.5 fill-amber-400 text-amber-400 shrink-0"
-            />
-            <span>{item.rating}</span>
-          </div>
-        )}
+                if (onEdit) {
+                  onEdit();
+                } else {
+                  onClick?.();
+                }
+              }}
+              className={`px-1.5 py-0.5 rounded-md cursor-pointer pointer-events-auto ${
+                badgeStyle === 'neon'
+                  ? 'bg-black/95 sm:bg-black/90 sm:backdrop-blur-md border border-amber-400 shadow-[0_0_8px_rgba(251,191,36,0.6)] text-amber-300'
+                  : badgeStyle === 'minimal'
+                  ? 'bg-black/60 sm:bg-black/40 sm:backdrop-blur-sm border-transparent text-amber-400'
+                  : 'bg-black/60 sm:bg-black/85 border-transparent sm:border sm:border-amber-500/30 text-amber-400 sm:backdrop-blur-md'
+              } text-[11px] font-bold flex items-center gap-0.5 shadow-md ${isBadgeVisible('rating')}`}
+            >
+              <RatingBadgeIcon
+                type={viewSettings.ratingIcon || uiExperiments?.ratingIcon}
+                className="w-2.5 h-2.5 fill-amber-400 text-amber-400 shrink-0"
+              />
+              <span>{item.rating}</span>
+            </div>
+          )}
+
+          {/* Custom Badges (Maksimum 4 rozet, Puanın altında veya Puan yoksa en üstte) */}
+          {showAllBadges && !isSelectionMode && assignedBadges.length > 0 && (
+            <div className="flex flex-col items-end gap-1.5 pointer-events-auto">
+              {assignedBadges.map((badge) => {
+                const colorOpt = getBadgeColorOption(badge.color);
+                const isGlowActive = viewSettings.badgeGlowEnabled !== false;
+                const isMobileActive = activeMobileBadgeId === badge.id;
+
+                return (
+                  <div
+                    key={badge.id}
+                    id={`badge-custom-${item.id}-${badge.id}`}
+                    onClick={(e) => handleBadgeClick(e, badge.id)}
+                    className="group/badge relative pointer-events-auto cursor-pointer"
+                  >
+                    {/* Rozet Saf Şeffaf Madalya (Kutusuz & Belirgin Organik Glow) */}
+                    <div
+                      className={`w-9 h-9 sm:w-10 sm:h-10 flex items-center justify-center transition-all duration-200 ease-out select-none hover:scale-115 active:scale-95 ${
+                        isMobileActive ? 'scale-115' : ''
+                      }`}
+                    >
+                      <img
+                        src={badge.iconData}
+                        alt={badge.name}
+                        className="w-full h-full object-contain select-none transition-all duration-200"
+                        style={{
+                          filter: isGlowActive
+                            ? (isMobileActive
+                                ? `drop-shadow(0 0 10px ${colorOpt.hex}) drop-shadow(0 0 20px ${colorOpt.hex}95) drop-shadow(0 3px 6px rgba(0,0,0,0.95))`
+                                : `drop-shadow(0 0 6px ${colorOpt.hex}) drop-shadow(0 2px 5px rgba(0,0,0,0.9))`)
+                            : 'drop-shadow(0 2px 6px rgba(0,0,0,0.95)) drop-shadow(0 1px 3px rgba(0,0,0,0.9))',
+                        }}
+                        loading="lazy"
+                      />
+                    </div>
+
+                    {/* Sola Doğru Açılan Unvan Balonu (Tooltip) */}
+                    <div
+                      className={`absolute right-full top-1/2 -translate-y-1/2 mr-2 pointer-events-none transition-all duration-200 z-50 whitespace-nowrap ${
+                        isMobileActive
+                          ? 'opacity-100 scale-100 translate-x-0'
+                          : 'opacity-0 scale-95 translate-x-1 group-hover/badge:opacity-100 group-hover/badge:scale-100 group-hover/badge:translate-x-0'
+                      }`}
+                    >
+                      <div
+                        className="relative px-2.5 py-1 rounded-lg bg-[#0d111a]/95 border text-left shadow-2xl backdrop-blur-xl flex items-center gap-1.5"
+                        style={{
+                          borderColor: isGlowActive ? `${colorOpt.hex}88` : 'rgba(255, 255, 255, 0.25)',
+                          boxShadow: isGlowActive
+                            ? `0 10px 25px -3px rgba(0, 0, 0, 0.85), 0 0 12px ${colorOpt.hex}45`
+                            : '0 10px 25px -3px rgba(0, 0, 0, 0.85)',
+                        }}
+                      >
+                        {/* Küçük ok işareti (sağa dönük, rozeti işaret eden) */}
+                        <div
+                          className="absolute -right-1 top-1/2 -translate-y-1/2 w-2 h-2 rotate-45 bg-[#0d111a]/95 border-t border-r"
+                          style={{
+                            borderColor: isGlowActive ? `${colorOpt.hex}88` : 'rgba(255, 255, 255, 0.25)',
+                          }}
+                        />
+
+                        {/* Rozet Unvan Metni */}
+                        <span
+                          className="text-[11px] font-bold tracking-tight max-w-[150px] sm:max-w-[200px] truncate"
+                          style={{
+                            color: isGlowActive ? colorOpt.hex : '#f1f5f9',
+                            textShadow: isGlowActive ? `0 0 8px ${colorOpt.hex}60` : undefined,
+                          }}
+                        >
+                          {badge.name}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
 
         {/* Media Badges (Bottom Left: Watching Tv / Following Bookmark / Dropped PauseCircle) */}
         {!isGame && !isBook && (showWatching || showFollowing || showDropped) && (
@@ -405,16 +543,33 @@ export const ItemCard: React.FC<ItemCardProps> = ({
           </div>
         )}
 
-        {/* Game Badges: Hours on Left */}
-        {isGame && showGameStatus && item.hours !== undefined && item.hours > 0 && (
+        {/* Game Badges (Bottom Left: Playing Gamepad2 / Hours) */}
+        {isGame && (showGamePlaying || (showGameStatus && item.hours !== undefined && item.hours > 0)) && (
           <div className={`absolute bottom-1.5 left-1.5 flex items-center gap-1 z-20 ${isBadgeVisible('status')}`}>
-            <span
-              id={`badge-hours-${item.id}`}
-              title="Oynanma süresi"
-              className={`px-1.5 py-0.5 rounded-md text-[10px] font-semibold text-neutral-300 shadow-md ${getBadgeBaseClasses()}`}
-            >
-              {item.hours}s
-            </span>
+            {showGamePlaying && (
+              <span
+                id={`badge-game-playing-${item.id}`}
+                title="Şu an oynanıyor"
+                className={`p-1 rounded-md text-cyan-400 shadow-md flex items-center justify-center ${
+                  badgeStyle === 'neon'
+                    ? 'bg-black/95 sm:bg-black/90 sm:backdrop-blur-md border border-cyan-400 shadow-[0_0_8px_rgba(34,211,238,0.5)]'
+                    : badgeStyle === 'minimal'
+                    ? 'bg-black/60 sm:bg-black/40 sm:backdrop-blur-sm border-transparent'
+                    : 'bg-black/60 sm:bg-black/90 border-transparent sm:border sm:border-cyan-500/50 sm:backdrop-blur-md'
+                }`}
+              >
+                <Gamepad2 className="w-3 h-3" />
+              </span>
+            )}
+            {showGameStatus && item.hours !== undefined && item.hours > 0 && (
+              <span
+                id={`badge-hours-${item.id}`}
+                title="Oynanma süresi"
+                className={`px-1.5 py-0.5 rounded-md text-[10px] font-semibold text-neutral-300 shadow-md ${getBadgeBaseClasses()}`}
+              >
+                {item.hours}s
+              </span>
+            )}
           </div>
         )}
       </div>

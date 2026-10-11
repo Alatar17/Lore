@@ -18,7 +18,12 @@ import {
   DEFAULT_FAB_PROFILES,
   areFabPositionsEqual,
   normalizeFabPositions,
+  CustomBadge,
+  BADGE_GLOW_COLORS,
+  getBadgeColorOption,
+  BadgeColorOption,
 } from '../types';
+import { optimizeBadgeIcon } from '../utils/imageOptimizer';
 import { createDefaultTierRows, INITIAL_DATA } from '../data/initialData';
 import {
   downloadJsonFile,
@@ -35,6 +40,7 @@ import {
   exportTierListBackup,
   parseTierListBackupFile,
   checkDirectoryHandleAccessibility,
+  safeLocalStorageSet,
 } from '../utils/fileSystem';
 import {
   getFieldScopedTags,
@@ -96,6 +102,11 @@ import {
   Eye,
   EyeOff,
   Type,
+  Award,
+  Copy,
+  ClipboardPaste,
+  Info,
+  Image as ImageIcon,
 } from 'lucide-react';
 import {
   GitHubSyncConfig,
@@ -134,6 +145,7 @@ interface SettingsModalProps {
   onSaveGitHubConfig?: (config: GitHubSyncConfig) => void;
   onTriggerPcSync?: () => Promise<void>;
   onTriggerMobileSync?: () => Promise<void>;
+  onUpdateCustomBadges?: (newBadges: CustomBadge[]) => void;
 }
 
 interface ThemeOption {
@@ -237,6 +249,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   onSaveGitHubConfig,
   onTriggerPcSync,
   onTriggerMobileSync,
+  onUpdateCustomBadges,
 }) => {
   const [activeTab, setActiveTab] = useState<'categories' | 'tags' | 'themes' | 'shortcuts' | 'storage'>(() => {
     if (initialTab) {
@@ -340,6 +353,278 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     document.addEventListener('mousedown', handleOutsideClick);
     return () => document.removeEventListener('mousedown', handleOutsideClick);
   }, [activeTierSubgroupCatId]);
+
+  // --- Özel Rozet & Nişan Yönetimi State ---
+  const [isBadgeAccordionOpen, setIsBadgeAccordionOpen] = useState(false);
+  const [editingBadgeId, setEditingBadgeId] = useState<string | null>(null);
+  const [badgeName, setBadgeName] = useState('');
+  const [badgeTargetTab, setBadgeTargetTab] = useState<'media' | 'game' | 'book'>('media');
+  const [badgeIconData, setBadgeIconData] = useState('');
+  const [badgeColor, setBadgeColor] = useState('gold');
+  const [badgeFormError, setBadgeFormError] = useState<string | null>(null);
+  const [badgeFormSuccess, setBadgeFormSuccess] = useState<string | null>(null);
+  const [copiedPromptFeedback, setCopiedPromptFeedback] = useState(false);
+  const [showAiPromptTooltip, setShowAiPromptTooltip] = useState(false);
+  const [badgeFilterTab, setBadgeFilterTab] = useState<'all' | 'media' | 'game' | 'book'>('all');
+  const [activeBadgePopover, setActiveBadgePopover] = useState<string | null>(null);
+  const badgeFileInputRef = useRef<HTMLInputElement>(null);
+  const badgePopoverRef = useRef<HTMLDivElement>(null);
+  const aiTipRef = useRef<HTMLDivElement>(null);
+
+  // Close badge popover on outside click
+  useEffect(() => {
+    const handleOutsideClick = (e: MouseEvent) => {
+      if (
+        activeBadgePopover &&
+        badgePopoverRef.current &&
+        !badgePopoverRef.current.contains(e.target as Node)
+      ) {
+        setActiveBadgePopover(null);
+      }
+      if (
+        showAiPromptTooltip &&
+        aiTipRef.current &&
+        !aiTipRef.current.contains(e.target as Node)
+      ) {
+        setShowAiPromptTooltip(false);
+      }
+    };
+    document.addEventListener('mousedown', handleOutsideClick);
+    return () => document.removeEventListener('mousedown', handleOutsideClick);
+  }, [activeBadgePopover, showAiPromptTooltip]);
+
+  const resetBadgeForm = () => {
+    setIsBadgeAccordionOpen(false);
+    setEditingBadgeId(null);
+    setBadgeName('');
+    setBadgeTargetTab('media');
+    setBadgeIconData('');
+    setBadgeColor('gold');
+    setBadgeFormError(null);
+  };
+
+  const handleOpenNewBadgeForm = () => {
+    setEditingBadgeId(null);
+    setBadgeName('');
+    setBadgeTargetTab('media');
+    setBadgeIconData('');
+    setBadgeColor('gold');
+    setBadgeFormError(null);
+    setIsBadgeAccordionOpen(true);
+  };
+
+  const handleEditBadge = (badge: CustomBadge) => {
+    setEditingBadgeId(badge.id);
+    setBadgeName(badge.name);
+    setBadgeTargetTab(badge.targetTab);
+    setBadgeIconData(badge.iconData);
+    setBadgeColor(badge.color);
+    setBadgeFormError(null);
+    setIsBadgeAccordionOpen(true);
+  };
+
+  const handleCopyAiPrompt = async () => {
+    try {
+      await navigator.clipboard.writeText('1:1 square, isolated on transparent background, no text');
+      setCopiedPromptFeedback(true);
+      setTimeout(() => setCopiedPromptFeedback(false), 2000);
+    } catch {
+      // Ignore copy error
+    }
+  };
+
+  const handleBadgeFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      try {
+        const optimized = await optimizeBadgeIcon(file, 256);
+        setBadgeIconData(optimized);
+        setBadgeFormError(null);
+      } catch (err: any) {
+        setBadgeFormError(err.message || 'Görsel yüklenemedi.');
+      }
+    }
+    if (e.target) e.target.value = '';
+  };
+
+  const handleBadgePasteFromClipboard = async () => {
+    try {
+      if (navigator.clipboard && navigator.clipboard.read) {
+        const items = await navigator.clipboard.read();
+        for (const item of items) {
+          const imageType = item.types.find((t) => t.startsWith('image/'));
+          if (imageType) {
+            const blob = await item.getType(imageType);
+            const optimized = await optimizeBadgeIcon(blob, 256);
+            setBadgeIconData(optimized);
+            setBadgeFormError(null);
+            return;
+          }
+        }
+      }
+      setBadgeFormError('Panoda görsel bulunamadı. Lütfen görseli kopyalayıp Ctrl+V tuşlarına basın.');
+      setTimeout(() => setBadgeFormError(null), 3500);
+    } catch {
+      setBadgeFormError('Panodan yapıştırmak için doğrudan Ctrl+V tuşlarına basabilirsiniz.');
+      setTimeout(() => setBadgeFormError(null), 3500);
+    }
+  };
+
+  const handleBadgePasteEvent = async (e: React.ClipboardEvent) => {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+    for (let i = 0; i < items.length; i++) {
+      if (items[i].type.indexOf('image') !== -1) {
+        const blob = items[i].getAsFile();
+        if (blob) {
+          e.preventDefault();
+          try {
+            const optimized = await optimizeBadgeIcon(blob, 256);
+            setBadgeIconData(optimized);
+            setBadgeFormError(null);
+          } catch (err: any) {
+            setBadgeFormError(err.message || 'Görsel işlenemedi.');
+          }
+          return;
+        }
+      }
+    }
+  };
+
+  const handleSaveBadgeSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const trimmed = badgeName.trim();
+    if (!trimmed) {
+      setBadgeFormError('Lütfen bir rozet adı girin.');
+      return;
+    }
+    if (!badgeIconData) {
+      setBadgeFormError('Lütfen bir rozet ikonu yükleyin veya panodan yapıştırın.');
+      return;
+    }
+
+    const currentBadges = appData.customBadges || [];
+
+    if (editingBadgeId) {
+      const updated = currentBadges.map((b) =>
+        b.id === editingBadgeId
+          ? {
+              ...b,
+              name: trimmed,
+              iconData: badgeIconData,
+              color: badgeColor,
+              targetTab: badgeTargetTab,
+              updatedAt: Date.now(),
+            }
+          : b
+      );
+      if (onUpdateCustomBadges) {
+        onUpdateCustomBadges(updated);
+      } else {
+        onReplaceAllData({
+          ...appData,
+          customBadges: updated,
+          lastUpdated: new Date().toISOString(),
+        });
+      }
+      safeLocalStorageSet('lore_custom_badges', JSON.stringify(updated));
+      setBadgeFormSuccess(`"${trimmed}" rozeti güncellendi.`);
+    } else {
+      const newBadge: CustomBadge = {
+        id: `badge_${Date.now()}`,
+        name: trimmed,
+        iconData: badgeIconData,
+        color: badgeColor,
+        targetTab: badgeTargetTab,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      };
+      const updated = [...currentBadges, newBadge];
+      if (onUpdateCustomBadges) {
+        onUpdateCustomBadges(updated);
+      } else {
+        onReplaceAllData({
+          ...appData,
+          customBadges: updated,
+          lastUpdated: new Date().toISOString(),
+        });
+      }
+      safeLocalStorageSet('lore_custom_badges', JSON.stringify(updated));
+      setBadgeFormSuccess(`"${trimmed}" rozeti oluşturuldu.`);
+    }
+
+    setTimeout(() => setBadgeFormSuccess(null), 3000);
+    resetBadgeForm();
+  };
+
+  const handleDeleteBadgeClick = (badge: CustomBadge) => {
+    setDialogOptions({
+      type: 'confirm',
+      title: 'Rozeti Sil',
+      message: `"${badge.name}" rozetini silmek istediğinize emin misiniz? Bu işlem rozeti kütüphanedeki tüm yapımlardan otomatik olarak kaldıracaktır (kaskad temizlik).`,
+      confirmText: 'Sil',
+      onConfirm: () => {
+        const currentBadges = appData.customBadges || [];
+        const updatedBadges = currentBadges.filter((b) => b.id !== badge.id);
+        const updatedItems = appData.items.map((it) => {
+          if (it.badges && it.badges.includes(badge.id)) {
+            return {
+              ...it,
+              badges: it.badges.filter((id) => id !== badge.id),
+            };
+          }
+          return it;
+        });
+
+        onReplaceAllData({
+          ...appData,
+          customBadges: updatedBadges,
+          items: updatedItems,
+          lastUpdated: new Date().toISOString(),
+        });
+        if (onUpdateCustomBadges) {
+          onUpdateCustomBadges(updatedBadges);
+        }
+        if (onUpdateItems) {
+          onUpdateItems(updatedItems);
+        }
+        safeLocalStorageSet('lore_custom_badges', JSON.stringify(updatedBadges));
+        if (editingBadgeId === badge.id) {
+          resetBadgeForm();
+        }
+      },
+    });
+  };
+
+  const customBadges = appData.customBadges || [];
+  const filteredBadges = useMemo(() => {
+    if (badgeFilterTab === 'all') return customBadges;
+    return customBadges.filter((b) => b.targetTab === badgeFilterTab);
+  }, [customBadges, badgeFilterTab]);
+
+  const badgeCounts = useMemo(() => {
+    const mediaCount = customBadges.filter((b) => b.targetTab === 'media').length;
+    const gameCount = customBadges.filter((b) => b.targetTab === 'game').length;
+    const bookCount = customBadges.filter((b) => b.targetTab === 'book').length;
+    return {
+      all: customBadges.length,
+      media: mediaCount,
+      game: gameCount,
+      book: bookCount,
+    };
+  }, [customBadges]);
+
+  const badgeUsageMap = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const it of appData.items) {
+      if (it.badges && Array.isArray(it.badges)) {
+        for (const bId of it.badges) {
+          map.set(bId, (map.get(bId) || 0) + 1);
+        }
+      }
+    }
+    return map;
+  }, [appData.items]);
 
   // Custom in-app dialog state
   const [dialogOptions, setDialogOptions] = useState<DialogOptions | null>(null);
@@ -1176,7 +1461,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   : 'border-transparent text-slate-400 hover:text-slate-200'
               }`}
             >
-              <Palette className="w-3.5 h-3.5" /> Görünüm
+              <Palette className="w-3.5 h-3.5" /> Görünüm & Rozetler
             </button>
 
             <button
@@ -1890,6 +2175,579 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     />
                     <div className="w-10 h-5.5 bg-neutral-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4.5 after:w-4.5 after:transition-all peer-checked:bg-blue-600"></div>
                   </label>
+                </div>
+
+                {/* Ayırıcı Çizgi */}
+                <hr className="border-white/10 my-1 hidden md:block" />
+
+                {/* 2. Özel Rozetler & Nişan Yönetimi (Yalnızca Masaüstü: hidden md:block) */}
+                <div className="hidden md:block space-y-4 pt-1">
+                  {/* Başlık ve Açıklama */}
+                  <div className="flex items-center justify-between">
+                    <div className="space-y-0.5">
+                      <div className="flex items-center gap-2">
+                        <Award className="w-4 h-4 text-amber-400" />
+                        <span className="text-xs font-bold text-slate-100 uppercase tracking-wider">
+                          Özel Rozetler & Nişan Yönetimi
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-slate-400">
+                        Kütüphanenizdeki yapımlara özel unvanlar, ödüller ve şeref nişanları verin.
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Rozet Parıltısı (Glow) Efekti Switch */}
+                  <div className="p-3.5 rounded-xl bg-white/5 border border-white/10 flex items-center justify-between">
+                    <div className="space-y-0.5 pr-2">
+                      <span className="text-xs font-semibold text-slate-100 block">
+                        Rozet Parıltısı (Glow) Efekti
+                      </span>
+                      <p className="text-[11px] text-slate-400 leading-snug">
+                        Kart afişindeki rozetlere renkli neon/madalya ışıma efekti verir.
+                      </p>
+                    </div>
+
+                    <label className="relative inline-flex items-center cursor-pointer shrink-0">
+                      <input
+                        type="checkbox"
+                        checked={viewSettings.badgeGlowEnabled !== false}
+                        onChange={(e) => onUpdateViewSettings({ badgeGlowEnabled: e.target.checked })}
+                        className="sr-only peer"
+                      />
+                      <div className="w-10 h-5.5 bg-neutral-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4.5 after:w-4.5 after:transition-all peer-checked:bg-blue-600"></div>
+                    </label>
+                  </div>
+
+                  {/* Rozetler Listesi */}
+
+                  {/* Rozetler Listesi */}
+                  <div className="p-4 rounded-xl bg-white/5 border border-white/10 space-y-3">
+                    {/* Filtre ve Başlık */}
+                    <div className="flex items-center justify-between flex-wrap gap-2">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-bold text-slate-200">Rozetler</span>
+                      </div>
+
+                      {/* Kapsam Filtreleri */}
+                      <div className="flex items-center gap-1 bg-black/40 p-1 rounded-xl border border-white/10 text-xs">
+                        <button
+                          type="button"
+                          onClick={() => setBadgeFilterTab('all')}
+                          className={`px-2.5 py-1 rounded-lg font-medium transition-colors cursor-pointer ${
+                            badgeFilterTab === 'all'
+                              ? 'bg-blue-600 text-white font-semibold'
+                              : 'text-slate-400 hover:text-white'
+                          }`}
+                        >
+                          Hepsi ({badgeCounts.all})
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setBadgeFilterTab('media')}
+                          className={`px-2.5 py-1 rounded-lg font-medium transition-colors cursor-pointer ${
+                            badgeFilterTab === 'media'
+                              ? 'bg-blue-600 text-white font-semibold'
+                              : 'text-slate-400 hover:text-white'
+                          }`}
+                        >
+                          🎬 Medya ({badgeCounts.media})
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setBadgeFilterTab('game')}
+                          className={`px-2.5 py-1 rounded-lg font-medium transition-colors cursor-pointer ${
+                            badgeFilterTab === 'game'
+                              ? 'bg-blue-600 text-white font-semibold'
+                              : 'text-slate-400 hover:text-white'
+                          }`}
+                        >
+                          🎮 Oyun ({badgeCounts.game})
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setBadgeFilterTab('book')}
+                          className={`px-2.5 py-1 rounded-lg font-medium transition-colors cursor-pointer ${
+                            badgeFilterTab === 'book'
+                              ? 'bg-blue-600 text-white font-semibold'
+                              : 'text-slate-400 hover:text-white'
+                          }`}
+                        >
+                          📚 Kitap ({badgeCounts.book})
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Liste */}
+                    {filteredBadges.length === 0 ? (
+                      <div className="py-8 text-center text-xs text-slate-400 bg-black/20 rounded-xl border border-white/5 space-y-1">
+                        <p className="font-semibold text-slate-300">Henüz bir rozet tanımlamadınız</p>
+                        <p className="text-[11px] text-slate-500">
+                          Aşağıdaki "Yeni Rozet Oluştur" butonuna tıklayarak ilk rozetinizi oluşturabilirsiniz.
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        {filteredBadges.map((badge) => {
+                          const colorOpt = getBadgeColorOption(badge.color);
+                          const usedCount = badgeUsageMap.get(badge.id) || 0;
+                          const isPopoverOpen = activeBadgePopover === badge.id;
+                          const associatedItems = isPopoverOpen
+                            ? appData.items.filter((it) => it.badges && it.badges.includes(badge.id))
+                            : [];
+
+                          const targetTabLabel =
+                            badge.targetTab === 'media'
+                              ? '🎬 Medya'
+                              : badge.targetTab === 'game'
+                              ? '🎮 Oyun'
+                              : '📚 Kitap';
+
+                          return (
+                            <div
+                              key={badge.id}
+                              className="relative p-3 rounded-xl bg-black/40 border border-white/10 hover:border-white/25 transition-all flex items-center justify-between gap-3 group/row"
+                            >
+                              {/* Sol: İkon + Ad + Kapsam + Glow Rengi */}
+                              <div className="flex items-center gap-3.5 min-w-0 flex-1">
+                                <div className="w-12 h-12 sm:w-14 sm:h-14 flex items-center justify-center shrink-0 select-none">
+                                  {badge.iconData ? (
+                                    <img
+                                      src={badge.iconData}
+                                      alt={badge.name}
+                                      className="w-full h-full object-contain transition-transform duration-200 group-hover/row:scale-110"
+                                      style={{
+                                        filter: `drop-shadow(0 0 8px ${colorOpt.hex}) drop-shadow(0 0 16px ${colorOpt.hex}80) drop-shadow(0 2px 6px rgba(0,0,0,0.9))`,
+                                      }}
+                                    />
+                                  ) : (
+                                    <span className="text-3xl">🏆</span>
+                                  )}
+                                </div>
+
+                                <div className="min-w-0 flex-1 space-y-1">
+                                  <div className="flex items-center gap-2 flex-wrap">
+                                    <span className="text-sm font-bold text-slate-100 group-hover/row:text-white truncate">
+                                      {badge.name}
+                                    </span>
+                                  </div>
+                                  <div className="flex items-center gap-1.5 flex-wrap">
+                                    <span
+                                      className={`text-[10px] px-2 py-0.5 rounded-full font-semibold border ${
+                                        badge.targetTab === 'media'
+                                          ? 'bg-blue-500/15 text-blue-300 border-blue-500/30'
+                                          : badge.targetTab === 'game'
+                                          ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30'
+                                          : 'bg-amber-500/15 text-amber-300 border-amber-500/30'
+                                      }`}
+                                    >
+                                      {targetTabLabel}
+                                    </span>
+                                    <span
+                                      className="text-[10px] px-2 py-0.5 rounded-full font-medium border"
+                                      style={{
+                                        color: colorOpt.hex,
+                                        borderColor: `${colorOpt.hex}40`,
+                                        backgroundColor: `${colorOpt.hex}15`,
+                                      }}
+                                    >
+                                      {colorOpt.emoji} {colorOpt.name} Glow
+                                    </span>
+                                  </div>
+                                </div>
+                              </div>
+
+                              {/* Sağ: Yapım Sayacı & İşlem Butonları */}
+                              <div className="flex items-center gap-2 shrink-0">
+                                {/* Bağlı yapımlar sayacı & popover */}
+                                <div className="relative">
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      setActiveBadgePopover((prev) => (prev === badge.id ? null : badge.id))
+                                    }
+                                    className={`text-xs px-2.5 py-1 rounded-lg border transition-all cursor-pointer flex items-center gap-1 ${
+                                      usedCount > 0
+                                        ? 'bg-blue-600/15 border-blue-500/30 text-blue-300 hover:bg-blue-600/25 hover:text-blue-200'
+                                        : 'bg-white/5 border-white/10 text-slate-400 hover:text-slate-300'
+                                    }`}
+                                    title="Bu rozete sahip yapımları gör"
+                                  >
+                                    <span className="font-semibold">{usedCount}</span> yapım
+                                  </button>
+
+                                  {/* Popover */}
+                                  {isPopoverOpen && (
+                                    <div
+                                      ref={badgePopoverRef}
+                                      className="absolute right-0 top-full mt-2 z-50 w-72 max-w-sm bg-[#161822] border border-white/20 rounded-xl shadow-2xl p-3 space-y-2 animate-in fade-in zoom-in-95 duration-100 text-left"
+                                      onClick={(e) => e.stopPropagation()}
+                                    >
+                                      <div className="flex items-center justify-between pb-1.5 border-b border-white/10 text-xs font-semibold text-slate-200">
+                                        <div className="flex items-center gap-1.5 truncate">
+                                          <Award className="w-3.5 h-3.5 text-amber-400" />
+                                          <span className="truncate">"{badge.name}" ({associatedItems.length})</span>
+                                        </div>
+                                        <button
+                                          type="button"
+                                          onClick={() => setActiveBadgePopover(null)}
+                                          className="text-slate-400 hover:text-white p-0.5 rounded cursor-pointer"
+                                        >
+                                          <X className="w-3.5 h-3.5" />
+                                        </button>
+                                      </div>
+
+                                      <div className="max-h-52 overflow-y-auto custom-scrollbar space-y-1">
+                                        {associatedItems.length === 0 ? (
+                                          <div className="py-4 text-center text-xs text-slate-500">
+                                            Bu rozete henüz bağlı yapım yok.
+                                          </div>
+                                        ) : (
+                                          associatedItems.map((item, idx) => (
+                                            <button
+                                              key={item.id}
+                                              type="button"
+                                              onClick={() => {
+                                                setActiveBadgePopover(null);
+                                                if (onPreviewItem) {
+                                                  onPreviewItem(item);
+                                                } else if (onSelectItem) {
+                                                  onSelectItem(item);
+                                                }
+                                              }}
+                                              className="w-full text-left px-2.5 py-1.5 rounded-lg text-xs text-slate-200 hover:bg-blue-600/20 hover:text-blue-200 border border-transparent hover:border-blue-500/30 transition-all cursor-pointer flex items-center gap-2 group/item"
+                                            >
+                                              <span className="text-[11px] text-slate-400 font-mono group-hover/item:text-blue-400 shrink-0">
+                                                {idx + 1}.
+                                              </span>
+                                              <span className="truncate font-medium">{item.title}</span>
+                                            </button>
+                                          ))
+                                        )}
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+
+                                {/* Düzenle Butonu */}
+                                <button
+                                  type="button"
+                                  onClick={() => handleEditBadge(badge)}
+                                  title="Rozeti Düzenle"
+                                  className="p-1.5 text-slate-400 hover:text-blue-400 rounded-lg hover:bg-white/5 transition-colors cursor-pointer"
+                                >
+                                  <Pencil className="w-3.5 h-3.5" />
+                                </button>
+
+                                {/* Sil Butonu */}
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteBadgeClick(badge)}
+                                  title="Rozeti Sil"
+                                  className="p-1.5 text-slate-400 hover:text-red-400 rounded-lg hover:bg-red-500/10 transition-colors cursor-pointer"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Success Alert if any */}
+                  {badgeFormSuccess && (
+                    <div className="p-3 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-xs text-emerald-300 flex items-center gap-2 animate-in fade-in">
+                      <CheckCircle className="w-4 h-4 text-emerald-400 shrink-0" />
+                      <span>{badgeFormSuccess}</span>
+                    </div>
+                  )}
+
+                  {/* Yeni Rozet Oluştur Butonu (Form Kapalıyken - Tek İkonlu) */}
+                  {!isBadgeAccordionOpen && (
+                    <button
+                      type="button"
+                      onClick={handleOpenNewBadgeForm}
+                      className="w-full py-2.5 px-4 rounded-xl bg-blue-600/20 hover:bg-blue-600/30 text-blue-300 hover:text-white border border-blue-500/30 hover:border-blue-500/50 text-xs font-semibold flex items-center justify-center gap-2 transition-all cursor-pointer shadow-sm active:scale-[0.99]"
+                    >
+                      <Plus className="w-4 h-4 text-blue-400" />
+                      <span>Yeni Rozet Oluştur</span>
+                    </button>
+                  )}
+
+                  {/* Açılır Akordiyon Formu (Form Açıkken - 2 Sütunlu Dengeli Mimari) */}
+                  {isBadgeAccordionOpen && (
+                    <div
+                      className="p-4 rounded-xl bg-black/40 border border-white/15 space-y-4 shadow-xl transition-all animate-in fade-in zoom-in-98 duration-150"
+                      onPaste={handleBadgePasteEvent}
+                    >
+                      {/* Form Başlığı */}
+                      <div className="flex items-center justify-between pb-2 border-b border-white/10">
+                        <div className="flex items-center gap-2">
+                          <Award className="w-4 h-4 text-amber-400" />
+                          <span className="text-xs font-bold text-slate-100">
+                            {editingBadgeId ? 'Rozeti Düzenle' : 'Yeni Rozet Oluştur'}
+                          </span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={resetBadgeForm}
+                          className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 transition-colors flex items-center justify-center cursor-pointer"
+                          title="Kapat"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
+
+                      <form onSubmit={handleSaveBadgeSubmit} className="space-y-4">
+                        {/* 1. Kapsam (Yazısız, direkt 3 buton) */}
+                        <div className="grid grid-cols-3 gap-2">
+                          {(
+                            [
+                              { id: 'media', label: '🎬 Medya' },
+                              { id: 'game', label: '🎮 Oyun' },
+                              { id: 'book', label: '📚 Kitap' },
+                            ] as const
+                          ).map((tab) => {
+                            const isSelected = badgeTargetTab === tab.id;
+                            return (
+                              <button
+                                key={tab.id}
+                                type="button"
+                                onClick={() => setBadgeTargetTab(tab.id)}
+                                className={`py-2 px-3 rounded-xl text-xs font-semibold transition-all border cursor-pointer text-center ${
+                                  isSelected
+                                    ? 'bg-blue-600/30 border-blue-500/60 text-white shadow-sm ring-1 ring-blue-500/40'
+                                    : 'bg-white/5 border-white/10 text-slate-400 hover:text-slate-200 hover:bg-white/10'
+                                }`}
+                              >
+                                {tab.label}
+                              </button>
+                            );
+                          })}
+                        </div>
+
+                        {/* Hidden file input */}
+                        <input
+                          type="file"
+                          ref={badgeFileInputRef}
+                          onChange={handleBadgeFileSelect}
+                          accept="image/*"
+                          className="hidden"
+                        />
+
+                        {/* 2. İki Sütunlu Yapı: Sol Canlı Önizleme + Yükle/Yapıştır, Sağ Başlık + Glow Renkleri */}
+                        <div className="grid grid-cols-1 sm:grid-cols-12 gap-3.5 items-stretch">
+                          {/* Sol Sütun: Canlı Önizleme Sahnesi & Altında Yükle / Yapıştır Butonları */}
+                          {(() => {
+                            const previewColorOpt = getBadgeColorOption(badgeColor);
+                            return (
+                              <div className="sm:col-span-4 flex flex-col gap-2">
+                                <div
+                                  className="flex flex-col items-center justify-between p-2.5 pb-2 rounded-xl border border-white/10 relative min-h-[160px] flex-1"
+                                >
+                                  {/* Arka plan gradyanı (Köşeleri taşmayan şık zemin) */}
+                                  <div
+                                    className="absolute inset-0 rounded-xl overflow-hidden pointer-events-none"
+                                    style={{
+                                      background: `radial-gradient(circle at center, ${previewColorOpt.hex}22 0%, rgba(0,0,0,0.65) 75%)`,
+                                    }}
+                                  />
+
+                                  {/* AI Tooltip (i) Butonu - Sağ Üst Köşe (Kesintisiz Görünmez Hitbox Köprüsü & Tıklama Desteği) */}
+                                  <div ref={aiTipRef} className="absolute top-2 right-2 z-30 group/aitip">
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setShowAiPromptTooltip((prev) => !prev);
+                                      }}
+                                      className="p-1 text-slate-400 hover:text-amber-300 rounded transition-colors cursor-pointer"
+                                      aria-label="AI Üretim İpucu"
+                                    >
+                                      <Info className="w-3.5 h-3.5 text-amber-400/80" />
+                                    </button>
+                                    <div
+                                      className={`absolute right-0 sm:right-auto sm:left-full top-7 sm:top-0 sm:ml-2 z-50 w-64 p-3 rounded-xl bg-slate-900/98 border border-amber-500/30 text-[11px] text-slate-200 font-normal leading-relaxed shadow-2xl backdrop-blur-md transition-all
+                                      before:content-[''] before:absolute before:-top-3 before:right-0 before:w-28 before:h-4 sm:before:-top-2 sm:before:-left-3 sm:before:w-3.5 sm:before:h-[calc(100%+16px)]
+                                      ${
+                                        showAiPromptTooltip
+                                          ? 'opacity-100 pointer-events-auto'
+                                          : 'opacity-0 pointer-events-none group-hover/aitip:pointer-events-auto group-hover/aitip:opacity-100'
+                                      }`}
+                                    >
+                                      <div className="flex items-start justify-between gap-2 mb-1.5">
+                                        <span className="font-bold text-amber-300 flex items-center gap-1">
+                                          <span>💡</span> AI Üretim İpucu
+                                        </span>
+                                        <button
+                                          type="button"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleCopyAiPrompt();
+                                          }}
+                                          className={`px-2 py-0.5 rounded text-[10px] font-semibold border transition-all cursor-pointer flex items-center gap-1 ${
+                                            copiedPromptFeedback
+                                              ? 'bg-emerald-500/20 border-emerald-500/50 text-emerald-300'
+                                              : 'bg-white/10 hover:bg-white/15 border-white/15 text-slate-300 hover:text-white'
+                                          }`}
+                                          aria-label="AI Prompt Parçacığını Kopyala"
+                                        >
+                                          {copiedPromptFeedback ? (
+                                            <>
+                                              <Check className="w-2.5 h-2.5 text-emerald-400" />
+                                              <span>Kopyalandı!</span>
+                                            </>
+                                          ) : (
+                                            <>
+                                              <Copy className="w-2.5 h-2.5" />
+                                              <span>Kopyala</span>
+                                            </>
+                                          )}
+                                        </button>
+                                      </div>
+                                      <p className="text-slate-300 text-[11px] leading-relaxed">
+                                        Görselinizi 1:1 (kare) oranında, yazısız (no text) ve şeffaf arka planlı (PNG) olarak üretin.
+                                      </p>
+                                    </div>
+                                  </div>
+
+                                  {/* Büyütülmüş Rozet İkonu */}
+                                  <div className="flex-1 flex items-center justify-center w-full py-0.5">
+                                    <div className="w-28 h-28 flex items-center justify-center transition-all select-none">
+                                      {badgeIconData ? (
+                                        <img
+                                          src={badgeIconData}
+                                          alt="Önizleme"
+                                          className="w-full h-full object-contain transition-all duration-200 hover:scale-105"
+                                          style={{
+                                            filter: `drop-shadow(0 0 16px ${previewColorOpt.hex}) drop-shadow(0 0 32px ${previewColorOpt.hex}80) drop-shadow(0 4px 10px rgba(0,0,0,0.95))`,
+                                          }}
+                                        />
+                                      ) : (
+                                        <span className="text-6xl drop-shadow-md">🏆</span>
+                                      )}
+                                    </div>
+                                  </div>
+
+                                  {/* Parıltı Rozet Etiketi (Kutunun En Tabanında) */}
+                                  <span
+                                    className="text-[11px] font-semibold mt-auto mb-0.5 px-3 py-0.5 rounded-full border text-center transition-all shrink-0 shadow-sm"
+                                    style={{
+                                      color: previewColorOpt.hex,
+                                      borderColor: `${previewColorOpt.hex}50`,
+                                      backgroundColor: `${previewColorOpt.hex}15`,
+                                    }}
+                                  >
+                                    {previewColorOpt.emoji} {previewColorOpt.name} Glow
+                                  </span>
+                                </div>
+
+                                {/* Yükle & Yapıştır Butonları - Görselin Hemen Altında */}
+                                <div className="grid grid-cols-2 gap-1.5">
+                                  <button
+                                    type="button"
+                                    onClick={() => badgeFileInputRef.current?.click()}
+                                    className="py-1.5 px-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-xs font-semibold text-slate-200 flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                                    title="Resim Dosyası Seç"
+                                  >
+                                    <Upload className="w-3.5 h-3.5 text-blue-400 shrink-0" />
+                                    <span>{badgeIconData ? 'Değiştir' : 'Yükle'}</span>
+                                  </button>
+
+                                  <button
+                                    type="button"
+                                    onClick={handleBadgePasteFromClipboard}
+                                    className="py-1.5 px-2 rounded-xl bg-blue-600/20 hover:bg-blue-600/30 border border-blue-500/40 text-xs font-semibold text-blue-300 flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                                    title="Panodaki görseli yapıştır (Ctrl+V)"
+                                  >
+                                    <ClipboardPaste className="w-3.5 h-3.5 shrink-0" />
+                                    <span>Yapıştır</span>
+                                  </button>
+                                </div>
+                              </div>
+                            );
+                          })()}
+
+                          {/* Sağ Sütun: Rozet Adı + Glow Renkleri (Gereksiz Boşluk Olmadan Doğal Aralık) */}
+                          <div className="sm:col-span-8 space-y-3 flex flex-col justify-start">
+                            {/* Rozet Adı */}
+                            <div className="space-y-1.5">
+                              <label className="text-[11px] font-semibold text-slate-300 block">
+                                Rozet Adı:
+                              </label>
+                              <input
+                                type="text"
+                                value={badgeName}
+                                onChange={(e) => {
+                                  setBadgeName(e.target.value);
+                                  if (badgeFormError) setBadgeFormError(null);
+                                }}
+                                placeholder="Örn: En İyi Metroidvania, Benim Favori Oyunum..."
+                                className="w-full px-3 py-2 rounded-xl bg-black/50 border border-white/15 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all"
+                                autoFocus
+                              />
+                            </div>
+
+                            {/* Glow Rengi (Başlığın Hemen Altında, 2 Satır) */}
+                            <div className="space-y-1.5">
+                              <label className="text-[11px] font-semibold text-slate-300 block">
+                                Glow Rengi:
+                              </label>
+                              <div className="grid grid-cols-4 gap-1.5">
+                                {BADGE_GLOW_COLORS.map((col) => {
+                                  const isSelected = badgeColor === col.id || badgeColor === col.hex;
+                                  return (
+                                    <button
+                                      key={col.id}
+                                      type="button"
+                                      onClick={() => setBadgeColor(col.id)}
+                                      className={`py-1.5 px-2 rounded-xl text-xs font-semibold transition-all border flex items-center justify-center gap-1.5 cursor-pointer ${
+                                        isSelected
+                                          ? 'bg-white/15 border-white/40 text-white ring-2 ring-white/30 shadow-md'
+                                          : 'bg-white/5 border-white/10 text-slate-400 hover:text-slate-200 hover:bg-white/10'
+                                      }`}
+                                    >
+                                      <span className="shrink-0">{col.emoji}</span>
+                                      <span className="text-[11px] truncate">{col.name}</span>
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Form Hatası */}
+                        {badgeFormError && (
+                          <div className="p-2.5 rounded-xl bg-red-500/15 border border-red-500/30 text-xs text-red-300 flex items-center gap-2">
+                            <AlertCircle className="w-4 h-4 text-red-400 shrink-0" />
+                            <span>{badgeFormError}</span>
+                          </div>
+                        )}
+
+                        {/* Butonlar (Sağ Tarafta Hizalı) */}
+                        <div className="flex items-center justify-end gap-2 pt-2 border-t border-white/10">
+                          <button
+                            type="button"
+                            onClick={resetBadgeForm}
+                            className="px-4 py-2 rounded-xl bg-white/10 hover:bg-white/15 text-slate-300 hover:text-white text-xs font-semibold border border-white/10 transition-colors cursor-pointer"
+                          >
+                            Vazgeç
+                          </button>
+
+                          <button
+                            type="submit"
+                            className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 shadow-md shadow-blue-600/30"
+                          >
+                            <Check className="w-3.5 h-3.5" />
+                            <span>{editingBadgeId ? 'Değişiklikleri Kaydet' : 'Rozeti Kaydet'}</span>
+                          </button>
+                        </div>
+                      </form>
+                    </div>
+                  )}
                 </div>
 
                 {/* Yüzen Buton (FAB) Konumları ve Presetleri - UI'da geçici olarak gizlendi (silinmedi, ileride gerekirse tekrar açılabilir) */}

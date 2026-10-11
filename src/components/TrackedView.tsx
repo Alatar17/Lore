@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ArchiveItem, ViewSettings, UiExperimentsState } from '../types';
+import { ArchiveItem, ViewSettings, UiExperimentsState, CustomBadge } from '../types';
 import { ItemCard } from './ItemCard';
 import { ClipboardList, Check, Sparkles } from 'lucide-react';
 
@@ -7,6 +7,7 @@ interface TrackedViewProps {
   items: ArchiveItem[];
   viewSettings: ViewSettings;
   uiExperiments?: UiExperimentsState;
+  customBadges?: CustomBadge[];
   onItemClick: (item: ArchiveItem) => void;
   onItemPreview?: (item: ArchiveItem) => void;
   onItemEdit?: (item: ArchiveItem) => void;
@@ -20,6 +21,7 @@ export const TrackedView: React.FC<TrackedViewProps> = ({
   items,
   viewSettings,
   uiExperiments,
+  customBadges,
   onItemClick,
   onItemPreview,
   onItemEdit,
@@ -135,6 +137,7 @@ ${names || '- (Takip listesinde henüz yapım yok)'}`;
                 item={item}
                 viewSettings={viewSettings}
                 uiExperiments={uiExperiments}
+                customBadges={customBadges}
                 onClick={() => onItemClick(item)}
                 onPreview={() => (onItemPreview ? onItemPreview(item) : onItemClick(item))}
                 onEdit={() => (onItemEdit ? onItemEdit(item) : onItemClick(item))}
@@ -241,6 +244,7 @@ ${names || '- (Takip listesinde henüz yapım yok)'}`;
                 item={item}
                 viewSettings={viewSettings}
                 uiExperiments={uiExperiments}
+                customBadges={customBadges}
                 onClick={() => onItemClick(item)}
                 onPreview={() => (onItemPreview ? onItemPreview(item) : onItemClick(item))}
                 onEdit={() => (onItemEdit ? onItemEdit(item) : onItemClick(item))}

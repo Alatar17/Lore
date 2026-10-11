@@ -1,5 +1,19 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
-import { ArchiveItem, Category, GameStatus, MediaStatus, BookStatus, MainTabType, ItemCharacter, BookFormat, BookQuote, AnkiBlurBox, AnkiExtraImage } from '../types';
+import {
+  ArchiveItem,
+  Category,
+  GameStatus,
+  MediaStatus,
+  BookStatus,
+  MainTabType,
+  ItemCharacter,
+  BookFormat,
+  BookQuote,
+  AnkiBlurBox,
+  AnkiExtraImage,
+  CustomBadge,
+  getBadgeColorOption,
+} from '../types';
 import { MEDIA_COLORS, GAME_COLORS, BOOK_COLORS } from '../data/initialData';
 import { optimizeImageFile } from '../utils/imageOptimizer';
 import { TagInputBox } from './TagInputBox';
@@ -43,6 +57,8 @@ import {
   PenTool,
   Globe,
   Crop,
+  MinusCircle,
+  Award,
 } from 'lucide-react';
 
 interface AddItemModalProps {
@@ -52,8 +68,20 @@ interface AddItemModalProps {
   activeSub: string | null;
   allItems?: ArchiveItem[];
   initialTitle?: string;
+  customBadges?: CustomBadge[];
+  onOpenSettings?: (tab?: 'categories' | 'tags' | 'themes' | 'shortcuts' | 'storage') => void;
   onAdd: (newItem: ArchiveItem) => void;
   onClose: () => void;
+}
+
+function formatReviewDate(dateStr?: string): string {
+  if (!dateStr) return '';
+  const trimmed = dateStr.trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+    const [y, m, d] = trimmed.split('-');
+    return `${d}.${m}.${y}`;
+  }
+  return trimmed;
 }
 
 export const AddItemModal: React.FC<AddItemModalProps> = ({
@@ -63,6 +91,8 @@ export const AddItemModal: React.FC<AddItemModalProps> = ({
   activeSub,
   allItems = [],
   initialTitle,
+  customBadges = [],
+  onOpenSettings,
   onAdd,
   onClose,
 }) => {
@@ -76,13 +106,20 @@ export const AddItemModal: React.FC<AddItemModalProps> = ({
     activeSub && defaultCat.subgroups?.includes(activeSub) ? activeSub : null;
 
   const [title, setTitle] = useState(initialTitle || '');
+  const [titleError, setTitleError] = useState(false);
   const [cat, setCat] = useState(defaultCat.id);
   const [sub, setSub] = useState<string | null>(validDefaultSub);
   const [rating, setRating] = useState<number>(8);
+  const [rememberedRating, setRememberedRating] = useState<number>(8);
   const [date, setDate] = useState<string>(
     new Date().toISOString().split('T')[0]
   );
   const [desc, setDesc] = useState('');
+  const [review, setReview] = useState('');
+  const [reviewDate, setReviewDate] = useState<string>(() => new Date().toISOString().split('T')[0]);
+  const [isReviewDateUpdated, setIsReviewDateUpdated] = useState(false);
+  const originalReviewDateRef = useRef<string>(new Date().toISOString().split('T')[0]);
+  const [activeTextTab, setActiveTextTab] = useState<'desc' | 'review'>('desc');
   const [thumbnail, setThumbnail] = useState<string | undefined>(undefined);
   const [pasteNotice, setPasteNotice] = useState<string | null>(null);
 
@@ -450,6 +487,10 @@ export const AddItemModal: React.FC<AddItemModalProps> = ({
   // Master AI Action: "✨ AI ile Doldur"
   // Boş alanları otomatik doldurur, dolu alanlar için kutu başında onay önerileri sunar.
   const handleAiFill = async () => {
+    // AI Safety Shield: Seamlessly switch to 'desc' tab so user sees the newly populated synopsis
+    // while their personal review remains 100% untouched
+    setActiveTextTab('desc');
+
     if (!title.trim() && !thumbnail) {
       setAiNotice({
         text: 'Lütfen önce bir yapım/kitap başlığı girin veya kapak resmi yükleyin.',
@@ -842,6 +883,12 @@ export const AddItemModal: React.FC<AddItemModalProps> = ({
         setDate(new Date().toISOString().split('T')[0]);
       }
     }
+    if (newStatus === 'İzlenecek') {
+      if (rating > 0) setRememberedRating(rating);
+      setRating(0);
+    } else if (mediaStatus === 'İzlenecek' && rating === 0) {
+      setRating(rememberedRating || 8);
+    }
   };
 
   const handleBookStatusChange = (newStatus: BookStatus) => {
@@ -855,6 +902,12 @@ export const AddItemModal: React.FC<AddItemModalProps> = ({
         setDate(new Date().toISOString().split('T')[0]);
       }
     }
+    if (newStatus === 'Okunacak') {
+      if (rating > 0) setRememberedRating(rating);
+      setRating(0);
+    } else if (bookStatus === 'Okunacak' && rating === 0) {
+      setRating(rememberedRating || 8);
+    }
   };
 
   const handleGameStatusChange = (newStatus: GameStatus) => {
@@ -865,6 +918,12 @@ export const AddItemModal: React.FC<AddItemModalProps> = ({
       if (!date || date === '??') {
         setDate(new Date().toISOString().split('T')[0]);
       }
+    }
+    if (newStatus === 'Oynanacak') {
+      if (rating > 0) setRememberedRating(rating);
+      setRating(0);
+    } else if (status === 'Oynanacak' && rating === 0) {
+      setRating(rememberedRating || 8);
     }
   };
 
@@ -898,11 +957,20 @@ export const AddItemModal: React.FC<AddItemModalProps> = ({
   const [achMax, setAchMax] = useState<number>(100);
   const [hours, setHours] = useState<number>(0);
 
-  const isDateDisabled = isGame
-    ? status === 'Oynanıyor' || status === 'Oynanacak'
+  const isPlanned = isGame
+    ? status === 'Oynanacak'
     : isBook
-    ? bookStatus === 'Okunuyor' || bookStatus === 'Okunacak'
-    : mediaStatus === 'İzleniyor' || mediaStatus === 'İzlenecek';
+    ? bookStatus === 'Okunacak'
+    : mediaStatus === 'İzlenecek';
+
+  const isOngoing = isGame
+    ? status === 'Oynanıyor'
+    : isBook
+    ? bookStatus === 'Okunuyor'
+    : mediaStatus === 'İzleniyor';
+
+  const isDateDisabled = isPlanned || isOngoing;
+  const isRatingDisabled = isPlanned;
 
   // Common
   const [anki, setAnki] = useState(false);
@@ -930,6 +998,45 @@ export const AddItemModal: React.FC<AddItemModalProps> = ({
       }
       setAnkiFrontTags((prev) => [...prev, trimmed]);
       setAnkiNotice(null);
+    }
+  };
+
+  // Custom Badges State
+  const [badges, setBadges] = useState<string[]>([]);
+  const [isBadgePopoverOpen, setIsBadgePopoverOpen] = useState(false);
+  const badgePopoverRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleOutsideClick = (e: MouseEvent) => {
+      if (
+        isBadgePopoverOpen &&
+        badgePopoverRef.current &&
+        !badgePopoverRef.current.contains(e.target as Node)
+      ) {
+        setIsBadgePopoverOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleOutsideClick);
+    return () => document.removeEventListener('mousedown', handleOutsideClick);
+  }, [isBadgePopoverOpen]);
+
+  useEffect(() => {
+    if (customBadges.length > 0) {
+      setBadges((prev) => prev.filter((id) => customBadges.some((b) => b.id === id)));
+    }
+  }, [customBadges]);
+
+  const scopedBadges = useMemo(
+    () => customBadges.filter((b) => b.targetTab === mainTab),
+    [customBadges, mainTab]
+  );
+
+  const handleToggleBadge = (badgeId: string) => {
+    if (badges.includes(badgeId)) {
+      setBadges((prev) => prev.filter((id) => id !== badgeId));
+    } else {
+      if (badges.length >= 4) return;
+      setBadges((prev) => [...prev, badgeId]);
     }
   };
 
@@ -1017,7 +1124,12 @@ export const AddItemModal: React.FC<AddItemModalProps> = ({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim()) {
-      window.alert('Lütfen yapım başlığı girin.');
+      setTitleError(true);
+      const titleInput = document.getElementById('add-title-input') as HTMLInputElement | null;
+      if (titleInput) {
+        titleInput.focus();
+        titleInput.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
       return;
     }
 
@@ -1061,10 +1173,12 @@ export const AddItemModal: React.FC<AddItemModalProps> = ({
       cat,
       sub: sub || null,
       title: title.trim(),
-      rating,
+      rating: isRatingDisabled ? 0 : rating,
       date: isDateDisabled ? '' : (date || '??'),
       releaseYear: computedReleaseYear,
       desc: desc.trim(),
+      review: review.trim() || undefined,
+      reviewDate: review.trim() ? (reviewDate || new Date().toISOString().split('T')[0]) : undefined,
       thumbnail,
       thumbnailFileName: generatedThumbnailFileName,
       characters: cleanedCharacters.length > 0 ? cleanedCharacters : undefined,
@@ -1112,8 +1226,11 @@ export const AddItemModal: React.FC<AddItemModalProps> = ({
       followNotes: !isGame && !isBook && followNotes.trim() ? followNotes.trim() : undefined,
       // Game flags
       status: isGame ? status : undefined,
-      achPercent: isGame ? achPercent : undefined,
-      achMax: isGame ? achMax : undefined,
+      achPercent:
+        isGame && achPercent !== null
+          ? Math.min(Math.max(0, achPercent), achMax > 0 ? achMax : 100)
+          : undefined,
+      achMax: isGame ? (achMax > 0 ? achMax : 100) : undefined,
       hours: isGame ? hours : undefined,
       // Common
       anki,
@@ -1134,6 +1251,7 @@ export const AddItemModal: React.FC<AddItemModalProps> = ({
         ).slice(0, 2);
         return cleaned.length > 0 ? cleaned : undefined;
       })(),
+      badges: badges.length > 0 ? badges : undefined,
       tier: null,
       createdAt: Date.now(),
       updatedAt: Date.now(),
@@ -1269,6 +1387,204 @@ export const AddItemModal: React.FC<AddItemModalProps> = ({
                   <Check className="w-2.5 h-2.5" /> {pasteNotice}
                 </p>
               )}
+
+              {/* Rozet Yönetim Masası (Sol sütun, afiş ve Değiştir / Yapıştır butonlarının hemen altı) */}
+              <div className="relative w-full space-y-1.5 pt-1">
+                {/* Tam genişlikte [ Rozet Ekle (n/4) ] Butonu */}
+                <button
+                  type="button"
+                  onClick={() => setIsBadgePopoverOpen((prev) => !prev)}
+                  className={`w-full py-1.5 px-2 rounded-xl border text-[10px] sm:text-[11px] font-semibold flex items-center justify-between transition-all cursor-pointer ${
+                    isBadgePopoverOpen
+                      ? 'bg-blue-600/30 border-blue-500/60 text-blue-200 shadow-sm'
+                      : badges.length >= 4
+                      ? 'bg-white/5 hover:bg-white/10 border-white/10 text-amber-300/90'
+                      : 'bg-white/5 hover:bg-white/10 border-white/10 text-slate-200 hover:text-white'
+                  }`}
+                  title={badges.length >= 4 ? 'Maksimum 4 rozet sınırına ulaşıldı (Rozet değiştirmek için tıklayın)' : 'Rozet Ekle / Çıkar'}
+                >
+                  <span className="flex items-center gap-1.5 truncate">
+                    <Award className={`w-3.5 h-3.5 shrink-0 ${badges.length >= 4 ? 'text-amber-400' : 'text-amber-400'}`} />
+                    <span className="truncate">Rozet Ekle</span>
+                  </span>
+                  <span className={`text-[10px] font-mono shrink-0 ${badges.length >= 4 ? 'text-amber-400 font-bold' : 'text-slate-400'}`}>
+                    ({badges.length}/4)
+                  </span>
+                </button>
+
+                {/* Atanmış Rozetler: Yan yana 4 adet saf şeffaf nişan yuvası */}
+                <div className="grid grid-cols-4 gap-1.5 w-full">
+                  {[0, 1, 2, 3].map((slotIndex) => {
+                    const badgeId = badges[slotIndex];
+                    const badgeObj = badgeId ? customBadges.find((b) => b.id === badgeId) : null;
+                    const colorOpt = badgeObj ? getBadgeColorOption(badgeObj.color) : null;
+
+                    if (badgeObj && colorOpt) {
+                      return (
+                        <div
+                          key={slotIndex}
+                          className="group relative aspect-square flex items-center justify-center p-0.5 transition-all cursor-pointer select-none"
+                          title={badgeObj.name}
+                        >
+                          {badgeObj.iconData ? (
+                            <img
+                              src={badgeObj.iconData}
+                              alt={badgeObj.name}
+                              className="w-full h-full object-contain pointer-events-none transition-transform duration-200 group-hover:scale-110"
+                              style={{
+                                filter: `drop-shadow(0 0 8px ${colorOpt.hex}) drop-shadow(0 0 16px ${colorOpt.hex}80) drop-shadow(0 2px 6px rgba(0,0,0,0.9))`,
+                              }}
+                            />
+                          ) : (
+                            <span className="text-2xl">🏆</span>
+                          )}
+
+                          {/* Sağ üstteki minimal (×) butonu ile çıkarma (kutusu kaldırılmış, %10 daha küçük) */}
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setBadges((prev) => prev.filter((id) => id !== badgeId));
+                            }}
+                            className="absolute -top-1 -right-1 p-0.5 text-slate-400 hover:text-white transition-all cursor-pointer z-10 hover:scale-110 active:scale-90"
+                            title="Kaldır"
+                          >
+                            <X className="w-[9px] h-[9px] stroke-[2.2] drop-shadow-[0_1px_3px_rgba(0,0,0,0.95)]" />
+                          </button>
+                        </div>
+                      );
+                    }
+
+                    return (
+                      <button
+                        key={slotIndex}
+                        type="button"
+                        disabled={badges.length >= 4}
+                        onClick={() => setIsBadgePopoverOpen(true)}
+                        className={`aspect-square rounded-xl border border-dashed border-white/10 hover:border-white/25 bg-white/[0.01] hover:bg-white/[0.04] flex items-center justify-center text-slate-500 hover:text-slate-300 transition-all ${
+                          badges.length >= 4 ? 'cursor-not-allowed opacity-20' : 'cursor-pointer'
+                        }`}
+                        title="Boş Rozet Yuvası (Tıkla ve Rozet Seç)"
+                      >
+                        <Plus className="w-4 h-4" />
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* Popover Menüsü (Rozet Seçim Popover'ı) */}
+                {isBadgePopoverOpen && (
+                  <div
+                    ref={badgePopoverRef}
+                    className="absolute left-1/2 -translate-x-1/2 sm:left-0 sm:translate-x-0 top-full mt-1.5 z-50 w-64 max-w-[280px] bg-[#141722] border border-white/20 rounded-xl shadow-2xl p-2.5 space-y-2 animate-in fade-in zoom-in-95 duration-100 text-left"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    {/* Popover Header */}
+                    <div className="flex items-center justify-between pb-1.5 border-b border-white/10 text-xs font-semibold text-slate-200">
+                      <span className="flex items-center gap-1.5 text-xs text-slate-300">
+                        <Award className="w-3.5 h-3.5 text-amber-400" />
+                        <span>Rozet Seç ({badges.length}/4)</span>
+                        {badges.length >= 4 && (
+                          <span className="text-[9px] px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30 font-medium">
+                            Dolu
+                          </span>
+                        )}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setIsBadgePopoverOpen(false)}
+                        className="text-slate-400 hover:text-white p-0.5 rounded cursor-pointer"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+
+                    {badges.length >= 4 && (
+                      <p className="text-[10px] text-amber-300/90 bg-amber-500/10 border border-amber-500/20 rounded-lg p-1.5 leading-tight">
+                        Maksimum 4 rozet sınırına ulaşıldı. Yeni rozet eklemek için seçili olanlardan birini çıkarın.
+                      </p>
+                    )}
+
+                    {/* Rozet Listesi (Sadece bu alana ait rozetler) */}
+                    <div className="max-h-48 overflow-y-auto custom-scrollbar space-y-1">
+                      {scopedBadges.length === 0 ? (
+                        <div className="py-4 px-2 text-center space-y-1 text-slate-400">
+                          <p className="text-[11px] font-semibold text-slate-300">
+                            Henüz bir rozet tanımlamadınız
+                          </p>
+                          <p className="text-[10px] text-slate-500 leading-snug">
+                            {isGame ? 'Oyun' : isBook ? 'Kitap' : 'Medya'} alanı için henüz tanımlanmış rozet bulunmuyor.
+                          </p>
+                        </div>
+                      ) : (
+                        scopedBadges.map((b) => {
+                          const isSelected = badges.includes(b.id);
+                          const colorOpt = getBadgeColorOption(b.color);
+
+                          return (
+                            <button
+                              key={b.id}
+                              type="button"
+                              onClick={() => handleToggleBadge(b.id)}
+                              className={`w-full text-left px-2 py-1.5 rounded-lg text-xs transition-all flex items-center justify-between gap-2 border cursor-pointer group ${
+                                isSelected
+                                  ? 'bg-blue-600/20 border-blue-500/40 text-blue-200 font-semibold'
+                                  : badges.length >= 4
+                                  ? 'bg-white/5 border-white/5 text-slate-500 opacity-50 cursor-not-allowed'
+                                  : 'bg-white/5 hover:bg-white/10 border-white/10 text-slate-200 hover:text-white'
+                              }`}
+                              disabled={!isSelected && badges.length >= 4}
+                            >
+                              <div className="flex items-center gap-2 min-w-0 flex-1">
+                                <div className="w-8 h-8 flex items-center justify-center shrink-0">
+                                  {b.iconData ? (
+                                    <img
+                                      src={b.iconData}
+                                      alt={b.name}
+                                      className="w-7 h-7 object-contain"
+                                      style={{
+                                        filter: `drop-shadow(0 0 5px ${colorOpt.hex}) drop-shadow(0 1px 3px rgba(0,0,0,0.85))`,
+                                      }}
+                                    />
+                                  ) : (
+                                    <span className="text-base">🏆</span>
+                                  )}
+                                </div>
+                                <span className="truncate text-xs font-medium">{b.name}</span>
+                              </div>
+
+                              <span className="shrink-0 text-xs">
+                                {isSelected ? (
+                                  <span className="text-emerald-400 font-bold">✓</span>
+                                ) : (
+                                  <span className="text-slate-500 group-hover:text-slate-300">+</span>
+                                )}
+                              </span>
+                            </button>
+                          );
+                        })
+                      )}
+                    </div>
+
+                    {/* Ayarlar'da Rozetleri Yönet Kısayolu */}
+                    <div className="pt-1.5 border-t border-white/10">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsBadgePopoverOpen(false);
+                          if (onOpenSettings) {
+                            onClose();
+                            onOpenSettings('themes');
+                          }
+                        }}
+                        className="w-full py-1 px-2 rounded-lg text-[10px] font-semibold text-slate-400 hover:text-white hover:bg-white/5 flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                      >
+                        <span>⚙️ Ayarlar'da Rozetleri Yönet</span>
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
 
             {/* Right: Main Fields + Notes */}
@@ -1292,8 +1608,17 @@ export const AddItemModal: React.FC<AddItemModalProps> = ({
                         : 'Örn: Vinland Saga'
                     }
                     value={title}
-                    onChange={(e) => setTitle(e.target.value)}
-                    className="flex-1 min-w-0 bg-black/30 text-white font-semibold border border-white/10 rounded-xl px-3 py-1.5 text-xs focus:outline-none focus:border-blue-500 transition-colors"
+                    onChange={(e) => {
+                      setTitle(e.target.value);
+                      if (titleError && e.target.value.trim()) {
+                        setTitleError(false);
+                      }
+                    }}
+                    className={`flex-1 min-w-0 bg-black/30 text-white font-semibold rounded-xl px-3 py-1.5 text-xs focus:outline-none transition-all ${
+                      titleError
+                        ? 'border-2 border-rose-500/90 ring-4 ring-rose-500/20 bg-rose-950/20 animate-input-shake'
+                        : 'border border-white/10 focus:border-blue-500'
+                    }`}
                   />
                   <button
                     id="add-ai-fill-btn"
@@ -1313,6 +1638,12 @@ export const AddItemModal: React.FC<AddItemModalProps> = ({
                     <span>{aiLoading ? 'Dolduruluyor...' : 'AI ile Doldur'}</span>
                   </button>
                 </div>
+                {titleError && (
+                  <p className="mt-1.5 text-[11px] font-medium text-rose-400 flex items-center gap-1.5 animate-fadeIn">
+                    <AlertCircle className="w-3.5 h-3.5 text-rose-400 shrink-0" />
+                    <span>Lütfen bir yapım başlığı girin.</span>
+                  </p>
+                )}
               </div>
 
               {/* Category & Subgroup Selectors (with Sayfa Sayısı for Book) */}
@@ -1440,21 +1771,76 @@ export const AddItemModal: React.FC<AddItemModalProps> = ({
                   <div className="flex items-center gap-1 h-5 mb-1">
                     <label className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold flex items-center gap-1 truncate">
                       <Star className="w-3 h-3 text-amber-400 fill-amber-400 shrink-0" />
-                      <span>Puan (1-10)</span>
+                      <span>{isRatingDisabled ? 'Puan (Kilitli)' : rating === 0 ? 'Puan Verilmedi' : 'Puan (1-10)'}</span>
                     </label>
                   </div>
-                  <select
-                    id="add-rating-select"
-                    value={rating}
-                    onChange={(e) => setRating(Number(e.target.value))}
-                    className="w-full h-8 bg-black/30 text-amber-300 font-bold border border-white/10 rounded-xl px-2.5 text-xs focus:outline-none focus:border-blue-500 cursor-pointer"
-                  >
-                    {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((num) => (
-                      <option key={num} value={num} className="bg-slate-900 text-amber-300">
-                        ★ {num} / 10
-                      </option>
-                    ))}
-                  </select>
+                  <div className="flex items-center gap-1 min-w-0">
+                    {isRatingDisabled ? (
+                      <div className="flex-1 min-w-0 h-8 rounded-xl px-2.5 text-xs font-semibold flex items-center justify-between bg-amber-500/5 text-amber-300/40 border border-amber-500/15 opacity-40 pointer-events-none select-none">
+                        <span className="truncate">
+                          {isGame
+                            ? 'Oynanacak (Kilitli)'
+                            : isBook
+                            ? 'Okunacak (Kilitli)'
+                            : 'İzlenecek (Kilitli)'}
+                        </span>
+                      </div>
+                    ) : (
+                      <select
+                        id="add-rating-select"
+                        value={rating}
+                        disabled={isRatingDisabled}
+                        onChange={(e) => {
+                          const val = Number(e.target.value);
+                          setRating(val);
+                          if (val > 0) {
+                            setRememberedRating(val);
+                          }
+                        }}
+                        className={`flex-1 min-w-0 h-8 bg-black/30 font-bold border border-white/10 rounded-xl px-2.5 text-xs focus:outline-none focus:border-blue-500 cursor-pointer ${
+                          rating === 0 ? 'text-amber-300/70' : 'text-amber-300'
+                        }`}
+                      >
+                        <option value={0} className="bg-slate-900 text-amber-300/70">
+                          ★ Puan Verilmedi
+                        </option>
+                        {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((num) => (
+                          <option key={num} value={num} className="bg-slate-900 text-amber-300">
+                            ★ {num} / 10
+                          </option>
+                        ))}
+                      </select>
+                    )}
+                    <button
+                      type="button"
+                      id="toggle-add-unrated-btn"
+                      disabled={isRatingDisabled}
+                      onClick={() => {
+                        if (rating === 0) {
+                          setRating(rememberedRating || 8);
+                        } else {
+                          setRememberedRating(rating);
+                          setRating(0);
+                        }
+                      }}
+                      title={
+                        isRatingDisabled
+                          ? 'Gelecek yapımlar için puanlama kilitlidir'
+                          : rating === 0
+                          ? 'Puan Geri Yükle'
+                          : 'Puan Henüz Verilmedi (Puansız)'
+                      }
+                      className={`h-8 w-8 rounded-xl border text-xs font-semibold transition-all flex items-center justify-center shrink-0 ${
+                        isRatingDisabled
+                          ? 'opacity-30 cursor-not-allowed pointer-events-none bg-white/5 text-neutral-500 border-white/5'
+                          : rating === 0
+                          ? 'bg-amber-500/20 text-amber-300 border-amber-500/40 cursor-pointer'
+                          : 'bg-white/5 text-neutral-400 border-white/10 hover:text-white hover:bg-white/10 cursor-pointer'
+                      }`}
+                    >
+                      <MinusCircle className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
                 </div>
 
                 <div className="min-w-0">
@@ -1674,22 +2060,61 @@ export const AddItemModal: React.FC<AddItemModalProps> = ({
                 </div>
               </div>
 
-              {/* Description & Notes Area (Top Section next to Poster) */}
+              {/* Description & Review Area (Top Section next to Poster) */}
               <div>
-                <div className="flex items-center justify-between mb-0.5">
-                  <label className="block text-[10px] uppercase tracking-wider text-slate-400 font-semibold">
-                    KONUSU
-                  </label>
-                  {aiDescState && (
+                <div className="flex items-center justify-between mb-1">
+                  <div className="flex items-center gap-3">
+                    <button
+                      type="button"
+                      id="tab-add-desc-btn"
+                      onClick={() => setActiveTextTab('desc')}
+                      className="text-[10px] uppercase tracking-wider transition-all relative cursor-pointer font-semibold"
+                    >
+                      <span
+                        className={`pb-0.5 transition-all inline-block ${
+                          activeTextTab === 'desc'
+                            ? 'text-white border-b-2 border-blue-500 font-bold'
+                            : 'text-slate-400 hover:text-slate-200 border-b-2 border-transparent'
+                        }`}
+                      >
+                        KONUSU
+                      </span>
+                    </button>
+                    <button
+                      type="button"
+                      id="tab-add-review-btn"
+                      onClick={() => setActiveTextTab('review')}
+                      className="text-[10px] uppercase tracking-wider transition-all relative cursor-pointer font-semibold flex items-center gap-1.5"
+                    >
+                      <span
+                        className={`pb-0.5 transition-all inline-block ${
+                          activeTextTab === 'review'
+                            ? 'text-white border-b-2 border-amber-500 font-bold'
+                            : 'text-slate-400 hover:text-slate-200 border-b-2 border-transparent'
+                        }`}
+                      >
+                        YORUM
+                      </span>
+                      {review.trim().length > 0 && (
+                        <span
+                          className="w-1.5 h-1.5 rounded-full bg-amber-400 shadow-[0_0_6px_rgba(251,191,36,0.9)] inline-block mb-0.5"
+                          title="Kişisel yorum mevcut"
+                        />
+                      )}
+                    </button>
+                  </div>
+
+                  {activeTextTab === 'desc' && aiDescState && (
                     <div className="flex items-center gap-1">
                       {aiDescState.isActive ? (
                         <button
                           type="button"
                           onClick={() => {
+                            setActiveTextTab('desc');
                             setDesc(aiDescState.original);
                             setAiDescState((prev) => (prev ? { ...prev, isActive: false } : null));
                           }}
-                          title="Eski haline dön"
+                          title="Konu: Eski haline dön"
                           className="p-1 rounded-md bg-white/10 hover:bg-white/20 text-slate-300 hover:text-white border border-white/20 transition-all cursor-pointer shadow-xs"
                         >
                           <RotateCcw className="w-3.5 h-3.5" />
@@ -1698,10 +2123,11 @@ export const AddItemModal: React.FC<AddItemModalProps> = ({
                         <button
                           type="button"
                           onClick={() => {
+                            setActiveTextTab('desc');
                             setDesc(aiDescState.suggested);
                             setAiDescState((prev) => (prev ? { ...prev, isActive: true } : null));
                           }}
-                          title="AI önerisine geç"
+                          title="Konu: AI önerisine geç"
                           className="p-1 rounded-md bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 transition-all cursor-pointer shadow-xs"
                         >
                           <Sparkles className="w-3.5 h-3.5" />
@@ -1709,24 +2135,66 @@ export const AddItemModal: React.FC<AddItemModalProps> = ({
                       )}
                     </div>
                   )}
+
+                  {activeTextTab === 'review' && review.trim().length > 0 && (
+                    <div className="flex items-center gap-1.5">
+                      <span className={`text-[10px] font-medium transition-colors ${isReviewDateUpdated ? 'text-amber-300 font-semibold' : 'text-slate-400'}`}>
+                        {formatReviewDate(reviewDate || new Date().toISOString().split('T')[0])}
+                      </span>
+                      <button
+                        type="button"
+                        id="btn-add-update-review-date-today"
+                        onClick={() => {
+                          if (isReviewDateUpdated) {
+                            setReviewDate(originalReviewDateRef.current);
+                            setIsReviewDateUpdated(false);
+                          } else {
+                            const today = new Date().toISOString().split('T')[0];
+                            setReviewDate(today);
+                            setIsReviewDateUpdated(true);
+                          }
+                        }}
+                        title={isReviewDateUpdated ? 'Orijinal Tarihe Geri Dön' : 'Tarihi Bugüne Güncelle'}
+                        className={`p-1 rounded-md transition-all cursor-pointer shadow-xs flex items-center justify-center border ${
+                          isReviewDateUpdated
+                            ? 'bg-amber-500/20 text-amber-300 border-amber-500/40 shadow-[0_0_8px_rgba(251,191,36,0.3)]'
+                            : 'bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white border-white/10'
+                        }`}
+                      >
+                        <Calendar className={`w-3 h-3 ${isReviewDateUpdated ? 'text-amber-400' : 'text-slate-300'}`} />
+                      </button>
+                    </div>
+                  )}
                 </div>
-                <textarea
-                  id="add-desc-textarea"
-                  rows={3}
-                  value={desc}
-                  onChange={(e) => {
-                    setDesc(e.target.value);
-                    if (aiDescState?.isActive) {
-                      setAiDescState((prev) => (prev ? { ...prev, isActive: false } : null));
-                    }
-                  }}
-                  placeholder="Yıllar sonra hatırlamak için notlar, hisler, önemli detaylar..."
-                  className={`w-full text-slate-200 rounded-xl p-2.5 text-xs leading-relaxed focus:outline-none focus:border-blue-500 resize-y custom-scrollbar min-h-[82px] transition-all ${
-                    aiDescState?.isActive
-                      ? 'border border-emerald-500/80 ring-1 ring-emerald-500/40 shadow-[0_0_12px_rgba(16,185,129,0.18)] bg-emerald-500/[0.04]'
-                      : 'border border-white/10 bg-black/30'
-                  }`}
-                />
+
+                {activeTextTab === 'desc' ? (
+                  <textarea
+                    id="add-desc-textarea"
+                    rows={3}
+                    value={desc}
+                    onChange={(e) => {
+                      setDesc(e.target.value);
+                      if (aiDescState?.isActive) {
+                        setAiDescState((prev) => (prev ? { ...prev, isActive: false } : null));
+                      }
+                    }}
+                    placeholder="Yıllar sonra hatırlamak için notlar, hisler, önemli detaylar..."
+                    className={`w-full text-slate-200 rounded-xl p-2.5 text-xs leading-relaxed focus:outline-none focus:border-blue-500 resize-y custom-scrollbar min-h-[82px] transition-all ${
+                      aiDescState?.isActive
+                        ? 'border border-emerald-500/80 ring-1 ring-emerald-500/40 shadow-[0_0_12px_rgba(16,185,129,0.18)] bg-emerald-500/[0.04]'
+                        : 'border border-white/10 bg-black/30'
+                    }`}
+                  />
+                ) : (
+                  <textarea
+                    id="add-review-textarea"
+                    rows={3}
+                    value={review}
+                    onChange={(e) => setReview(e.target.value)}
+                    placeholder="Bu yapım hakkındaki kişisel eleştirin, deneyimin ve samimi düşüncelerin... (Puan ve durumdan bağımsız)"
+                    className="w-full text-slate-200 rounded-xl p-2.5 text-xs leading-relaxed focus:outline-none border border-amber-500/30 bg-amber-500/[0.02] focus:border-amber-500/80 focus:ring-1 focus:ring-amber-500/30 resize-y custom-scrollbar min-h-[82px] transition-all"
+                  />
+                )}
               </div>
             </div>
           </div>
@@ -1993,11 +2461,19 @@ export const AddItemModal: React.FC<AddItemModalProps> = ({
                       max={achMax}
                       placeholder="0"
                       value={achPercent ?? ''}
-                      onChange={(e) =>
-                        setAchPercent(
-                          e.target.value ? Number(e.target.value) : null
-                        )
-                      }
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        if (val === '' || val === null) {
+                          setAchPercent(null);
+                          return;
+                        }
+                        let num = Number(val);
+                        if (isNaN(num)) return;
+                        const currentMax = achMax > 0 ? achMax : 100;
+                        if (num < 0) num = 0;
+                        if (num > currentMax) num = currentMax;
+                        setAchPercent(num);
+                      }}
                       className="w-full bg-black/30 text-amber-300 font-semibold border border-white/10 rounded-lg px-2 py-1 text-xs focus:outline-none focus:border-blue-500"
                     />
                     <span className="text-slate-400 text-xs">/</span>
@@ -2006,7 +2482,27 @@ export const AddItemModal: React.FC<AddItemModalProps> = ({
                       min="1"
                       title="Üst limit"
                       value={achMax}
-                      onChange={(e) => setAchMax(Number(e.target.value) || 100)}
+                      onChange={(e) => {
+                        const raw = e.target.value;
+                        if (raw === '') {
+                          setAchMax(0);
+                          return;
+                        }
+                        const newMax = Number(raw);
+                        if (isNaN(newMax)) return;
+                        setAchMax(newMax);
+                        if (newMax > 0) {
+                          setAchPercent((prev) => (prev !== null && prev > newMax ? newMax : prev));
+                        }
+                      }}
+                      onBlur={() => {
+                        if (achMax < 1) {
+                          setAchMax(100);
+                          setAchPercent((prev) => (prev !== null && prev > 100 ? 100 : prev));
+                        } else if (achPercent !== null && achPercent > achMax) {
+                          setAchPercent(achMax);
+                        }
+                      }}
                       className="w-14 bg-black/30 text-slate-300 border border-white/10 rounded-lg px-1.5 py-1 text-xs text-center focus:outline-none focus:border-blue-500"
                     />
                   </div>
@@ -2788,16 +3284,13 @@ export const AddItemModal: React.FC<AddItemModalProps> = ({
               <div className="relative inline-flex items-center group/ftip">
                 <button
                   type="button"
-                  onClick={() => setShowFranchiseTooltip(!showFranchiseTooltip)}
                   className="p-0.5 text-slate-400 hover:text-indigo-300 rounded transition-colors cursor-pointer"
                   title="Bilgi"
                 >
                   <Info className="w-3.5 h-3.5" />
                 </button>
                 <div
-                  className={`absolute left-6 top-1/2 -translate-y-1/2 z-50 w-64 p-2.5 rounded-xl bg-slate-900/95 border border-indigo-500/30 text-[11px] text-slate-200 font-normal leading-relaxed shadow-xl backdrop-blur-md transition-opacity pointer-events-none ${
-                    showFranchiseTooltip ? 'opacity-100' : 'opacity-0 group-hover/ftip:opacity-100'
-                  }`}
+                  className="absolute left-6 top-1/2 -translate-y-1/2 z-50 w-64 p-2.5 rounded-xl bg-slate-900/95 border border-indigo-500/30 text-[11px] text-slate-200 font-normal leading-relaxed shadow-xl backdrop-blur-md transition-opacity pointer-events-none opacity-0 group-hover/ftip:opacity-100"
                 >
                   Aynı evrene veya seriye ait yapımları (örn: kitap serisi, film, anime, dizi, oyun) birbirine bağlamak için ortak bir seri adı belirleyin.
                 </div>

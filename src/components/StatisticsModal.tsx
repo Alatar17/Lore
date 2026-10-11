@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { ArchiveItem, MainTabType } from '../types';
+import { ArchiveItem, MainTabType, isPlannedItem } from '../types';
 import {
   X,
   Film,
@@ -151,17 +151,19 @@ export const StatisticsModal: React.FC<StatisticsModalProps> = ({
 
   // 2. Helper to aggregate top tags with item count
   const getTopTagsWithStats = (field: keyof ArchiveItem, limit: number = 8) => {
-    const statsMap = new Map<string, { count: number; totalScore: number }>();
+    const statsMap = new Map<string, { count: number; ratedCount: number; totalScore: number }>();
     tabItems.forEach((item) => {
       const tags = item[field] as string[] | undefined;
       if (Array.isArray(tags)) {
         tags.forEach((tag) => {
           const trimmed = tag.trim();
           if (trimmed) {
-            const current = statsMap.get(trimmed) || { count: 0, totalScore: 0 };
+            const current = statsMap.get(trimmed) || { count: 0, ratedCount: 0, totalScore: 0 };
+            const isRated = typeof item.rating === 'number' && item.rating > 0 && !isPlannedItem(item);
             statsMap.set(trimmed, {
               count: current.count + 1,
-              totalScore: current.totalScore + (item.rating || 0),
+              ratedCount: current.ratedCount + (isRated ? 1 : 0),
+              totalScore: current.totalScore + (isRated ? item.rating : 0),
             });
           }
         });
@@ -172,9 +174,9 @@ export const StatisticsModal: React.FC<StatisticsModalProps> = ({
       .map(([name, stat]) => ({
         name,
         count: stat.count,
-        avgScore: (stat.totalScore / stat.count).toFixed(1),
+        avgScore: stat.ratedCount > 0 ? (stat.totalScore / stat.ratedCount).toFixed(1) : '-',
       }))
-      .sort((a, b) => b.count - a.count || Number(b.avgScore) - Number(a.avgScore))
+      .sort((a, b) => b.count - a.count || (b.avgScore === '-' ? -1 : a.avgScore === '-' ? 1 : Number(b.avgScore) - Number(a.avgScore)))
       .slice(0, limit);
   };
 

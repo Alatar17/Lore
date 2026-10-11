@@ -88,6 +88,30 @@ export function getGameStatus(item: Partial<ArchiveItem>): GameStatus {
   return 'Tamamlandı';
 }
 
+export function isPlannedItem(item: Partial<ArchiveItem> | null | undefined): boolean {
+  if (!item) return false;
+  if (item.mainTab === 'game') return getGameStatus(item) === 'Oynanacak';
+  if (item.mainTab === 'book') return getBookStatus(item) === 'Okunacak';
+  if (item.mainTab === 'media') return getMediaStatus(item) === 'İzlenecek';
+  return (
+    getMediaStatus(item) === 'İzlenecek' ||
+    getGameStatus(item) === 'Oynanacak' ||
+    getBookStatus(item) === 'Okunacak'
+  );
+}
+
+export function isOngoingItem(item: Partial<ArchiveItem> | null | undefined): boolean {
+  if (!item) return false;
+  if (item.mainTab === 'game') return getGameStatus(item) === 'Oynanıyor';
+  if (item.mainTab === 'book') return getBookStatus(item) === 'Okunuyor';
+  if (item.mainTab === 'media') return getMediaStatus(item) === 'İzleniyor';
+  return (
+    getMediaStatus(item) === 'İzleniyor' ||
+    getGameStatus(item) === 'Oynanıyor' ||
+    getBookStatus(item) === 'Okunuyor'
+  );
+}
+
 export interface ItemCharacter {
   name: string;
   actor?: string;
@@ -166,6 +190,10 @@ export interface ArchiveItem {
   seriesName?: string; // Seri / Evren Adı (örn: 'Jujutsu Kaisen', 'Harry Potter')
   seriesOrder?: number; // İzleme / Seri Sırası (örn: 1, 2, 3)
 
+  // Kişisel Yorum / İnceleme Alanı
+  review?: string; // Kullanıcının yazdığı kişisel eleştiri/yorum metni
+  reviewDate?: string; // Yorumun yazıldığı/güncellendiği tarih (Opsiyonel: YYYY-MM-DD)
+
   // Common
   anki: boolean;
   ankiCard?: Card;
@@ -174,8 +202,133 @@ export interface ArchiveItem {
   ankiFrontTags?: string[]; // Anki kartı ön yüzünde başlık altında gösterilecek künye etiketleri (max 2)
   tier?: string | null; // tier row id or null
   isHidden?: boolean; // Kart gizleme durumu
+  badges?: string[]; // Karta atanmış CustomBadge ID listesi (maksimum 4 adet)
   createdAt?: number;
   updatedAt?: number;
+}
+
+export interface CustomBadge {
+  id: string; // Benzersiz kimlik (örn: 'badge_1789301234')
+  name: string; // Rozet Adı (örn: 'En İyi Metroidvania')
+  iconData: string; // Görselin base64 / dataUrl verisi (optimize edilmiş 64x64 / 80x80 şeffaf)
+  color: string; // Rozet glow / vurgu rengi (örn: '#f59e0b', 'gold', vb.)
+  targetTab: 'media' | 'game' | 'book'; // Medya, Oyun veya Kitap
+  createdAt?: number;
+  updatedAt?: number;
+}
+
+export interface BadgeColorOption {
+  id: string;
+  name: string;
+  label: string;
+  emoji: string;
+  hex: string;
+  glowClass: string;
+  borderClass: string;
+  bgLightClass: string;
+  ringClass: string;
+}
+
+export const BADGE_GLOW_COLORS: BadgeColorOption[] = [
+  {
+    id: 'gold',
+    name: 'Altın',
+    label: '🟡 Altın',
+    emoji: '🟡',
+    hex: '#f59e0b',
+    glowClass: 'shadow-[0_0_12px_rgba(245,158,11,0.65)]',
+    borderClass: 'border-amber-400',
+    bgLightClass: 'bg-amber-500/20 text-amber-300',
+    ringClass: 'ring-amber-400',
+  },
+  {
+    id: 'ruby',
+    name: 'Yakut',
+    label: '🔴 Yakut',
+    emoji: '🔴',
+    hex: '#ef4444',
+    glowClass: 'shadow-[0_0_12px_rgba(239,68,68,0.65)]',
+    borderClass: 'border-red-400',
+    bgLightClass: 'bg-red-500/20 text-red-300',
+    ringClass: 'ring-red-400',
+  },
+  {
+    id: 'emerald',
+    name: 'Zümrüt',
+    label: '🟢 Zümrüt',
+    emoji: '🟢',
+    hex: '#10b981',
+    glowClass: 'shadow-[0_0_12px_rgba(16,185,129,0.65)]',
+    borderClass: 'border-emerald-400',
+    bgLightClass: 'bg-emerald-500/20 text-emerald-300',
+    ringClass: 'ring-emerald-400',
+  },
+  {
+    id: 'sapphire',
+    name: 'Safir',
+    label: '🔵 Safir',
+    emoji: '🔵',
+    hex: '#3b82f6',
+    glowClass: 'shadow-[0_0_12px_rgba(59,130,246,0.65)]',
+    borderClass: 'border-blue-400',
+    bgLightClass: 'bg-blue-500/20 text-blue-300',
+    ringClass: 'ring-blue-400',
+  },
+  {
+    id: 'cyan',
+    name: 'Buzul',
+    label: '🧊 Buzul',
+    emoji: '🧊',
+    hex: '#06b6d4',
+    glowClass: 'shadow-[0_0_12px_rgba(6,182,212,0.65)]',
+    borderClass: 'border-cyan-400',
+    bgLightClass: 'bg-cyan-500/20 text-cyan-300',
+    ringClass: 'ring-cyan-400',
+  },
+  {
+    id: 'amethyst',
+    name: 'Ametist',
+    label: '🟣 Ametist',
+    emoji: '🟣',
+    hex: '#a855f7',
+    glowClass: 'shadow-[0_0_12px_rgba(168,85,247,0.65)]',
+    borderClass: 'border-purple-400',
+    bgLightClass: 'bg-purple-500/20 text-purple-300',
+    ringClass: 'ring-purple-400',
+  },
+  {
+    id: 'rose',
+    name: 'Gül',
+    label: '🌸 Gül',
+    emoji: '🌸',
+    hex: '#ec4899',
+    glowClass: 'shadow-[0_0_12px_rgba(236,72,153,0.65)]',
+    borderClass: 'border-pink-400',
+    bgLightClass: 'bg-pink-500/20 text-pink-300',
+    ringClass: 'ring-pink-400',
+  },
+  {
+    id: 'orange',
+    name: 'Turuncu',
+    label: '🟠 Turuncu',
+    emoji: '🟠',
+    hex: '#f97316',
+    glowClass: 'shadow-[0_0_12px_rgba(249,115,22,0.65)]',
+    borderClass: 'border-orange-400',
+    bgLightClass: 'bg-orange-500/20 text-orange-300',
+    ringClass: 'ring-orange-400',
+  },
+];
+
+export function getBadgeColorOption(colorKeyOrHex?: string): BadgeColorOption {
+  if (!colorKeyOrHex) return BADGE_GLOW_COLORS[0];
+  const found = BADGE_GLOW_COLORS.find(
+    (c) =>
+      c.id === colorKeyOrHex ||
+      c.hex.toLowerCase() === colorKeyOrHex.toLowerCase() ||
+      c.name.toLowerCase() === colorKeyOrHex.toLowerCase()
+  );
+  return found || BADGE_GLOW_COLORS[0];
 }
 
 export interface BookItem extends ArchiveItem {
@@ -214,6 +367,8 @@ export interface AppData {
     book: Category[];
   };
   items: ArchiveItem[];
+  customBadges?: CustomBadge[];
+  badgeGlowEnabled?: boolean;
   recommendationMemory?: RecommendationMemoryItem[];
   aiChatHistory?: AiChatMessage[];
 }
@@ -230,10 +385,12 @@ export interface FilterState {
   readingOnly?: boolean;
   ankiFilter: 'all' | 'yes' | 'no';
   gameStatus?: GameStatus | 'all';
+  fullAchOnly?: boolean;
   bookFormat?: BookFormat | 'all';
   uncategorizedOnly?: boolean;
   hiddenOnly?: boolean;
   seriesOnly?: boolean;
+  hasBadgesOnly?: boolean;
 }
 
 export type AppTheme =
@@ -444,6 +601,7 @@ export interface AiChatMessage {
 
 export interface ViewSettings {
   showTitle: boolean;
+  showAllBadges?: boolean; // Controls master visibility of all card badges across media, game, and book
   showRating: boolean;
   showYear: boolean;
   showAnki: boolean;
@@ -462,10 +620,12 @@ export interface ViewSettings {
   fabPositions?: FabPositions;
   fabProfiles?: FabPositionProfile[];
   showAnkiSimulator?: boolean; // Controls visibility of the virtual time simulator bar in Anki Hub
+  badgeGlowEnabled?: boolean; // Rozet parıltısı (glow) efekti açık / kapalı
 }
 
 export const DEFAULT_VIEW_SETTINGS: ViewSettings = {
   showTitle: false,
+  showAllBadges: true,
   showRating: true,
   showYear: true,
   showAnki: false,
@@ -482,6 +642,7 @@ export const DEFAULT_VIEW_SETTINGS: ViewSettings = {
   fabPositions: DEFAULT_FAB_POSITIONS,
   fabProfiles: DEFAULT_FAB_PROFILES,
   showAnkiSimulator: false,
+  badgeGlowEnabled: true,
 };
 
 export type ToolbarExperimentStyle = 'default' | 'box' | 'glass';

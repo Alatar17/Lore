@@ -1,4 +1,4 @@
-import { AppData, ArchiveItem, Category, MainTabType, TierListCategoryExportData } from '../types';
+import { AppData, ArchiveItem, Category, MainTabType, TierListCategoryExportData, CustomBadge } from '../types';
 import { INITIAL_DATA } from '../data/initialData';
 import JSZip from 'jszip';
 import { renderTierListToPngBlob } from './tierImageExport';
@@ -647,6 +647,19 @@ export function loadDataFromLocalStorage(): AppData {
               ankiCard: it.ankiCard ? ensureAnkiCardDates(it.ankiCard) : undefined,
             }))
           : [];
+        let customBadges: CustomBadge[] = [];
+        if (Array.isArray(parsed.customBadges)) {
+          customBadges = parsed.customBadges;
+        } else {
+          try {
+            const rawBadges = safeLocalStorageGet('lore_custom_badges');
+            if (rawBadges) {
+              const parsedBadges = JSON.parse(rawBadges);
+              if (Array.isArray(parsedBadges)) customBadges = parsedBadges;
+            }
+          } catch {}
+        }
+
         return {
           version: parsed.version || 1,
           lastUpdated: parsed.lastUpdated || new Date().toISOString(),
@@ -656,6 +669,8 @@ export function loadDataFromLocalStorage(): AppData {
             book: bookCats,
           },
           items,
+          customBadges,
+          badgeGlowEnabled: typeof parsed.badgeGlowEnabled === 'boolean' ? parsed.badgeGlowEnabled : true,
         };
       }
     }
@@ -686,6 +701,9 @@ export function saveDataToLocalStorage(data: AppData): void {
     };
 
     safeLocalStorageSet(LOCAL_STORAGE_KEY, JSON.stringify(lightweightData));
+    if (data.customBadges) {
+      safeLocalStorageSet('lore_custom_badges', JSON.stringify(data.customBadges));
+    }
     // Clean old bulky legacy key if present
     localStorage.removeItem('yapim_arsivim_app_data_v3');
   } catch (err) {
@@ -768,6 +786,7 @@ export function parseUploadedJson(file: File, existingAppData?: AppData): Promis
             developer: Array.isArray(it.developer) ? it.developer : undefined,
             genre: Array.isArray(it.genre) ? it.genre : undefined,
             characters: Array.isArray(it.characters) ? it.characters : undefined,
+            badges: Array.isArray(it.badges) ? it.badges : undefined,
             anki: it.anki ?? false,
             ankiCard: it.ankiCard ? ensureAnkiCardDates(it.ankiCard) : undefined,
             createdAt: typeof it.createdAt === 'number' ? it.createdAt : (it.createdAt ? Number(it.createdAt) : Date.now()),
@@ -829,6 +848,7 @@ export function parseUploadedJson(file: File, existingAppData?: AppData): Promis
             developer: Array.isArray(it.developer) ? it.developer : undefined,
             genre: Array.isArray(it.genre) ? it.genre : undefined,
             characters: Array.isArray(it.characters) ? it.characters : undefined,
+            badges: Array.isArray(it.badges) ? it.badges : undefined,
             anki: it.anki ?? false,
             ankiCard: it.ankiCard ? ensureAnkiCardDates(it.ankiCard) : undefined,
             createdAt: typeof it.createdAt === 'number' ? it.createdAt : (it.createdAt ? Number(it.createdAt) : Date.now()),
@@ -849,12 +869,22 @@ export function parseUploadedJson(file: File, existingAppData?: AppData): Promis
             saveRecommendationMemory(json.recommendationMemory);
           }
 
+          const parsedCustomBadges = Array.isArray(json.customBadges)
+            ? json.customBadges
+            : (existingAppData?.customBadges || []);
+
+          if (parsedCustomBadges.length > 0) {
+            safeLocalStorageSet('lore_custom_badges', JSON.stringify(parsedCustomBadges));
+          }
+
           return resolve({
             appData: {
               version: json.version || existingAppData?.version || 1,
               lastUpdated: new Date().toISOString(),
               categories,
               items: sanitizedItems,
+              customBadges: parsedCustomBadges,
+              badgeGlowEnabled: typeof json.badgeGlowEnabled === 'boolean' ? json.badgeGlowEnabled : (existingAppData?.badgeGlowEnabled ?? true),
               recommendationMemory: json.recommendationMemory,
             },
             isItemListOnly: !hasCategories,
@@ -1507,6 +1537,18 @@ function openDetail(id) {
     '<div style="font-size:12px;color:#6b7280;margin-bottom:10px;">' + (it.mainTab === 'game' ? '🎮 Oyun' : '🎬 Medya') + ' / ' + catName + (it.sub ? ' / ' + it.sub : '') + ' • ' + it.date + ' • ★ ' + it.rating + '/10</div>' +
     extraInfo +
     '<div style="margin-top:12px;padding-top:10px;border-top:1px solid #33363e;font-size:13px;line-height:1.6;color:#d1d5db;">' + (it.desc || 'Not girilmemiş.') + '</div>';
+
+  if (it.review && it.review.trim()) {
+    var formattedRevDate = it.reviewDate || '';
+    if (/^\d{4}-\d{2}-\d{2}$/.test(formattedRevDate)) {
+      var dParts = formattedRevDate.split('-');
+      formattedRevDate = dParts[2] + '.' + dParts[1] + '.' + dParts[0];
+    }
+    content += '<div style="margin-top:12px;padding:12px;background:rgba(245,158,11,0.06);border:1px solid rgba(245,158,11,0.25);border-left:3px solid #f59e0b;border-radius:10px;">' +
+      '<div style="font-size:11px;font-weight:700;color:#fcd34d;text-transform:uppercase;margin-bottom:6px;">✍️ Kişisel İnceleme & Yorum' + (formattedRevDate ? ' <span style="color:#9ca3af;font-size:10px;font-weight:normal;float:right;">' + formattedRevDate + '</span>' : '') + '</div>' +
+      '<div style="font-size:13px;line-height:1.6;color:#e2e8f0;font-style:italic;">' + it.review.trim() + '</div>' +
+    '</div>';
+  }
 
   document.getElementById('modal-content').innerHTML = content;
   document.getElementById('modal-overlay').style.display = 'flex';

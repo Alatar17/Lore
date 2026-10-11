@@ -1,6 +1,17 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
-import { ArchiveItem, Category, GameStatus, ItemCharacter, ViewSettings, getMediaStatus } from '../types';
+import {
+  ArchiveItem,
+  Category,
+  GameStatus,
+  ItemCharacter,
+  ViewSettings,
+  getMediaStatus,
+  isPlannedItem,
+  isOngoingItem,
+  CustomBadge,
+  getBadgeColorOption,
+} from '../types';
 import {
   X,
   Pencil,
@@ -74,6 +85,7 @@ interface ImagePreviewModalProps {
   allItems?: ArchiveItem[];
   allCategories?: Category[];
   viewSettings?: ViewSettings;
+  customBadges?: CustomBadge[];
   onEdit?: (item: ArchiveItem) => void;
   onSelectItem?: (item: ArchiveItem) => void;
   onClose: () => void;
@@ -94,12 +106,23 @@ function formatReleaseYear(yr?: number | string): string {
   return str;
 }
 
+function formatReviewDate(dateStr?: string): string {
+  if (!dateStr) return '';
+  const trimmed = dateStr.trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+    const [y, m, d] = trimmed.split('-');
+    return `${d}.${m}.${y}`;
+  }
+  return trimmed;
+}
+
 export const ImagePreviewModal: React.FC<ImagePreviewModalProps> = ({
   item,
   categories = [],
   allItems = [],
   allCategories,
   viewSettings,
+  customBadges,
   onEdit,
   onSelectItem,
   onClose,
@@ -109,6 +132,52 @@ export const ImagePreviewModal: React.FC<ImagePreviewModalProps> = ({
   const palette = isGame ? GAME_COLORS : isBook ? BOOK_COLORS : MEDIA_COLORS;
   const baseColor = palette[item.cat] || (isBook ? '#8a6fbf' : '#3b82f6');
   const catObj = categories.find((c) => c.id === item.cat);
+  const isPlanned = isPlannedItem(item);
+  const isOngoing = isOngoingItem(item);
+
+  // Custom Badges (prestij ve denge: maks 4 rozet)
+  const assignedBadges: CustomBadge[] = useMemo(() => {
+    if (!item.badges || item.badges.length === 0) return [];
+    let badgesList = customBadges;
+    if (!badgesList || badgesList.length === 0) {
+      try {
+        const stored = localStorage.getItem('lore_custom_badges');
+        if (stored) badgesList = JSON.parse(stored);
+      } catch {}
+    }
+    if (!badgesList || badgesList.length === 0) return [];
+    const map = new Map(badgesList.map((b) => [b.id, b]));
+    return item.badges
+      .map((id) => map.get(id))
+      .filter((b): b is CustomBadge => Boolean(b))
+      .slice(0, 4);
+  }, [item.badges, customBadges]);
+
+  const [activeMobileBadgeId, setActiveMobileBadgeId] = useState<string | null>(null);
+  const mobileBadgeTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (mobileBadgeTimerRef.current) {
+        clearTimeout(mobileBadgeTimerRef.current);
+      }
+    };
+  }, []);
+
+  const handleBadgeClick = (e: React.MouseEvent, badgeId: string) => {
+    e.stopPropagation();
+    if (mobileBadgeTimerRef.current) {
+      clearTimeout(mobileBadgeTimerRef.current);
+    }
+    if (activeMobileBadgeId === badgeId) {
+      setActiveMobileBadgeId(null);
+    } else {
+      setActiveMobileBadgeId(badgeId);
+      mobileBadgeTimerRef.current = setTimeout(() => {
+        setActiveMobileBadgeId(null);
+      }, 2500);
+    }
+  };
 
   const [isFlipped, setIsFlipped] = useState(false);
   const [selectedCharIndex, setSelectedCharIndex] = useState<number | null>(null);
@@ -339,8 +408,11 @@ export const ImagePreviewModal: React.FC<ImagePreviewModalProps> = ({
     return () => window.removeEventListener('keydown', handleKeyDown, true);
   }, [onClose, onEdit, item, selectedCharIndex, showAnnouncementModal, showSeriesPopover, goToNextCharacter, goToPrevCharacter]);
 
-  // Format watch/completion date as DD.MM.YYYY
+  // Format watch/completion date as DD.MM.YYYY (Hidden for -ecek and -yor)
   const displayDate = (() => {
+    if (isPlanned || isOngoing) {
+      return null;
+    }
     if (!item.date || item.date === '??' || item.date === '??.??' || item.date === 'unknown' || item.date.startsWith('0000')) {
       return '??';
     }
@@ -666,28 +738,109 @@ export const ImagePreviewModal: React.FC<ImagePreviewModalProps> = ({
               </div>
             )}
 
-            {/* ROZET 1 - SOL ÜST: İzlenme / Tamamlama Tarihi (Takvim ikonu kaldırıldı, GG.AA.YYYY formatı) */}
-            <div className="absolute top-2.5 left-2.5 z-20 pointer-events-none">
-              <div
-                title={isBook ? `Okunma Tarihi: ${displayDate}` : undefined}
-                className="px-2.5 py-1 rounded-lg bg-black/85 backdrop-blur-md border border-white/15 text-xs font-semibold text-slate-200 flex items-center shadow-lg"
-              >
-                <span>{displayDate}</span>
+            {/* ROZET 1 - SOL ÜST: İzlenme / Tamamlama Tarihi (Takvim ikonu kaldırıldı, GG.AA.YYYY formatı - Hidden for -ecek and -yor) */}
+            {Boolean(displayDate) && (
+              <div className="absolute top-2.5 left-2.5 z-20 pointer-events-none">
+                <div
+                  title={isBook ? `Okunma Tarihi: ${displayDate}` : undefined}
+                  className="px-2.5 py-1 rounded-lg bg-black/85 backdrop-blur-md border border-white/15 text-xs font-semibold text-slate-200 flex items-center shadow-lg"
+                >
+                  <span>{displayDate}</span>
+                </div>
               </div>
-            </div>
+            )}
 
-            {/* ROZET 2 - SAĞ ÜST: Puan (Yıldız + Sayı) */}
-            {item.rating > 0 && (
-              <div className="absolute top-2.5 right-2.5 z-20 pointer-events-none">
-                <div className="px-2.5 py-1 rounded-lg bg-black/85 backdrop-blur-md border border-amber-500/40 text-xs font-black text-amber-300 flex items-center gap-1 shadow-lg">
+            {/* ROZET 2 - SAĞ ÜST: Puan ve Altında Dikey Asılı Özel Rozetler */}
+            <div className="absolute top-2.5 right-2.5 z-20 flex flex-col items-end gap-1.5 pointer-events-none">
+              {!isPlanned && item.rating > 0 && (
+                <div className="px-2.5 py-1 rounded-lg bg-black/85 backdrop-blur-md border border-amber-500/40 text-xs font-black text-amber-300 flex items-center gap-1 shadow-lg pointer-events-auto">
                   <RatingBadgeIcon
                     type={viewSettings?.ratingIcon}
                     className="w-3.5 h-3.5 fill-amber-400 text-amber-400 shrink-0"
                   />
                   <span>{item.rating}</span>
                 </div>
-              </div>
-            )}
+              )}
+
+              {/* Custom Badges (Maksimum 4 rozet, Puanın altında veya Puan yoksa en üstte) */}
+              {assignedBadges.length > 0 && (
+                <div className="flex flex-col items-end gap-1.5 pointer-events-auto">
+                  {assignedBadges.map((badge) => {
+                    const colorOpt = getBadgeColorOption(badge.color);
+                    const isGlowActive = viewSettings?.badgeGlowEnabled !== false;
+                    const isMobileActive = activeMobileBadgeId === badge.id;
+
+                    return (
+                      <div
+                        key={badge.id}
+                        id={`preview-badge-${item.id}-${badge.id}`}
+                        onClick={(e) => handleBadgeClick(e, badge.id)}
+                        className="group/badge relative pointer-events-auto cursor-pointer"
+                      >
+                        {/* Rozet Saf Şeffaf Madalya (Kutusuz & Belirgin Organik Glow) */}
+                        <div
+                          className={`w-11 h-11 sm:w-12 sm:h-12 flex items-center justify-center transition-all duration-200 ease-out select-none hover:scale-115 active:scale-95 ${
+                            isMobileActive ? 'scale-115' : ''
+                          }`}
+                        >
+                          <img
+                            src={badge.iconData}
+                            alt={badge.name}
+                            className="w-full h-full object-contain select-none transition-all duration-200"
+                            style={{
+                              filter: isGlowActive
+                                ? (isMobileActive
+                                    ? `drop-shadow(0 0 12px ${colorOpt.hex}) drop-shadow(0 0 24px ${colorOpt.hex}95) drop-shadow(0 3px 6px rgba(0,0,0,0.95))`
+                                    : `drop-shadow(0 0 8px ${colorOpt.hex}) drop-shadow(0 2px 5px rgba(0,0,0,0.85))`)
+                                : 'drop-shadow(0 2px 6px rgba(0,0,0,0.95)) drop-shadow(0 1px 3px rgba(0,0,0,0.9))',
+                            }}
+                            loading="lazy"
+                          />
+                        </div>
+
+                        {/* Sola Doğru Açılan Unvan Balonu (Tooltip) */}
+                        <div
+                          className={`absolute right-full top-1/2 -translate-y-1/2 mr-2.5 pointer-events-none transition-all duration-200 z-50 whitespace-nowrap ${
+                            isMobileActive
+                              ? 'opacity-100 scale-100 translate-x-0'
+                              : 'opacity-0 scale-95 translate-x-1 group-hover/badge:opacity-100 group-hover/badge:scale-100 group-hover/badge:translate-x-0'
+                          }`}
+                        >
+                          <div
+                            className="relative px-3 py-1.5 rounded-xl bg-[#0d111a]/95 border text-left shadow-2xl backdrop-blur-xl flex items-center gap-1.5"
+                            style={{
+                              borderColor: isGlowActive ? `${colorOpt.hex}88` : 'rgba(255, 255, 255, 0.25)',
+                              boxShadow: isGlowActive
+                                ? `0 10px 25px -3px rgba(0, 0, 0, 0.85), 0 0 14px ${colorOpt.hex}45`
+                                : '0 10px 25px -3px rgba(0, 0, 0, 0.85)',
+                            }}
+                          >
+                            {/* Küçük ok işareti (sağa dönük, rozeti işaret eden) */}
+                            <div
+                              className="absolute -right-1 top-1/2 -translate-y-1/2 w-2 h-2 rotate-45 bg-[#0d111a]/95 border-t border-r"
+                              style={{
+                                borderColor: isGlowActive ? `${colorOpt.hex}88` : 'rgba(255, 255, 255, 0.25)',
+                              }}
+                            />
+
+                            {/* Rozet Unvan Metni */}
+                            <span
+                              className="text-xs font-bold tracking-tight max-w-[240px] truncate"
+                              style={{
+                                color: isGlowActive ? colorOpt.hex : '#f1f5f9',
+                                textShadow: isGlowActive ? `0 0 8px ${colorOpt.hex}60` : undefined,
+                              }}
+                            >
+                              {badge.name}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
 
             {/* Medya İçin: SOL ALT: Sadece Durum Rozeti (Yazısız Sadece Rozet) */}
             {!isGame && !isBook && (item.watching || item.following || item.dropped) && (
@@ -1138,6 +1291,37 @@ export const ImagePreviewModal: React.FC<ImagePreviewModalProps> = ({
               </p>
             )}
           </div>
+
+          {/* 5. ✍️ KİŞİSEL İNCELEME & YORUM (Yalnızca yorum girilmişse gösterilir - Sıfır Kalabalık Kuralı) */}
+          {item.review && item.review.trim().length > 0 && (
+            <>
+              <div className="border-t border-white/10 my-1" />
+              <div id="preview-review-section-desktop" className="space-y-2 pt-1">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <PenTool className="w-3.5 h-3.5 text-amber-400" />
+                    <span className="text-xs uppercase font-bold tracking-wider text-amber-300">
+                      YORUM
+                    </span>
+                  </div>
+                  {item.reviewDate && (
+                    <span className="text-[11px] font-medium text-slate-400 flex items-center gap-1">
+                      <Calendar className="w-3 h-3 text-slate-500" />
+                      <span>{formatReviewDate(item.reviewDate)}</span>
+                    </span>
+                  )}
+                </div>
+                <div
+                  id="preview-review-box-desktop"
+                  className="relative p-3.5 sm:p-4 rounded-xl bg-gradient-to-br from-amber-500/[0.05] to-amber-950/[0.10] border border-amber-500/30 text-xs sm:text-sm text-slate-200 leading-relaxed whitespace-pre-wrap pl-4 border-l-4 border-l-amber-500/80 shadow-[0_4px_20px_rgba(251,191,36,0.04)]"
+                >
+                  <p className="font-normal italic text-slate-200">
+                    {item.review.trim()}
+                  </p>
+                </div>
+              </div>
+            </>
+          )}
         </div>
 
         {/* Series Popover with collision detection on desktop */}
@@ -1245,16 +1429,18 @@ export const ImagePreviewModal: React.FC<ImagePreviewModalProps> = ({
 
             {/* Front Top Badges */}
             <div className="relative z-10 p-3.5 flex items-start justify-between gap-2">
-              {/* Sol Üst: Yalnızca İzlenme / Tamamlama Tarihi */}
+              {/* Sol Üst: Yalnızca İzlenme / Tamamlama Tarihi (Hidden for -ecek and -yor) */}
               <div className="flex flex-col items-start gap-1.5">
-                <span className="px-2.5 py-1 rounded-lg bg-black/80 backdrop-blur-md border border-white/20 text-[11px] font-semibold text-slate-200 shadow">
-                  {displayDate}
-                </span>
+                {Boolean(displayDate) && (
+                  <span className="px-2.5 py-1 rounded-lg bg-black/80 backdrop-blur-md border border-white/20 text-[11px] font-semibold text-slate-200 shadow">
+                    {displayDate}
+                  </span>
+                )}
               </div>
 
-              {/* Sağ Üst: Yalnızca Puan Derecelendirmesi */}
-              <div className="flex flex-col items-end gap-1.5">
-                {item.rating > 0 && (
+              {/* Sağ Üst: Puan ve Altında Dikey Asılı Özel Rozetler */}
+              <div className="flex flex-col items-end gap-1.5 z-20">
+                {!isPlanned && item.rating > 0 && (
                   <span className="px-2.5 py-1 rounded-lg bg-black/85 backdrop-blur-md border border-amber-500/50 text-xs font-black text-amber-300 flex items-center gap-1 shadow">
                     <RatingBadgeIcon
                       type={viewSettings?.ratingIcon}
@@ -1262,6 +1448,85 @@ export const ImagePreviewModal: React.FC<ImagePreviewModalProps> = ({
                     />
                     {item.rating}
                   </span>
+                )}
+
+                {/* Custom Badges (Maksimum 4 rozet) */}
+                {assignedBadges.length > 0 && (
+                  <div className="flex flex-col items-end gap-1.5">
+                    {assignedBadges.map((badge) => {
+                      const colorOpt = getBadgeColorOption(badge.color);
+                      const isGlowActive = viewSettings?.badgeGlowEnabled !== false;
+                      const isMobileActive = activeMobileBadgeId === badge.id;
+
+                      return (
+                        <div
+                          key={badge.id}
+                          id={`mobile-preview-badge-${item.id}-${badge.id}`}
+                          onClick={(e) => handleBadgeClick(e, badge.id)}
+                          className="group/badge relative cursor-pointer"
+                        >
+                          {/* Rozet Saf Şeffaf Madalya (Kutusuz & Belirgin Organik Glow) */}
+                          <div
+                            className={`w-9.5 h-9.5 sm:w-10 sm:h-10 flex items-center justify-center transition-all duration-200 ease-out select-none active:scale-95 ${
+                              isMobileActive ? 'scale-115' : ''
+                            }`}
+                          >
+                            <img
+                              src={badge.iconData}
+                              alt={badge.name}
+                              className="w-full h-full object-contain select-none transition-all duration-200"
+                              style={{
+                                filter: isGlowActive
+                                  ? (isMobileActive
+                                      ? `drop-shadow(0 0 10px ${colorOpt.hex}) drop-shadow(0 0 20px ${colorOpt.hex}95) drop-shadow(0 3px 6px rgba(0,0,0,0.95))`
+                                      : `drop-shadow(0 0 6px ${colorOpt.hex}) drop-shadow(0 2px 4px rgba(0,0,0,0.85))`)
+                                  : 'drop-shadow(0 2px 5px rgba(0,0,0,0.9))',
+                              }}
+                              loading="lazy"
+                            />
+                          </div>
+
+                          {/* Sola Doğru Açılan Unvan Balonu (Tooltip) */}
+                          <div
+                            className={`absolute right-full top-1/2 -translate-y-1/2 mr-2 pointer-events-none transition-all duration-200 z-50 whitespace-nowrap ${
+                              isMobileActive
+                                ? 'opacity-100 scale-100 translate-x-0'
+                                : 'opacity-0 scale-95 translate-x-1'
+                            }`}
+                          >
+                            <div
+                              className="relative px-2.5 py-1 rounded-lg bg-[#0d111a]/95 border text-left shadow-2xl backdrop-blur-xl flex items-center gap-1.5"
+                              style={{
+                                borderColor: isGlowActive ? `${colorOpt.hex}88` : 'rgba(255, 255, 255, 0.25)',
+                                boxShadow: isGlowActive
+                                  ? `0 10px 25px -3px rgba(0, 0, 0, 0.85), 0 0 12px ${colorOpt.hex}45`
+                                  : '0 10px 25px -3px rgba(0, 0, 0, 0.85)',
+                              }}
+                            >
+                              {/* Küçük ok işareti (sağa dönük) */}
+                              <div
+                                className="absolute -right-1 top-1/2 -translate-y-1/2 w-2 h-2 rotate-45 bg-[#0d111a]/95 border-t border-r"
+                                style={{
+                                  borderColor: isGlowActive ? `${colorOpt.hex}88` : 'rgba(255, 255, 255, 0.25)',
+                                }}
+                              />
+
+                              {/* Rozet Unvan Metni */}
+                              <span
+                                className="text-[11px] font-bold tracking-tight max-w-[160px] truncate"
+                                style={{
+                                  color: isGlowActive ? colorOpt.hex : '#f1f5f9',
+                                  textShadow: isGlowActive ? `0 0 8px ${colorOpt.hex}60` : undefined,
+                                }}
+                              >
+                                {badge.name}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
                 )}
               </div>
             </div>
@@ -1646,6 +1911,30 @@ export const ImagePreviewModal: React.FC<ImagePreviewModalProps> = ({
                   </p>
                 )}
               </div>
+
+              {/* ✍️ KİŞİSEL İNCELEME & YORUM (Yalnızca yorum girilmişse gösterilir - Karakterlerin altı, Türler'in üstü) */}
+              {item.review && item.review.trim().length > 0 && (
+                <div id="preview-review-section-mobile" className="space-y-1.5 pt-0.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] uppercase font-bold tracking-wider text-amber-300 flex items-center gap-1.5">
+                      <PenTool className="w-3 h-3 text-amber-400" /> YORUM
+                    </span>
+                    {item.reviewDate && (
+                      <span className="text-[9px] font-medium text-slate-400">
+                        {formatReviewDate(item.reviewDate)}
+                      </span>
+                    )}
+                  </div>
+                  <div
+                    id="preview-review-box-mobile"
+                    className="p-3 rounded-xl bg-gradient-to-br from-amber-500/[0.05] to-amber-950/[0.10] border border-amber-500/30 text-xs text-slate-200 leading-relaxed whitespace-pre-wrap pl-3 border-l-3 border-l-amber-500/80"
+                  >
+                    <p className="font-normal italic text-slate-200">
+                      {item.review.trim()}
+                    </p>
+                  </div>
+                </div>
+              )}
 
               {/* Türler (Mobil için Karakterlerin Altında) */}
               {item.genre && item.genre.length > 0 && (

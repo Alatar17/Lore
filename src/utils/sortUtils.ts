@@ -239,7 +239,14 @@ export function sortArchiveItems(items: ArchiveItem[], sortOption: SortOption = 
       }
 
       case 'rating-asc': {
-        if (a.rating !== b.rating) return a.rating - b.rating;
+        const rateA = a.rating || 0;
+        const rateB = b.rating || 0;
+        if (rateA === 0 && rateB === 0) {
+          return a.title.localeCompare(b.title, 'tr', { sensitivity: 'base' });
+        }
+        if (rateA === 0) return 1;
+        if (rateB === 0) return -1;
+        if (rateA !== rateB) return rateA - rateB;
         return a.title.localeCompare(b.title, 'tr', { sensitivity: 'base' });
       }
 

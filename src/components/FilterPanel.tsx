@@ -10,6 +10,8 @@ import {
   FolderX,
   Layers,
   BookOpen,
+  Trophy,
+  Award,
 } from 'lucide-react';
 
 interface FilterPanelProps {
@@ -28,7 +30,6 @@ const GAME_STATUS_OPTIONS: { label: string; value: GameStatus | 'all' }[] = [
   { label: 'Tamamlandı', value: 'Tamamlandı' },
   { label: 'Oynanacak', value: 'Oynanacak' },
   { label: 'Oynanıyor', value: 'Oynanıyor' },
-  { label: '%100 Başarım', value: '%100 Başarım' },
   { label: 'Yarım Bırakıldı', value: 'Yarım Bırakıldı' },
 ];
 
@@ -84,10 +85,12 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
     filters.minRating > 0 ||
     Boolean(filters.droppedOnly) ||
     Boolean(filters.readingOnly) ||
+    Boolean(filters.fullAchOnly) ||
     filters.watchingOnly ||
     filters.followingOnly ||
     filters.ankiFilter !== 'all' ||
     Boolean(filters.seriesOnly) ||
+    Boolean(filters.hasBadgesOnly) ||
     Boolean(filters.uncategorizedOnly) ||
     (!isHideModeActive && Boolean(filters.hiddenOnly)) ||
     (filters.gameStatus && filters.gameStatus !== 'all') ||
@@ -101,10 +104,12 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
       readingOnly: false,
       watchingOnly: false,
       followingOnly: false,
+      fullAchOnly: false,
       ankiFilter: 'all',
       gameStatus: 'all',
       bookFormat: 'all',
       seriesOnly: false,
+      hasBadgesOnly: false,
       uncategorizedOnly: false,
       hiddenOnly: false,
     });
@@ -241,29 +246,46 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
           </div>
         )}
 
-        {/* Game-Specific: Status Filter */}
+        {/* Game-Specific: Status & Full Achievement Filter */}
         {isGame && (
-          <div className="pt-2 border-t border-white/10">
-            <label className="block text-[11px] uppercase tracking-wider text-neutral-400 font-semibold mb-1.5 flex items-center gap-1.5">
-              <Gamepad2 className="w-3.5 h-3.5 text-neutral-300" />
-              <span>Oyun Durumu</span>
+          <div className="pt-2 border-t border-white/10 space-y-2">
+            <div>
+              <label className="block text-[11px] uppercase tracking-wider text-neutral-400 font-semibold mb-1.5 flex items-center gap-1.5">
+                <Gamepad2 className="w-3.5 h-3.5 text-neutral-300" />
+                <span>Oyun Durumu</span>
+              </label>
+              <select
+                id="filter-game-status-select"
+                value={filters.gameStatus || 'all'}
+                onChange={(e) =>
+                  onChange({
+                    gameStatus: e.target.value as GameStatus | 'all',
+                  })
+                }
+                className="w-full bg-neutral-800 text-neutral-200 border border-white/10 rounded-lg px-2.5 py-1.5 text-xs focus:outline-none focus:border-white/30 cursor-pointer"
+              >
+                {GAME_STATUS_OPTIONS.map((opt) => (
+                  <option key={opt.value} value={opt.value} className="bg-neutral-900 text-white">
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Sadece Tam Başarım */}
+            <label className="flex items-center justify-between text-xs text-neutral-300 hover:text-white cursor-pointer select-none py-1.5 px-1 rounded-lg hover:bg-white/5 transition-colors">
+              <div className="flex items-center gap-2">
+                <Trophy className="w-4 h-4 text-neutral-400" />
+                <span className="text-neutral-300 font-medium">Tam Başarım</span>
+              </div>
+              <input
+                id="filter-full-ach-checkbox"
+                type="checkbox"
+                checked={Boolean(filters.fullAchOnly)}
+                onChange={(e) => onChange({ fullAchOnly: e.target.checked })}
+                className="w-4 h-4 rounded border-neutral-600 bg-neutral-800 text-white focus:ring-0 cursor-pointer accent-white"
+              />
             </label>
-            <select
-              id="filter-game-status-select"
-              value={filters.gameStatus || 'all'}
-              onChange={(e) =>
-                onChange({
-                  gameStatus: e.target.value as GameStatus | 'all',
-                })
-              }
-              className="w-full bg-neutral-800 text-neutral-200 border border-white/10 rounded-lg px-2.5 py-1.5 text-xs focus:outline-none focus:border-white/30 cursor-pointer"
-            >
-              {GAME_STATUS_OPTIONS.map((opt) => (
-                <option key={opt.value} value={opt.value} className="bg-neutral-900 text-white">
-                  {opt.label}
-                </option>
-              ))}
-            </select>
           </div>
         )}
 
@@ -306,6 +328,23 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
               checked={Boolean(filters.seriesOnly)}
               onChange={(e) => onChange({ seriesOnly: e.target.checked })}
               className="w-4 h-4 rounded border-neutral-600 bg-neutral-800 text-white focus:ring-0 cursor-pointer accent-white"
+            />
+          </label>
+        </div>
+
+        {/* Özel Rozetli Yapımlar (On/Off) */}
+        <div className="pt-2 border-t border-white/10">
+          <label className="flex items-center justify-between text-xs text-neutral-300 hover:text-white cursor-pointer select-none py-1 px-1 rounded-lg hover:bg-white/5 transition-colors">
+            <div className="flex items-center gap-2">
+              <Award className="w-3.5 h-3.5 text-amber-400" />
+              <span>Özel Rozetli Yapımlar</span>
+            </div>
+            <input
+              id="filter-badges-checkbox"
+              type="checkbox"
+              checked={Boolean(filters.hasBadgesOnly)}
+              onChange={(e) => onChange({ hasBadgesOnly: e.target.checked })}
+              className="w-4 h-4 rounded border-neutral-600 bg-neutral-800 text-white focus:ring-0 cursor-pointer accent-amber-400"
             />
           </label>
         </div>

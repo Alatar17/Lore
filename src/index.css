@@ -192,3 +192,20 @@ select:-webkit-autofill:focus {
 .animate-series-icon-pop {
   animation: seriesIconAttentionPulse 1.4s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
 }
+
+/* Shake animation for input validation error */
+@keyframes inputErrorShake {
+  0%, 100% {
+    transform: translateX(0);
+  }
+  20%, 60% {
+    transform: translateX(-5px);
+  }
+  40%, 80% {
+    transform: translateX(5px);
+  }
+}
+
+.animate-input-shake {
+  animation: inputErrorShake 0.4s ease-in-out;
+}

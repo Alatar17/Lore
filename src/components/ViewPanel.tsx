@@ -1,6 +1,6 @@
 import React from 'react';
 import { ViewSettings, MainTabType, SortOption } from '../types';
-import { SlidersHorizontal, ZoomIn, ZoomOut, Tv, Bookmark, Star, Calendar, Layers, Gamepad2, Type, ArrowUpDown, BookOpen } from 'lucide-react';
+import { SlidersHorizontal, ZoomIn, ZoomOut, Tv, Bookmark, Star, Calendar, Layers, Gamepad2, Type, ArrowUpDown, BookOpen, Eye } from 'lucide-react';
 
 interface ViewPanelProps {
   settings: ViewSettings;
@@ -84,142 +84,164 @@ export const ViewPanel: React.FC<ViewPanelProps> = ({ settings, mainTab, onChang
             )}
           </select>
         </div>
-        {/* Common: Title */}
-        <label className="flex items-center justify-between text-xs text-neutral-300 hover:text-white cursor-pointer select-none py-1 px-1 rounded-lg hover:bg-white/5 transition-colors">
-          <div className="flex items-center gap-2">
-            <Type className="w-3.5 h-3.5 text-neutral-400" />
-            <span>Kart Başlıklarını Göster</span>
-          </div>
-          <input
-            id="toggle-show-title"
-            type="checkbox"
-            checked={settings.showTitle !== false}
-            onChange={(e) => onChange({ showTitle: e.target.checked })}
-            className="w-4 h-4 rounded border-neutral-600 bg-neutral-800 text-white focus:ring-0 cursor-pointer accent-white"
-          />
-        </label>
 
-        {/* Common: Rating */}
-        <label className="flex items-center justify-between text-xs text-neutral-300 hover:text-white cursor-pointer select-none py-1 px-1 rounded-lg hover:bg-white/5 transition-colors">
-          <div className="flex items-center gap-2">
-            <Star className="w-3.5 h-3.5 text-amber-400" />
-            <span>Puan Rozetini Göster</span>
-          </div>
-          <input
-            id="toggle-show-rating"
-            type="checkbox"
-            checked={settings.showRating !== false}
-            onChange={(e) => onChange({ showRating: e.target.checked })}
-            className="w-4 h-4 rounded border-neutral-600 bg-neutral-800 text-white focus:ring-0 cursor-pointer accent-white"
-          />
-        </label>
+        {/* Görünüm ve Rozet Seçenekleri */}
+        <div className="space-y-1">
+          {/* Common: Title */}
+          <label className="flex items-center justify-between text-xs text-neutral-300 hover:text-white cursor-pointer select-none py-1 px-1 rounded-lg hover:bg-white/5 transition-colors">
+            <div className="flex items-center gap-2">
+              <Type className="w-3.5 h-3.5 text-neutral-400" />
+              <span>Kart Başlıklarını Göster</span>
+            </div>
+            <input
+              id="toggle-show-title"
+              type="checkbox"
+              checked={settings.showTitle !== false}
+              onChange={(e) => onChange({ showTitle: e.target.checked })}
+              className="w-4 h-4 rounded border-neutral-600 bg-neutral-800 text-white focus:ring-0 cursor-pointer accent-white"
+            />
+          </label>
 
-        {/* Common: Year */}
-        <label className="flex items-center justify-between text-xs text-neutral-300 hover:text-white cursor-pointer select-none py-1 px-1 rounded-lg hover:bg-white/5 transition-colors">
-          <div className="flex items-center gap-2">
-            <Calendar className="w-3.5 h-3.5 text-neutral-400" />
-            <span>Yıl Bilgisini Göster</span>
-          </div>
-          <input
-            id="toggle-show-year"
-            type="checkbox"
-            checked={settings.showYear !== false}
-            onChange={(e) => onChange({ showYear: e.target.checked })}
-            className="w-4 h-4 rounded border-neutral-600 bg-neutral-800 text-white focus:ring-0 cursor-pointer accent-white"
-          />
-        </label>
+          {/* Master Toggle: Tüm Rozetleri Göster */}
+          <label className="flex items-center justify-between text-xs text-neutral-300 hover:text-white cursor-pointer select-none py-1 px-1 rounded-lg hover:bg-white/5 transition-colors">
+            <div className="flex items-center gap-2">
+              <Eye className="w-3.5 h-3.5 text-sky-400" />
+              <span>Tüm Rozetleri Göster</span>
+            </div>
+            <input
+              id="toggle-show-all-badges"
+              type="checkbox"
+              checked={settings.showAllBadges !== false}
+              onChange={(e) => onChange({ showAllBadges: e.target.checked })}
+              className="w-4 h-4 rounded border-neutral-600 bg-neutral-800 text-white focus:ring-0 cursor-pointer accent-white"
+            />
+          </label>
 
-        {/* Common: Anki */}
-        <label className="flex items-center justify-between text-xs text-neutral-300 hover:text-white cursor-pointer select-none py-1 px-1 rounded-lg hover:bg-white/5 transition-colors">
-          <div className="flex items-center gap-2">
-            <Layers className="w-3.5 h-3.5 text-emerald-400" />
-            <span>Anki Rozetini Göster</span>
-          </div>
-          <input
-            id="toggle-show-anki"
-            type="checkbox"
-            checked={Boolean(settings.showAnki)}
-            onChange={(e) => onChange({ showAnki: e.target.checked })}
-            className="w-4 h-4 rounded border-neutral-600 bg-neutral-800 text-white focus:ring-0 cursor-pointer accent-white"
-          />
-        </label>
-
-        {/* Media Specific Controls */}
-        {mainTab === 'media' && (
-          <div className="pt-2 border-t border-white/10 space-y-2">
-            <span className="text-[10px] uppercase font-semibold text-neutral-500 tracking-wider">Medya Rozetleri</span>
-            
+          {/* Tekil Rozetler (Tüm Rozetleri Göster kapalıyken soluklaşır ve kilitlenir, ayarları korunur) */}
+          <div className={`space-y-1 transition-all duration-200 ${settings.showAllBadges === false ? 'opacity-35 pointer-events-none select-none' : ''}`}>
+            {/* Common: Rating */}
             <label className="flex items-center justify-between text-xs text-neutral-300 hover:text-white cursor-pointer select-none py-1 px-1 rounded-lg hover:bg-white/5 transition-colors">
               <div className="flex items-center gap-2">
-                <Tv className="w-3.5 h-3.5 text-blue-400" />
-                <span>İzleniyor (TV) Rozeti</span>
+                <Star className="w-3.5 h-3.5 text-amber-400" />
+                <span>Puan Rozetini Göster</span>
               </div>
               <input
-                id="toggle-show-watching"
+                id="toggle-show-rating"
                 type="checkbox"
-                checked={settings.showWatching !== false}
-                onChange={(e) => onChange({ showWatching: e.target.checked })}
+                checked={settings.showRating !== false}
+                onChange={(e) => onChange({ showRating: e.target.checked })}
                 className="w-4 h-4 rounded border-neutral-600 bg-neutral-800 text-white focus:ring-0 cursor-pointer accent-white"
               />
             </label>
 
+            {/* Common: Year */}
             <label className="flex items-center justify-between text-xs text-neutral-300 hover:text-white cursor-pointer select-none py-1 px-1 rounded-lg hover:bg-white/5 transition-colors">
               <div className="flex items-center gap-2">
-                <Bookmark className="w-3.5 h-3.5 text-amber-400" />
-                <span>Takip Listesi Rozeti</span>
+                <Calendar className="w-3.5 h-3.5 text-neutral-400" />
+                <span>Yıl Bilgisini Göster</span>
               </div>
               <input
-                id="toggle-show-following"
+                id="toggle-show-year"
                 type="checkbox"
-                checked={settings.showFollowing !== false}
-                onChange={(e) => onChange({ showFollowing: e.target.checked })}
+                checked={settings.showYear !== false}
+                onChange={(e) => onChange({ showYear: e.target.checked })}
                 className="w-4 h-4 rounded border-neutral-600 bg-neutral-800 text-white focus:ring-0 cursor-pointer accent-white"
               />
             </label>
-          </div>
-        )}
 
-        {/* Game Specific Controls */}
-        {mainTab === 'game' && (
-          <div className="pt-2 border-t border-white/10 space-y-2">
-            <span className="text-[10px] uppercase font-semibold text-neutral-500 tracking-wider">Oyun Rozetleri</span>
-            
+            {/* Common: Anki */}
             <label className="flex items-center justify-between text-xs text-neutral-300 hover:text-white cursor-pointer select-none py-1 px-1 rounded-lg hover:bg-white/5 transition-colors">
               <div className="flex items-center gap-2">
-                <Gamepad2 className="w-3.5 h-3.5 text-emerald-400" />
-                <span>Oyun Durumu / Başarım</span>
+                <Layers className="w-3.5 h-3.5 text-emerald-400" />
+                <span>Anki Rozetini Göster</span>
               </div>
               <input
-                id="toggle-show-game-status"
+                id="toggle-show-anki"
                 type="checkbox"
-                checked={settings.showGameStatus !== false}
-                onChange={(e) => onChange({ showGameStatus: e.target.checked })}
+                checked={Boolean(settings.showAnki)}
+                onChange={(e) => onChange({ showAnki: e.target.checked })}
                 className="w-4 h-4 rounded border-neutral-600 bg-neutral-800 text-white focus:ring-0 cursor-pointer accent-white"
               />
             </label>
-          </div>
-        )}
 
-        {/* Book Specific Controls */}
-        {mainTab === 'book' && (
-          <div className="pt-2 border-t border-white/10 space-y-2">
-            <span className="text-[10px] uppercase font-semibold text-neutral-500 tracking-wider">Kitap Rozetleri</span>
-            
-            <label className="flex items-center justify-between text-xs text-neutral-300 hover:text-white cursor-pointer select-none py-1 px-1 rounded-lg hover:bg-white/5 transition-colors">
-              <div className="flex items-center gap-2">
-                <BookOpen className="w-3.5 h-3.5 text-blue-400" />
-                <span>Okunuyor Rozeti</span>
+            {/* Media Specific Controls */}
+            {mainTab === 'media' && (
+              <div className="pt-2 border-t border-white/10 space-y-1">
+                <span className="text-[10px] uppercase font-semibold text-neutral-500 tracking-wider px-1">Medya Rozetleri</span>
+                
+                <label className="flex items-center justify-between text-xs text-neutral-300 hover:text-white cursor-pointer select-none py-1 px-1 rounded-lg hover:bg-white/5 transition-colors">
+                  <div className="flex items-center gap-2">
+                    <Tv className="w-3.5 h-3.5 text-blue-400" />
+                    <span>İzleniyor (TV) Rozeti</span>
+                  </div>
+                  <input
+                    id="toggle-show-watching"
+                    type="checkbox"
+                    checked={settings.showWatching !== false}
+                    onChange={(e) => onChange({ showWatching: e.target.checked })}
+                    className="w-4 h-4 rounded border-neutral-600 bg-neutral-800 text-white focus:ring-0 cursor-pointer accent-white"
+                  />
+                </label>
+
+                <label className="flex items-center justify-between text-xs text-neutral-300 hover:text-white cursor-pointer select-none py-1 px-1 rounded-lg hover:bg-white/5 transition-colors">
+                  <div className="flex items-center gap-2">
+                    <Bookmark className="w-3.5 h-3.5 text-amber-400" />
+                    <span>Takip Listesi Rozeti</span>
+                  </div>
+                  <input
+                    id="toggle-show-following"
+                    type="checkbox"
+                    checked={settings.showFollowing !== false}
+                    onChange={(e) => onChange({ showFollowing: e.target.checked })}
+                    className="w-4 h-4 rounded border-neutral-600 bg-neutral-800 text-white focus:ring-0 cursor-pointer accent-white"
+                  />
+                </label>
               </div>
-              <input
-                id="toggle-show-book-reading"
-                type="checkbox"
-                checked={settings.showWatching !== false}
-                onChange={(e) => onChange({ showWatching: e.target.checked })}
-                className="w-4 h-4 rounded border-neutral-600 bg-neutral-800 text-white focus:ring-0 cursor-pointer accent-white"
-              />
-            </label>
+            )}
+
+            {/* Game Specific Controls */}
+            {mainTab === 'game' && (
+              <div className="pt-2 border-t border-white/10 space-y-1">
+                <span className="text-[10px] uppercase font-semibold text-neutral-500 tracking-wider px-1">Oyun Rozetleri</span>
+                
+                <label className="flex items-center justify-between text-xs text-neutral-300 hover:text-white cursor-pointer select-none py-1 px-1 rounded-lg hover:bg-white/5 transition-colors">
+                  <div className="flex items-center gap-2">
+                    <Gamepad2 className="w-3.5 h-3.5 text-emerald-400" />
+                    <span>Oyun Durumu / Başarım</span>
+                  </div>
+                  <input
+                    id="toggle-show-game-status"
+                    type="checkbox"
+                    checked={settings.showGameStatus !== false}
+                    onChange={(e) => onChange({ showGameStatus: e.target.checked })}
+                    className="w-4 h-4 rounded border-neutral-600 bg-neutral-800 text-white focus:ring-0 cursor-pointer accent-white"
+                  />
+                </label>
+              </div>
+            )}
+
+            {/* Book Specific Controls */}
+            {mainTab === 'book' && (
+              <div className="pt-2 border-t border-white/10 space-y-1">
+                <span className="text-[10px] uppercase font-semibold text-neutral-500 tracking-wider px-1">Kitap Rozetleri</span>
+                
+                <label className="flex items-center justify-between text-xs text-neutral-300 hover:text-white cursor-pointer select-none py-1 px-1 rounded-lg hover:bg-white/5 transition-colors">
+                  <div className="flex items-center gap-2">
+                    <BookOpen className="w-3.5 h-3.5 text-blue-400" />
+                    <span>Okunuyor Rozeti</span>
+                  </div>
+                  <input
+                    id="toggle-show-book-reading"
+                    type="checkbox"
+                    checked={settings.showWatching !== false}
+                    onChange={(e) => onChange({ showWatching: e.target.checked })}
+                    className="w-4 h-4 rounded border-neutral-600 bg-neutral-800 text-white focus:ring-0 cursor-pointer accent-white"
+                  />
+                </label>
+              </div>
+            )}
           </div>
-        )}
+        </div>
 
         {/* Poster Boyutu Slider (Masaüstü için, mobilde 3 kart grid sabit olduğu için gizlenir) */}
         <div className="hidden sm:block pt-3 border-t border-white/10">

@@ -51,4 +51,6 @@ export const INITIAL_DATA: AppData = {
     book: [],
   },
   items: [],
+  customBadges: [],
+  badgeGlowEnabled: true,
 };
