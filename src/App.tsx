@@ -101,9 +101,6 @@ import {
   Search,
   SlidersHorizontal,
   Eye,
-  FastForward,
-  Hourglass,
-  Telescope,
   CalendarClock,
 } from 'lucide-react';
 
@@ -489,29 +486,9 @@ export default function App() {
   // Sıradakiler (Backlog) Filter Mode (İzlenecek / Oynanacak / Okunacak)
   const [isBacklogOnly, setIsBacklogOnly] = useState<boolean>(false);
 
-  // Sıradakiler İkon Test Durumu (1: ListOrdered, 2: Hourglass, 3: PlaySquare, 4: ListPlus)
-  const [backlogIconIndex, setBacklogIconIndex] = useState<number>(() => {
-    const saved = safeLocalStorageGet('temp_backlog_icon_idx');
-    return saved ? Math.min(Math.max(1, Number(saved)), 4) : 1;
-  });
-
-  const handleSelectBacklogIcon = (idx: number) => {
-    setBacklogIconIndex(idx);
-    safeLocalStorageSet('temp_backlog_icon_idx', String(idx));
-  };
-
+  // Sıradakiler İkonu: CalendarClock (Kalıcı ve Varsayılan İkon)
   const renderBacklogIcon = (sizeClass = 'w-3.5 h-3.5') => {
-    switch (backlogIconIndex) {
-      case 1:
-        return <FastForward className={`${sizeClass} ${isBacklogOnly ? 'fill-current' : ''}`} />;
-      case 2:
-        return <Hourglass className={sizeClass} />;
-      case 3:
-        return <Telescope className={sizeClass} />;
-      case 4:
-      default:
-        return <CalendarClock className={sizeClass} />;
-    }
+    return <CalendarClock className={sizeClass} />;
   };
 
   // Items visible under current hide mode (for Tier List, Statistics, Recent Activity, and PNG Export)
@@ -2490,38 +2467,6 @@ export default function App() {
                       {renderBacklogIcon('w-3.5 h-3.5')}
                     </button>
                   </div>
-
-                  {/* Geçici Sıradakiler İkon Test Seçicisi (Masaüstü) */}
-                  <div
-                    id="temp-backlog-icon-switcher"
-                    className="fixed bottom-12 left-2.5 z-40 hidden md:flex items-center gap-1 px-2 py-0.5 bg-neutral-900/95 backdrop-blur-md border border-purple-500/40 rounded-lg shadow-xl text-[11px] text-neutral-300 select-none animate-in fade-in duration-200"
-                    title="Sıradakiler Modu İkon Testi"
-                  >
-                    <span className="text-purple-300 font-semibold text-[10px] uppercase tracking-wider mr-0.5">İkon:</span>
-                    {[
-                      { id: 1, name: 'İleri / Geleceğe Sarma' },
-                      { id: 2, name: 'Kum Saati (Seçtiğiniz)' },
-                      { id: 3, name: 'Geleceğe Bakış (Teleskop)' },
-                      { id: 4, name: 'Gelecek Zaman (Takvim & Saat)' },
-                    ].map((item) => (
-                      <button
-                        key={item.id}
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleSelectBacklogIcon(item.id);
-                        }}
-                        title={`Tasarım ${item.id}: ${item.name}`}
-                        className={`h-5 px-1.5 rounded flex items-center justify-center font-bold text-[11px] transition-all cursor-pointer ${
-                          backlogIconIndex === item.id
-                            ? 'bg-purple-600 text-white shadow ring-1 ring-purple-300 scale-105'
-                            : 'bg-neutral-800 text-neutral-400 hover:text-white hover:bg-neutral-700'
-                        }`}
-                      >
-                        {item.id}
-                      </button>
-                    ))}
-                  </div>
                 </>
               ) : (
                   /* 1.2. FAB Edit Mode: Individual Draggable FABs with coordinates */
@@ -2863,37 +2808,6 @@ export default function App() {
                         )}
                       </div>
                     </div>
-                  </div>
-
-                  {/* Mobil Geçici Sıradakiler İkon Test Seçicisi */}
-                  <div
-                    id="mob-temp-backlog-icon-switcher"
-                    className="fixed bottom-14 left-1/2 -translate-x-1/2 z-40 flex md:hidden items-center gap-1 px-2 py-0.5 bg-neutral-900/95 backdrop-blur-md border border-purple-500/40 rounded-lg shadow-xl text-[11px] text-neutral-300 select-none animate-in fade-in duration-200"
-                  >
-                    <span className="text-purple-300 font-semibold text-[10px] uppercase tracking-wider mr-0.5">İkon:</span>
-                    {[
-                      { id: 1, name: 'İleri / Geleceğe Sarma' },
-                      { id: 2, name: 'Kum Saati (Seçtiğiniz)' },
-                      { id: 3, name: 'Geleceğe Bakış (Teleskop)' },
-                      { id: 4, name: 'Gelecek Zaman (Takvim & Saat)' },
-                    ].map((item) => (
-                      <button
-                        key={item.id}
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleSelectBacklogIcon(item.id);
-                        }}
-                        title={`Tasarım ${item.id}: ${item.name}`}
-                        className={`h-5 px-1.5 rounded flex items-center justify-center font-bold text-[11px] transition-all cursor-pointer ${
-                          backlogIconIndex === item.id
-                            ? 'bg-purple-600 text-white shadow ring-1 ring-purple-300 scale-105'
-                            : 'bg-neutral-800 text-neutral-400 hover:text-white hover:bg-neutral-700'
-                        }`}
-                      >
-                        {item.id}
-                      </button>
-                    ))}
                   </div>
                 </>
               )}

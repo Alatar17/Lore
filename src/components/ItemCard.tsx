@@ -281,7 +281,7 @@ export const ItemCard: React.FC<ItemCardProps> = ({
         )}
 
         {/* Top-Right Badges Column: Rating Badge and Custom Badges Stacked Vertically */}
-        <div className="absolute top-1.5 right-1.5 z-20 flex flex-col items-end gap-1.5 pointer-events-none">
+        <div className="absolute top-1.5 right-1.5 z-20 flex flex-col items-end gap-1 sm:gap-1.5 pointer-events-none">
           {/* Rating Badge (Hidden for -ecek, only visible if rating > 0) */}
           {showRating && !isPlanned && item.rating > 0 && (
             <div
@@ -327,7 +327,7 @@ export const ItemCard: React.FC<ItemCardProps> = ({
 
           {/* Custom Badges (Maksimum 4 rozet, Puanın altında veya Puan yoksa en üstte) */}
           {showAllBadges && !isSelectionMode && assignedBadges.length > 0 && (
-            <div className="flex flex-col items-end gap-1.5 pointer-events-auto">
+            <div className="flex flex-col items-end gap-1 sm:gap-1.5 pointer-events-auto">
               {assignedBadges.map((badge) => {
                 const colorOpt = getBadgeColorOption(badge.color);
                 const isGlowActive = viewSettings.badgeGlowEnabled !== false;
@@ -340,9 +340,9 @@ export const ItemCard: React.FC<ItemCardProps> = ({
                     onClick={(e) => handleBadgeClick(e, badge.id)}
                     className="group/badge relative pointer-events-auto cursor-pointer"
                   >
-                    {/* Rozet Saf Şeffaf Madalya (Kutusuz & Belirgin Organik Glow) */}
+                    {/* Rozet Saf Şeffaf Madalya (Kutusuz & Belirgin Organik Glow - Mobilde tam sığan kompakt ölçü) */}
                     <div
-                      className={`w-9 h-9 sm:w-10 sm:h-10 flex items-center justify-center transition-all duration-200 ease-out select-none hover:scale-115 active:scale-95 ${
+                      className={`w-7 h-7 sm:w-10 sm:h-10 flex items-center justify-center transition-all duration-200 ease-out select-none hover:scale-115 active:scale-95 ${
                         isMobileActive ? 'scale-115' : ''
                       }`}
                     >

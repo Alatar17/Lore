@@ -777,9 +777,9 @@ export const ImagePreviewModal: React.FC<ImagePreviewModalProps> = ({
                         onClick={(e) => handleBadgeClick(e, badge.id)}
                         className="group/badge relative pointer-events-auto cursor-pointer"
                       >
-                        {/* Rozet Saf Şeffaf Madalya (Kutusuz & Belirgin Organik Glow) */}
+                        {/* Rozet Saf Şeffaf Madalya (Detay penceresi heybetli vitrin boyutu) */}
                         <div
-                          className={`w-11 h-11 sm:w-12 sm:h-12 flex items-center justify-center transition-all duration-200 ease-out select-none hover:scale-115 active:scale-95 ${
+                          className={`w-[50px] h-[50px] sm:w-14 sm:h-14 flex items-center justify-center transition-all duration-200 ease-out select-none hover:scale-115 active:scale-95 ${
                             isMobileActive ? 'scale-115' : ''
                           }`}
                         >
