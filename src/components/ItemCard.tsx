@@ -372,20 +372,27 @@ export const ItemCard: React.FC<ItemCardProps> = ({
                         isMobileActive ? 'scale-115' : ''
                       }`}
                     >
-                      <img
-                        src={badge.iconData}
-                        alt={badge.name}
-                        className="w-full h-full object-contain select-none transition-all duration-200"
-                        style={{
-                          transform: badge.scale && badge.scale !== 1 ? `scale(${badge.scale})` : undefined,
-                          filter: isGlowActive
-                            ? (isMobileActive
-                                ? `drop-shadow(0 0 1.5px rgba(0,0,0,0.98)) drop-shadow(0 0 3px rgba(0,0,0,0.85)) drop-shadow(0 0 9px ${colorOpt.hex}) drop-shadow(0 0 20px ${colorOpt.hex}95) drop-shadow(0 3px 6px rgba(0,0,0,0.9))`
-                                : `drop-shadow(0 0 1.5px rgba(0,0,0,0.98)) drop-shadow(0 0 3px rgba(0,0,0,0.85)) drop-shadow(0 0 6px ${colorOpt.hex}) drop-shadow(0 2px 5px rgba(0,0,0,0.85))`)
-                            : 'drop-shadow(0 0 1.5px rgba(0,0,0,0.98)) drop-shadow(0 0 3px rgba(0,0,0,0.85)) drop-shadow(0 2px 5px rgba(0,0,0,0.85))',
-                        }}
-                        loading="lazy"
-                      />
+                      {badge.iconData && !badge.iconData.startsWith('images/') && !badge.iconData.startsWith('badges/') ? (
+                        <img
+                          src={badge.iconData}
+                          alt={badge.name}
+                          className="w-full h-full object-contain select-none transition-all duration-200"
+                          style={{
+                            transform: badge.scale && badge.scale !== 1 ? `scale(${badge.scale})` : undefined,
+                            filter: isGlowActive
+                              ? (isMobileActive
+                                  ? `drop-shadow(0 0 1.5px rgba(0,0,0,0.98)) drop-shadow(0 0 3px rgba(0,0,0,0.85)) drop-shadow(0 0 9px ${colorOpt.hex}) drop-shadow(0 0 20px ${colorOpt.hex}95) drop-shadow(0 3px 6px rgba(0,0,0,0.9))`
+                                  : `drop-shadow(0 0 1.5px rgba(0,0,0,0.98)) drop-shadow(0 0 3px rgba(0,0,0,0.85)) drop-shadow(0 0 6px ${colorOpt.hex}) drop-shadow(0 2px 5px rgba(0,0,0,0.85))`)
+                              : 'drop-shadow(0 0 1.5px rgba(0,0,0,0.98)) drop-shadow(0 0 3px rgba(0,0,0,0.85)) drop-shadow(0 2px 5px rgba(0,0,0,0.85))',
+                          }}
+                          onError={(e) => {
+                            (e.currentTarget as HTMLElement).style.display = 'none';
+                          }}
+                          loading="lazy"
+                        />
+                      ) : (
+                        <span className="text-base sm:text-xl select-none leading-none" title={badge.name}>🏆</span>
+                      )}
                     </div>
 
                     {/* Sola Doğru Açılan Unvan Balonu (Tooltip) */}

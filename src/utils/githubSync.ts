@@ -1,4 +1,4 @@
-import { AppData, ArchiveItem } from '../types';
+import { AppData, ArchiveItem, CustomBadge } from '../types';
 import { getCachedImageBlob, setCachedImageBlob, getFileHandleFromRelativePath } from './fileSystem';
 
 export interface GitHubSyncConfig {
@@ -888,5 +888,57 @@ export async function syncImagesForItems(
     () => worker()
   );
   await Promise.all(workers);
+}
+
+/**
+ * Hydrates badges directly from local IndexedDB image cache for offline and instant startup rendering.
+ */
+export async function hydrateBadgesFromCache(badges: CustomBadge[]): Promise<CustomBadge[]> {
+  if (!Array.isArray(badges) || badges.length === 0) return badges;
+  return Promise.all(
+    badges.map(async (badge) => {
+      if (badge.iconData && (badge.iconData.startsWith('images/') || badge.iconData.startsWith('badges/'))) {
+        const cleanName = badge.iconData.replace(/^images\//, '');
+        const bareName = cleanName.split('/').pop() || cleanName;
+        try {
+          const cachedBlob = (await getCachedImageBlob(cleanName)) || (await getCachedImageBlob(bareName));
+          if (cachedBlob) {
+            const dataUrl = await blobToDataUrl(cachedBlob);
+            return { ...badge, iconData: dataUrl };
+          }
+        } catch {}
+      }
+      return badge;
+    })
+  );
+}
+
+/**
+ * Background worker to fetch missing badge images from GitHub and cache them in IndexedDB.
+ */
+export async function syncBadgesFromGitHub(
+  badges: CustomBadge[],
+  config: GitHubSyncConfig,
+  onBadgeLoaded: (badgeId: string, dataUrl: string) => void
+): Promise<void> {
+  if (!config.owner || !config.repo || !Array.isArray(badges) || badges.length === 0) return;
+
+  for (const badge of badges) {
+    const targetPath =
+      badge.fileName ||
+      (badge.iconData && (badge.iconData.startsWith('images/') || badge.iconData.startsWith('badges/'))
+        ? badge.iconData
+        : null);
+    if (targetPath) {
+      try {
+        const url = await resolveGitHubImage(targetPath, config);
+        if (url) {
+          onBadgeLoaded(badge.id, url);
+        }
+      } catch (err) {
+        console.warn(`Error resolving badge image for ${badge.id}:`, err);
+      }
+    }
+  }
 }
 

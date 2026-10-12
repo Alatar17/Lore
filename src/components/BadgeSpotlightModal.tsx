@@ -73,18 +73,22 @@ export const BadgeSpotlightModal: React.FC<BadgeSpotlightModalProps> = ({
 
           {/* Rozet İkonu Görseli (180px mobil, 220px masaüstü) */}
           <div className="relative w-[180px] h-[180px] sm:w-[220px] sm:h-[220px] flex items-center justify-center">
-            <img
-              src={badge.iconData}
-              alt={badge.name}
-              className="w-full h-full object-contain select-none transition-transform duration-200"
-              style={{
-                transform: badge.scale && badge.scale !== 1 ? `scale(${badge.scale})` : undefined,
-                filter: isGlowActive
-                  ? `drop-shadow(0 0 2px rgba(0,0,0,0.98)) drop-shadow(0 0 5px rgba(0,0,0,0.9)) drop-shadow(0 0 18px ${colorOpt.hex}) drop-shadow(0 0 38px ${colorOpt.hex}80) drop-shadow(0 8px 18px rgba(0,0,0,0.95))`
-                  : 'drop-shadow(0 0 2px rgba(0,0,0,0.98)) drop-shadow(0 0 5px rgba(0,0,0,0.9)) drop-shadow(0 8px 18px rgba(0,0,0,0.95))',
-              }}
-              loading="eager"
-            />
+            {badge.iconData && !badge.iconData.startsWith('images/') && !badge.iconData.startsWith('badges/') ? (
+              <img
+                src={badge.iconData}
+                alt={badge.name}
+                className="w-full h-full object-contain select-none transition-transform duration-200"
+                style={{
+                  transform: badge.scale && badge.scale !== 1 ? `scale(${badge.scale})` : undefined,
+                  filter: isGlowActive
+                    ? `drop-shadow(0 0 2px rgba(0,0,0,0.98)) drop-shadow(0 0 5px rgba(0,0,0,0.9)) drop-shadow(0 0 18px ${colorOpt.hex}) drop-shadow(0 0 38px ${colorOpt.hex}80) drop-shadow(0 8px 18px rgba(0,0,0,0.95))`
+                    : 'drop-shadow(0 0 2px rgba(0,0,0,0.98)) drop-shadow(0 0 5px rgba(0,0,0,0.9)) drop-shadow(0 8px 18px rgba(0,0,0,0.95))',
+                }}
+                loading="eager"
+              />
+            ) : (
+              <span className="text-6xl sm:text-7xl select-none leading-none">🏆</span>
+            )}
           </div>
         </div>
 

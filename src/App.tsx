@@ -37,6 +37,8 @@ import {
   pullDataFromGitHub,
   checkGitHubUpdateAvailable,
   syncImagesForItems,
+  syncBadgesFromGitHub,
+  hydrateBadgesFromCache,
   clearMemoryDataUrlCache,
 } from './utils/githubSync';
 import { INITIAL_DATA } from './data/initialData';
@@ -426,6 +428,21 @@ export default function App() {
           })
           .catch((e) => console.warn('Background image sync error:', e));
 
+        // 3. Incrementally load missing or updated badge images from GitHub
+        if (mergedData.customBadges && mergedData.customBadges.length > 0) {
+          syncBadgesFromGitHub(mergedData.customBadges, cfg, (badgeId, dataUrl) => {
+            setAppData((prev) => {
+              const updatedBadges = (prev.customBadges || []).map((b) =>
+                b.id === badgeId ? { ...b, iconData: dataUrl } : b
+              );
+              const updatedData = { ...prev, customBadges: updatedBadges };
+              safeLocalStorageSet('lore_custom_badges', JSON.stringify(updatedBadges));
+              debouncedSaveData(updatedData);
+              return updatedData;
+            });
+          }).catch((e) => console.warn('Background badge sync error:', e));
+        }
+
         setTimeout(() => {
           setMobileSyncStatus('idle');
         }, 3000);
@@ -443,10 +460,39 @@ export default function App() {
     }
   };
 
-  // Background loader: Resolves missing posters from IndexedDB cache or GitHub on startup and mühürler
+  // Background loader: Resolves missing posters and badges from IndexedDB cache or GitHub on startup and mühürler
   useEffect(() => {
-    if (!isDataLoaded || !appData?.items || appData.items.length === 0) return;
+    if (!isDataLoaded) return;
     const cfg = getGitHubSyncConfig();
+
+    // 1. Hydrate badges from local IndexedDB cache or GitHub
+    if (appData?.customBadges && appData.customBadges.length > 0) {
+      hydrateBadgesFromCache(appData.customBadges).then((hydrated) => {
+        const hasChanges = hydrated.some((b, i) => b.iconData !== appData.customBadges?.[i]?.iconData);
+        if (hasChanges) {
+          setAppData((prev) => {
+            const updatedData = { ...prev, customBadges: hydrated };
+            safeLocalStorageSet('lore_custom_badges', JSON.stringify(hydrated));
+            return updatedData;
+          });
+        }
+      });
+
+      if (cfg.owner && cfg.repo) {
+        syncBadgesFromGitHub(appData.customBadges, cfg, (badgeId, dataUrl) => {
+          setAppData((prev) => {
+            const updatedBadges = (prev.customBadges || []).map((b) =>
+              b.id === badgeId ? { ...b, iconData: dataUrl } : b
+            );
+            const updatedData = { ...prev, customBadges: updatedBadges };
+            safeLocalStorageSet('lore_custom_badges', JSON.stringify(updatedBadges));
+            return updatedData;
+          });
+        }).catch(() => {});
+      }
+    }
+
+    if (!appData?.items || appData.items.length === 0) return;
     if (!cfg.owner || !cfg.repo) return;
 
     const needsImages = appData.items.some(

@@ -1732,7 +1732,7 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
                           className="group relative aspect-square flex items-center justify-center p-0.5 rounded-xl transition-all cursor-pointer select-none hover:bg-white/[0.04]"
                           title={`${badgeObj.name} (Değiştirmek için tıkla)`}
                         >
-                          {badgeObj.iconData ? (
+                          {badgeObj.iconData && !badgeObj.iconData.startsWith('images/') && !badgeObj.iconData.startsWith('badges/') ? (
                             <img
                               src={badgeObj.iconData}
                               alt={badgeObj.name}
