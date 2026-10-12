@@ -22,6 +22,7 @@ import {
   FileText,
   ChevronDown,
   Check,
+  Languages,
 } from 'lucide-react';
 
 interface StatisticsModalProps {
@@ -29,17 +30,38 @@ interface StatisticsModalProps {
   categories?: Record<string, any[]>;
   initialTab?: MainTabType;
   onClose: () => void;
+  onSelectItem?: (item: ArchiveItem) => void;
 }
 
 export const StatisticsModal: React.FC<StatisticsModalProps> = ({
   items = [],
   initialTab = 'media',
   onClose,
+  onSelectItem,
 }) => {
   const [activeTab, setActiveTab] = useState<MainTabType>(initialTab);
   const [selectedYear, setSelectedYear] = useState<string>('all');
   const [isYearDropdownOpen, setIsYearDropdownOpen] = useState(false);
+  const [activePopover, setActivePopover] = useState<{ type: string; key: string } | null>(null);
   const yearDropdownRef = useRef<HTMLDivElement>(null);
+
+  // Reset active popover when tab or year changes
+  useEffect(() => {
+    setActivePopover(null);
+  }, [activeTab, selectedYear]);
+
+  // Close active popover on click outside
+  useEffect(() => {
+    const handleDocumentClick = () => {
+      setActivePopover(null);
+    };
+    if (activePopover) {
+      document.addEventListener('click', handleDocumentClick);
+    }
+    return () => {
+      document.removeEventListener('click', handleDocumentClick);
+    };
+  }, [activePopover]);
 
   // Close year dropdown on click outside
   useEffect(() => {
@@ -180,14 +202,97 @@ export const StatisticsModal: React.FC<StatisticsModalProps> = ({
       .slice(0, limit);
   };
 
-  const topGenres = useMemo(() => getTopTagsWithStats('genre', 8), [tabItems]);
+  const topGenres = useMemo(() => getTopTagsWithStats('genre', 7), [tabItems]);
   const topFirms = useMemo(() => getTopTagsWithStats('firm', 6), [tabItems]);
   const topDevelopers = useMemo(() => getTopTagsWithStats('developer', 6), [tabItems]);
   const topAuthors = useMemo(() => getTopTagsWithStats('author', 6), [tabItems]);
   const topDirectors = useMemo(() => getTopTagsWithStats('director', 5), [tabItems]);
   const topActors = useMemo(() => getTopTagsWithStats('actors', 5), [tabItems]);
+  const topPublishers = useMemo(() => getTopTagsWithStats('publisher', 5), [tabItems]);
+  const topTranslators = useMemo(() => getTopTagsWithStats('translator', 5), [tabItems]);
 
-  const maxGenreCount = topGenres.length > 0 ? Math.max(...topGenres.map((g) => g.count)) : 1;
+  const itemUnit = isBook ? 'kitap' : isGame ? 'oyun' : 'yapım';
+  const studioFieldKey = isBook ? 'author' : isGame ? 'developer' : 'firm';
+
+  const popoverItems = useMemo(() => {
+    if (!activePopover) return [];
+    const { type, key } = activePopover;
+    return tabItems.filter((item) => {
+      const arr = item[type as keyof ArchiveItem] as string[] | undefined;
+      return Array.isArray(arr) && arr.some((t) => t.trim().toLowerCase() === key.toLowerCase());
+    });
+  }, [activePopover, tabItems]);
+
+  const togglePopover = (type: string, key: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setActivePopover((prev) =>
+      prev && prev.type === type && prev.key === key ? null : { type, key }
+    );
+  };
+
+  const renderPopover = (type: string, key: string) => {
+    if (!activePopover || activePopover.type !== type || activePopover.key !== key) {
+      return null;
+    }
+    return (
+      <div
+        className="absolute right-0 top-full mt-1.5 z-50 w-72 max-w-sm bg-[#161822] border border-white/20 rounded-xl shadow-2xl p-2.5 space-y-1.5 animate-in fade-in zoom-in-95 duration-100 text-left cursor-default select-none"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between pb-1.5 border-b border-white/10 text-xs font-semibold text-slate-200 px-1">
+          <div className="flex items-center gap-1.5 truncate pr-2">
+            <span className="truncate font-bold text-white">"{key}"</span>
+            <span className="text-[11px] text-slate-400 font-medium shrink-0">
+              ({popoverItems.length} {itemUnit})
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setActivePopover(null)}
+            className="text-slate-400 hover:text-white p-0.5 rounded cursor-pointer shrink-0"
+            title="Kapat"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
+
+        <div className="max-h-52 overflow-y-auto custom-scrollbar space-y-1 pr-0.5">
+          {popoverItems.length === 0 ? (
+            <div className="py-3 text-center text-xs text-slate-500">
+              Kayıtlı {itemUnit} bulunamadı.
+            </div>
+          ) : (
+            popoverItems.map((item, idx) => (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => {
+                  setActivePopover(null);
+                  if (onSelectItem) {
+                    onSelectItem(item);
+                  }
+                }}
+                className="w-full text-left px-2.5 py-1.5 rounded-lg text-xs text-slate-200 hover:bg-blue-600/20 hover:text-blue-200 border border-transparent hover:border-blue-500/30 transition-all cursor-pointer flex items-center justify-between gap-2 group/item"
+                title={`${item.title} detayını görüntüle`}
+              >
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className="text-[11px] text-slate-400 font-mono font-medium group-hover/item:text-blue-400 shrink-0">
+                    {idx + 1}.
+                  </span>
+                  <span className="truncate font-medium">{item.title}</span>
+                </div>
+                {typeof item.rating === 'number' && item.rating > 0 && !isPlannedItem(item) && (
+                  <span className="text-amber-300 font-bold text-[11px] shrink-0">
+                    ★ {item.rating}
+                  </span>
+                )}
+              </button>
+            ))
+          )}
+        </div>
+      </div>
+    );
+  };
 
   return (
     <div
@@ -383,7 +488,7 @@ export const StatisticsModal: React.FC<StatisticsModalProps> = ({
                 </span>
                 <div className="mt-2 flex items-baseline gap-1.5">
                   <span className="text-2xl font-black text-white">{totalCount}</span>
-                  <span className="text-xs text-slate-400">öğe</span>
+                  <span className="text-xs text-slate-400">yapım</span>
                 </div>
               </div>
 
@@ -478,25 +583,40 @@ export const StatisticsModal: React.FC<StatisticsModalProps> = ({
                   <Tags className="w-3.5 h-3.5 text-blue-400" />
                   En Çok Tercih Edilen Türler
                 </span>
-                <span className="text-[10px] text-slate-500">Yapım Adedi</span>
+                <span className="text-[10px] text-slate-500">
+                  {isBook ? 'Kitap Adedi' : isGame ? 'Oyun Adedi' : 'Yapım Adedi'}
+                </span>
               </h3>
 
               {topGenres.length > 0 ? (
-                <div className="space-y-2.5 pt-1">
-                  {topGenres.map((g) => (
-                    <div key={g.name} className="space-y-1.5">
-                      <div className="flex items-center justify-between text-xs">
-                        <span className="font-medium text-slate-200">{g.name}</span>
-                        <span className="text-slate-400 font-semibold">{g.count} yapım</span>
+                <div className="space-y-2 pt-1">
+                  {topGenres.map((g) => {
+                    const isPopoverOpen = activePopover?.type === 'genre' && activePopover?.key === g.name;
+                    return (
+                      <div
+                        key={g.name}
+                        className="relative flex items-center justify-between p-2 rounded-xl bg-white/5 border border-white/5 text-xs hover:border-white/15 transition-all cursor-pointer group"
+                        onClick={(e) => togglePopover('genre', g.name, e)}
+                      >
+                        <span className="font-medium text-slate-200 group-hover:text-blue-300 transition-colors truncate pr-2">
+                          {g.name}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={(e) => togglePopover('genre', g.name, e)}
+                          className={`px-2 py-0.5 rounded-md text-xs font-medium transition-all cursor-pointer shrink-0 ${
+                            isPopoverOpen
+                              ? 'bg-blue-600 text-white shadow-sm ring-1 ring-blue-400'
+                              : 'bg-white/10 text-slate-300 group-hover:bg-blue-500/20 group-hover:text-blue-300 border border-transparent hover:border-blue-400/30'
+                          }`}
+                          title={`Bu türdeki ${itemUnit}ları gör`}
+                        >
+                          {g.count} {itemUnit}
+                        </button>
+                        {renderPopover('genre', g.name)}
                       </div>
-                      <div className="h-1.5 rounded-full bg-white/10 overflow-hidden">
-                        <div
-                          className="h-full bg-gradient-to-r from-blue-500 to-cyan-400 rounded-full"
-                          style={{ width: `${(g.count / maxGenreCount) * 100}%` }}
-                        />
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               ) : (
                 <p className="text-xs text-slate-500 italic py-4 text-center">
@@ -521,20 +641,36 @@ export const StatisticsModal: React.FC<StatisticsModalProps> = ({
 
               {(isBook ? topAuthors : !isGame ? topFirms : topDevelopers).length > 0 ? (
                 <div className="space-y-2 pt-1">
-                  {(isBook ? topAuthors : !isGame ? topFirms : topDevelopers).map((st) => (
-                    <div
-                      key={st.name}
-                      className="flex items-center justify-between p-2 rounded-xl bg-white/5 border border-white/5 text-xs hover:border-white/15 transition-all"
-                    >
-                      <span className="font-semibold text-slate-200">{st.name}</span>
-                      <div className="flex items-center gap-2">
-                        <span className="px-2 py-0.5 rounded-md bg-white/10 text-slate-300 font-medium">
-                          {st.count} {isBook ? 'kitap' : 'yapım'}
+                  {(isBook ? topAuthors : !isGame ? topFirms : topDevelopers).map((st) => {
+                    const isPopoverOpen = activePopover?.type === studioFieldKey && activePopover?.key === st.name;
+                    return (
+                      <div
+                        key={st.name}
+                        className="relative flex items-center justify-between p-2 rounded-xl bg-white/5 border border-white/5 text-xs hover:border-white/15 transition-all cursor-pointer group"
+                        onClick={(e) => togglePopover(studioFieldKey, st.name, e)}
+                      >
+                        <span className="font-semibold text-slate-200 group-hover:text-blue-300 transition-colors truncate pr-2">
+                          {st.name}
                         </span>
-                        <span className="text-amber-300 font-bold">★ {st.avgScore}</span>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <button
+                            type="button"
+                            onClick={(e) => togglePopover(studioFieldKey, st.name, e)}
+                            className={`px-2 py-0.5 rounded-md text-xs font-medium transition-all cursor-pointer ${
+                              isPopoverOpen
+                                ? 'bg-blue-600 text-white shadow-sm ring-1 ring-blue-400'
+                                : 'bg-white/10 text-slate-300 group-hover:bg-blue-500/20 group-hover:text-blue-300 border border-transparent hover:border-blue-400/30'
+                            }`}
+                            title="Bu öğeleri gör"
+                          >
+                            {st.count} {itemUnit}
+                          </button>
+                          <span className="text-amber-300 font-bold">★ {st.avgScore}</span>
+                        </div>
+                        {renderPopover(studioFieldKey, st.name)}
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               ) : (
                 <p className="text-xs text-slate-500 italic py-4 text-center">
@@ -549,7 +685,7 @@ export const StatisticsModal: React.FC<StatisticsModalProps> = ({
           </div>
 
           {/* 4. MEDIA SPECIFIC: DIRECTORS & ACTORS */}
-          {!isGame && (
+          {activeTab === 'media' && (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {/* Top Directors */}
               <div className="p-5 rounded-2xl bg-white/5 border border-white/10 space-y-3">
@@ -562,18 +698,36 @@ export const StatisticsModal: React.FC<StatisticsModalProps> = ({
                 </h3>
                 {topDirectors.length > 0 ? (
                   <div className="space-y-2 pt-1">
-                    {topDirectors.map((d) => (
-                      <div
-                        key={d.name}
-                        className="flex items-center justify-between p-2 rounded-xl bg-white/5 text-xs"
-                      >
-                        <span className="text-slate-200 font-medium">{d.name}</span>
-                        <div className="flex items-center gap-2">
-                          <span className="text-slate-400 font-semibold">{d.count} yapım</span>
-                          <span className="text-amber-300 font-bold">★ {d.avgScore}</span>
+                    {topDirectors.map((d) => {
+                      const isPopoverOpen = activePopover?.type === 'director' && activePopover?.key === d.name;
+                      return (
+                        <div
+                          key={d.name}
+                          className="relative flex items-center justify-between p-2 rounded-xl bg-white/5 border border-white/5 hover:border-white/15 text-xs transition-all cursor-pointer group"
+                          onClick={(e) => togglePopover('director', d.name, e)}
+                        >
+                          <span className="text-slate-200 font-medium group-hover:text-blue-300 transition-colors truncate pr-2">
+                            {d.name}
+                          </span>
+                          <div className="flex items-center gap-2 shrink-0">
+                            <button
+                              type="button"
+                              onClick={(e) => togglePopover('director', d.name, e)}
+                              className={`px-2 py-0.5 rounded-md text-xs font-medium transition-all cursor-pointer ${
+                                isPopoverOpen
+                                  ? 'bg-blue-600 text-white shadow-sm ring-1 ring-blue-400'
+                                  : 'bg-white/10 text-slate-300 group-hover:bg-blue-500/20 group-hover:text-blue-300 border border-transparent hover:border-blue-400/30'
+                              }`}
+                              title="Bu yönetmenin yapımlarını gör"
+                            >
+                              {d.count} yapım
+                            </button>
+                            <span className="text-amber-300 font-bold">★ {d.avgScore}</span>
+                          </div>
+                          {renderPopover('director', d.name)}
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 ) : (
                   <p className="text-xs text-slate-500 italic py-2 text-center">
@@ -593,22 +747,143 @@ export const StatisticsModal: React.FC<StatisticsModalProps> = ({
                 </h3>
                 {topActors.length > 0 ? (
                   <div className="space-y-2 pt-1">
-                    {topActors.map((a) => (
-                      <div
-                        key={a.name}
-                        className="flex items-center justify-between p-2 rounded-xl bg-white/5 text-xs"
-                      >
-                        <span className="text-slate-200 font-medium">{a.name}</span>
-                        <div className="flex items-center gap-2">
-                          <span className="text-slate-400 font-semibold">{a.count} yapım</span>
-                          <span className="text-amber-300 font-bold">★ {a.avgScore}</span>
+                    {topActors.map((a) => {
+                      const isPopoverOpen = activePopover?.type === 'actors' && activePopover?.key === a.name;
+                      return (
+                        <div
+                          key={a.name}
+                          className="relative flex items-center justify-between p-2 rounded-xl bg-white/5 border border-white/5 hover:border-white/15 text-xs transition-all cursor-pointer group"
+                          onClick={(e) => togglePopover('actors', a.name, e)}
+                        >
+                          <span className="text-slate-200 font-medium group-hover:text-blue-300 transition-colors truncate pr-2">
+                            {a.name}
+                          </span>
+                          <div className="flex items-center gap-2 shrink-0">
+                            <button
+                              type="button"
+                              onClick={(e) => togglePopover('actors', a.name, e)}
+                              className={`px-2 py-0.5 rounded-md text-xs font-medium transition-all cursor-pointer ${
+                                isPopoverOpen
+                                  ? 'bg-blue-600 text-white shadow-sm ring-1 ring-blue-400'
+                                  : 'bg-white/10 text-slate-300 group-hover:bg-blue-500/20 group-hover:text-blue-300 border border-transparent hover:border-blue-400/30'
+                              }`}
+                              title="Bu oyuncunun yapımlarını gör"
+                            >
+                              {a.count} yapım
+                            </button>
+                            <span className="text-amber-300 font-bold">★ {a.avgScore}</span>
+                          </div>
+                          {renderPopover('actors', a.name)}
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 ) : (
                   <p className="text-xs text-slate-500 italic py-2 text-center">
                     Henüz oyuncu etiketi bulunmuyor.
+                  </p>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* 4. BOOK SPECIFIC: PUBLISHERS & TRANSLATORS */}
+          {activeTab === 'book' && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Top Publishers */}
+              <div className="p-5 rounded-2xl bg-white/5 border border-white/10 space-y-3">
+                <h3 className="text-xs uppercase tracking-wider font-bold text-slate-300 flex items-center justify-between">
+                  <span className="flex items-center gap-1.5">
+                    <BookMarked className="w-3.5 h-3.5 text-amber-400" />
+                    Öne Çıkan Yayınevleri
+                  </span>
+                  <span className="text-[10px] text-slate-500">Adet / Ort. Puan</span>
+                </h3>
+                {topPublishers.length > 0 ? (
+                  <div className="space-y-2 pt-1">
+                    {topPublishers.map((p) => {
+                      const isPopoverOpen = activePopover?.type === 'publisher' && activePopover?.key === p.name;
+                      return (
+                        <div
+                          key={p.name}
+                          className="relative flex items-center justify-between p-2 rounded-xl bg-white/5 border border-white/5 hover:border-white/15 text-xs transition-all cursor-pointer group"
+                          onClick={(e) => togglePopover('publisher', p.name, e)}
+                        >
+                          <span className="text-slate-200 font-medium group-hover:text-blue-300 transition-colors truncate pr-2">
+                            {p.name}
+                          </span>
+                          <div className="flex items-center gap-2 shrink-0">
+                            <button
+                              type="button"
+                              onClick={(e) => togglePopover('publisher', p.name, e)}
+                              className={`px-2 py-0.5 rounded-md text-xs font-medium transition-all cursor-pointer ${
+                                isPopoverOpen
+                                  ? 'bg-blue-600 text-white shadow-sm ring-1 ring-blue-400'
+                                  : 'bg-white/10 text-slate-300 group-hover:bg-blue-500/20 group-hover:text-blue-300 border border-transparent hover:border-blue-400/30'
+                              }`}
+                              title="Bu yayınevinin kitaplarını gör"
+                            >
+                              {p.count} kitap
+                            </button>
+                            <span className="text-amber-300 font-bold">★ {p.avgScore}</span>
+                          </div>
+                          {renderPopover('publisher', p.name)}
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <p className="text-xs text-slate-500 italic py-2 text-center">
+                    Henüz yayınevi etiketi bulunmuyor.
+                  </p>
+                )}
+              </div>
+
+              {/* Top Translators */}
+              <div className="p-5 rounded-2xl bg-white/5 border border-white/10 space-y-3">
+                <h3 className="text-xs uppercase tracking-wider font-bold text-slate-300 flex items-center justify-between">
+                  <span className="flex items-center gap-1.5">
+                    <Languages className="w-3.5 h-3.5 text-sky-400" />
+                    Öne Çıkan Çevirmenler
+                  </span>
+                  <span className="text-[10px] text-slate-500">Adet / Ort. Puan</span>
+                </h3>
+                {topTranslators.length > 0 ? (
+                  <div className="space-y-2 pt-1">
+                    {topTranslators.map((t) => {
+                      const isPopoverOpen = activePopover?.type === 'translator' && activePopover?.key === t.name;
+                      return (
+                        <div
+                          key={t.name}
+                          className="relative flex items-center justify-between p-2 rounded-xl bg-white/5 border border-white/5 hover:border-white/15 text-xs transition-all cursor-pointer group"
+                          onClick={(e) => togglePopover('translator', t.name, e)}
+                        >
+                          <span className="text-slate-200 font-medium group-hover:text-blue-300 transition-colors truncate pr-2">
+                            {t.name}
+                          </span>
+                          <div className="flex items-center gap-2 shrink-0">
+                            <button
+                              type="button"
+                              onClick={(e) => togglePopover('translator', t.name, e)}
+                              className={`px-2 py-0.5 rounded-md text-xs font-medium transition-all cursor-pointer ${
+                                isPopoverOpen
+                                  ? 'bg-blue-600 text-white shadow-sm ring-1 ring-blue-400'
+                                  : 'bg-white/10 text-slate-300 group-hover:bg-blue-500/20 group-hover:text-blue-300 border border-transparent hover:border-blue-400/30'
+                              }`}
+                              title="Bu çevirmenin kitaplarını gör"
+                            >
+                              {t.count} kitap
+                            </button>
+                            <span className="text-amber-300 font-bold">★ {t.avgScore}</span>
+                          </div>
+                          {renderPopover('translator', t.name)}
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <p className="text-xs text-slate-500 italic py-2 text-center">
+                    Henüz çevirmen etiketi bulunmuyor.
                   </p>
                 )}
               </div>

@@ -261,13 +261,13 @@ Kurallar:
 4. "publishers": Türkiye'de bu kitabın en bilinen/yaygın yayınevi veya orijinal yayıncısı (dizi olarak, örn: ["İş Bankası Kültür Yayınları", "Can Yayınları", "İthaki Yayınları"]). Mevcut yayınevi havuzundaki isimler önceliklidir.
 5. "translators": Varsa en popüler Türkçe çevirmen(ler)i (örn: ["Mazlum Beyhan"]). Türk edebiyatı ise veya çevirmeni yoksa boş dizi [] bırak. Mevcut çevirmen havuzu önceliklidir.
 6. "characters": Kitaptaki en önemli ana ve olay örgüsünü taşıyan kilit yan karakterler (en fazla 12 adet, eserin derinliğine ve kapsamına göre; zorla 12'ye tamamlama veya önemsiz figüranları ekleme). Her karakter için: "name" (Karakterin adı) ve "actor" alanına karakterin romandaki öz rolü/kimliği (EN FAZLA 2-4 KELİME, kısa ve öz; örn: "Eski Hukuk Öğrencisi", "Özel Dedektif", "Müfettiş", "Bakanlık Memuru", "Köy Muhtarı", "Ağabeyi"). Asla uzun cümle veya paragraf yazma, sadece kısa unvan/rol yaz.
-7. "description": LORE ANLATI KÜRATÖRÜ SİNOPSİS ALGORİTMASI:
-   - Sen bir pazarlamacı veya arka kapak yazarı değilsin. "Harika", "başyapıt", "sarsıcı", "okuyucuyu büyülüyor" gibi boş ve yapay övgüler KESİNLİKLE YASAKTIR. Sadece HİKAYE, DÜNYA ve KARAKTER anlatılır.
-   - SPOILER SINIRI: Kitabın ilk 1/3'lük diliminin ötesindeki sürpriz gelişmeler veya final asla ifşa edilemez.
-   - Paragraf Mimarisi (Aralarında çift satır sonu \n\n olan 2 ya da 3 ayrı paragraf, toplam 120-220 kelime):
-     * 1. Paragraf (Dünya Düzeni & Kırılma): Karakter kimdir, hangi dönemde/evrende yaşar ve hayatının olağan akışı hangi kritik kararla, fikirle veya olayla rayından çıkar?
-     * 2. Paragraf (Ana Çatışma & Karakterin Bedeli): Karakter neyle yüzleşmek zorundadır, karşısındaki varoluşsal/ahlaki kriz nedir, neyi kaybetme tehlikesiyle karşı karşıyadır?
-     * 3. Paragraf (Atmosfer, Ton & Bırakılan İz): Eserin edebi temposunu, psikolojik/felsefi ağırlığını ve okuyucuda bıraktığı derin duygusal tonu özetleyen güçlü kapanış.
+7. "description": KİTAP EDEBİ VE FELSEFİ HAFIZA ÖZETİ:
+   - Kitabın edebi derinliğini, karakterin iç dünyasını ve eserin felsefi/tematik özünü detaylıca aktaran kapsamlı bir kütüphane özeti yaz (Aralarında çift satır sonu \n\n olan 2 ya da 3 ayrı paragraf, toplam 120-180 kelime).
+   - 1. Paragraf (Karakter & Dünya): Karakter kimdir, hangi toplumda/dönemde yaşar ve hayatını değiştiren ilk karar/olay nedir?
+   - 2. Paragraf (Çatışma & Olay Örgüsü): Karşılaştığı ana ahlaki, felsefi veya toplumsal çatışma nedir, olaylar nasıl gelişir?
+   - 3. Paragraf (Ana Fikir & İz): Eserin vardığı nihai nokta, işlediği ana fikir ve okuyucuda bıraktığı düşünsel/edebi miras.
+   - SPOILER KURALI: Bu kitap kullanıcının kütüphanesindedir; dolayısıyla yapay bir spoiler kısıtlaması uygulama. Eserin düşünsel sonucunu, ana düğümünü ve gidişatını açıkça aktar.
+   - BOŞ ÖVGÜ YASAĞI: "Büyüleyici bir başyapıt", "muhteşem bir klasik" gibi eleştirmen övgüleri yasaktır; sadece fikirler, olay örgüsü ve karakter konuşur.
 8. KESİNLİKLE DOLDURULMAYACAK ALANLAR: Sayfa sayısı, alıntılar/sözler, seri adı veya okuma durumunu KESİNLİKLE JSON'a ekleme.
 
 Çıktıyı YALNIZCA aşağıdaki JSON şemasına uygun olarak üret:
@@ -306,14 +306,23 @@ Kurallar:
     : '"firms": Yapımcı şirketler veya stüdyolar (örn: ["HBO", "Warner Bros."]). Mevcut havuz öncelikli.\n"directors": Yönetmen(ler) (Dizilerde ve filmlerde ana yönetmenleri/yaratıcıları en az 1-3 kişi eksiksiz listele, tek kişiyle geçiştirme). Mevcut havuz öncelikli.\n"actors": Başrol oyuncuları veya seslendirme sanatçıları (dizi olarak, örn: ["Bryan Cranston", "Aaron Paul"]). Mevcut havuz öncelikli.'
 }
 4. "characters": Öne çıkan en popüler ana karakterler (en fazla 8 adet). Karakterin adı ("name") ve canlandıran/seslendiren ("actor").
-5. "description": LORE ANLATI KÜRATÖRÜ SİNOPSİS ALGORİTMASI (konu_derinligi.tsx):
-   - Sen bir pazarlamacı değilsin. "Harika", "müthiş", "ödüllü", "ekran başına kilitliyor" gibi boş övgüler KESİNLİKLE YASAKTIR. Sadece HİKAYE, DÜNYA ve KARAKTER anlatılır.
-   - Video oyunu dahi olsa parkur, mekanik, grafik övgüsü gibi teknik detayları konuya sokma.
-   - SPOILER SINIRI: Hikayenin ilk 1/3'lük diliminin ötesindeki sürpriz gelişmeler veya final düğümleri asla ifşa edilemez.
-   - Paragraf Mimarisi (Aralarında çift satır sonu \\n\\n olan 2 ya da 3 ayrı paragraf, toplam 120-220 kelime):
-     * 1. Paragraf (Dünya Düzeni & Kırılma): Karakter kimdir, hangi evrende yaşar ve hayatının olağan akışı hangi kritik kararla veya olayla rayından çıkar?
-     * 2. Paragraf (Ana Çatışma & Karakterin Bedeli): Karakter neyle yüzleşmek zorundadır, karşısındaki varoluşsal kriz nedir, neyi kaybetme tehlikesiyle karşı karşıyadır?
-     * 3. Paragraf (Atmosfer, Ton & Bırakılan İz): Eserin temposunu, duygusal ağırlığını ve bıraktığı psikolojik/atmosferik tonu özetleyen güçlü kapanış.
+5. "description": ${
+  isGame
+    ? `OYUN KONUSU (STEAM / MAĞAZA TARZI DOĞAL ÖZET):
+   - Uzunluk: 1 veya 3 akıcı cümle (ortalama 30 - 80 kelime arası; minimalist oyunlarda tek net cümle yeterlidir, hikayeli büyük yapımlarda gerekirse 100 kelimeye kadar esneyebilir). Tek parça kompakt metin.
+   - Üslup: Tıpkı Steam veya konsol mağazası vitrini gibi; oyunun dünyasını, temel amacını ve oynanış ruhunu doğal ve akıcı bir dille özetle.
+   - KESİN YASAKLAR:
+     * "Bu oyun oyuncunun X yapmasını sağlar...", "Oyunda amaç..." gibi robotik cümle başlangıçları YASAKTIR.
+     * Boş reklam övgüleri ("kusursuz grafikler", "harika bir deneyim") yasaktır.`
+    : `MEDYA KONUSU (NETFLIX / LETTERBOXD TARZI DOĞAL SİNOPSİS):
+   - Uzunluk: 2 veya 4 akıcı cümle (ortalama 40 - 100 kelime arası; yapımın kapsamına göre gerekirse 100 kelimeyi biraz aşabilir). Tek parça kompakt metin.
+   - Üslup: Tıpkı Netflix veya Letterboxd sinopsisleri gibi; yapımın konusunu merak uyandıran, akıcı ve doğal bir dille özetle.
+   - KESİN YASAKLAR & SPOILER SINIRI:
+     * Finali, büyük son savaşı veya senaryonun sonunu ASLA dökme.
+     * "Hikayenin ana çatışması...", "Olaylar şöyle doruk noktasına ulaşır..." gibi yapay ödev kalıpları ve Wikipedia özet dili KESİNLİKLE YASAKTIR.
+     * Kuru ansiklopedi dili veya resmi kurum adları sayma.
+     * Boş reklam övgüleri ("ödüllü yapım", "harika oyunculuklar") yasaktır. Sadece hikaye ve karakter konuşur.`
+}
 6. Kişisel görüş, puan veya durum (izlendi/oynandı) EKLEME.
 
 Çıktıyı YALNIZCA aşağıdaki JSON şemasına uygun olarak üret:
@@ -324,7 +333,7 @@ Kurallar:
   "characters": [
     { "name": "Karakter Adı", "actor": "Oyuncu Adı" }
   ],
-  "description": "1. Paragraf: Karakter ve dünya düzeni...\\n\\n2. Paragraf: Ana çatışma ve bedel...\\n\\n3. Paragraf: Atmosfer ve duygusal iz..."
+  "description": ${isGame ? '"Steam vitrini gibi oyunun dünyasını ve oynanış ruhunu anlatan 1-3 net cümle (30-80 kelime)."' : '"Netflix/Letterboxd gibi merak uyandıran, akıcı ve doğal 2-4 cümlelik sinopsis (40-100 kelime)."'}
 }
 `;
     }
@@ -592,7 +601,7 @@ Kullanıcının kütüphanesini, izlediği/oynadığı/okuduğu yapımları ve k
 1. ANLATI KÜRATÖRÜ ROLÜ & KESİN YASAKLAR (konu_derinligi.tsx)
 ======================================================================
 - SEN KİMSİN: Sen bir pazarlamacı, reklam metin yazarı veya fragman seslendirmeni DEĞİLSİN.
-- BOŞ ÖVGÜ YASAĞI: "Bu yapım çok güzel", "seni koltuğa çivileyecek", "sinema tarihinin en iyi deneyimi", "ödüllü başyapıt", "harika oyunculuklar" gibi reklam klişeleri KESİNLİKLE YASAKTIR. Sadece HİKAYE, DÜNYA, KARAKTER ve ATMOSFER konuşur.
+- BOŞ ÖVGÜ YASAĞI: "Bu yapım çok güzel", "seni koltuğa çivileyecek", "sinema tarihinin en iyi deneyimi", "ödüllü başyapıt", "harika oyunculuklar", "tıkır tıkır çalışan bir saat mekanizması gibi" şeklindeki reklam klişeleri ve boş eleştirmen övgüleri KESİNLİKLE YASAKTIR. Sadece HİKAYE, DÜNYA, KARAKTER ve ATMOSFER konuşur.
 - OYUN MEKANİĞİ YASAĞI: Video oyunu önerilerinde dahi "akrobatik parkur, akıcı nişancılık, bölüm tasarımı" gibi oynanış tekniklerini konuya sokma. Konu yalnızca karakterin hikayesine ve evrene odaklanır.
 - SPOILER KIRMIZI ÇİZGİSİ: Hikayenin ilk 1/3'lük diliminin ötesindeki sürpriz gelişmeler, final düğümleri veya gizli kimlikler (Örn: Arrival'daki zaman kavramı veya benzeri twistler) ASLA ifşa edilemez.
 
@@ -611,14 +620,25 @@ Kullanıcının kütüphanesini, izlediği/oynadığı/okuduğu yapımları ve k
   2. Tüm öneri yapımlarını, künyelerini, kancalarını, 3 paragraflık derin sinopsislerini ve gerekçelerini YALNIZCA VE YALNIZCA mesajının en sonundaki \`\`\`recommendation-cards JSON DİZİSİ içine yaz!
 
 ======================================================================
-3. KÜTÜPHANE, ZEVK VE OYUNCU KURALLARI:
+3. KÜTÜPHANE, BEKLEME LİSTESİ VE ZEVK KURALLARI:
 ======================================================================
-- PUANLAMA VE BEĞENİ HİYERARŞİSİ: Kullanıcı 10 puanı çok nadir ve elit bir seçicilikle verir. 9 ve 10 puanlar ile S-Tier kullanıcının zirve başyapıtlarıdır. 8 PUANLAR ise kullanıcının çok severek deneyimlediği, yüksek kaliteli 'Güçlü Çekirdek Beğeni' standardıdır (özellikle oyunlarda ve dizilerde asıl zengin zevk pusulası 8 puanlı yapımlardır). 1 puan kütüphanede devam eden yapımlardır ve nötrdür. 2 ila 5 puanlar ise negatif filtredir.
-- Kütüphanede zaten var olan yapımları tekrar önerme.
+- BEKLEME LİSTESİ ÇİFT TARAFLI KORUMA KALKANI (LUCY VE SHAPEZ 2 KURALI):
+  [KÜTÜPHANEDE SIRADA BEKLEYENLER] bloğundaki yapımlar kullanıcının bekleme listesindedir (İzlenecek, Oynanacak veya Okunacak).
+  1. Kural (Zevk Analizi Yasağı): Bu yapımlar henüz tüketilmemiştir. Kullanıcının zevkini bunlara bakarak ASLA analiz etme ve "bunu çok sevdiğin için", "buna verdiğin puana göre" gibi referanslar KESİNLİKLE VERME!
+  2. Kural (Tekrar Öneri Yasağı): Bu yapımlar zaten kullanıcının kütüphanesindedir. Bu yapımların hiçbirini kullanıcıya YENİ BİR ÖNERİ olarak ASLA sunma!
+
+- PUANLAMA VE BEĞENİ HİYERARŞİSİ: Kullanıcı 10 puanı çok nadir ve elit bir seçicilikle verir. 9 ve 10 puanlar ile S-Tier kullanıcının zirve başyapıtlarıdır. 8 PUANLAR ise kullanıcının çok severek deneyimlediği, yüksek kaliteli 'Güçlü Çekirdek Beğeni' standardıdır (özellikle oyunlarda ve dizilerde asıl zengin zevk pusulası 8 puanlı yapımlardır).
+- PUANSIZ YAPIMLAR (UNRATED): Kullanıcı tamamladığı bazı yapımlara puan vermeyebilir (Puan: Belirtilmedi). Puan verilmemiş olması eserin sevilmediği anlamına gelmez; eserin türü, dünyası ve yaratıcıları kullanıcının ilgi alanına dahildir. Bu yapımları asla beğenilmemiş sayma.
+- YARIM BIRAKILANLAR (DROPPED): Negatif pusuladır; neden bırakıldığına bakılarak benzer sıkıcı/yavaş unsurlardan kaçınılır. Asla tekrar önerilmez.
+- 1 PUAN: Kütüphanede devam eden yapımlardır ve nötrdür. 2 ila 5 puanlar ise negatif filtredir.
+- Kütüphanede zaten var olan hiçbir yapımı tekrar önerme.
 - OYUNCU VE KADRO ADLARI (KESİN KURAL): Kullanıcı en sevdiği oyuncuyu veya yönetmeni sorduğunda, sadece doğrudan o kişinin adını yaz (Örn: Leonardo DiCaprio, Matt Damon, Tom Hardy).
   ASLA aktör adlarının yanına parantez içinde ham id kodları veya yapım referansı (Örn: ([id: media_...|Film])) EKLEME!
   Sadece saf ve temiz aktör adını an.
-- DAMGA SİSTEMİ: Sohbet metninde veya "matchReason" içinde kütüphanedeki mevcut bir yapımdan bahsettiğinde MUTLAKA [[item:item-id|Yapım Adı]] formatında damgala. Yeni önerdiğin yapımları asla damgalama.
+- DAMGA SİSTEMİ DİSİPLİNİ:
+  Sohbet metninde veya tavsiye kartının "matchReason" (Gerekçe) alanında kütüphanedeki mevcut bir yapımdan bahsettiğinde MUTLAKA [[item:item-id|Yapım Adı]] formatında damgala.
+  Yeni önerdiğin yapımları ASLA damgalama.
+  "detailedDesc" (Konu) veya "shortDesc" alanlarında ise [[item:...]] damgası KULLANMAK KESİNLİKLE YASAKTIR!
 
 ======================================================================
 4. KART KONU MİMARİSİ VE ŞABLONU (konu_derinligi.tsx & öneri.tsx)
@@ -632,9 +652,9 @@ Kullanıcının kütüphanesini, izlediği/oynadığı/okuduğu yapımları ve k
     "mainTab": "media", "game" veya "book",
     "badge": "🎯 KÜTÜPHANE İMZASI",
     "matchScore": 94,
-    "shortDesc": "KAPALI KART VURUCU KANCASI (25-45 kelime, 1-2 akıcı cümle): Karakterin kimliği + huzuru bozan temel kırılma anı + ortaya çıkan gizem veya tehdit. Asla boş övgü yapma!",
-    "detailedDesc": "AÇIK KART DERİN SİNOPSİS (Aralarında çift satır sonu \\n\\n olan KESİNLİKLE 3 AYRI PARAGRAF, 120-220 kelime):\\n\\n1. Paragraf: Karakter kimdir, hangi evrende yaşar ve hayatının olağan akışı hangi kırılma anıyla rayından çıkar?\\n\\n2. Paragraf: Karakter neyle yüzleşmek zorundadır, karşısındaki varoluşsal kriz ve ahlaki ikilem nedir, neyi kaybetme tehlikesiyle karşı karşıyadır?\\n\\n3. Paragraf: Eserin temposunu, duygusal ağırlığını ve izleyicide bıraktığı psikolojik/atmosferik tonu özetleyen güçlü kapanış. (NOT: Asla 1 veya 2 paragrafa düşürme; kesinlikle aralarında boşluk olan 3 ayrı paragraf üret!)",
-    "matchReason": "KÜTÜPHANE VE ZEVK BAĞLANTISI: Bu yapımın kullanıcının kütüphanesindeki [[item:id|Mevcut Yapım]] sevgisine ve puanlarına dayanma gerekçesi.",
+    "shortDesc": "KAPALI KART VURUCU KANCASI (25-45 kelime, 1-2 akıcı cümle): Karakterin kimliği + huzuru bozan temel kırılma anı + ortaya çıkan gizem veya tehdit. Asla boş övgü yapma! Asla [[item:...]] damgası koyma!",
+    "detailedDesc": "AÇIK KART DERİN SİNOPSİS (Aralarında çift satır sonu \\n\\n olan KESİNLİKLE 3 AYRI PARAGRAF, 120-220 kelime):\\n\\n1. Paragraf: Karakter kimdir, hangi evrende yaşar ve hayatının olağan akışı hangi kırılma anıyla rayından çıkar?\\n\\n2. Paragraf: Karakter neyle yüzleşmek zorundadır, karşısındaki varoluşsal kriz ve ahlaki ikilem nedir, neyi kaybetme tehlikesiyle karşı karşıyadır?\\n\\n3. Paragraf: Eserin temposunu, duygusal ağırlığını ve izleyicide bıraktığı psikolojik/atmosferik tonu özetleyen güçlü kapanış. (NOT: Asla boş eleştirmen övgüsü yapma; 'tıkır tıkır çalışan saat mekanizması' gibi laflar etme; yalnızca eserin yarattığı atmosferi ve izi anlat! Kesinlikle aralarında boşluk olan 3 ayrı paragraf üret! Asla [[item:...]] damgası koyma!)",
+    "matchReason": "KÜTÜPHANE VE ZEVK BAĞLANTISI (DOĞAL VE AKICI DİL): Bu yapımın kullanıcının kütüphanesindeki tüketilmiş [[item:id|Mevcut Yapım]] sevgisine ve tematik ortaklığına dayanma gerekçesi.",
     "directors": ["Yönetmen Adı (Medya)"],
     "firms": ["Yapımcı Stüdyo (Medya)"],
     "developers": ["Geliştirici Stüdyo (Sadece Oyunlar)"],
@@ -646,18 +666,23 @@ Kullanıcının kütüphanesini, izlediği/oynadığı/okuduğu yapımları ve k
   }
 ]
 \`\`\`
+- GEREKÇE (matchReason) DİLİ REHBERİ:
+  Robotik ve tekdüze kalıplar kesinlikle yasaktır!
+  ❌ Kötü Örnek: "Looper'a verdiğin yüksek puana dayanarak bu zaman yolculuğu filmini öneriyorum."
+  ✅ İyi Örnek: "[[item:media_123|Looper]]'daki neden-sonuç paradokslarını ve soğuk distopik kurguyu sevdiğin için, bu yapımın zaman çizgisi kırılmaları tam senin aradığın zihinsel düğümü sunacaktır."
 - Rozetler ("badge"):
   * "🎯 KÜTÜPHANE İMZASI" (matchScore: 85 - 99): Zirve yapımlarla ve favorilerle doğrudan organik bağlı.
   * "🌀 FARKLI BİR TAT" (matchScore: 60 - 85): Sevilen temaların kıyısında, yeni bir alt tür veya üslup getiren.
   * "🔮 SIRADIŞI KEŞİF" (matchScore: 70 - 90): Kütüphanede az rastlanan ama kalite çıtasına birebir uyan kült/bağımsız yapımlar.
 - Kopya Yasağı: "detailedDesc", "shortDesc" kancasını asla tekrar edemez.
+- Damga Sızıntısı Yasağı: "detailedDesc" ve "shortDesc" alanlarında BAŞKA BİR ESERDEN BAHSETMEK VE [[item:...]] DAMGASI KULLANMAK KESİNLİKLE YASAKTIR. Bu damga YALNIZCA "matchReason" alanında kullanılır.
 
 ======================================================================
 5. SIFIR TEKRAR GARANTİSİ & ÖNERİ HAFIZASI (Öneri hafızası.tsx)
 ======================================================================
 - SIFIR TEKRAR KURALI: Kullanıcıya daha önce sunulmuş, radarına alınmış, arşivlenmiş veya kara listeye alınmış yapımlar [DAHA ÖNCE ÖNERİLEN VE ASLA TEKRAR EDİLMEYECEK YAPIMLAR LİSTESİ] başlığıyla sunulmuştur.
 - BU LİSTEDEKİ HİÇBİR YAPIMI BİR DAHA ASLA YENİ BİR ÖNERİ OLARAK SUNMA VEYA KART OLARAK ÖNERME!
-- ZEVK METASI ÇIKARMAMA KURALI: Bu dışlama listesindeki yapımlardan "Kullanıcı bunu beğenmemiş" gibi soyut çıkarımlar YAPMA! Kullanıcının zevk pusulası yalnızca kendi kütüphanesindeki 9-10 puanlar, S/A Tier ve yarım bıraktıklarıdır. Bu havuzlar yalnızca "Zaten sunuldu, tekrar etme" filtresidir.`;
+- ZEVK METASI ÇIKARMAMA KURALI: Bu dışlama listesindeki yapımlardan "Kullanıcı bunu beğenmemiş" gibi soyut çıkarımlar YAPMA! Kullanıcının zevk pusulası yalnızca kendi kütüphanesindeki tüketilmiş 9-10 puanlar, S/A Tier ve yarım bıraktıklarıdır. Bu havuzlar yalnızca "Zaten sunuldu, tekrar etme" filtresidir.`;
 
   // Build conversation contents
   const recentHistory = chatHistory.slice(-6);

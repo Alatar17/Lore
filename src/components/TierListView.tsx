@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { ArchiveItem, Category, MainTabType, TierRow, TierListCardStyle } from '../types';
+import { ArchiveItem, Category, MainTabType, TierRow, TierListCardStyle, isPlannedItem } from '../types';
 import { DEFAULT_TIER_COLORS, MEDIA_COLORS, GAME_COLORS, BOOK_COLORS } from '../data/initialData';
 import { downloadTierListAsPng } from '../utils/tierImageExport';
 import {
@@ -159,6 +159,9 @@ export const TierListView: React.FC<TierListViewProps> = ({
   const catItems = useMemo(() => {
     return (items || []).filter((it) => {
       if (!it || it.mainTab !== mainTab || it.cat !== category?.id) return false;
+
+      // Henüz izlenmemiş, oynanmamış veya okunmamış (beklemedeki) yapımlar Tier List'e dahil edilmez
+      if (isPlannedItem(it)) return false;
 
       // 1. If currently viewing a specific subgroup (e.g. Medya > Anime > Dizi)
       if (activeSub) {

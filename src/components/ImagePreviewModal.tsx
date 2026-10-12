@@ -89,6 +89,7 @@ interface ImagePreviewModalProps {
   onEdit?: (item: ArchiveItem) => void;
   onSelectItem?: (item: ArchiveItem) => void;
   onClose: () => void;
+  onBadgeClick?: (badge: CustomBadge, item: ArchiveItem) => void;
 }
 
 function formatReleaseYear(yr?: number | string): string {
@@ -126,6 +127,7 @@ export const ImagePreviewModal: React.FC<ImagePreviewModalProps> = ({
   onEdit,
   onSelectItem,
   onClose,
+  onBadgeClick,
 }) => {
   const isGame = item.mainTab === 'game';
   const isBook = item.mainTab === 'book';
@@ -164,15 +166,19 @@ export const ImagePreviewModal: React.FC<ImagePreviewModalProps> = ({
     };
   }, []);
 
-  const handleBadgeClick = (e: React.MouseEvent, badgeId: string) => {
+  const handleBadgeClick = (e: React.MouseEvent, badge: CustomBadge) => {
     e.stopPropagation();
+    if (onBadgeClick) {
+      onBadgeClick(badge, item);
+      return;
+    }
     if (mobileBadgeTimerRef.current) {
       clearTimeout(mobileBadgeTimerRef.current);
     }
-    if (activeMobileBadgeId === badgeId) {
+    if (activeMobileBadgeId === badge.id) {
       setActiveMobileBadgeId(null);
     } else {
-      setActiveMobileBadgeId(badgeId);
+      setActiveMobileBadgeId(badge.id);
       mobileBadgeTimerRef.current = setTimeout(() => {
         setActiveMobileBadgeId(null);
       }, 2500);
@@ -738,6 +744,25 @@ export const ImagePreviewModal: React.FC<ImagePreviewModalProps> = ({
               </div>
             )}
 
+            {/* Rozet Arka Planı: Yumuşak Tül Gölge Yastığı (Yalnızca rozet varsa ve rozet adedine göre dinamik uzar) */}
+            {assignedBadges.length > 0 && (
+              <div
+                className={`absolute top-0 right-0 pointer-events-none z-[15] transition-all duration-300 ${
+                  assignedBadges.length === 1
+                    ? (!isPlanned && item.rating > 0 ? 'h-[100px]' : 'h-[72px]')
+                    : assignedBadges.length === 2
+                    ? (!isPlanned && item.rating > 0 ? 'h-[155px]' : 'h-[127px]')
+                    : assignedBadges.length === 3
+                    ? (!isPlanned && item.rating > 0 ? 'h-[210px]' : 'h-[182px]')
+                    : (!isPlanned && item.rating > 0 ? 'h-[265px]' : 'h-[237px]')
+                } w-[68px] sm:w-[76px]`}
+                style={{
+                  background:
+                    'radial-gradient(ellipse at 100% 0%, rgba(0,0,0,0.40) 0%, rgba(0,0,0,0.20) 35%, rgba(0,0,0,0.04) 60%, rgba(0,0,0,0) 80%, transparent 100%)',
+                }}
+              />
+            )}
+
             {/* ROZET 1 - SOL ÜST: İzlenme / Tamamlama Tarihi (Takvim ikonu kaldırıldı, GG.AA.YYYY formatı - Hidden for -ecek and -yor) */}
             {Boolean(displayDate) && (
               <div className="absolute top-2.5 left-2.5 z-20 pointer-events-none">
@@ -751,7 +776,7 @@ export const ImagePreviewModal: React.FC<ImagePreviewModalProps> = ({
             )}
 
             {/* ROZET 2 - SAĞ ÜST: Puan ve Altında Dikey Asılı Özel Rozetler */}
-            <div className="absolute top-2.5 right-2.5 z-20 flex flex-col items-end gap-1.5 pointer-events-none">
+            <div className="absolute top-2.5 right-2.5 z-20 flex flex-col items-center gap-1.5 pointer-events-none">
               {!isPlanned && item.rating > 0 && (
                 <div className="px-2.5 py-1 rounded-lg bg-black/85 backdrop-blur-md border border-amber-500/40 text-xs font-black text-amber-300 flex items-center gap-1 shadow-lg pointer-events-auto">
                   <RatingBadgeIcon
@@ -762,9 +787,9 @@ export const ImagePreviewModal: React.FC<ImagePreviewModalProps> = ({
                 </div>
               )}
 
-              {/* Custom Badges (Maksimum 4 rozet, Puanın altında veya Puan yoksa en üstte) */}
+              {/* Custom Badges (Maksimum 4 rozet, Puan ile dikey eksende ortalı) */}
               {assignedBadges.length > 0 && (
-                <div className="flex flex-col items-end gap-1.5 pointer-events-auto">
+                <div className="flex flex-col items-center gap-1.5 pointer-events-auto">
                   {assignedBadges.map((badge) => {
                     const colorOpt = getBadgeColorOption(badge.color);
                     const isGlowActive = viewSettings?.badgeGlowEnabled !== false;
@@ -774,7 +799,8 @@ export const ImagePreviewModal: React.FC<ImagePreviewModalProps> = ({
                       <div
                         key={badge.id}
                         id={`preview-badge-${item.id}-${badge.id}`}
-                        onClick={(e) => handleBadgeClick(e, badge.id)}
+                        onClick={(e) => handleBadgeClick(e, badge)}
+                        title={`${badge.name} (Büyütmek için tıklayın)`}
                         className="group/badge relative pointer-events-auto cursor-pointer"
                       >
                         {/* Rozet Saf Şeffaf Madalya (Detay penceresi heybetli vitrin boyutu) */}
@@ -788,11 +814,12 @@ export const ImagePreviewModal: React.FC<ImagePreviewModalProps> = ({
                             alt={badge.name}
                             className="w-full h-full object-contain select-none transition-all duration-200"
                             style={{
+                              transform: badge.scale && badge.scale !== 1 ? `scale(${badge.scale})` : undefined,
                               filter: isGlowActive
                                 ? (isMobileActive
-                                    ? `drop-shadow(0 0 12px ${colorOpt.hex}) drop-shadow(0 0 24px ${colorOpt.hex}95) drop-shadow(0 3px 6px rgba(0,0,0,0.95))`
-                                    : `drop-shadow(0 0 8px ${colorOpt.hex}) drop-shadow(0 2px 5px rgba(0,0,0,0.85))`)
-                                : 'drop-shadow(0 2px 6px rgba(0,0,0,0.95)) drop-shadow(0 1px 3px rgba(0,0,0,0.9))',
+                                    ? `drop-shadow(0 0 2px rgba(0,0,0,0.98)) drop-shadow(0 0 4px rgba(0,0,0,0.85)) drop-shadow(0 0 12px ${colorOpt.hex}) drop-shadow(0 0 24px ${colorOpt.hex}95) drop-shadow(0 3px 6px rgba(0,0,0,0.95))`
+                                    : `drop-shadow(0 0 2px rgba(0,0,0,0.98)) drop-shadow(0 0 4px rgba(0,0,0,0.85)) drop-shadow(0 0 8px ${colorOpt.hex}) drop-shadow(0 2px 5px rgba(0,0,0,0.85))`)
+                                : 'drop-shadow(0 0 2px rgba(0,0,0,0.98)) drop-shadow(0 0 4px rgba(0,0,0,0.85)) drop-shadow(0 2px 6px rgba(0,0,0,0.95))',
                             }}
                             loading="lazy"
                           />
@@ -1425,6 +1452,25 @@ export const ImagePreviewModal: React.FC<ImagePreviewModalProps> = ({
               )}
               {/* Çok hafif, posteri karartmayan doğal dokunuş (Vinyet yumuşatıldı) */}
               <div className="absolute inset-0 bg-gradient-to-t from-black/35 via-transparent to-black/25 pointer-events-none" />
+
+              {/* Rozet Arka Planı: Yumuşak Tül Gölge Yastığı (Yalnızca rozet varsa ve rozet adedine göre dinamik uzar) */}
+              {assignedBadges.length > 0 && (
+                <div
+                  className={`absolute top-0 right-0 pointer-events-none z-10 transition-all duration-300 ${
+                    assignedBadges.length === 1
+                      ? (!isPlanned && item.rating > 0 ? 'h-[96px]' : 'h-[70px]')
+                      : assignedBadges.length === 2
+                      ? (!isPlanned && item.rating > 0 ? 'h-[150px]' : 'h-[124px]')
+                      : assignedBadges.length === 3
+                      ? (!isPlanned && item.rating > 0 ? 'h-[204px]' : 'h-[178px]')
+                      : (!isPlanned && item.rating > 0 ? 'h-[258px]' : 'h-[232px]')
+                  } w-[65px]`}
+                  style={{
+                    background:
+                      'radial-gradient(ellipse at 100% 0%, rgba(0,0,0,0.40) 0%, rgba(0,0,0,0.20) 35%, rgba(0,0,0,0.04) 60%, rgba(0,0,0,0) 80%, transparent 100%)',
+                  }}
+                />
+              )}
             </div>
 
             {/* Front Top Badges */}
@@ -1439,7 +1485,7 @@ export const ImagePreviewModal: React.FC<ImagePreviewModalProps> = ({
               </div>
 
               {/* Sağ Üst: Puan ve Altında Dikey Asılı Özel Rozetler */}
-              <div className="flex flex-col items-end gap-1.5 z-20">
+              <div className="flex flex-col items-center gap-1.5 z-20">
                 {!isPlanned && item.rating > 0 && (
                   <span className="px-2.5 py-1 rounded-lg bg-black/85 backdrop-blur-md border border-amber-500/50 text-xs font-black text-amber-300 flex items-center gap-1 shadow">
                     <RatingBadgeIcon
@@ -1450,9 +1496,9 @@ export const ImagePreviewModal: React.FC<ImagePreviewModalProps> = ({
                   </span>
                 )}
 
-                {/* Custom Badges (Maksimum 4 rozet) */}
+                {/* Custom Badges (Maksimum 4 rozet, Puan ile dikey eksende ortalı) */}
                 {assignedBadges.length > 0 && (
-                  <div className="flex flex-col items-end gap-1.5">
+                  <div className="flex flex-col items-center gap-1.5">
                     {assignedBadges.map((badge) => {
                       const colorOpt = getBadgeColorOption(badge.color);
                       const isGlowActive = viewSettings?.badgeGlowEnabled !== false;
@@ -1462,12 +1508,13 @@ export const ImagePreviewModal: React.FC<ImagePreviewModalProps> = ({
                         <div
                           key={badge.id}
                           id={`mobile-preview-badge-${item.id}-${badge.id}`}
-                          onClick={(e) => handleBadgeClick(e, badge.id)}
+                          onClick={(e) => handleBadgeClick(e, badge)}
+                          title={`${badge.name} (Büyütmek için tıklayın)`}
                           className="group/badge relative cursor-pointer"
                         >
-                          {/* Rozet Saf Şeffaf Madalya (Kutusuz & Belirgin Organik Glow) */}
+                          {/* Rozet Saf Şeffaf Madalya (Mobil detay vitrini: 50px heybetli madalya boyutu) */}
                           <div
-                            className={`w-9.5 h-9.5 sm:w-10 sm:h-10 flex items-center justify-center transition-all duration-200 ease-out select-none active:scale-95 ${
+                            className={`w-[50px] h-[50px] flex items-center justify-center transition-all duration-200 ease-out select-none active:scale-95 ${
                               isMobileActive ? 'scale-115' : ''
                             }`}
                           >
@@ -1476,11 +1523,12 @@ export const ImagePreviewModal: React.FC<ImagePreviewModalProps> = ({
                               alt={badge.name}
                               className="w-full h-full object-contain select-none transition-all duration-200"
                               style={{
+                                transform: badge.scale && badge.scale !== 1 ? `scale(${badge.scale})` : undefined,
                                 filter: isGlowActive
                                   ? (isMobileActive
-                                      ? `drop-shadow(0 0 10px ${colorOpt.hex}) drop-shadow(0 0 20px ${colorOpt.hex}95) drop-shadow(0 3px 6px rgba(0,0,0,0.95))`
-                                      : `drop-shadow(0 0 6px ${colorOpt.hex}) drop-shadow(0 2px 4px rgba(0,0,0,0.85))`)
-                                  : 'drop-shadow(0 2px 5px rgba(0,0,0,0.9))',
+                                      ? `drop-shadow(0 0 2px rgba(0,0,0,0.98)) drop-shadow(0 0 4px rgba(0,0,0,0.85)) drop-shadow(0 0 12px ${colorOpt.hex}) drop-shadow(0 0 22px ${colorOpt.hex}95) drop-shadow(0 3px 6px rgba(0,0,0,0.95))`
+                                      : `drop-shadow(0 0 2px rgba(0,0,0,0.98)) drop-shadow(0 0 4px rgba(0,0,0,0.85)) drop-shadow(0 0 8px ${colorOpt.hex}) drop-shadow(0 2px 5px rgba(0,0,0,0.85))`)
+                                  : 'drop-shadow(0 0 2px rgba(0,0,0,0.98)) drop-shadow(0 0 4px rgba(0,0,0,0.85)) drop-shadow(0 2px 5px rgba(0,0,0,0.85))',
                               }}
                               loading="lazy"
                             />

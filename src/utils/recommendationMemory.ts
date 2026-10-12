@@ -260,19 +260,16 @@ export function clearArchivePool(
 /**
  * AI Prompt'una eklenecek negatif kısıt / hariç tutma dizesini oluşturan yardımcı:
  * [Tür] Başlık (Yıl)
- * Medya sekmesindeyken Oyun havuzu AI'a gönderilmez.
- * Oyun sekmesindeyken Medya havuzu AI'a gönderilmez.
+ * Kullanıcının aktif sekmesine bakılmaksızın; daha önce önerilmiş tüm yapımlar
+ * (film, dizi, anime, oyun, kitap) istisnasız AI'a iletilir. Böylece sıfır tekrar garantilenir.
  */
 export function formatExclusionListForPrompt(
   items: RecommendationMemoryItem[],
-  activeTab?: 'media' | 'game' | 'book'
+  _deprecatedActiveTab?: 'media' | 'game' | 'book'
 ): string {
-  // Aktif sekmeye göre filtreleme
-  const filtered = activeTab ? items.filter((it) => it.mainTab === activeTab) : items;
+  if (!items || items.length === 0) return '';
 
-  if (filtered.length === 0) return '';
-
-  const lines = filtered.map((it) => {
+  const lines = items.map((it) => {
     const typeLabel = it.subType
       ? it.subType.toUpperCase()
       : it.mainTab === 'game'

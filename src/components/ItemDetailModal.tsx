@@ -1701,24 +1701,18 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
 
               {/* Rozet Yönetim Masası (Sol sütun, afiş ve Değiştir / Yapıştır butonlarının hemen altı) */}
               <div className="relative w-full space-y-1.5 pt-1">
-                {/* Tam genişlikte [ Rozet Ekle (n/4) ] Butonu */}
+                {/* Rozet Başlığı & Sayacı */}
                 <button
                   type="button"
                   onClick={() => setIsBadgePopoverOpen((prev) => !prev)}
-                  className={`w-full py-1.5 px-2 rounded-xl border text-[10px] sm:text-[11px] font-semibold flex items-center justify-between transition-all cursor-pointer ${
-                    isBadgePopoverOpen
-                      ? 'bg-blue-600/30 border-blue-500/60 text-blue-200 shadow-sm'
-                      : badges.length >= 4
-                      ? 'bg-white/5 hover:bg-white/10 border-white/10 text-amber-300/90'
-                      : 'bg-white/5 hover:bg-white/10 border-white/10 text-slate-200 hover:text-white'
-                  }`}
-                  title={badges.length >= 4 ? 'Maksimum 4 rozet sınırına ulaşıldı (Rozet değiştirmek için tıklayın)' : 'Rozet Ekle / Çıkar'}
+                  className="w-full flex items-center justify-between px-0.5 py-0.5 text-[11px] font-medium text-slate-300 hover:text-white transition-colors cursor-pointer select-none group"
+                  title="Rozet menüsünü aç / kapat"
                 >
-                  <span className="flex items-center gap-1.5 truncate">
-                    <Award className={`w-3.5 h-3.5 shrink-0 ${badges.length >= 4 ? 'text-amber-400' : 'text-amber-400'}`} />
-                    <span className="truncate">Rozet Ekle</span>
+                  <span className="flex items-center gap-1.5">
+                    <Award className="w-3.5 h-3.5 text-amber-400 shrink-0 group-hover:scale-110 transition-transform" />
+                    <span className="text-[11px] font-semibold text-slate-300 group-hover:text-white">Rozetler</span>
                   </span>
-                  <span className={`text-[10px] font-mono shrink-0 ${badges.length >= 4 ? 'text-amber-400 font-bold' : 'text-slate-400'}`}>
+                  <span className={`text-[10px] font-mono ${badges.length >= 4 ? 'text-amber-400 font-bold' : 'text-slate-400 group-hover:text-slate-300'}`}>
                     ({badges.length}/4)
                   </span>
                 </button>
@@ -1734,8 +1728,9 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
                       return (
                         <div
                           key={slotIndex}
-                          className="group relative aspect-square flex items-center justify-center p-0.5 transition-all cursor-pointer select-none"
-                          title={badgeObj.name}
+                          onClick={() => setIsBadgePopoverOpen(true)}
+                          className="group relative aspect-square flex items-center justify-center p-0.5 rounded-xl transition-all cursor-pointer select-none hover:bg-white/[0.04]"
+                          title={`${badgeObj.name} (Değiştirmek için tıkla)`}
                         >
                           {badgeObj.iconData ? (
                             <img
@@ -1743,6 +1738,7 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
                               alt={badgeObj.name}
                               className="w-full h-full object-contain pointer-events-none transition-transform duration-200 group-hover:scale-110"
                               style={{
+                                transform: badgeObj.scale && badgeObj.scale !== 1 ? `scale(${badgeObj.scale})` : undefined,
                                 filter: `drop-shadow(0 0 8px ${colorOpt.hex}) drop-shadow(0 0 16px ${colorOpt.hex}80) drop-shadow(0 2px 6px rgba(0,0,0,0.9))`,
                               }}
                             />
@@ -2493,7 +2489,7 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
                       }
                     }}
                     placeholder="Yıllar sonra hatırlamak için notlar, hisler, önemli detaylar..."
-                    className={`w-full text-slate-200 rounded-xl p-2.5 text-xs leading-relaxed focus:outline-none focus:border-blue-500 resize-y custom-scrollbar min-h-[82px] transition-all ${
+                    className={`w-full text-slate-200 rounded-xl p-2.5 text-xs leading-relaxed focus:outline-none focus:border-blue-500 resize-y custom-scrollbar min-h-[82px] transition-colors ${
                       aiDescState?.isActive
                         ? 'border border-emerald-500/80 ring-1 ring-emerald-500/40 shadow-[0_0_12px_rgba(16,185,129,0.18)] bg-emerald-500/[0.04]'
                         : 'border border-white/10 bg-black/30'
@@ -2517,7 +2513,7 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
                       }
                     }}
                     placeholder="Bu yapım hakkındaki kişisel eleştirin, deneyimin ve samimi düşüncelerin... (Puan ve durumdan bağımsız)"
-                    className={`w-full text-slate-200 rounded-xl p-2.5 text-xs leading-relaxed focus:outline-none border border-amber-500/30 bg-amber-500/[0.02] focus:border-amber-500/80 focus:ring-1 focus:ring-amber-500/30 resize-y custom-scrollbar min-h-[82px] transition-all ${
+                    className={`w-full text-slate-200 rounded-xl p-2.5 text-xs leading-relaxed focus:outline-none border border-amber-500/30 bg-amber-500/[0.02] focus:border-amber-500/80 focus:ring-1 focus:ring-amber-500/30 resize-y custom-scrollbar min-h-[82px] transition-colors ${
                       isReadOnly ? 'opacity-80 cursor-default' : ''
                     }`}
                   />

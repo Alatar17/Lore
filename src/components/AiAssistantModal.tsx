@@ -59,6 +59,15 @@ interface AiAssistantModalProps {
 
 const STORAGE_KEY = 'lore_ai_chat_history';
 
+// Helper to strip internal library item tags [[item:id|Title]] or ([id:id|Title]) -> Title
+const stripLibraryItemTags = (text: string): string => {
+  if (!text) return '';
+  return text
+    .replace(/\[\[item:[^|\]]+\|([^\]]+)\]\]/g, '$1')
+    .replace(/\[\[item:([^\]]+)\]\]/g, '$1')
+    .replace(/\(?\[id:\s*[^|\]]+\|([^\]]+)\]\)?/g, '$1');
+};
+
 // Helper to parse inline [[item:id|title]], ([id:id|title]), [id:id|title], **bold**, and *italic*
 const renderInlineFormatted = (
   raw: string,
@@ -313,7 +322,7 @@ const AiRecommendationCardView: React.FC<{
 
           {/* 1 Cümlelik Kompakt Kısa Özet */}
           <p className="text-xs text-slate-300 mt-1.5 line-clamp-2 leading-relaxed">
-            {card.shortDesc}
+            {stripLibraryItemTags(card.shortDesc)}
           </p>
 
           {/* Medya / Oyun Etiketleri (Firma, Yönetmen / Geliştirici) & Kütüphaneye Ekle Buton Satırı */}
@@ -411,7 +420,7 @@ const AiRecommendationCardView: React.FC<{
               Konu & Atmosfer
             </h5>
             <p className="text-xs sm:text-sm text-slate-200 leading-relaxed whitespace-pre-wrap">
-              {card.detailedDesc}
+              {stripLibraryItemTags(card.detailedDesc)}
             </p>
 
             {/* Tür Rozetleri */}
@@ -504,15 +513,6 @@ const AiRecommendationCardView: React.FC<{
       )}
     </div>
   );
-};
-
-// Helper to strip internal library item tags [[item:id|Title]] or ([id:id|Title]) -> Title
-const stripLibraryItemTags = (text: string): string => {
-  if (!text) return '';
-  return text
-    .replace(/\[\[item:[^|\]]+\|([^\]]+)\]\]/g, '$1')
-    .replace(/\[\[item:([^\]]+)\]\]/g, '$1')
-    .replace(/\(?\[id:\s*[^|\]]+\|([^\]]+)\]\)?/g, '$1');
 };
 
 // Formats an AI chat message (plain text or text + cards) cleanly for clipboard
@@ -871,8 +871,8 @@ export const AiAssistantModal: React.FC<AiAssistantModalProps> = ({
       const tasteProfile = generateTasteProfile(items, categories);
       const tasteContext = formatTasteProfileForPrompt(tasteProfile);
 
-      // 2. Format exclusion list from recommendation memory (Sıfır Tekrar Kuralı)
-      const exclusionContext = formatExclusionListForPrompt(recommendationMemory, activeTab);
+      // 2. Format exclusion list from recommendation memory (Sıfır Tekrar Kuralı - Global Havuz)
+      const exclusionContext = formatExclusionListForPrompt(recommendationMemory);
 
       // 3. Prepare chat history for context
       const chatHistory = nextMessages.map((m) => ({
@@ -1053,17 +1053,13 @@ export const AiAssistantModal: React.FC<AiAssistantModalProps> = ({
                     <h2 className="text-sm sm:text-base font-bold text-white tracking-wide whitespace-nowrap">
                       Lore AI Asistan
                     </h2>
-                    {/* Desktop: yan yana kutu içinde sadece '108 yapım' */}
-                    <span className="hidden sm:inline-flex items-center px-2 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-[10px] font-medium text-emerald-300 shrink-0">
+                    {/* Kompakt Mini Etiket: Yazıyı dengeli ve derli toplu saran mini kutu */}
+                    <span className="inline-flex items-center px-1.5 py-0.5 rounded-md bg-emerald-500/15 border border-emerald-500/30 text-[10px] font-semibold text-emerald-300 shrink-0 leading-none">
                       {safeItemsCount} yapım
                     </span>
                   </div>
-                  {/* Mobil: başlığın hemen altında noktasız, sade alt bilgi */}
-                  <div className="sm:hidden text-[10px] text-emerald-400 font-medium tracking-tight">
-                    {safeItemsCount} yapım
-                  </div>
                   <p className="text-[11px] text-slate-400 hidden sm:block">
-                    Zevk profili ve kütüphane hafızası aktif
+                    Kişisel arşiv ve öneri hafızası aktif
                   </p>
                 </div>
               </div>

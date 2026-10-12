@@ -15,6 +15,7 @@ interface TrackedViewProps {
   isSelectionMode?: boolean;
   selectedItemIds?: Set<string>;
   onToggleSelectItem?: (id: string) => void;
+  onBadgeClick?: (badge: CustomBadge, item: ArchiveItem) => void;
 }
 
 export const TrackedView: React.FC<TrackedViewProps> = ({
@@ -29,6 +30,7 @@ export const TrackedView: React.FC<TrackedViewProps> = ({
   isSelectionMode,
   selectedItemIds,
   onToggleSelectItem,
+  onBadgeClick,
 }) => {
   const [showPromptBox, setShowPromptBox] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -146,6 +148,7 @@ ${names || '- (Takip listesinde henüz yapım yok)'}`;
                 isSelectionMode={isSelectionMode}
                 isSelected={selectedItemIds?.has(item.id)}
                 onToggleSelect={() => onToggleSelectItem?.(item.id)}
+                onBadgeClick={onBadgeClick}
               />
             ))}
           </div>
@@ -253,6 +256,7 @@ ${names || '- (Takip listesinde henüz yapım yok)'}`;
                 isSelectionMode={isSelectionMode}
                 isSelected={selectedItemIds?.has(item.id)}
                 onToggleSelect={() => onToggleSelectItem?.(item.id)}
+                onBadgeClick={onBadgeClick}
               />
             ))}
           </div>

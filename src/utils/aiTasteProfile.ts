@@ -1,4 +1,4 @@
-import { ArchiveItem, Category, MainTabType } from '../types';
+import { ArchiveItem, Category, MainTabType, isPlannedItem, getBookStatus, getGameStatus, getMediaStatus } from '../types';
 
 export interface CompactItemBrief {
   id: string;
@@ -31,6 +31,7 @@ export interface TasteProfile {
   currentlyActive: CompactItemBrief[]; // İzleniyor / Oynanıyor / Okunuyor
   droppedItems: CompactItemBrief[]; // Yarım bırakılanlar
   followingItems: CompactItemBrief[]; // Takip edilenler
+  plannedItems: CompactItemBrief[]; // Sırada bekleyenler (İzlenecek / Oynanacak / Okunacak)
   recentCompleted: CompactItemBrief[]; // En son tamamlanan/izlenenler
   topGenres: { name: string; count: number }[];
   topDirectors: { name: string; count: number }[];
@@ -92,10 +93,12 @@ export function generateTasteProfile(
   const currentlyActive: CompactItemBrief[] = [];
   const droppedItems: CompactItemBrief[] = [];
   const followingItems: CompactItemBrief[] = [];
+  const plannedItems: CompactItemBrief[] = [];
 
   for (const it of safeItems) {
     const catName = categoryMap.get(it.cat) || it.cat;
     const tierName = resolveTierName(it, categories);
+    const isPlanned = isPlannedItem(it);
 
     // Extract characters and their actors (e.g. Rika Orimoto -> Kana Hanazawa)
     const charList = it.characters && it.characters.length > 0
@@ -115,19 +118,26 @@ export function generateTasteProfile(
       const act = c.actor?.trim();
       if (act) {
         combinedActorsSet.add(act);
-        // Map actor to work & character name
-        if (!actorWorkMap[act]) actorWorkMap[act] = new Set<string>();
-        actorWorkMap[act].add(`${it.title} (${c.name})`);
       }
     });
-    // Also map general actors to title
-    it.actors?.forEach((a) => {
-      const trimmed = a.trim();
-      if (trimmed) {
-        if (!actorWorkMap[trimmed]) actorWorkMap[trimmed] = new Set<string>();
-        actorWorkMap[trimmed].add(it.title);
-      }
-    });
+
+    // Only map actors to works if the item is consumed / not planned
+    if (!isPlanned) {
+      it.characters?.forEach((c) => {
+        const act = c.actor?.trim();
+        if (act) {
+          if (!actorWorkMap[act]) actorWorkMap[act] = new Set<string>();
+          actorWorkMap[act].add(`${it.title} (${c.name})`);
+        }
+      });
+      it.actors?.forEach((a) => {
+        const trimmed = a.trim();
+        if (trimmed) {
+          if (!actorWorkMap[trimmed]) actorWorkMap[trimmed] = new Set<string>();
+          actorWorkMap[trimmed].add(it.title);
+        }
+      });
+    }
 
     const combinedActors = combinedActorsSet.size > 0 ? Array.from(combinedActorsSet) : undefined;
 
@@ -152,27 +162,35 @@ export function generateTasteProfile(
       tierName: tierName || undefined,
     };
 
-    // Determine status text
+    // Determine status text based on category tab
     if (it.mainTab === 'game') {
-      brief.status = it.status;
-      if (it.status === 'Oynanıyor') currentlyActive.push(brief);
-      if (it.status === 'Yarım Bırakıldı') droppedItems.push(brief);
-    } else if (it.mainTab === 'book') {
-      if (it.reading) {
-        brief.status = 'Okunuyor';
+      const gStatus = getGameStatus(it);
+      brief.status = gStatus;
+      if (gStatus === 'Oynanacak') {
+        plannedItems.push(brief);
+      } else if (gStatus === 'Oynanıyor') {
         currentlyActive.push(brief);
+      } else if (gStatus === 'Yarım Bırakıldı') {
+        droppedItems.push(brief);
       }
-      if (it.dropped) {
-        brief.status = 'Yarım Bırakıldı';
+    } else if (it.mainTab === 'book') {
+      const bStatus = getBookStatus(it);
+      brief.status = bStatus;
+      if (bStatus === 'Okunacak') {
+        plannedItems.push(brief);
+      } else if (bStatus === 'Okunuyor') {
+        currentlyActive.push(brief);
+      } else if (bStatus === 'Yarım Bırakıldı') {
         droppedItems.push(brief);
       }
     } else {
-      if (it.watching) {
-        brief.status = 'İzleniyor';
+      const mStatus = getMediaStatus(it);
+      brief.status = mStatus;
+      if (mStatus === 'İzlenecek') {
+        plannedItems.push(brief);
+      } else if (mStatus === 'İzleniyor') {
         currentlyActive.push(brief);
-      }
-      if (it.dropped) {
-        brief.status = 'Yarım Bırakıldı';
+      } else if (mStatus === 'Yarım Bırakıldı') {
         droppedItems.push(brief);
       }
       if (it.following) {
@@ -182,45 +200,70 @@ export function generateTasteProfile(
       }
     }
 
-    // High ratings vs low ratings
-    const isHighTier = tierName && ['S', 'S+', 'S-Tier', 'A', 'A-Tier', 'Zirve', 'Efsane'].some((t) =>
-      tierName.toUpperCase().includes(t.toUpperCase())
-    );
+    // ---------------------------------------------------------
+    // CRITICAL TASTE FILTER (LUCY & SHAPEZ 2 RULE):
+    // Planned items (İzlenecek / Oynanacak / Okunacak) MUST NEVER
+    // enter masterpieces, favorites, or genre/director tallies.
+    // ---------------------------------------------------------
+    if (!isPlanned) {
+      const isDropped = it.dropped || brief.status === 'Yarım Bırakıldı';
 
-    if (it.rating >= 9 || isHighTier) {
-      topMasterpieces.push(brief);
-    } else if (it.rating === 8) {
-      strongFavorites.push(brief);
-    } else if (it.rating > 1 && it.rating <= 5) {
-      dislikedItems.push(brief);
-    }
+      const isHighTier = tierName && ['S', 'S+', 'S-Tier', 'A', 'A-Tier', 'Zirve', 'Efsane'].some((t) =>
+        tierName.toUpperCase().includes(t.toUpperCase())
+      );
 
-    // Weight genres, directors, developers, firms and authors by rating
-    const weight = it.rating >= 8 ? 2 : 1;
-    if (it.rating >= 6) {
-      it.genre?.forEach((g) => {
-        genreCounts[g] = (genreCounts[g] || 0) + weight;
-      });
-      it.director?.forEach((d) => {
-        directorCounts[d] = (directorCounts[d] || 0) + weight;
-      });
-      it.developer?.forEach((dev) => {
-        developerCounts[dev] = (developerCounts[dev] || 0) + weight;
-      });
-      it.firm?.forEach((f) => {
-        firmCounts[f] = (firmCounts[f] || 0) + weight;
-      });
-      it.author?.forEach((a) => {
-        authorCounts[a] = (authorCounts[a] || 0) + weight;
-      });
+      // Top masterpieces & strong favorites (Only actually consumed items)
+      if (it.rating >= 9 || isHighTier) {
+        topMasterpieces.push(brief);
+      } else if (it.rating === 8) {
+        strongFavorites.push(brief);
+      } else if (it.rating > 1 && it.rating <= 5) {
+        dislikedItems.push(brief);
+      }
+
+      // Weight genres, directors, developers, firms and authors by rating:
+      // - 8-10 rating: weight = 2 (High preference)
+      // - 6-7 rating: weight = 1 (Positive preference)
+      // - 0 rating (Unrated / Completed without score): weight = 1 (+1 tally, positive/neutral interest, NOT zeroed!)
+      // - 1-5 rating or dropped: not added to positive tallies
+      if (!isDropped) {
+        let weight = 0;
+        if (it.rating >= 8) {
+          weight = 2;
+        } else if (it.rating >= 6) {
+          weight = 1;
+        } else if (it.rating === 0) {
+          // Completed unrated item: +1 counter for creators and genres
+          weight = 1;
+        }
+
+        if (weight > 0) {
+          it.genre?.forEach((g) => {
+            genreCounts[g] = (genreCounts[g] || 0) + weight;
+          });
+          it.director?.forEach((d) => {
+            directorCounts[d] = (directorCounts[d] || 0) + weight;
+          });
+          it.developer?.forEach((dev) => {
+            developerCounts[dev] = (developerCounts[dev] || 0) + weight;
+          });
+          it.firm?.forEach((f) => {
+            firmCounts[f] = (firmCounts[f] || 0) + weight;
+          });
+          it.author?.forEach((a) => {
+            authorCounts[a] = (authorCounts[a] || 0) + weight;
+          });
+        }
+      }
     }
 
     catalog.push(brief);
   }
 
   // Find recent completed items sorted by lastCompletedDate or date descending
+  // STRICT RULE: Must be actually completed, never planned, never dropped.
   const recentCompleted = [...safeItems]
-    .filter((it) => (it.lastCompletedDate || it.date) && !it.dropped)
+    .filter((it) => !isPlannedItem(it) && !it.dropped && (it.lastCompletedDate || it.date))
     .sort((a, b) => {
       const dateA = a.lastCompletedDate || a.date || '';
       const dateB = b.lastCompletedDate || b.date || '';
@@ -271,6 +314,7 @@ export function generateTasteProfile(
     currentlyActive: currentlyActive.slice(0, 10),
     droppedItems: droppedItems.slice(0, 10),
     followingItems: followingItems.slice(0, 10),
+    plannedItems: plannedItems.slice(0, 25),
     recentCompleted,
     topGenres: toSortedArray(genreCounts, 10),
     topDirectors: toSortedArray(directorCounts, 6),
@@ -290,6 +334,7 @@ export function formatTasteProfileForPrompt(profile: TasteProfile): string {
 
   lines.push(`=== KULLANICININ LORE KÜTÜPHANESİ VE ZEVK HARİTASI ===`);
   lines.push(`Toplam Arşivlenen Yapım Sayısı: ${profile.totalCount}`);
+  lines.push(`[NOT - PUANSIZ YAPIMLAR]: Kullanıcı tamamladığı bazı yapımlara puan vermeyebilir (Puan: Belirtilmedi). Puanın olmaması eserin sevilmediği anlamına gelmez; eserin türü, dünyası ve yaratıcıları kullanıcının ilgi alanına dahildir.`);
 
   if (profile.topMasterpieces.length > 0) {
     const list = profile.topMasterpieces
@@ -298,10 +343,10 @@ export function formatTasteProfileForPrompt(profile: TasteProfile): string {
           ? ` [Karakterler: ${m.characters.map((c) => c.actor ? `${c.name} (${c.actor})` : c.name).join(', ')}]`
           : '';
         const authorInfo = m.authors?.length ? ` [Yazar: ${m.authors.join(', ')}]` : '';
-        return `• [id: ${m.id}] ${m.title} (${m.category}${m.sub ? ` - ${m.sub}` : ''}, Puan: ${m.rating ?? 'Yok'}${m.tierName ? `, Tier: ${m.tierName}` : ''}${m.year ? `, ${m.year}` : ''})${charInfo}${authorInfo}`;
+        return `• [id: ${m.id}] ${m.title} (${m.category}${m.sub ? ` - ${m.sub}` : ''}, Puan: ${m.rating ?? 'Belirtilmedi'}${m.tierName ? `, Tier: ${m.tierName}` : ''}${m.year ? `, ${m.year}` : ''})${charInfo}${authorInfo}`;
       })
       .join('\n');
-    lines.push(`\n[EN ÇOK BEĞENİLEN ZİRVE BAŞYAPITLAR (9-10 Puan veya S-Tier Zirvesi)]:\n${list}`);
+    lines.push(`\n[EN ÇOK BEĞENİLEN ZİRVE BAŞYAPITLAR (9-10 Puan veya S-Tier Zirvesi - Tüketilmiş)]:\n${list}`);
   }
 
   if (profile.strongFavorites.length > 0) {
@@ -345,11 +390,25 @@ export function formatTasteProfileForPrompt(profile: TasteProfile): string {
     lines.push(`\n[TAKİPTE OLANLAR VE BEKLENENLER]:\n${list}`);
   }
 
+  // PLANNED ITEMS: Dual Shield (Lucy & Shapez 2 Rule)
+  if (profile.plannedItems.length > 0) {
+    const list = profile.plannedItems
+      .map((m) => `• [id: ${m.id}] ${m.title} (${m.category}${m.sub ? ` - ${m.sub}` : ''}, Durum: ${m.status || 'Sırada'}${m.year ? `, ${m.year}` : ''}${m.directors ? `, Yönetmen: ${m.directors.join(', ')}` : ''}${m.developers ? `, Geliştirici: ${m.developers.join(', ')}` : ''}${m.authors ? `, Yazar: ${m.authors.join(', ')}` : ''})`)
+      .join('\n');
+    lines.push(
+      `\n[KÜTÜPHANEDE SIRADA BEKLEYENLER (İzlenecek / Oynanacak / Okunacak)]:\n` +
+      `⚠️ BEKLEME LİSTESİ İÇİN 2 KIRILMAZ KURAL:\n` +
+      `1. ZEVK ANALİZİ YASAĞI: Bu yapımlar kullanıcının bekleme listesindedir; henüz izlenmedi, oynanmadı veya okunmadı. Kullanıcının zevkini bunlara bakarak analiz etme ve 'bunu çok sevdiğin için' gibi referanslar ASLA verme!\n` +
+      `2. TEKRAR ÖNERİ YASAĞI: Bu yapımlar zaten kütüphanede kayıtlıdır. Bu yapımların hiçbirini kullanıcıya YENİ BİR ÖNERİ olarak ASLA sunma!\n` +
+      list
+    );
+  }
+
   if (profile.recentCompleted.length > 0) {
     const list = profile.recentCompleted
       .map((m) => `• [id: ${m.id}] ${m.title} (${m.category}, Tarih: ${m.lastCompletedDate || m.date || 'Belirtilmedi'}${m.rating ? `, Puan: ${m.rating}` : ''}${m.directors ? `, Yönetmen: ${m.directors.join(', ')}` : ''}${m.actors ? `, Kadro: ${m.actors.join(', ')}` : ''})`)
       .join('\n');
-    lines.push(`\n[SON İZLENEN / BİTİRİLEN YAPIMLAR (Kronolojik)]:\n${list}`);
+    lines.push(`\n[SON İZLENEN / BİTİRİLEN YAPIMLAR (Kronolojik - Tüketilmiş)]:\n${list}`);
   }
 
   if (profile.actorToWorks.length > 0) {

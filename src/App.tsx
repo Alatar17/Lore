@@ -8,6 +8,7 @@ import {
   TierRow,
   ViewSettings,
   UiExperimentsState,
+  CustomBadge,
   AppTheme,
   FollowIndicatorModel,
   FollowIndicatorColor,
@@ -74,6 +75,7 @@ import { StatisticsModal } from './components/StatisticsModal';
 import { RecentActivityModal } from './components/RecentActivityModal';
 import { AiAssistantModal } from './components/AiAssistantModal';
 import { ImagePreviewModal } from './components/ImagePreviewModal';
+import { BadgeSpotlightModal } from './components/BadgeSpotlightModal';
 import { QuickShortcutsModal } from './components/QuickShortcutsModal';
 import { AnkiHubModal } from './components/AnkiHubModal';
 import { AnkiStudyModal } from './components/AnkiStudyModal';
@@ -175,6 +177,7 @@ export default function App() {
   const [isAiAssistantOpen, setIsAiAssistantOpen] = useState(false);
   const [isShortcutsModalOpen, setIsShortcutsModalOpen] = useState(false);
   const [hasAiAssistantOpened, setHasAiAssistantOpened] = useState(false);
+  const [spotlightBadge, setSpotlightBadge] = useState<{ badge: CustomBadge; item: ArchiveItem } | null>(null);
 
   useEffect(() => {
     if (isAiAssistantOpen && !hasAiAssistantOpened) {
@@ -624,7 +627,8 @@ export default function App() {
     previewItem ||
     isBulkMoveOpen ||
     isEditingFabMode ||
-    dialogOptions
+    dialogOptions ||
+    spotlightBadge
   );
 
   useEffect(() => {
@@ -2175,6 +2179,7 @@ export default function App() {
               isSelectionMode={isSelectionMode}
               selectedItemIds={selectedItemIds}
               onToggleSelectItem={handleToggleSelectItem}
+              onBadgeClick={(badge, it) => setSpotlightBadge({ badge, item: it })}
             />
           ) : isTierListAvailable(activeCategory, activeSub) && viewMode === 'tier' ? (
             /* B: Tier List View */
@@ -2240,6 +2245,7 @@ export default function App() {
                       isSelectionMode={isSelectionMode}
                       isSelected={selectedItemIds.has(item.id)}
                       onToggleSelect={() => handleToggleSelectItem(item.id)}
+                      onBadgeClick={(badge, it) => setSpotlightBadge({ badge, item: it })}
                     />
                   ))}
                 </div>
@@ -3739,6 +3745,7 @@ export default function App() {
           categories={appData.categories}
           initialTab={mainTab}
           onClose={() => setIsStatisticsOpen(false)}
+          onSelectItem={(item) => setPreviewItem(item)}
         />
       )}
 
@@ -3804,6 +3811,17 @@ export default function App() {
             setPreviewItem(null);
             setSelectedItem(itemToEdit);
           }}
+          onBadgeClick={(badge, item) => setSpotlightBadge({ badge, item })}
+        />
+      )}
+
+      {/* 5.5. Badge Spotlight Modal (Nişan İnceleme Vitrini) */}
+      {spotlightBadge && (
+        <BadgeSpotlightModal
+          isOpen={Boolean(spotlightBadge)}
+          badge={spotlightBadge.badge}
+          glowEnabled={viewSettings.badgeGlowEnabled !== false}
+          onClose={() => setSpotlightBadge(null)}
         />
       )}
 

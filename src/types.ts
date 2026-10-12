@@ -215,6 +215,7 @@ export interface CustomBadge {
   color: string; // Rozet glow / vurgu rengi (örn: '#f59e0b', 'gold', vb.)
   targetTab: 'media' | 'game' | 'book'; // Medya, Oyun veya Kitap
   fileName?: string; // images/badges/ klasöründeki dosya referansı
+  scale?: number; // Optik boyut ölçeği (1.0 - 1.25 arası, varsayılan 1.0)
   createdAt?: number;
   updatedAt?: number;
 }

@@ -10,7 +10,9 @@ import {
   ArrowRight,
 } from 'lucide-react';
 
-export type DialogType = 'alert' | 'confirm' | 'prompt' | 'tier-report';
+export type DialogType = 'alert' | 'confirm' | 'prompt' | 'tier-report' | 'success';
+
+export type DialogVariant = 'info' | 'success' | 'warning' | 'error';
 
 export interface TierImportReportData {
   categoryName: string;
@@ -24,6 +26,7 @@ export interface TierImportReportData {
 
 export interface DialogOptions {
   type: DialogType;
+  variant?: DialogVariant;
   title: string;
   message?: string;
   confirmText?: string;
@@ -60,6 +63,56 @@ export const CustomDialog: React.FC<CustomDialogProps> = ({ options, onClose }) 
   }, [options]);
 
   if (!options) return null;
+
+  // Determine dialog visual style (success vs info vs warning vs error)
+  const isSuccess = (() => {
+    if (options.variant) return options.variant === 'success';
+    if (options.type === 'success') return true;
+    if (options.type === 'alert') {
+      const text = `${options.title} ${options.message || ''}`.toLowerCase();
+      if (text.includes('hata') || text.includes('başarısız') || text.includes('failed') || text.includes('error')) {
+        return false;
+      }
+      const successKeywords = [
+        'kaydedildi',
+        'başarıyla',
+        'başarılı',
+        'tamamlandı',
+        'güncellendi',
+        'aktarıldı',
+        'yüklendi',
+        'oluşturuldu',
+        'eklendi',
+        'temizlendi',
+        'sıfırlandı',
+        'kopyalandı',
+        'bağlandı',
+        'silindi',
+        'success',
+        'saved',
+      ];
+      return successKeywords.some((kw) => text.includes(kw));
+    }
+    return false;
+  })();
+
+  const isError = (() => {
+    if (options.variant) return options.variant === 'error';
+    if (options.type === 'alert' && !isSuccess) {
+      const text = `${options.title} ${options.message || ''}`.toLowerCase();
+      return text.includes('hata') || text.includes('başarısız') || text.includes('failed') || text.includes('error');
+    }
+    return false;
+  })();
+
+  const isWarning = (() => {
+    if (options.variant) return options.variant === 'warning';
+    if (options.type === 'alert' && !isSuccess && !isError) {
+      const text = `${options.title} ${options.message || ''}`.toLowerCase();
+      return text.includes('uyarı') || text.includes('dikkat') || text.includes('warning');
+    }
+    return false;
+  })();
 
   const handleConfirm = () => {
     if (options.onConfirm) {
@@ -106,7 +159,22 @@ export const CustomDialog: React.FC<CustomDialogProps> = ({ options, onClose }) 
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-white/10 bg-black/30">
           <div className="flex items-center gap-3">
-            {options.type === 'alert' && (
+            {isSuccess && (
+              <div className="p-2 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 shadow-sm shadow-emerald-500/10">
+                <CheckCircle2 className="w-5 h-5 text-emerald-400" />
+              </div>
+            )}
+            {isError && (
+              <div className="p-2 rounded-xl bg-red-500/15 border border-red-500/30 text-red-400 shadow-sm shadow-red-500/10">
+                <AlertTriangle className="w-5 h-5 text-red-400" />
+              </div>
+            )}
+            {isWarning && (
+              <div className="p-2 rounded-xl bg-amber-500/15 border border-amber-500/30 text-amber-400 shadow-sm shadow-amber-500/10">
+                <AlertTriangle className="w-5 h-5 text-amber-400" />
+              </div>
+            )}
+            {options.type === 'alert' && !isSuccess && !isError && !isWarning && (
               <div className="p-2 rounded-xl bg-blue-500/10 border border-blue-500/30 text-blue-400">
                 <Info className="w-5 h-5" />
               </div>
@@ -268,9 +336,11 @@ export const CustomDialog: React.FC<CustomDialogProps> = ({ options, onClose }) 
           <button
             id="custom-dialog-confirm-btn"
             onClick={handleConfirm}
-            className={`px-5 py-2 rounded-xl text-xs font-semibold text-white shadow-lg transition-all cursor-pointer flex items-center gap-1.5 ${
-              options.isDestructive
+            className={`px-5 py-2 rounded-xl text-xs font-semibold text-white shadow-lg transition-all cursor-pointer flex items-center gap-1.5 active:scale-95 ${
+              options.isDestructive || isError
                 ? 'bg-red-600 hover:bg-red-500 shadow-red-600/30'
+                : isSuccess
+                ? 'bg-emerald-600 hover:bg-emerald-500 shadow-emerald-600/30'
                 : 'bg-blue-600 hover:bg-blue-500 shadow-blue-600/30'
             }`}
           >

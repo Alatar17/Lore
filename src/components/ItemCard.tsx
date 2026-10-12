@@ -26,6 +26,7 @@ interface ItemCardProps {
   isSelectionMode?: boolean;
   isSelected?: boolean;
   onToggleSelect?: () => void;
+  onBadgeClick?: (badge: CustomBadge, item: ArchiveItem) => void;
 }
 
 export const ItemCard: React.FC<ItemCardProps> = ({
@@ -41,6 +42,7 @@ export const ItemCard: React.FC<ItemCardProps> = ({
   isSelectionMode,
   isSelected,
   onToggleSelect,
+  onBadgeClick,
 }) => {
   if (!item) return null;
   const isGame = item.mainTab === 'game';
@@ -79,15 +81,19 @@ export const ItemCard: React.FC<ItemCardProps> = ({
     };
   }, []);
 
-  const handleBadgeClick = (e: React.MouseEvent, badgeId: string) => {
+  const handleBadgeClick = (e: React.MouseEvent, badge: CustomBadge) => {
     e.stopPropagation();
+    if (onBadgeClick) {
+      onBadgeClick(badge, item);
+      return;
+    }
     if (mobileBadgeTimerRef.current) {
       clearTimeout(mobileBadgeTimerRef.current);
     }
-    if (activeMobileBadgeId === badgeId) {
+    if (activeMobileBadgeId === badge.id) {
       setActiveMobileBadgeId(null);
     } else {
-      setActiveMobileBadgeId(badgeId);
+      setActiveMobileBadgeId(badge.id);
       mobileBadgeTimerRef.current = setTimeout(() => {
         setActiveMobileBadgeId(null);
       }, 2500);
@@ -269,6 +275,25 @@ export const ItemCard: React.FC<ItemCardProps> = ({
           </div>
         )}
 
+        {/* Rozet Arka Planı: Yumuşak Tül Gölge Yastığı (Yalnızca rozet varsa ve rozet adedine göre dinamik uzar) */}
+        {showAllBadges && !isSelectionMode && assignedBadges.length > 0 && (
+          <div
+            className={`absolute top-0 right-0 pointer-events-none z-[15] transition-all duration-300 ${
+              assignedBadges.length === 1
+                ? (showRating && !isPlanned && item.rating > 0 ? 'h-[68px] sm:h-[90px]' : 'h-[44px] sm:h-[58px]')
+                : assignedBadges.length === 2
+                ? (showRating && !isPlanned && item.rating > 0 ? 'h-[96px] sm:h-[130px]' : 'h-[72px] sm:h-[98px]')
+                : assignedBadges.length === 3
+                ? (showRating && !isPlanned && item.rating > 0 ? 'h-[124px] sm:h-[170px]' : 'h-[100px] sm:h-[138px]')
+                : (showRating && !isPlanned && item.rating > 0 ? 'h-[152px] sm:h-[210px]' : 'h-[128px] sm:h-[178px]')
+            } w-[42px] sm:w-[50px]`}
+            style={{
+              background:
+                'radial-gradient(ellipse at 100% 0%, rgba(0,0,0,0.40) 0%, rgba(0,0,0,0.20) 35%, rgba(0,0,0,0.04) 60%, rgba(0,0,0,0) 80%, transparent 100%)',
+            }}
+          />
+        )}
+
         {/* Date Badge: Top Left for Both Media and Game (Hidden for -ecek and -yor) */}
         {showYear && !isSelectionMode && !isPlanned && !isOngoing && Boolean(formattedYear) && (
           <div
@@ -281,7 +306,7 @@ export const ItemCard: React.FC<ItemCardProps> = ({
         )}
 
         {/* Top-Right Badges Column: Rating Badge and Custom Badges Stacked Vertically */}
-        <div className="absolute top-1.5 right-1.5 z-20 flex flex-col items-end gap-1 sm:gap-1.5 pointer-events-none">
+        <div className="absolute top-1 sm:top-1.5 right-1 sm:right-1.5 z-20 flex flex-col items-center gap-0.5 sm:gap-1.5 pointer-events-none">
           {/* Rating Badge (Hidden for -ecek, only visible if rating > 0) */}
           {showRating && !isPlanned && item.rating > 0 && (
             <div
@@ -315,7 +340,7 @@ export const ItemCard: React.FC<ItemCardProps> = ({
                   : badgeStyle === 'minimal'
                   ? 'bg-black/60 sm:bg-black/40 sm:backdrop-blur-sm border-transparent text-amber-400'
                   : 'bg-black/60 sm:bg-black/85 border-transparent sm:border sm:border-amber-500/30 text-amber-400 sm:backdrop-blur-md'
-              } text-[11px] font-bold flex items-center gap-0.5 shadow-md ${isBadgeVisible('rating')}`}
+              } text-[10px] sm:text-[11px] font-bold flex items-center gap-0.5 shadow-md ${isBadgeVisible('rating')}`}
             >
               <RatingBadgeIcon
                 type={viewSettings.ratingIcon || uiExperiments?.ratingIcon}
@@ -325,9 +350,9 @@ export const ItemCard: React.FC<ItemCardProps> = ({
             </div>
           )}
 
-          {/* Custom Badges (Maksimum 4 rozet, Puanın altında veya Puan yoksa en üstte) */}
+          {/* Custom Badges (Maksimum 4 rozet, Puan ile dikey eksende ortalı) */}
           {showAllBadges && !isSelectionMode && assignedBadges.length > 0 && (
-            <div className="flex flex-col items-end gap-1 sm:gap-1.5 pointer-events-auto">
+            <div className="flex flex-col items-center gap-0.5 sm:gap-1.5 pointer-events-auto">
               {assignedBadges.map((badge) => {
                 const colorOpt = getBadgeColorOption(badge.color);
                 const isGlowActive = viewSettings.badgeGlowEnabled !== false;
@@ -337,12 +362,13 @@ export const ItemCard: React.FC<ItemCardProps> = ({
                   <div
                     key={badge.id}
                     id={`badge-custom-${item.id}-${badge.id}`}
-                    onClick={(e) => handleBadgeClick(e, badge.id)}
+                    onClick={(e) => handleBadgeClick(e, badge)}
+                    title={`${badge.name} (Büyütmek için tıklayın)`}
                     className="group/badge relative pointer-events-auto cursor-pointer"
                   >
-                    {/* Rozet Saf Şeffaf Madalya (Kutusuz & Belirgin Organik Glow - Mobilde tam sığan kompakt ölçü) */}
+                    {/* Rozet Saf Şeffaf Madalya (Mobilde 26px tam ölçü, PC'de 37px - Ortalanmış ve çakışmasız) */}
                     <div
-                      className={`w-7 h-7 sm:w-10 sm:h-10 flex items-center justify-center transition-all duration-200 ease-out select-none hover:scale-115 active:scale-95 ${
+                      className={`w-[26px] h-[26px] sm:w-[37px] sm:h-[37px] flex items-center justify-center transition-all duration-200 ease-out select-none hover:scale-115 active:scale-95 ${
                         isMobileActive ? 'scale-115' : ''
                       }`}
                     >
@@ -351,11 +377,12 @@ export const ItemCard: React.FC<ItemCardProps> = ({
                         alt={badge.name}
                         className="w-full h-full object-contain select-none transition-all duration-200"
                         style={{
+                          transform: badge.scale && badge.scale !== 1 ? `scale(${badge.scale})` : undefined,
                           filter: isGlowActive
                             ? (isMobileActive
-                                ? `drop-shadow(0 0 10px ${colorOpt.hex}) drop-shadow(0 0 20px ${colorOpt.hex}95) drop-shadow(0 3px 6px rgba(0,0,0,0.95))`
-                                : `drop-shadow(0 0 6px ${colorOpt.hex}) drop-shadow(0 2px 5px rgba(0,0,0,0.9))`)
-                            : 'drop-shadow(0 2px 6px rgba(0,0,0,0.95)) drop-shadow(0 1px 3px rgba(0,0,0,0.9))',
+                                ? `drop-shadow(0 0 1.5px rgba(0,0,0,0.98)) drop-shadow(0 0 3px rgba(0,0,0,0.85)) drop-shadow(0 0 9px ${colorOpt.hex}) drop-shadow(0 0 20px ${colorOpt.hex}95) drop-shadow(0 3px 6px rgba(0,0,0,0.9))`
+                                : `drop-shadow(0 0 1.5px rgba(0,0,0,0.98)) drop-shadow(0 0 3px rgba(0,0,0,0.85)) drop-shadow(0 0 6px ${colorOpt.hex}) drop-shadow(0 2px 5px rgba(0,0,0,0.85))`)
+                            : 'drop-shadow(0 0 1.5px rgba(0,0,0,0.98)) drop-shadow(0 0 3px rgba(0,0,0,0.85)) drop-shadow(0 2px 5px rgba(0,0,0,0.85))',
                         }}
                         loading="lazy"
                       />

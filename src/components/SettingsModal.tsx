@@ -361,6 +361,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   const [badgeTargetTab, setBadgeTargetTab] = useState<'media' | 'game' | 'book'>('media');
   const [badgeIconData, setBadgeIconData] = useState('');
   const [badgeColor, setBadgeColor] = useState('gold');
+  const [badgeScale, setBadgeScale] = useState<number>(1.0);
   const [badgeFormError, setBadgeFormError] = useState<string | null>(null);
   const [badgeFormSuccess, setBadgeFormSuccess] = useState<string | null>(null);
   const [copiedPromptFeedback, setCopiedPromptFeedback] = useState(false);
@@ -400,6 +401,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     setBadgeTargetTab('media');
     setBadgeIconData('');
     setBadgeColor('gold');
+    setBadgeScale(1.0);
     setBadgeFormError(null);
   };
 
@@ -409,6 +411,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     setBadgeTargetTab('media');
     setBadgeIconData('');
     setBadgeColor('gold');
+    setBadgeScale(1.0);
     setBadgeFormError(null);
     setIsBadgeAccordionOpen(true);
   };
@@ -419,6 +422,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     setBadgeTargetTab(badge.targetTab);
     setBadgeIconData(badge.iconData);
     setBadgeColor(badge.color);
+    setBadgeScale(badge.scale ?? 1.0);
     setBadgeFormError(null);
     setIsBadgeAccordionOpen(true);
   };
@@ -514,6 +518,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               iconData: badgeIconData,
               color: badgeColor,
               targetTab: badgeTargetTab,
+              scale: badgeScale > 1 ? Number(badgeScale.toFixed(2)) : undefined,
               updatedAt: Date.now(),
             }
           : b
@@ -536,6 +541,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         iconData: badgeIconData,
         color: badgeColor,
         targetTab: badgeTargetTab,
+        scale: badgeScale > 1 ? Number(badgeScale.toFixed(2)) : undefined,
         createdAt: Date.now(),
         updatedAt: Date.now(),
       };
@@ -598,7 +604,14 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
   const customBadges = appData.customBadges || [];
   const filteredBadges = useMemo(() => {
-    if (badgeFilterTab === 'all') return customBadges;
+    if (badgeFilterTab === 'all') {
+      const tabOrder: Record<string, number> = { media: 1, game: 2, book: 3 };
+      return [...customBadges].sort((a, b) => {
+        const orderA = a.targetTab ? (tabOrder[a.targetTab] ?? 99) : 99;
+        const orderB = b.targetTab ? (tabOrder[b.targetTab] ?? 99) : 99;
+        return orderA - orderB;
+      });
+    }
     return customBadges.filter((b) => b.targetTab === badgeFilterTab);
   }, [customBadges, badgeFilterTab]);
 
@@ -654,6 +667,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     setGeminiTestResult(null);
     setDialogOptions({
       type: 'alert',
+      variant: 'success',
       title: 'Gemini API Anahtarı Kaydedildi',
       message: trimmed
         ? 'Gemini API anahtarınız bu tarayıcıya güvenle kaydedildi. Yapım eklerken ve düzenlerken AI özelliklerini kullanabilirsiniz.'
@@ -726,6 +740,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     }
     setDialogOptions({
       type: 'alert',
+      variant: 'success',
       title: 'GitHub Ayarları Kaydedildi',
       message: 'GitHub senkronizasyon ayarlarınız başarıyla tarayıcıya kaydedildi.',
     });
@@ -2015,6 +2030,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                             })
                           : [];
 
+                        const currentUnit = settingsMainTab === 'book' ? 'kitap' : settingsMainTab === 'game' ? 'oyun' : 'yapım';
+
                         return (
                           <div
                             key={tag}
@@ -2045,98 +2062,107 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                               >
                                 {tag}
                               </span>
-                              <button
-                                type="button"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setActiveTagPopover(isPopoverOpen ? null : tag);
-                                }}
-                                className={`text-[10px] px-2 py-0.5 rounded-md shrink-0 font-mono font-semibold transition-all cursor-pointer ${
-                                  isPopoverOpen
-                                    ? 'bg-blue-600 text-white shadow-sm ring-1 ring-blue-400'
-                                    : 'bg-white/10 text-slate-300 hover:bg-blue-500/20 hover:text-blue-300 hover:border-blue-400/30'
-                                }`}
-                                title="Bu etikete sahip yapımları gör"
-                              >
-                                {count} yapım
-                              </button>
                             </div>
 
-                            {/* Actions: Edit & Delete buttons (hidden on mobile, visible on desktop) */}
+                            {/* Sağ: Yapım Sayacı (Düzenleme ikonunun solunda) & İşlem Butonları */}
                             <div
-                              className="hidden sm:flex items-center gap-1 shrink-0"
+                              className="flex items-center gap-1.5 shrink-0"
                               onClick={(e) => e.stopPropagation()}
                             >
-                              <button
-                                onClick={() => handleRenameTag(tag)}
-                                title="Etiketi Yeniden Adlandır"
-                                className="p-1 text-slate-400 hover:text-blue-400 hover:bg-blue-500/10 rounded transition-colors cursor-pointer"
-                              >
-                                <Edit2 className="w-3.5 h-3.5" />
-                              </button>
-                              <button
-                                onClick={() => handleDeleteTag(tag)}
-                                title="Etiketi Sil (Tüm yapımlardan kaldırılır)"
-                                className="p-1 text-slate-400 hover:text-red-400 hover:bg-red-500/10 rounded transition-colors cursor-pointer"
-                              >
-                                <Trash2 className="w-3.5 h-3.5" />
-                              </button>
-                            </div>
+                              {/* Yapım / Oyun / Kitap Sayacı ve Popover */}
+                              <div className="relative">
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setActiveTagPopover(isPopoverOpen ? null : tag);
+                                  }}
+                                  className={`text-[10px] px-2 py-0.5 rounded-md shrink-0 font-mono font-semibold transition-all cursor-pointer ${
+                                    isPopoverOpen
+                                      ? 'bg-blue-600 text-white shadow-sm ring-1 ring-blue-400'
+                                      : 'bg-white/10 text-slate-300 hover:bg-blue-500/20 hover:text-blue-300 hover:border-blue-400/30'
+                                  }`}
+                                  title={`Bu etikete sahip ${currentUnit}ları gör`}
+                                >
+                                  {count} {currentUnit}
+                                </button>
 
-                            {/* Popover list of associated items */}
-                            {isPopoverOpen && (
-                              <div
-                                className="absolute left-0 top-full mt-1.5 z-40 w-full min-w-[240px] max-w-sm bg-[#181b24] border border-white/20 rounded-xl shadow-2xl p-2.5 space-y-1.5 animate-in fade-in zoom-in-95 duration-100"
-                                onClick={(e) => e.stopPropagation()}
-                              >
-                                <div className="flex items-center justify-between pb-1.5 border-b border-white/10 text-[11px] font-semibold text-slate-300 px-1">
-                                  <span className="truncate">"{tag}" Yapımları ({associatedItems.length})</span>
-                                  <button
-                                    type="button"
-                                    onClick={() => setActiveTagPopover(null)}
-                                    className="text-slate-400 hover:text-white p-0.5 rounded cursor-pointer"
+                                {/* Popover list of associated items */}
+                                {isPopoverOpen && (
+                                  <div
+                                    className="absolute right-0 top-full mt-1.5 z-40 w-72 max-w-sm bg-[#181b24] border border-white/20 rounded-xl shadow-2xl p-2.5 space-y-1.5 animate-in fade-in zoom-in-95 duration-100 text-left"
+                                    onClick={(e) => e.stopPropagation()}
                                   >
-                                    <X className="w-3.5 h-3.5" />
-                                  </button>
-                                </div>
-
-                                <div className="max-h-48 overflow-y-auto custom-scrollbar space-y-1 pr-0.5">
-                                  {associatedItems.length === 0 ? (
-                                    <div className="py-3 text-center text-[11px] text-slate-500">
-                                      Bağlı yapım bulunamadı.
-                                    </div>
-                                  ) : (
-                                    associatedItems.map((item, idx) => (
+                                    <div className="flex items-center justify-between pb-1.5 border-b border-white/10 text-[11px] font-semibold text-slate-300 px-1">
+                                      <span className="truncate">
+                                        "{tag}" {currentUnit === 'kitap' ? 'Kitapları' : currentUnit === 'oyun' ? 'Oyunları' : 'Yapımları'} ({associatedItems.length})
+                                      </span>
                                       <button
-                                        key={item.id}
                                         type="button"
-                                        onClick={() => {
-                                          const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
-                                          setActiveTagPopover(null);
-                                          if (isMobile) {
-                                            if (onPreviewItem) {
-                                              onPreviewItem(item);
-                                            } else if (onSelectItem) {
-                                              onSelectItem(item);
-                                            }
-                                          } else {
-                                            if (onSelectItem) {
-                                              onSelectItem(item, tag);
-                                            }
-                                          }
-                                        }}
-                                        className="w-full text-left px-2.5 py-1.5 rounded-lg text-xs text-slate-200 hover:bg-blue-600/20 hover:text-blue-200 border border-transparent hover:border-blue-500/30 transition-all cursor-pointer flex items-center gap-2 group/item"
+                                        onClick={() => setActiveTagPopover(null)}
+                                        className="text-slate-400 hover:text-white p-0.5 rounded cursor-pointer"
                                       >
-                                        <span className="text-[11px] text-slate-400 font-mono font-medium group-hover/item:text-blue-400 shrink-0">
-                                          {idx + 1}.
-                                        </span>
-                                        <span className="truncate font-medium">{item.title}</span>
+                                        <X className="w-3.5 h-3.5" />
                                       </button>
-                                    ))
-                                  )}
-                                </div>
+                                    </div>
+
+                                    <div className="max-h-48 overflow-y-auto custom-scrollbar space-y-1 pr-0.5">
+                                      {associatedItems.length === 0 ? (
+                                        <div className="py-3 text-center text-[11px] text-slate-500">
+                                          Bağlı {currentUnit} bulunamadı.
+                                        </div>
+                                      ) : (
+                                        associatedItems.map((item, idx) => (
+                                          <button
+                                            key={item.id}
+                                            type="button"
+                                            onClick={() => {
+                                              const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
+                                              setActiveTagPopover(null);
+                                              if (isMobile) {
+                                                if (onPreviewItem) {
+                                                  onPreviewItem(item);
+                                                } else if (onSelectItem) {
+                                                  onSelectItem(item);
+                                                }
+                                              } else {
+                                                if (onSelectItem) {
+                                                  onSelectItem(item, tag);
+                                                }
+                                              }
+                                            }}
+                                            className="w-full text-left px-2.5 py-1.5 rounded-lg text-xs text-slate-200 hover:bg-blue-600/20 hover:text-blue-200 border border-transparent hover:border-blue-500/30 transition-all cursor-pointer flex items-center gap-2 group/item"
+                                          >
+                                            <span className="text-[11px] text-slate-400 font-mono font-medium group-hover/item:text-blue-400 shrink-0">
+                                              {idx + 1}.
+                                            </span>
+                                            <span className="truncate font-medium">{item.title}</span>
+                                          </button>
+                                        ))
+                                      )}
+                                    </div>
+                                  </div>
+                                )}
                               </div>
-                            )}
+
+                              {/* Actions: Edit & Delete buttons (hidden on mobile, visible on desktop) */}
+                              <div className="hidden sm:flex items-center gap-1 shrink-0">
+                                <button
+                                  onClick={() => handleRenameTag(tag)}
+                                  title="Etiketi Yeniden Adlandır"
+                                  className="p-1 text-slate-400 hover:text-blue-400 hover:bg-blue-500/10 rounded transition-colors cursor-pointer"
+                                >
+                                  <Edit2 className="w-3.5 h-3.5" />
+                                </button>
+                                <button
+                                  onClick={() => handleDeleteTag(tag)}
+                                  title="Etiketi Sil (Tüm yapımlardan kaldırılır)"
+                                  className="p-1 text-slate-400 hover:text-red-400 hover:bg-red-500/10 rounded transition-colors cursor-pointer"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            </div>
                           </div>
                         );
                       })}
@@ -2317,6 +2343,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                                       alt={badge.name}
                                       className="w-full h-full object-contain transition-transform duration-200 group-hover/row:scale-110"
                                       style={{
+                                        transform: badge.scale && badge.scale !== 1 ? `scale(${badge.scale})` : undefined,
                                         filter: `drop-shadow(0 0 8px ${colorOpt.hex}) drop-shadow(0 0 16px ${colorOpt.hex}80) drop-shadow(0 2px 6px rgba(0,0,0,0.9))`,
                                       }}
                                     />
@@ -2353,6 +2380,11 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                                     >
                                       {colorOpt.emoji} {colorOpt.name} Glow
                                     </span>
+                                    {badge.scale && badge.scale > 1 && (
+                                      <span className="text-[10px] px-2 py-0.5 rounded-full font-mono font-medium text-slate-300 bg-white/5 border border-white/10">
+                                        Ölçek: %{Math.round(badge.scale * 100)}
+                                      </span>
+                                    )}
                                   </div>
                                 </div>
                               </div>
@@ -2366,7 +2398,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                                     onClick={() =>
                                       setActiveBadgePopover((prev) => (prev === badge.id ? null : badge.id))
                                     }
-                                    className={`text-xs px-2.5 py-1 rounded-lg border transition-all cursor-pointer flex items-center gap-1 ${
+                                    className={`text-[11px] px-2 py-0.5 rounded-md border transition-all cursor-pointer flex items-center gap-1 font-medium leading-tight ${
                                       usedCount > 0
                                         ? 'bg-blue-600/15 border-blue-500/30 text-blue-300 hover:bg-blue-600/25 hover:text-blue-200'
                                         : 'bg-white/5 border-white/10 text-slate-400 hover:text-slate-300'
@@ -2613,15 +2645,22 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                                     </div>
                                   </div>
 
-                                  {/* Büyütülmüş Rozet İkonu */}
+                                  {/* Büyütülmüş Rozet İkonu & 1:1 Kılavuz Çerçevesi */}
                                   <div className="flex-1 flex items-center justify-center w-full py-0.5">
-                                    <div className="w-28 h-28 flex items-center justify-center transition-all select-none">
+                                    <div className="w-28 h-28 relative flex items-center justify-center transition-all select-none">
+                                      {/* 1:1 Kesik Çizgili Kılavuz Kare (Keyline Safe Box) */}
+                                      <div
+                                        className="absolute inset-0 border border-dashed border-white/25 rounded-xl pointer-events-none"
+                                        title="1:1 Standart Referans Alanı"
+                                      />
+
                                       {badgeIconData ? (
                                         <img
                                           src={badgeIconData}
                                           alt="Önizleme"
-                                          className="w-full h-full object-contain transition-all duration-200 hover:scale-105"
+                                          className="w-full h-full object-contain transition-transform duration-150"
                                           style={{
+                                            transform: `scale(${badgeScale})`,
                                             filter: `drop-shadow(0 0 16px ${previewColorOpt.hex}) drop-shadow(0 0 32px ${previewColorOpt.hex}80) drop-shadow(0 4px 10px rgba(0,0,0,0.95))`,
                                           }}
                                         />
@@ -2714,6 +2753,44 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                                     </button>
                                   );
                                 })}
+                              </div>
+                            </div>
+
+                            {/* Boyut Ölçeği (Optik Dengeleme Slider) */}
+                            <div className="space-y-1.5 pt-1">
+                              <div className="flex items-center justify-between">
+                                <label className="text-[11px] font-semibold text-slate-300 flex items-center gap-1.5">
+                                  <span>Boyut Ölçeği:</span>
+                                  <span className="text-amber-400 font-mono font-bold">
+                                    %{Math.round(badgeScale * 100)}
+                                  </span>
+                                </label>
+                                <button
+                                  type="button"
+                                  onClick={() => setBadgeScale(1.0)}
+                                  disabled={badgeScale === 1.0}
+                                  title="Varsayılana Sıfırla (%100)"
+                                  className={`p-1 rounded-md transition-colors flex items-center justify-center ${
+                                    badgeScale === 1.0
+                                      ? 'text-slate-600 opacity-25 cursor-not-allowed'
+                                      : 'text-slate-400 hover:text-white hover:bg-white/10 cursor-pointer'
+                                  }`}
+                                >
+                                  <RotateCcw className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                              <div className="flex items-center gap-2.5">
+                                <span className="text-[10px] text-slate-500 font-medium shrink-0">%100</span>
+                                <input
+                                  type="range"
+                                  min="1"
+                                  max="1.25"
+                                  step="0.01"
+                                  value={badgeScale}
+                                  onChange={(e) => setBadgeScale(parseFloat(e.target.value))}
+                                  className="w-full accent-amber-400 h-1.5 bg-neutral-800 rounded-lg cursor-pointer"
+                                />
+                                <span className="text-[10px] text-slate-500 font-medium shrink-0">%125</span>
                               </div>
                             </div>
                           </div>
