@@ -1243,7 +1243,7 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
       const optimized = await optimizeImageFile(rawInput, 800, 1200, 0.88);
       const mimeMatch = optimized.match(/data:image\/([a-zA-Z0-9]+);/);
       const ext = mimeMatch ? (mimeMatch[1] === 'jpeg' ? 'jpg' : mimeMatch[1]) : 'jpg';
-      const uniqueFileName = `images/${formData.id}_${Date.now()}.${ext}`;
+      const uniqueFileName = `images/posters/${formData.id}_${Date.now()}.${ext}`;
 
       setFormData((prev) => ({
         ...prev,
@@ -1254,7 +1254,7 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
       setTimeout(() => setPasteNotice(null), 2500);
     } catch {
       if (typeof rawInput === 'string') {
-        const uniqueFileName = `images/${formData.id}_${Date.now()}.jpg`;
+        const uniqueFileName = `images/posters/${formData.id}_${Date.now()}.jpg`;
         setFormData((prev) => ({
           ...prev,
           thumbnail: rawInput,

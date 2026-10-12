@@ -326,69 +326,109 @@ export async function pushDataToGitHub(
 
   // 2. Prepare clean JSON payload
   // Keep thumbnailFileName, characters.fileName, ankiExtraImages.fileName, badges.fileName; drop inline heavy base64 strings
-  // Meanwhile, capture in-memory base64 strings so we can push missing/new images to GitHub even if dirHandle is null!
+  // Normalization helper: Ensures every image path goes into its proper subfolder (posters/, characters/, anki/, badges/)
+  // and NEVER into the root images/ folder!
   const memoryImageBase64Map = new Map<string, string>();
 
   const cleanItems: ArchiveItem[] = (appData.items || []).map((item) => {
     const copy = { ...item };
-    if (copy.thumbnailFileName && copy.thumbnail?.startsWith('data:image/')) {
-      const cleanFileName = copy.thumbnailFileName.replace(/^images\//, '');
-      const base64Data = copy.thumbnail.split(',')[1] || '';
-      if (base64Data) {
-        memoryImageBase64Map.set(cleanFileName, base64Data);
+
+    // 1. Poster normalization -> images/posters/
+    let posterRelPath = copy.thumbnailFileName ? copy.thumbnailFileName.replace(/^images\//, '').trim() : '';
+    if (posterRelPath) {
+      if (!posterRelPath.startsWith('posters/') && !/^(characters|anki|badges)\//.test(posterRelPath)) {
+        posterRelPath = `posters/${posterRelPath}`;
       }
-      delete copy.thumbnail;
+    } else if (copy.thumbnail) {
+      posterRelPath = `posters/${copy.id}.webp`;
     }
-    if (copy.characters && copy.characters.length > 0) {
+
+    if (posterRelPath) {
+      copy.thumbnailFileName = `images/${posterRelPath}`;
+      if (copy.thumbnail && copy.thumbnail.startsWith('data:image/')) {
+        const base64Data = copy.thumbnail.split(',')[1] || '';
+        if (base64Data) {
+          memoryImageBase64Map.set(posterRelPath, base64Data);
+        }
+      }
+    }
+    // Always strip bulky inline base64 thumbnail so JSON sent to GitHub stays pure text (~150 KB)
+    delete copy.thumbnail;
+
+    // 2. Characters normalization -> images/characters/
+    if (copy.characters && Array.isArray(copy.characters) && copy.characters.length > 0) {
       copy.characters = copy.characters.map((char, idx) => {
         const charCopy = { ...char };
-        const fileName = charCopy.fileName || `images/characters/${copy.id}_char_${idx}.jpg`;
-        charCopy.fileName = fileName;
+        let charRelPath = charCopy.fileName ? charCopy.fileName.replace(/^images\//, '').trim() : '';
+        if (charRelPath) {
+          if (!charRelPath.startsWith('characters/')) {
+            charRelPath = `characters/${charRelPath.split('/').pop() || `${copy.id}_char_${idx}.jpg`}`;
+          }
+        } else {
+          charRelPath = `characters/${copy.id}_char_${idx}.jpg`;
+        }
+        charCopy.fileName = `images/${charRelPath}`;
         if (charCopy.image && charCopy.image.startsWith('data:image/')) {
-          const cleanCharName = fileName.replace(/^images\//, '');
           const base64Data = charCopy.image.split(',')[1] || '';
           if (base64Data) {
-            memoryImageBase64Map.set(cleanCharName, base64Data);
+            memoryImageBase64Map.set(charRelPath, base64Data);
           }
-          charCopy.image = fileName;
         }
+        charCopy.image = `images/${charRelPath}`;
         return charCopy;
       });
     }
-    if (copy.ankiExtraImages && copy.ankiExtraImages.length > 0) {
+
+    // 3. Anki extra images normalization -> images/anki/
+    if (copy.ankiExtraImages && Array.isArray(copy.ankiExtraImages) && copy.ankiExtraImages.length > 0) {
       copy.ankiExtraImages = copy.ankiExtraImages.map((extra, idx) => {
         const extraCopy = { ...extra };
-        const fileName = extraCopy.fileName || `images/anki/${copy.id}_extra_${idx}.jpg`;
-        extraCopy.fileName = fileName;
+        let ankiRelPath = extraCopy.fileName ? extraCopy.fileName.replace(/^images\//, '').trim() : '';
+        if (ankiRelPath) {
+          if (!ankiRelPath.startsWith('anki/')) {
+            ankiRelPath = `anki/${ankiRelPath.split('/').pop() || `${copy.id}_extra_${idx}.jpg`}`;
+          }
+        } else {
+          ankiRelPath = `anki/${copy.id}_extra_${idx}.jpg`;
+        }
+        extraCopy.fileName = `images/${ankiRelPath}`;
         if (extraCopy.url && extraCopy.url.startsWith('data:image/')) {
-          const cleanExtraName = fileName.replace(/^images\//, '');
           const base64Data = extraCopy.url.split(',')[1] || '';
           if (base64Data) {
-            memoryImageBase64Map.set(cleanExtraName, base64Data);
+            memoryImageBase64Map.set(ankiRelPath, base64Data);
           }
-          extraCopy.url = fileName;
         }
+        extraCopy.url = `images/${ankiRelPath}`;
         return extraCopy;
       });
     }
+
     return copy;
   });
 
-  // Custom Badges in memory image map
-  if (appData.customBadges && Array.isArray(appData.customBadges)) {
-    for (const badge of appData.customBadges) {
-      if (badge.iconData && badge.iconData.startsWith('data:image/')) {
-        const fileName = badge.fileName || `images/badges/badge_${badge.id}.webp`;
-        const cleanBadgeName = fileName.replace(/^images\//, '');
-        const base64Data = badge.iconData.split(',')[1] || '';
-        if (base64Data) {
-          memoryImageBase64Map.set(cleanBadgeName, base64Data);
-        }
+  // 4. Custom Badges normalization -> images/badges/ (and strip bulky base64 iconData)
+  const cleanBadges = (appData.customBadges || []).map((badge) => {
+    const badgeCopy = { ...badge };
+    let badgeRelPath = badgeCopy.fileName ? badgeCopy.fileName.replace(/^images\//, '').trim() : '';
+    if (badgeRelPath) {
+      if (!badgeRelPath.startsWith('badges/')) {
+        badgeRelPath = `badges/${badgeRelPath.split('/').pop() || `badge_${badgeCopy.id}.webp`}`;
+      }
+    } else {
+      badgeRelPath = `badges/badge_${badgeCopy.id}.webp`;
+    }
+    badgeCopy.fileName = `images/${badgeRelPath}`;
+    if (badgeCopy.iconData && badgeCopy.iconData.startsWith('data:image/')) {
+      const base64Data = badgeCopy.iconData.split(',')[1] || '';
+      if (base64Data) {
+        memoryImageBase64Map.set(badgeRelPath, base64Data);
       }
     }
-  }
+    badgeCopy.iconData = `images/${badgeRelPath}`;
+    return badgeCopy;
+  });
 
-  // 3. Incrementally upload missing local images to GitHub images/ directory (from dirHandle or memory)
+  // 3. Incrementally upload ONLY missing images to GitHub subdirectories
   let uploadedImagesCount = 0;
   try {
     let imagesDir: FileSystemDirectoryHandle | null = null;
@@ -400,7 +440,7 @@ export async function pushDataToGitHub(
       }
     }
 
-    // Collect all image filenames referenced by active items, characters, anki, and badges
+    // Collect all image filenames needed (all guaranteed to start with posters/, characters/, anki/, badges/)
     const neededImageNames = new Set<string>();
     for (const item of cleanItems) {
       if (item.thumbnailFileName) {
@@ -421,23 +461,20 @@ export async function pushDataToGitHub(
         }
       }
     }
-    if (appData.customBadges && Array.isArray(appData.customBadges)) {
-      for (const badge of appData.customBadges) {
-        if (badge.fileName) {
-          neededImageNames.add(badge.fileName.replace(/^images\//, ''));
-        }
+    for (const badge of cleanBadges) {
+      if (badge.fileName) {
+        neededImageNames.add(badge.fileName.replace(/^images\//, ''));
       }
     }
 
     if (neededImageNames.size > 0) {
-      // Check what images already exist on GitHub across subdirectories
+      // Query existing files in GitHub subdirectories ONLY (posters, characters, anki, badges)
       const existingGhFiles = new Map<string, string>();
-      const checkDirs = ['', 'posters', 'characters', 'anki', 'badges'];
+      const checkDirs = ['posters', 'characters', 'anki', 'badges'];
       for (const subDir of checkDirs) {
         try {
-          const pathSuffix = subDir ? `/${subDir}` : '';
           const listRes = await fetch(
-            `https://api.github.com/repos/${owner}/${repo}/contents/images${pathSuffix}?ref=${cleanBranch}&_nocache=${Date.now()}`,
+            `https://api.github.com/repos/${owner}/${repo}/contents/images/${subDir}?ref=${cleanBranch}&_nocache=${Date.now()}`,
             {
               headers: {
                 Authorization: `Bearer ${token}`,
@@ -452,23 +489,22 @@ export async function pushDataToGitHub(
                 if (f.type === 'file' && f.path && f.sha) {
                   const relPath = f.path.replace(/^images\//, '');
                   existingGhFiles.set(relPath, f.sha);
-                  existingGhFiles.set(f.name, f.sha);
                 }
               }
             }
           }
-        } catch (e) {
+        } catch {
           // Ignore individual subfolder listing errors
         }
       }
 
-      // Upload missing images, or overwrite images that were modified in memory
+      // Upload missing images only! If file already exists in GitHub's subfolder, skip it completely!
       for (const imgName of neededImageNames) {
-        const existingSha = existingGhFiles.get(imgName) || existingGhFiles.get(imgName.split('/').pop() || '');
-        const isModifiedInMemory = memoryImageBase64Map.has(imgName);
+        const existingSha = existingGhFiles.get(imgName);
 
-        // If file already exists on GitHub and was NOT newly set in memory during this session, skip it (saves bandwidth)
-        if (existingSha && !isModifiedInMemory) continue;
+        // Fast skip: If the image already exists on GitHub, DO NOT re-upload it!
+        // This ensures subsequent syncs complete in 1-2 seconds instead of minutes.
+        if (existingSha) continue;
 
         try {
           let base64 = memoryImageBase64Map.get(imgName);
@@ -478,20 +514,36 @@ export async function pushDataToGitHub(
               const fileHandle = await getFileHandleFromRelativePath(imagesDir, imgName, false);
               const file = await fileHandle.getFile();
               base64 = await blobToBase64Raw(file);
-            } catch (fhErr) {
-              // File not in folder
+            } catch {
+              // Try bare name from root of local imagesDir as fallback
+              const bareName = imgName.split('/').pop();
+              if (bareName) {
+                try {
+                  const fileHandle = await imagesDir.getFileHandle(bareName, { create: false });
+                  const file = await fileHandle.getFile();
+                  base64 = await blobToBase64Raw(file);
+                } catch {}
+              }
             }
+          }
+
+          if (!base64) {
+            // Fallback: Check local IndexedDB image cache
+            try {
+              const cleanKey = imgName.replace(/^(posters|characters|anki|badges)\//, '');
+              const cachedBlob = (await getCachedImageBlob(imgName)) || (await getCachedImageBlob(cleanKey));
+              if (cachedBlob) {
+                base64 = await blobToBase64Raw(cachedBlob);
+              }
+            } catch {}
           }
 
           if (base64) {
             const putPayload: Record<string, any> = {
-              message: existingSha ? `Görsel Güncelle: ${imgName} [skip ci]` : `Görsel Yükle: ${imgName} [skip ci]`,
+              message: `Görsel Yükle: ${imgName} [skip ci]`,
               content: base64,
               branch: cleanBranch,
             };
-            if (existingSha) {
-              putPayload.sha = existingSha;
-            }
 
             const uploadRes = await fetch(
               `https://api.github.com/repos/${owner}/${repo}/contents/images/${imgName}`,
@@ -523,6 +575,7 @@ export async function pushDataToGitHub(
     ...appData,
     lastUpdated: nowIso,
     items: cleanItems,
+    customBadges: cleanBadges,
   };
 
   const jsonString = JSON.stringify(payloadData, null, 2);
@@ -532,7 +585,27 @@ export async function pushDataToGitHub(
     uploadedImagesCount > 0 ? `, ${uploadedImagesCount} yeni afiş` : ''
   }) - ${new Date().toLocaleDateString('tr-TR')} [skip ci]`;
 
-  // 4. PUT content to GitHub Contents API
+  // 4. Fetch the freshest SHA of cleanPath right before writing to avoid ANY SHA conflict!
+  let freshSha: string | undefined = undefined;
+  try {
+    const getRes = await fetch(
+      `https://api.github.com/repos/${owner}/${repo}/contents/${cleanPath}?ref=${cleanBranch}&_nocache=${Date.now()}`,
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          Accept: 'application/vnd.github.v3+json',
+        },
+      }
+    );
+    if (getRes.ok) {
+      const data = await getRes.json();
+      freshSha = data.sha;
+    }
+  } catch (e) {
+    console.warn('Could not fetch freshest file SHA:', e);
+  }
+
+  // 5. PUT content to GitHub Contents API
   const putRes = await fetch(
     `https://api.github.com/repos/${owner}/${repo}/contents/${cleanPath}`,
     {
@@ -546,7 +619,7 @@ export async function pushDataToGitHub(
         message: commitMessage,
         content: base64Content,
         branch: cleanBranch,
-        sha: existingSha,
+        sha: freshSha,
       }),
     }
   );
@@ -705,17 +778,25 @@ export async function resolveGitHubImage(
   fileName: string,
   config: GitHubSyncConfig
 ): Promise<string | null> {
-  const cleanName = fileName.replace(/^images\//, '');
+  let cleanName = fileName.replace(/^images\//, '').trim();
   if (!cleanName) return null;
+  // If cleanName lacks a subfolder prefix, default to posters/
+  if (!cleanName.includes('/')) {
+    cleanName = `posters/${cleanName}`;
+  }
+  const bareName = cleanName.split('/').pop() || cleanName;
 
   // 1. Check in-memory Data URL cache
   if (memoryDataUrlCache.has(cleanName)) {
     return memoryDataUrlCache.get(cleanName)!;
   }
+  if (memoryDataUrlCache.has(bareName)) {
+    return memoryDataUrlCache.get(bareName)!;
+  }
 
   // 2. Check local IndexedDB cache
   try {
-    const cachedBlob = await getCachedImageBlob(cleanName);
+    const cachedBlob = (await getCachedImageBlob(cleanName)) || (await getCachedImageBlob(bareName));
     if (cachedBlob) {
       const dataUrl = await blobToDataUrl(cachedBlob);
       memoryDataUrlCache.set(cleanName, dataUrl);
@@ -738,10 +819,18 @@ export async function resolveGitHubImage(
       headers.Authorization = `Bearer ${token}`;
     }
 
-    const res = await fetch(
+    let res = await fetch(
       `https://api.github.com/repos/${owner}/${repo}/contents/images/${cleanName}?ref=${cleanBranch}&_nocache=${Date.now()}`,
       { headers }
     );
+
+    // If not found in subfolder, fallback to legacy root images/
+    if (!res.ok && bareName !== cleanName) {
+      res = await fetch(
+        `https://api.github.com/repos/${owner}/${repo}/contents/images/${bareName}?ref=${cleanBranch}&_nocache=${Date.now()}`,
+        { headers }
+      );
+    }
 
     if (res.ok) {
       const blob = await res.blob();

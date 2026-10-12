@@ -1164,7 +1164,7 @@ export const AddItemModal: React.FC<AddItemModalProps> = ({
     if (thumbnail) {
       const mimeMatch = thumbnail.match(/data:image\/([a-zA-Z0-9]+);/);
       const ext = mimeMatch ? (mimeMatch[1] === 'jpeg' ? 'jpg' : mimeMatch[1]) : 'jpg';
-      generatedThumbnailFileName = `images/${generatedId}_${Date.now()}.${ext}`;
+      generatedThumbnailFileName = `images/posters/${generatedId}_${Date.now()}.${ext}`;
     }
 
     const newItem: ArchiveItem = {
