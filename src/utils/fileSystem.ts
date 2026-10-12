@@ -119,7 +119,10 @@ export async function hydrateThumbnailsFromCache(items: ArchiveItem[]): Promise<
       if (!item.thumbnailFileName) return;
       const cleanName = item.thumbnailFileName.replace(/^images\//, '');
       try {
-        const cachedBlob = await getCachedImageBlob(cleanName);
+        let cachedBlob = await getCachedImageBlob(cleanName);
+        if (!cachedBlob && cleanName.includes('/')) {
+          cachedBlob = await getCachedImageBlob(cleanName.split('/').pop()!);
+        }
         if (cachedBlob) {
           const dataUrl = await readFileAsBase64(new File([cachedBlob], cleanName, { type: cachedBlob.type || 'image/jpeg' }));
           if (dataUrl) {
@@ -536,7 +539,25 @@ export async function writeDataToFolder(dirHandle: FileSystemDirectoryHandle, da
         }
       } else if (item.thumbnailFileName && !item.thumbnailFileName.includes('/posters/')) {
         const cleanOld = item.thumbnailFileName.replace(/^images\//i, '');
+        if (imagesDir && postersDir) {
+          try {
+            const oldHandle = await imagesDir.getFileHandle(cleanOld, { create: false });
+            const oldFile = await oldHandle.getFile();
+            const newHandle = await postersDir.getFileHandle(cleanOld, { create: true });
+            const writable = await newHandle.createWritable();
+            await writable.write(await oldFile.arrayBuffer());
+            await writable.close();
+            try {
+              await (imagesDir as any).removeEntry(cleanOld);
+            } catch {}
+          } catch {}
+        }
         itemCopy.thumbnailFileName = `images/posters/${cleanOld}`;
+      }
+
+      // Strip bulky base64 thumbnail from written JSON so disk JSON file is only ~150 KB!
+      if (itemCopy.thumbnailFileName) {
+        delete itemCopy.thumbnail;
       }
 
       // 2. Characters -> images/characters/ (Extract from Base64 so JSON stays lightweight)
@@ -784,7 +805,15 @@ export async function cleanOrphanImagesInFolder(
     if ((imagesDir as any).values) {
       for await (const entry of (imagesDir as any).values()) {
         if (entry.kind === 'file') {
-          if (!allActiveBaseNames.has(entry.name)) {
+          // If this file already exists in posters, characters, anki, or badges, OR is not an active item at all:
+          // it is an obsolete root duplicate that should be safely removed!
+          const existsInSub =
+            activePosters.has(entry.name) ||
+            activeCharacters.has(entry.name) ||
+            activeAnki.has(entry.name) ||
+            activeBadges.has(entry.name);
+
+          if (existsInSub || !allActiveBaseNames.has(entry.name)) {
             try {
               await (imagesDir as any).removeEntry(entry.name);
               deletedFiles.push(entry.name);
@@ -1226,6 +1255,11 @@ export async function buildUnifiedZipBlob(data: AppData): Promise<Blob> {
     } else if (item.thumbnailFileName && !item.thumbnailFileName.includes('/posters/')) {
       const cleanOld = item.thumbnailFileName.replace(/^images\//i, '');
       itemCopy.thumbnailFileName = `images/posters/${cleanOld}`;
+    }
+
+    // Strip bulky base64 thumbnail from itemCopy so JSON inside ZIP is only ~150 KB!
+    if (itemCopy.thumbnailFileName) {
+      delete itemCopy.thumbnail;
     }
 
     // 2. Characters -> images/characters/ (Extract to zip so JSON is lightweight)
