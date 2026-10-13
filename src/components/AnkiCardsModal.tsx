@@ -3,13 +3,15 @@ import { ArchiveItem, Category, MainTabType, AnkiBlurBox } from '../types';
 import { AnkiEditorModal } from './AnkiEditorModal';
 import { ItemDetailModal } from './ItemDetailModal';
 import { CustomDialog, DialogOptions } from './CustomDialog';
-import { initAnkiCard } from '../utils/ankiUtils';
+import { initAnkiCard, getAnkiFrontBadges } from '../utils/ankiUtils';
 import {
   X,
   Search,
   Eye,
   EyeOff,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
   Layers,
   Image as ImageIcon,
   Tag,
@@ -22,6 +24,11 @@ import {
   Trash2,
   Check,
   ArrowLeft,
+  Building2,
+  Clapperboard,
+  PenTool,
+  Globe,
+  Users,
 } from 'lucide-react';
 
 interface AnkiCardsModalProps {
@@ -122,6 +129,9 @@ export const AnkiCardsModal: React.FC<AnkiCardsModalProps> = ({
 
   // Selected card in the list
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
+
+  // Active image index for multi-image navigation (0 = Main thumbnail, 1..N = Extra scenes)
+  const [activeImageIndex, setActiveImageIndex] = useState<number>(0);
 
   // Mobile navigation view: 'list' | 'detail' (for screens < 768px)
   const [mobileView, setMobileView] = useState<'list' | 'detail'>('list');
@@ -282,11 +292,12 @@ export const AnkiCardsModal: React.FC<AnkiCardsModalProps> = ({
       result = result.filter((item) => {
         const titleMatch = item.title.toLowerCase().includes(q);
         const tagMatch = item.ankiFrontTags?.some((t) => t.toLowerCase().includes(q));
+        const badgeMatch = getAnkiFrontBadges(item).some((b) => b.text.toLowerCase().includes(q));
         const catList = categories[item.mainTab] || [];
         const cat = catList.find((c) => c.id === item.cat);
         const catMatch = cat?.name.toLowerCase().includes(q) || false;
         const subMatch = item.sub?.toLowerCase().includes(q) || false;
-        return titleMatch || tagMatch || catMatch || subMatch;
+        return titleMatch || tagMatch || badgeMatch || catMatch || subMatch;
       });
     }
 
@@ -313,6 +324,45 @@ export const AnkiCardsModal: React.FC<AnkiCardsModalProps> = ({
     if (!selectedItemId) return filteredItems[0] || null;
     return filteredItems.find((i) => i.id === selectedItemId) || filteredItems[0] || null;
   }, [filteredItems, selectedItemId]);
+
+  // Reset active image index to 0 when selected card changes
+  useEffect(() => {
+    setActiveImageIndex(0);
+  }, [selectedItemId]);
+
+  // Multi-image list for selected item (Main poster + extra scene images)
+  const galleryImages = useMemo(() => {
+    if (!selectedItem) return [];
+    const list: { url: string; blurs: AnkiBlurBox[]; isExtra?: boolean }[] = [];
+    if (selectedItem.thumbnail) {
+      list.push({
+        url: selectedItem.thumbnail,
+        blurs: selectedItem.ankiMainBlurs || [],
+        isExtra: false,
+      });
+    }
+    if (selectedItem.ankiExtraImages && selectedItem.ankiExtraImages.length > 0) {
+      selectedItem.ankiExtraImages.forEach((extra) => {
+        if (extra.url) {
+          list.push({
+            url: extra.url,
+            blurs: extra.blurs || [],
+            isExtra: true,
+          });
+        }
+      });
+    }
+    return list;
+  }, [selectedItem]);
+
+  const safeImageIndex = Math.min(activeImageIndex, Math.max(0, galleryImages.length - 1));
+  const activeImage = galleryImages[safeImageIndex];
+
+  // Front badges (User custom tags or Otomatik Akıl)
+  const frontBadges = useMemo(() => {
+    if (!selectedItem) return [];
+    return getAnkiFrontBadges(selectedItem);
+  }, [selectedItem]);
 
   // Helper to get category text
   const getCategoryPath = useCallback(
@@ -343,17 +393,21 @@ export const AnkiCardsModal: React.FC<AnkiCardsModalProps> = ({
   const stateRef = useRef({
     filteredItems,
     selectedItemId,
+    safeImageIndex,
+    galleryImagesLength: galleryImages.length,
     isModalActive: !isEditorOpen && !isDetailOpen && !dialogOptions,
   });
   useEffect(() => {
     stateRef.current = {
       filteredItems,
       selectedItemId,
+      safeImageIndex,
+      galleryImagesLength: galleryImages.length,
       isModalActive: !isEditorOpen && !isDetailOpen && !dialogOptions,
     };
   });
 
-  // Keyboard navigation: Arrow Up, Arrow Down, Space
+  // Keyboard navigation: Arrow Up, Arrow Down, Arrow Left, Arrow Right, Space
   useEffect(() => {
     if (!isOpen) return;
 
@@ -379,11 +433,26 @@ export const AnkiCardsModal: React.FC<AnkiCardsModalProps> = ({
         if (currentItems.length > 0) {
           searchInputRef.current?.blur();
           setSelectedItemId(currentItems[0].id);
+          setActiveImageIndex(0);
         }
         return;
       }
 
-      // Arrow navigation inside list
+      // Arrow Left / Arrow Right: Switch between multi-images of the selected card
+      if ((e.key === 'ArrowLeft' || e.key === 'ArrowRight') && !isInputFocused) {
+        const { galleryImagesLength, safeImageIndex: curIdx } = stateRef.current;
+        if (galleryImagesLength > 1) {
+          e.preventDefault();
+          if (e.key === 'ArrowLeft') {
+            setActiveImageIndex(Math.max(0, curIdx - 1));
+          } else {
+            setActiveImageIndex(Math.min(galleryImagesLength - 1, curIdx + 1));
+          }
+          return;
+        }
+      }
+
+      // Arrow navigation inside list (Arrow Up / Arrow Down)
       if ((e.key === 'ArrowDown' || e.key === 'ArrowUp') && !isInputFocused) {
         e.preventDefault();
         const { filteredItems: currentItems, selectedItemId: currentId } = stateRef.current;
@@ -392,6 +461,7 @@ export const AnkiCardsModal: React.FC<AnkiCardsModalProps> = ({
         const currentIndex = currentItems.findIndex((i) => i.id === currentId);
         if (currentIndex === -1) {
           setSelectedItemId(currentItems[0].id);
+          setActiveImageIndex(0);
           return;
         }
 
@@ -404,6 +474,7 @@ export const AnkiCardsModal: React.FC<AnkiCardsModalProps> = ({
 
         if (nextIndex !== currentIndex) {
           setSelectedItemId(currentItems[nextIndex].id);
+          setActiveImageIndex(0);
           const el = document.getElementById(`anki-card-item-${currentItems[nextIndex].id}`);
           el?.scrollIntoView({ block: 'nearest' });
         }
@@ -416,6 +487,7 @@ export const AnkiCardsModal: React.FC<AnkiCardsModalProps> = ({
 
   const handleSelectCard = useCallback((id: string) => {
     setSelectedItemId(id);
+    setActiveImageIndex(0);
     setMobileView('detail');
   }, []);
 
@@ -722,13 +794,48 @@ export const AnkiCardsModal: React.FC<AnkiCardsModalProps> = ({
               </div>
 
               {selectedItem ? (
-                <div className="flex flex-col items-center max-w-md mx-auto w-full my-auto space-y-4 sm:space-y-5">
+                <div className="flex flex-col items-center max-w-md mx-auto w-full my-auto space-y-3 sm:space-y-4">
+                  {/* Zero-Shift Reserved Gallery Navigation Header (h-8 / min-h-[32px] ensures poster never shifts) */}
+                  <div className="h-8 min-h-[32px] flex items-center justify-center w-full select-none">
+                    {galleryImages.length > 1 ? (
+                      <div className="flex items-center gap-0.5 px-1.5 py-0.5 rounded-lg bg-black/60 border border-white/15 text-slate-200 shadow-sm backdrop-blur-md">
+                        <button
+                          type="button"
+                          disabled={safeImageIndex <= 0}
+                          onClick={() => setActiveImageIndex((prev) => Math.max(0, prev - 1))}
+                          className="p-1 rounded hover:bg-white/15 disabled:opacity-25 disabled:pointer-events-none transition-colors cursor-pointer text-slate-300 hover:text-white"
+                          title="Önceki Görsel (Sol Ok tuşu)"
+                        >
+                          <ChevronLeft className="w-3.5 h-3.5" />
+                        </button>
+
+                        <span className="font-mono text-xs px-1.5 text-slate-200 font-semibold select-none">
+                          {safeImageIndex + 1} / {galleryImages.length}
+                        </span>
+
+                        <button
+                          type="button"
+                          disabled={safeImageIndex >= galleryImages.length - 1}
+                          onClick={() =>
+                            setActiveImageIndex((prev) =>
+                              Math.min(galleryImages.length - 1, prev + 1)
+                            )
+                          }
+                          className="p-1 rounded hover:bg-white/15 disabled:opacity-25 disabled:pointer-events-none transition-colors cursor-pointer text-slate-300 hover:text-white"
+                          title="Sonraki Görsel (Sağ Ok tuşu)"
+                        >
+                          <ChevronRight className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    ) : null}
+                  </div>
+
                   {/* Visual Poster & Live Blur Boxes */}
                   <div className="relative w-56 sm:w-64 aspect-[2/3] max-h-[380px] rounded-xl overflow-hidden border border-white/15 bg-black/40 shadow-2xl group select-none">
-                    {selectedItem.thumbnail ? (
+                    {activeImage?.url ? (
                       <img
-                        key={selectedItem.id}
-                        src={selectedItem.thumbnail}
+                        key={`${selectedItem.id}-${safeImageIndex}`}
+                        src={activeImage.url}
                         alt={selectedItem.title}
                         loading="eager"
                         decoding="async"
@@ -741,10 +848,10 @@ export const AnkiCardsModal: React.FC<AnkiCardsModalProps> = ({
                       </div>
                     )}
 
-                    {/* Render Live Blur Boxes (GPU accelerated) */}
+                    {/* Render Live Blur Boxes for Active Image (GPU accelerated) */}
                     {!isBlurHidden &&
-                      selectedItem.ankiMainBlurs &&
-                      selectedItem.ankiMainBlurs.map((box: AnkiBlurBox) => (
+                      activeImage?.blurs &&
+                      activeImage.blurs.map((box: AnkiBlurBox) => (
                         <div
                           key={box.id}
                           className="absolute bg-black/60 backdrop-blur-md border border-white/20 rounded shadow-md pointer-events-none transition-opacity duration-150"
@@ -788,18 +895,58 @@ export const AnkiCardsModal: React.FC<AnkiCardsModalProps> = ({
                       {getCategoryPath(selectedItem)}
                     </p>
 
-                    {/* Front Tags if present */}
-                    {selectedItem.ankiFrontTags && selectedItem.ankiFrontTags.length > 0 && (
+                    {/* Front Badges (Kullanıcı Seçimi veya Otomatik Akıl) */}
+                    {frontBadges.length > 0 && (
                       <div className="flex flex-wrap items-center justify-center gap-1.5 pt-1">
-                        {selectedItem.ankiFrontTags.map((tag, idx) => (
-                          <span
-                            key={idx}
-                            className="px-2 py-0.5 rounded-md bg-white/5 border border-white/10 text-slate-300 text-[10px] font-medium flex items-center gap-1"
-                          >
-                            <Tag className="w-2.5 h-2.5 text-indigo-400" />
-                            <span>{tag}</span>
-                          </span>
-                        ))}
+                        {frontBadges.map((badge, idx) => {
+                          let iconNode = (
+                            <Building2 className="w-2.5 h-2.5 text-indigo-400 shrink-0" />
+                          );
+                          let roleLabel = 'Firma / Stüdyo';
+
+                          if (badge.role === 'author') {
+                            iconNode = (
+                              <PenTool className="w-2.5 h-2.5 text-amber-400 shrink-0" />
+                            );
+                            roleLabel = 'Yazar';
+                          } else if (badge.role === 'translator') {
+                            iconNode = (
+                              <Globe className="w-2.5 h-2.5 text-sky-400 shrink-0" />
+                            );
+                            roleLabel = 'Çevirmen';
+                          } else if (badge.role === 'publisher') {
+                            iconNode = (
+                              <BookOpen className="w-2.5 h-2.5 text-emerald-400 shrink-0" />
+                            );
+                            roleLabel = 'Yayınevi';
+                          } else if (badge.role === 'director') {
+                            iconNode = (
+                              <Clapperboard className="w-2.5 h-2.5 text-amber-400 shrink-0" />
+                            );
+                            roleLabel = 'Yönetmen';
+                          } else if (badge.role === 'actors') {
+                            iconNode = (
+                              <Users className="w-2.5 h-2.5 text-sky-400 shrink-0" />
+                            );
+                            roleLabel = 'Oyuncular / Seslendirme';
+                          } else if (badge.role === 'developer') {
+                            iconNode = (
+                              <Gamepad2 className="w-2.5 h-2.5 text-indigo-400 shrink-0" />
+                            );
+                            roleLabel = 'Geliştirici / Stüdyo';
+                          }
+
+                          return (
+                            <span
+                              key={idx}
+                              title={roleLabel}
+                              className="px-2 py-0.5 rounded-md bg-white/5 border border-white/10 text-slate-300 text-[10px] font-medium flex items-center gap-1 shadow-sm"
+                            >
+                              {iconNode}
+                              <span>{badge.text}</span>
+                            </span>
+                          );
+                        })}
                       </div>
                     )}
                   </div>
