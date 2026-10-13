@@ -8,6 +8,7 @@ import {
   ListOrdered,
   Sparkles,
   ArrowRight,
+  FileText,
 } from 'lucide-react';
 
 export type DialogType = 'alert' | 'confirm' | 'prompt' | 'tier-report' | 'success';
@@ -35,6 +36,7 @@ export interface DialogOptions {
   promptDefaultValue?: string;
   promptPlaceholder?: string;
   tierReport?: TierImportReportData;
+  fileList?: string[];
   onConfirm?: (value?: string) => void;
   onCancel?: () => void;
 }
@@ -152,7 +154,11 @@ export const CustomDialog: React.FC<CustomDialogProps> = ({ options, onClose }) 
       <div
         id="custom-dialog-box"
         className={`w-full ${
-          options.type === 'tier-report' ? 'max-w-xl' : 'max-w-md'
+          options.type === 'tier-report'
+            ? 'max-w-xl'
+            : options.fileList && options.fileList.length > 0
+            ? 'max-w-lg'
+            : 'max-w-md'
         } bg-[#16181f] border border-white/15 rounded-2xl shadow-2xl overflow-hidden text-slate-100 animate-in zoom-in-95 duration-150 relative`}
         onClick={(e) => e.stopPropagation()}
       >
@@ -219,9 +225,27 @@ export const CustomDialog: React.FC<CustomDialogProps> = ({ options, onClose }) 
         </div>
 
         {/* Content Body */}
-        <div className="p-5 space-y-4 max-h-[70vh] overflow-y-auto custom-scrollbar text-xs sm:text-sm text-slate-300 leading-relaxed">
+        <div className="p-5 space-y-3.5 max-h-[75vh] overflow-y-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden text-xs sm:text-sm text-slate-300 leading-relaxed">
           {options.message && (
             <p className="whitespace-pre-line text-slate-200">{options.message}</p>
+          )}
+
+          {/* Clean Line-by-Line File List without scrollbar (scroll with mouse wheel) */}
+          {options.fileList && options.fileList.length > 0 && (
+            <div className="space-y-1.5 pt-1">
+              <div className="max-h-[360px] sm:max-h-[440px] overflow-y-auto space-y-1.5 pr-0.5 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+                {options.fileList.map((file, idx) => (
+                  <div
+                    key={idx}
+                    className="px-3 py-2 rounded-xl bg-black/45 border border-white/10 text-xs font-mono text-slate-200 flex items-center gap-2.5 transition-colors hover:border-white/25 select-all"
+                    title={file}
+                  >
+                    <FileText className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                    <span className="truncate flex-1 font-mono text-[11px] sm:text-xs text-slate-300">{file}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
           )}
 
           {/* Prompt Input */}

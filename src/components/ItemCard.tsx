@@ -130,6 +130,7 @@ export const ItemCard: React.FC<ItemCardProps> = ({
   const showRating = showAllBadges && viewSettings.showRating !== false;
   const showTitle = viewSettings.showTitle !== false;
   const showAnki = showAllBadges && Boolean(viewSettings.showAnki) && Boolean(item.anki);
+  const showCustomBadges = showAllBadges && viewSettings.showCustomBadges !== false;
   const showWatching = showAllBadges && viewSettings.showWatching !== false && !isGame && !isBook && item.watching;
   const showFollowing = showAllBadges && viewSettings.showFollowing !== false && !isGame && !isBook && item.following;
   const showDropped = showAllBadges && !isGame && !isBook && Boolean(item.dropped);
@@ -212,87 +213,72 @@ export const ItemCard: React.FC<ItemCardProps> = ({
       onClick={handleCardClick}
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}
-      className={`group cursor-pointer flex flex-col transition-all duration-300 ${getHoverMotionClasses()} select-none relative`}
+      className={`group cursor-pointer flex flex-col transition-all duration-300 ${getHoverMotionClasses()} select-none relative hover:z-30`}
     >
       {/* Poster Container */}
       <div
-        className={`relative w-full aspect-[2/3] ${getRadiusClasses()} overflow-hidden border bg-[#181818] shadow-md transition-all duration-300 ${getPosterBorderClasses()}`}
+        className={`relative w-full aspect-[2/3] ${getRadiusClasses()} border bg-[#181818] shadow-md transition-all duration-300 ${getPosterBorderClasses()}`}
         style={{
           background: item.thumbnail
             ? '#141414'
             : `radial-gradient(circle at 50% 30%, ${baseColor}25 0%, #141414 100%)`,
         }}
       >
-        {item.thumbnail ? (
-          <img
-            src={item.thumbnail}
-            alt={item.title}
-            className={`w-full h-full object-cover transition-transform duration-500 ease-out ${
-              isSelectionMode ? '' : 'group-hover:scale-105'
-            }`}
-            loading="lazy"
-          />
-        ) : (
-          <div className="w-full h-full flex flex-col items-center justify-center p-3 text-center">
-            <span
-              className="text-xs md:text-sm font-semibold tracking-wide text-neutral-200 line-clamp-3 leading-snug drop-shadow-md px-1"
-              style={{ color: baseColor }}
-            >
-              {item.title}
-            </span>
-          </div>
-        )}
+        {/* Clipped Media Layer (Image, Vignettes & Soft Tulle Background) */}
+        <div className={`absolute inset-0 ${getRadiusClasses()} overflow-hidden pointer-events-none`}>
+          {item.thumbnail ? (
+            <img
+              src={item.thumbnail}
+              alt={item.title}
+              className={`w-full h-full object-cover transition-transform duration-500 ease-out ${
+                isSelectionMode ? '' : 'group-hover:scale-105'
+              }`}
+              loading="lazy"
+            />
+          ) : (
+            <div className="w-full h-full flex flex-col items-center justify-center p-3 text-center">
+              <span
+                className="text-xs md:text-sm font-semibold tracking-wide text-neutral-200 line-clamp-3 leading-snug drop-shadow-md px-1"
+                style={{ color: baseColor }}
+              >
+                {item.title}
+              </span>
+            </div>
+          )}
 
-        {/* Cinematic Vignette Overlay Effects - Softened, Subtler and Lighter */}
-        {cardVignette === 'bottom' && (
-          <div className="absolute inset-0 bg-gradient-to-t from-black/35 via-black/5 to-transparent pointer-events-none z-10" />
-        )}
-        {cardVignette === 'corners' && (
-          <div
-            className="absolute inset-0 pointer-events-none z-10"
-            style={{
-              background:
-                'radial-gradient(ellipse at center, transparent 45%, rgba(0,0,0,0.30) 100%)',
-            }}
-          />
-        )}
+          {/* Cinematic Vignette Overlay Effects - Softened, Subtler and Lighter */}
+          {cardVignette === 'bottom' && (
+            <div className="absolute inset-0 bg-gradient-to-t from-black/35 via-black/5 to-transparent pointer-events-none z-10" />
+          )}
+          {cardVignette === 'corners' && (
+            <div
+              className="absolute inset-0 pointer-events-none z-10"
+              style={{
+                background:
+                  'radial-gradient(ellipse at center, transparent 45%, rgba(0,0,0,0.30) 100%)',
+              }}
+            />
+          )}
 
-        {/* Selection Checkbox Overlay */}
-        {isSelectionMode && (
-          <div
-            id={`select-checkbox-${item.id}`}
-            onClick={(e) => {
-              e.stopPropagation();
-              onToggleSelect?.();
-            }}
-            className={`absolute top-2 left-2 z-30 w-6 h-6 rounded-lg flex items-center justify-center transition-all duration-200 shadow-md ${
-              isSelected
-                ? 'bg-blue-600 border border-blue-400 text-white scale-110'
-                : 'bg-black/70 border border-white/40 text-transparent hover:border-white hover:bg-black/90'
-            }`}
-          >
-            <Check className={`w-4 h-4 stroke-[3] ${isSelected ? 'opacity-100' : 'opacity-0'}`} />
-          </div>
-        )}
-
-        {/* Rozet Arka Planı: Yumuşak Tül Gölge Yastığı (Yalnızca rozet varsa ve rozet adedine göre dinamik uzar) */}
-        {showAllBadges && !isSelectionMode && assignedBadges.length > 0 && (
-          <div
-            className={`absolute top-0 right-0 pointer-events-none z-[15] transition-all duration-300 ${
-              assignedBadges.length === 1
-                ? (showRating && !isPlanned && item.rating > 0 ? 'h-[68px] sm:h-[90px]' : 'h-[44px] sm:h-[58px]')
-                : assignedBadges.length === 2
-                ? (showRating && !isPlanned && item.rating > 0 ? 'h-[96px] sm:h-[130px]' : 'h-[72px] sm:h-[98px]')
-                : assignedBadges.length === 3
-                ? (showRating && !isPlanned && item.rating > 0 ? 'h-[124px] sm:h-[170px]' : 'h-[100px] sm:h-[138px]')
-                : (showRating && !isPlanned && item.rating > 0 ? 'h-[152px] sm:h-[210px]' : 'h-[128px] sm:h-[178px]')
-            } w-[42px] sm:w-[50px]`}
-            style={{
-              background:
-                'radial-gradient(ellipse at 100% 0%, rgba(0,0,0,0.40) 0%, rgba(0,0,0,0.20) 35%, rgba(0,0,0,0.04) 60%, rgba(0,0,0,0) 80%, transparent 100%)',
-            }}
-          />
-        )}
+          {/* Rozet Arka Planı: Yumuşak Tül Gölge Yastığı (Yalnızca rozet varsa ve görünür durumdaysa rozet adedine göre dinamik uzar) */}
+          {showCustomBadges && !isSelectionMode && assignedBadges.length > 0 && (
+            <div
+              className={`absolute top-0 right-0 pointer-events-none z-[15] transition-all duration-300 ${
+                assignedBadges.length === 1
+                  ? (showRating && !isPlanned && item.rating > 0 ? 'h-[68px] sm:h-[90px]' : 'h-[44px] sm:h-[58px]')
+                  : assignedBadges.length === 2
+                  ? (showRating && !isPlanned && item.rating > 0 ? 'h-[96px] sm:h-[130px]' : 'h-[72px] sm:h-[98px]')
+                  : assignedBadges.length === 3
+                  ? (showRating && !isPlanned && item.rating > 0 ? 'h-[124px] sm:h-[170px]' : 'h-[100px] sm:h-[138px]')
+                  : (showRating && !isPlanned && item.rating > 0 ? 'h-[152px] sm:h-[210px]' : 'h-[128px] sm:h-[178px]')
+              } w-[42px] sm:w-[50px]`}
+              style={{
+                background:
+                  'radial-gradient(ellipse at 100% 0%, rgba(0,0,0,0.40) 0%, rgba(0,0,0,0.20) 35%, rgba(0,0,0,0.04) 60%, rgba(0,0,0,0) 80%, transparent 100%)',
+              }}
+            />
+          )}
+        </div>
 
         {/* Date Badge: Top Left for Both Media and Game (Hidden for -ecek and -yor) */}
         {showYear && !isSelectionMode && !isPlanned && !isOngoing && Boolean(formattedYear) && (
@@ -351,7 +337,7 @@ export const ItemCard: React.FC<ItemCardProps> = ({
           )}
 
           {/* Custom Badges (Maksimum 4 rozet, Puan ile dikey eksende ortalı) */}
-          {showAllBadges && !isSelectionMode && assignedBadges.length > 0 && (
+          {showCustomBadges && !isSelectionMode && assignedBadges.length > 0 && (
             <div className="flex flex-col items-center gap-0.5 sm:gap-1.5 pointer-events-auto">
               {assignedBadges.map((badge) => {
                 const colorOpt = getBadgeColorOption(badge.color);
@@ -363,7 +349,6 @@ export const ItemCard: React.FC<ItemCardProps> = ({
                     key={badge.id}
                     id={`badge-custom-${item.id}-${badge.id}`}
                     onClick={(e) => handleBadgeClick(e, badge)}
-                    title={`${badge.name} (Büyütmek için tıklayın)`}
                     className="group/badge relative pointer-events-auto cursor-pointer"
                   >
                     {/* Rozet Saf Şeffaf Madalya (Mobilde 26px tam ölçü, PC'de 37px - Ortalanmış ve çakışmasız) */}
@@ -391,7 +376,7 @@ export const ItemCard: React.FC<ItemCardProps> = ({
                           loading="lazy"
                         />
                       ) : (
-                        <span className="text-base sm:text-xl select-none leading-none" title={badge.name}>🏆</span>
+                        <span className="text-base sm:text-xl select-none leading-none">🏆</span>
                       )}
                     </div>
 
@@ -422,7 +407,7 @@ export const ItemCard: React.FC<ItemCardProps> = ({
 
                         {/* Rozet Unvan Metni */}
                         <span
-                          className="text-[11px] font-bold tracking-tight max-w-[150px] sm:max-w-[200px] truncate"
+                          className="text-[11px] font-bold tracking-tight max-w-[240px] sm:max-w-[300px] truncate"
                           style={{
                             color: isGlowActive ? colorOpt.hex : '#f1f5f9',
                             textShadow: isGlowActive ? `0 0 8px ${colorOpt.hex}60` : undefined,

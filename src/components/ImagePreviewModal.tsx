@@ -800,12 +800,11 @@ export const ImagePreviewModal: React.FC<ImagePreviewModalProps> = ({
                         key={badge.id}
                         id={`preview-badge-${item.id}-${badge.id}`}
                         onClick={(e) => handleBadgeClick(e, badge)}
-                        title={`${badge.name} (Büyütmek için tıklayın)`}
                         className="group/badge relative pointer-events-auto cursor-pointer"
                       >
-                        {/* Rozet Saf Şeffaf Madalya (Detay penceresi heybetli vitrin boyutu) */}
+                        {/* Rozet Saf Şeffaf Madalya (Detay penceresi vitrin boyutu: PC 54px, Mobil 52px) */}
                         <div
-                          className={`w-[50px] h-[50px] sm:w-14 sm:h-14 flex items-center justify-center transition-all duration-200 ease-out select-none hover:scale-115 active:scale-95 ${
+                          className={`w-[52px] h-[52px] sm:w-[54px] sm:h-[54px] flex items-center justify-center transition-all duration-200 ease-out select-none hover:scale-115 active:scale-95 ${
                             isMobileActive ? 'scale-115' : ''
                           }`}
                         >
@@ -1509,12 +1508,11 @@ export const ImagePreviewModal: React.FC<ImagePreviewModalProps> = ({
                           key={badge.id}
                           id={`mobile-preview-badge-${item.id}-${badge.id}`}
                           onClick={(e) => handleBadgeClick(e, badge)}
-                          title={`${badge.name} (Büyütmek için tıklayın)`}
                           className="group/badge relative cursor-pointer"
                         >
-                          {/* Rozet Saf Şeffaf Madalya (Mobil detay vitrini: 50px heybetli madalya boyutu) */}
+                          {/* Rozet Saf Şeffaf Madalya (Mobil detay vitrini: 52px madalya boyutu) */}
                           <div
-                            className={`w-[50px] h-[50px] flex items-center justify-center transition-all duration-200 ease-out select-none active:scale-95 ${
+                            className={`w-[52px] h-[52px] flex items-center justify-center transition-all duration-200 ease-out select-none active:scale-95 ${
                               isMobileActive ? 'scale-115' : ''
                             }`}
                           >

@@ -609,6 +609,7 @@ export interface ViewSettings {
   showRating: boolean;
   showYear: boolean;
   showAnki: boolean;
+  showCustomBadges?: boolean;
   showWatching: boolean;
   showFollowing: boolean;
   showGameStatus: boolean;
@@ -633,6 +634,7 @@ export const DEFAULT_VIEW_SETTINGS: ViewSettings = {
   showRating: true,
   showYear: true,
   showAnki: false,
+  showCustomBadges: true,
   showWatching: true,
   showFollowing: true,
   showGameStatus: true,

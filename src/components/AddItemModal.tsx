@@ -59,6 +59,7 @@ import {
   Crop,
   MinusCircle,
   Award,
+  Settings,
 } from 'lucide-react';
 
 interface AddItemModalProps {
@@ -848,7 +849,7 @@ export const AddItemModal: React.FC<AddItemModalProps> = ({
         for (const type of clipboardItem.types) {
           if (type.startsWith('image/')) {
             const blob = await clipboardItem.getType(type);
-            const optimized = await optimizeImageFile(blob, 1200, 1600, 0.95);
+            const optimized = await optimizeImageFile(blob, 1200, 1600, 0.88);
             handleUpdateCharacter(index, 'image', optimized);
             foundImage = true;
             break;
@@ -1472,7 +1473,7 @@ export const AddItemModal: React.FC<AddItemModalProps> = ({
                 {isBadgePopoverOpen && (
                   <div
                     ref={badgePopoverRef}
-                    className="absolute left-1/2 -translate-x-1/2 sm:left-0 sm:translate-x-0 top-full mt-1.5 z-50 w-64 max-w-[280px] bg-[#141722] border border-white/20 rounded-xl shadow-2xl p-2.5 space-y-2 animate-in fade-in zoom-in-95 duration-100 text-left"
+                    className="absolute left-1/2 -translate-x-1/2 sm:left-0 sm:translate-x-0 top-full mt-1.5 z-50 w-[270px] max-w-[295px] bg-[#141722] border border-white/20 rounded-xl shadow-2xl p-3 space-y-2.5 animate-in fade-in zoom-in-95 duration-100 text-left"
                     onClick={(e) => e.stopPropagation()}
                   >
                     {/* Popover Header */}
@@ -1486,23 +1487,34 @@ export const AddItemModal: React.FC<AddItemModalProps> = ({
                           </span>
                         )}
                       </span>
-                      <button
-                        type="button"
-                        onClick={() => setIsBadgePopoverOpen(false)}
-                        className="text-slate-400 hover:text-white p-0.5 rounded cursor-pointer"
-                      >
-                        <X className="w-3.5 h-3.5" />
-                      </button>
+                      <div className="flex items-center gap-1.5">
+                        {onOpenSettings && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setIsBadgePopoverOpen(false);
+                              onClose();
+                              onOpenSettings('themes');
+                            }}
+                            className="text-slate-400 hover:text-amber-400 p-0.5 rounded cursor-pointer transition-colors"
+                            title="Rozetleri Yönet"
+                          >
+                            <Settings className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => setIsBadgePopoverOpen(false)}
+                          className="text-slate-400 hover:text-white p-0.5 rounded cursor-pointer transition-colors"
+                          title="Kapat"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
                     </div>
 
-                    {badges.length >= 4 && (
-                      <p className="text-[10px] text-amber-300/90 bg-amber-500/10 border border-amber-500/20 rounded-lg p-1.5 leading-tight">
-                        Maksimum 4 rozet sınırına ulaşıldı. Yeni rozet eklemek için seçili olanlardan birini çıkarın.
-                      </p>
-                    )}
-
                     {/* Rozet Listesi (Sadece bu alana ait rozetler) */}
-                    <div className="max-h-48 overflow-y-auto custom-scrollbar space-y-1">
+                    <div className="max-h-[240px] overflow-y-auto no-scrollbar space-y-1.5">
                       {scopedBadges.length === 0 ? (
                         <div className="py-4 px-2 text-center space-y-1 text-slate-400">
                           <p className="text-[11px] font-semibold text-slate-300">
@@ -1522,7 +1534,7 @@ export const AddItemModal: React.FC<AddItemModalProps> = ({
                               key={b.id}
                               type="button"
                               onClick={() => handleToggleBadge(b.id)}
-                              className={`w-full text-left px-2 py-1.5 rounded-lg text-xs transition-all flex items-center justify-between gap-2 border cursor-pointer group ${
+                              className={`w-full text-left px-2.5 py-1.5 rounded-lg text-xs transition-all flex items-center justify-between gap-2.5 border cursor-pointer group ${
                                 isSelected
                                   ? 'bg-blue-600/20 border-blue-500/40 text-blue-200 font-semibold'
                                   : badges.length >= 4
@@ -1531,22 +1543,22 @@ export const AddItemModal: React.FC<AddItemModalProps> = ({
                               }`}
                               disabled={!isSelected && badges.length >= 4}
                             >
-                              <div className="flex items-center gap-2 min-w-0 flex-1">
-                                <div className="w-8 h-8 flex items-center justify-center shrink-0">
+                              <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                                <div className="w-10 h-10 flex items-center justify-center shrink-0">
                                   {b.iconData ? (
                                     <img
                                       src={b.iconData}
                                       alt={b.name}
-                                      className="w-7 h-7 object-contain"
+                                      className="w-9 h-9 object-contain"
                                       style={{
-                                        filter: `drop-shadow(0 0 5px ${colorOpt.hex}) drop-shadow(0 1px 3px rgba(0,0,0,0.85))`,
+                                        filter: `drop-shadow(0 0 6px ${colorOpt.hex}) drop-shadow(0 1px 3px rgba(0,0,0,0.85))`,
                                       }}
                                     />
                                   ) : (
-                                    <span className="text-base">🏆</span>
+                                    <span className="text-xl">🏆</span>
                                   )}
                                 </div>
-                                <span className="truncate text-xs font-medium">{b.name}</span>
+                                <span className="truncate text-xs font-medium text-slate-200">{b.name}</span>
                               </div>
 
                               <span className="shrink-0 text-xs">
@@ -1560,23 +1572,6 @@ export const AddItemModal: React.FC<AddItemModalProps> = ({
                           );
                         })
                       )}
-                    </div>
-
-                    {/* Ayarlar'da Rozetleri Yönet Kısayolu */}
-                    <div className="pt-1.5 border-t border-white/10">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setIsBadgePopoverOpen(false);
-                          if (onOpenSettings) {
-                            onClose();
-                            onOpenSettings('themes');
-                          }
-                        }}
-                        className="w-full py-1 px-2 rounded-lg text-[10px] font-semibold text-slate-400 hover:text-white hover:bg-white/5 flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
-                      >
-                        <span>⚙️ Ayarlar'da Rozetleri Yönet</span>
-                      </button>
                     </div>
                   </div>
                 )}
@@ -3109,7 +3104,7 @@ export const AddItemModal: React.FC<AddItemModalProps> = ({
                           const file = e.target.files?.[0];
                           if (file) {
                             try {
-                              const optimized = await optimizeImageFile(file, 1200, 1600, 0.95);
+                              const optimized = await optimizeImageFile(file, 1200, 1600, 0.88);
                               handleUpdateCharacter(index, 'image', optimized);
                             } catch (err) {
                               console.error(err);

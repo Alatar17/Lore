@@ -82,6 +82,7 @@ import {
   Search,
   ShieldCheck,
   FolderArchive,
+  FolderOpen,
   History,
   Calendar,
   Clock,
@@ -441,7 +442,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     const file = e.target.files?.[0];
     if (file) {
       try {
-        const optimized = await optimizeBadgeIcon(file, 256);
+        const optimized = await optimizeBadgeIcon(file, 512);
         setBadgeIconData(optimized);
         setBadgeFormError(null);
       } catch (err: any) {
@@ -459,7 +460,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           const imageType = item.types.find((t) => t.startsWith('image/'));
           if (imageType) {
             const blob = await item.getType(imageType);
-            const optimized = await optimizeBadgeIcon(blob, 256);
+            const optimized = await optimizeBadgeIcon(blob, 512);
             setBadgeIconData(optimized);
             setBadgeFormError(null);
             return;
@@ -483,7 +484,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         if (blob) {
           e.preventDefault();
           try {
-            const optimized = await optimizeBadgeIcon(blob, 256);
+            const optimized = await optimizeBadgeIcon(blob, 512);
             setBadgeIconData(optimized);
             setBadgeFormError(null);
           } catch (err: any) {
@@ -973,7 +974,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         setDialogOptions({
           type: 'alert',
           title: 'Öksüz Görsel Temizliği Tamamlandı',
-          message: `Temizlik tamamlandı! Arşivde kaydı bulunmayan ${res.cleanedCount} adet artık görsel dosyası diskten silindi:\n\n${res.deletedFiles.slice(0, 8).join(', ')}${res.deletedFiles.length > 8 ? '...' : ''}`,
+          message: `Temizlik tamamlandı! Arşivde kaydı bulunmayan ${res.cleanedCount} adet artık görsel dosyası diskten silindi:`,
+          fileList: res.deletedFiles,
         });
       }
     } catch (err: any) {
@@ -1211,10 +1213,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     });
   };
 
-  // Upload External Unified ZIP
-  const handleUploadZip = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  // Process ZIP Backup File
+  const processZipFile = async (file: File) => {
     setImportingZip(true);
     try {
       const data = await importAppDataFromZip(file, dirHandle);
@@ -1240,14 +1240,22 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       });
     } finally {
       setImportingZip(false);
+    }
+  };
+
+  // Upload External Unified ZIP
+  const handleUploadZip = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      await processZipFile(file);
+    } finally {
       if (e.target) e.target.value = '';
     }
   };
 
-  // Upload JSON
-  const handleUploadJson = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  // Process JSON Backup File
+  const processJsonFile = async (file: File) => {
     try {
       const result = await parseUploadedJson(file, appData);
       const count = result.importedItems.length;
@@ -1298,8 +1306,69 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         title: 'Geçersiz Dosya',
         message: 'Geçersiz dosya: ' + (err.message || err),
       });
+    }
+  };
+
+  // Upload JSON
+  const handleUploadJson = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      await processJsonFile(file);
     } finally {
       if (e.target) e.target.value = '';
+    }
+  };
+
+  // Bilgisayardaki Backup klasörünü doğrudan yerel dosya gezgini penceresinde aç (Windows Gezgini)
+  const handleOpenNativeBackupFolder = async () => {
+    if (!dirHandle) {
+      handleConnect();
+      return;
+    }
+    try {
+      let targetHandle: any = dirHandle;
+      try {
+        targetHandle = await dirHandle.getDirectoryHandle('Backup', { create: false });
+      } catch {
+        targetHandle = dirHandle;
+      }
+
+      if ('showOpenFilePicker' in window) {
+        // Windows/OS dosya gezgini diyalogunu doğrudan Backup/ klasörüne konumlandırarak açar
+        const handles = await (window as any).showOpenFilePicker({
+          startIn: targetHandle,
+          multiple: false,
+          types: [
+            {
+              description: 'Yedek Dosyaları (*.zip, *.json)',
+              accept: {
+                'application/zip': ['.zip'],
+                'application/json': ['.json'],
+              },
+            },
+          ],
+        });
+
+        if (handles && handles.length > 0) {
+          const fileHandle = handles[0];
+          const file = await fileHandle.getFile();
+          if (file.name.endsWith('.zip')) {
+            await processZipFile(file);
+          } else if (file.name.endsWith('.json')) {
+            await processJsonFile(file);
+          }
+        }
+      } else if ('showDirectoryPicker' in window) {
+        await (window as any).showDirectoryPicker({
+          startIn: targetHandle,
+        });
+      }
+    } catch (err: any) {
+      // AbortError: Kullanıcı Windows Gezgini penceresini kapattı veya iptal etti.
+      // Herhangi bir hata veya onay uyarısı göstermeden sessizce çık.
+      if (err.name === 'AbortError') return;
+      console.warn('Klasör gezgini hatası:', err);
     }
   };
 

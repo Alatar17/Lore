@@ -1,6 +1,6 @@
 import React from 'react';
 import { ViewSettings, MainTabType, SortOption } from '../types';
-import { SlidersHorizontal, ZoomIn, ZoomOut, Tv, Bookmark, Star, Calendar, Layers, Gamepad2, Type, ArrowUpDown, BookOpen, Eye } from 'lucide-react';
+import { SlidersHorizontal, ZoomIn, ZoomOut, Tv, Bookmark, Star, Calendar, Layers, Award, Gamepad2, Type, ArrowUpDown, BookOpen, Eye } from 'lucide-react';
 
 interface ViewPanelProps {
   settings: ViewSettings;
@@ -160,6 +160,21 @@ export const ViewPanel: React.FC<ViewPanelProps> = ({ settings, mainTab, onChang
                 type="checkbox"
                 checked={Boolean(settings.showAnki)}
                 onChange={(e) => onChange({ showAnki: e.target.checked })}
+                className="w-4 h-4 rounded border-neutral-600 bg-neutral-800 text-white focus:ring-0 cursor-pointer accent-white"
+              />
+            </label>
+
+            {/* Common: Özel Rozetli Yapımları Göster */}
+            <label className="flex items-center justify-between text-xs text-neutral-300 hover:text-white cursor-pointer select-none py-1 px-1 rounded-lg hover:bg-white/5 transition-colors">
+              <div className="flex items-center gap-2">
+                <Award className="w-3.5 h-3.5 text-amber-400" />
+                <span>Özel Rozetli Yapımları Göster</span>
+              </div>
+              <input
+                id="toggle-show-custom-badges"
+                type="checkbox"
+                checked={settings.showCustomBadges !== false}
+                onChange={(e) => onChange({ showCustomBadges: e.target.checked })}
                 className="w-4 h-4 rounded border-neutral-600 bg-neutral-800 text-white focus:ring-0 cursor-pointer accent-white"
               />
             </label>

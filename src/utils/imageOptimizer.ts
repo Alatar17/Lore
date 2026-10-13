@@ -70,7 +70,7 @@ export async function optimizeImageFile(
  */
 export async function optimizeBadgeIcon(
   fileOrBase64: File | Blob | string,
-  targetSize = 256
+  targetSize = 512
 ): Promise<string> {
   return new Promise((resolve, reject) => {
     const img = new Image();
