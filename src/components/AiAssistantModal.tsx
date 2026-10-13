@@ -377,8 +377,8 @@ const AiRecommendationCardView: React.FC<{
             </div>
           </div>
 
-          {/* 1 Cümlelik Kompakt Kısa Özet (Mobilde cümlenin yarım kalmaması için 3 satıra kadar doğal akış) */}
-          <p className="text-xs text-slate-300 mt-1.5 line-clamp-3 leading-relaxed">
+          {/* 1 Cümlelik Kompakt Kısa Özet (Mobilde cümlenin yarım kalmaması için 4 satıra kadar doğal akış) */}
+          <p className="text-xs text-slate-300 mt-1.5 line-clamp-4 leading-relaxed">
             {stripLibraryItemTags(card.shortDesc)}
           </p>
 
