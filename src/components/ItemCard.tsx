@@ -267,10 +267,10 @@ export const ItemCard: React.FC<ItemCardProps> = ({
                 assignedBadges.length === 1
                   ? (showRating && !isPlanned && item.rating > 0 ? 'h-[68px] sm:h-[90px]' : 'h-[44px] sm:h-[58px]')
                   : assignedBadges.length === 2
-                  ? (showRating && !isPlanned && item.rating > 0 ? 'h-[96px] sm:h-[130px]' : 'h-[72px] sm:h-[98px]')
+                  ? (showRating && !isPlanned && item.rating > 0 ? 'h-[98px] sm:h-[132px]' : 'h-[74px] sm:h-[100px]')
                   : assignedBadges.length === 3
-                  ? (showRating && !isPlanned && item.rating > 0 ? 'h-[124px] sm:h-[170px]' : 'h-[100px] sm:h-[138px]')
-                  : (showRating && !isPlanned && item.rating > 0 ? 'h-[152px] sm:h-[210px]' : 'h-[128px] sm:h-[178px]')
+                  ? (showRating && !isPlanned && item.rating > 0 ? 'h-[128px] sm:h-[174px]' : 'h-[104px] sm:h-[142px]')
+                  : (showRating && !isPlanned && item.rating > 0 ? 'h-[158px] sm:h-[216px]' : 'h-[134px] sm:h-[184px]')
               } w-[42px] sm:w-[50px]`}
               style={{
                 background:
@@ -292,7 +292,7 @@ export const ItemCard: React.FC<ItemCardProps> = ({
         )}
 
         {/* Top-Right Badges Column: Rating Badge and Custom Badges Stacked Vertically */}
-        <div className="absolute top-1 sm:top-1.5 right-1 sm:right-1.5 z-20 flex flex-col items-center gap-0.5 sm:gap-1.5 pointer-events-none">
+        <div className="absolute top-1 sm:top-1.5 right-1 sm:right-1.5 z-20 flex flex-col items-center gap-1 sm:gap-2 pointer-events-none">
           {/* Rating Badge (Hidden for -ecek, only visible if rating > 0) */}
           {showRating && !isPlanned && item.rating > 0 && (
             <div
@@ -338,7 +338,7 @@ export const ItemCard: React.FC<ItemCardProps> = ({
 
           {/* Custom Badges (Maksimum 4 rozet, Puan ile dikey eksende ortalı) */}
           {showCustomBadges && !isSelectionMode && assignedBadges.length > 0 && (
-            <div className="flex flex-col items-center gap-0.5 sm:gap-1.5 pointer-events-auto">
+            <div className="flex flex-col items-center gap-1.5 sm:gap-2.5 pointer-events-auto">
               {assignedBadges.map((badge) => {
                 const colorOpt = getBadgeColorOption(badge.color);
                 const isGlowActive = viewSettings.badgeGlowEnabled !== false;

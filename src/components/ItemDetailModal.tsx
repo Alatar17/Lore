@@ -1719,7 +1719,7 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
                 </button>
 
                 {/* Atanmış Rozetler: Yan yana 4 adet saf şeffaf nişan yuvası */}
-                <div className="grid grid-cols-4 gap-1.5 w-full">
+                <div className="grid grid-cols-4 gap-2.5 sm:gap-3 w-full">
                   {[0, 1, 2, 3].map((slotIndex) => {
                     const badgeId = badges[slotIndex];
                     const badgeObj = badgeId ? customBadges.find((b) => b.id === badgeId) : null;
