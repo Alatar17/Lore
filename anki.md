@@ -37,20 +37,19 @@ Bu belge, Anki modülünün editör ve kart listesi bileşenleri için mutabakat
 - Sistemde zaten olduğu gibi, Anki Editörü içinden ana afiş **ASLA silinemez ve değiştirilemez.**
 - Ana afişin üzerinde **kesinlikle "X" (kaldırma) ikonu olmayacak.**
 
-### B. Butonların Konumu (Sağ Alt Araç Çubuğu - Mevcut UI Düzeni Korunur)
-- **Konum:** UI düzeni bozulmadan, doğrudan editörün sağ alt araç çubuğundaki (toolbar) eski `+ Ek Resim Ekle` butonunun bulunduğu alana yerleştirilecek.
-- **Yeni Buton Yapısı:**
-  - Eski `+ Ek Resim Ekle` butonu kaldırılacak.
-  - Yerine yan yana iki modern buton eklenecek:
-    - `Upload` ikonu ile **[ Yükle ]** / **[ Değiştir ]**
-    - `ClipboardPaste` ikonu ile **[ Yapıştır ]**
+### B. Ek Sahne Görsellerinde Zarif [X] (Kaldır) Butonu
+- Sadece **2. ve 3. Ek Sahne Görselleri** seçiliyken, afiş çerçevesinin sağ üst köşesinde zarif bir **[X]** (silme) butonu yer alır.
+- Bu butona tıklandığında ilgili ek sahne silinir ve editör otomatik olarak bir önceki görsele (veya 1. Ana Afişe) geçer.
+- Bu doğrudan görsel üzeri silme sayesinde alt araç çubuğundaki (toolbar) eski **`[ Resmi Sil ]` butonu tamamen kaldırılır** ve alt bar sadeleşir.
+
+### C. Butonların Konumu ve Ekleme Mantığı (Değiştir Modu Yok - Sadece Ekleme)
+- **Konum:** Editörün sağ alt araç çubuğunda (toolbar), eski butonların bulunduğu alanda yan yana iki buton:
+  - `Upload` ikonu ile **[ Yükle ]** (Cihazdan dosya seç)
+  - `ClipboardPaste` ikonu ile **[ Yapıştır ]** (Panodaki resmi doğrudan al)
 - **Çalışma Mantığı:**
-  1. **1. Ana Afiş Seçiliyken:**
-     - Butonlar yeni ek sahne görseli eklemek için çalışır: `[ Yükle ]` (Dosya seç) ve `[ Yapıştır ]` (Panodaki resmi al).
-     - Kullanıcı internetten kopyaladığı bir sahneyi `[ Yapıştır ]` diyerek (veya doğrudan `Ctrl+V` yaparak) indirmeden anında **2. Ek Sahne** olarak ekleyebilir. Eklendiği anda otomatik olarak o yeni ek sahneye geçilir.
-     - En fazla 2 ek görsel eklenebildiği için kota dolduğunda butonlar kilitlenir.
-  2. **2. veya 3. Ek Görsel Seçiliyken:**
-     - Butonlar `[ Değiştir ]` ve `[ Yapıştır ]` moduna geçer; mevcut ek sahneyi yenisiyle değiştirmeye yarar.
-     - Mevcut ek görseli silmek için `[ Resmi Sil ]` butonu korunur.
+  - Kullanıcı hangi görselde olursa olsun (ister 1. Ana Afişte, ister 2. Ek Sahnede), toplam görsel sayısı 3'ten az olduğu sürece (`extraImages.length < 2`) butonlar aktiftir.
+  - `[ Yükle ]` dendiğinde veya `[ Yapıştır ]` yapıldığında (ya da klavyeden `Ctrl+V` basıldığında), yeni görsel sıradaki ek sahne olarak eklenir ve sistem anında o yeni sahneye geçiş yapar.
+  - Toplam 3 görsele (1 Ana Afiş + 2 Ek Sahne) ulaşıldığında kota dolar ve butonlar kilitlenir (devre dışı kalır).
+  - Kullanıcı bir ek sahneyi yenisiyle değiştirmek istediğinde: Sahnenin sağ üstündeki **`[X]`** butonuna basarak sahneyi siler, ardından **`[ Yükle ]`** veya **`[ Yapıştır ]`** diyerek yeni görseli ekler.
 - **Pano Entegrasyonu:**
-  - Hem `[ Yapıştır ]` butonu tıklandığında hem de klavyeden `Ctrl+V` yapıldığında panodaki görsel otomatik okunup optimize edilerek eklenecektir.
+  - Hem `[ Yapıştır ]` butonu tıklandığında hem de editör açıkken klavyeden doğrudan `Ctrl+V` yapıldığında panodaki resim otomatik optimize edilerek anında yeni sahne olarak eklenir.

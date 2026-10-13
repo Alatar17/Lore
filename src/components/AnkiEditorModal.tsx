@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { AnkiBlurBox, AnkiExtraImage } from '../types';
 import { optimizeImageFile } from '../utils/imageOptimizer';
 import {
@@ -6,11 +6,11 @@ import {
   Plus,
   Eye,
   EyeOff,
-  Trash2,
   Check,
   ChevronLeft,
   ChevronRight,
   Upload,
+  ClipboardPaste,
   Maximize2,
   Layers,
 } from 'lucide-react';
@@ -280,32 +280,99 @@ export const AnkiEditorModal: React.FC<AnkiEditorModalProps> = ({
     } catch {}
   };
 
-  // Handle upload for extra image
+  // Helper to add new extra image from File/Blob
+  const handleAddNewExtraImageFile = useCallback(
+    async (file: File | Blob) => {
+      if (extraImages.length >= 2) return;
+      try {
+        const optimized = await optimizeImageFile(file, 800, 1200, 0.88);
+        const newImg: AnkiExtraImage = {
+          id: `img_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+          url: optimized,
+          blurs: [],
+        };
+        setExtraImages((prev) => [...prev, newImg]);
+        setActiveImageIndex(extraImages.length + 1);
+        setSelectedBoxId(null);
+      } catch (err) {
+        console.warn('Görsel optimize edilemedi:', err);
+      }
+    },
+    [extraImages.length]
+  );
+
+  // Handle upload for extra image via file input
   const handleUploadExtraImage = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
+    if (e.target) e.target.value = '';
     if (!file) return;
-    if (extraImages.length >= 2) {
-      return;
-    }
-    try {
-      const optimized = await optimizeImageFile(file, 800, 1200, 0.88);
-      const newImg: AnkiExtraImage = {
-        id: `img_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
-        url: optimized,
-        blurs: [],
-      };
-      setExtraImages((prev) => [...prev, newImg]);
-      setActiveImageIndex(extraImages.length + 1);
-    } catch {}
+    await handleAddNewExtraImageFile(file);
   };
 
-  // Delete current extra image
+  // Handle paste for extra image via button
+  const handlePasteExtraImage = async () => {
+    if (extraImages.length >= 2) return;
+    try {
+      if (navigator.clipboard && navigator.clipboard.read) {
+        const items = await navigator.clipboard.read();
+        for (const item of items) {
+          const imageType = item.types.find((t) => t.startsWith('image/'));
+          if (imageType) {
+            const blob = await item.getType(imageType);
+            await handleAddNewExtraImageFile(blob);
+            return;
+          }
+        }
+      }
+    } catch (err) {
+      console.warn('Pano okuma hatası:', err);
+    }
+  };
+
+  // Global Ctrl+V / Cmd+V paste event listener when editor is open
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const handleWindowPaste = async (e: ClipboardEvent) => {
+      const target = e.target as HTMLElement;
+      if (
+        target.tagName === 'INPUT' ||
+        target.tagName === 'TEXTAREA' ||
+        target.isContentEditable
+      ) {
+        return;
+      }
+
+      if (extraImages.length >= 2) return;
+
+      const items = e.clipboardData?.items;
+      if (!items) return;
+
+      for (let i = 0; i < items.length; i++) {
+        const item = items[i];
+        if (item.type.startsWith('image/')) {
+          e.preventDefault();
+          e.stopPropagation();
+          const file = item.getAsFile();
+          if (file) {
+            await handleAddNewExtraImageFile(file);
+          }
+          break;
+        }
+      }
+    };
+
+    window.addEventListener('paste', handleWindowPaste);
+    return () => window.removeEventListener('paste', handleWindowPaste);
+  }, [isOpen, extraImages.length, handleAddNewExtraImageFile]);
+
+  // Delete current extra image and switch back to previous image or main poster
   const handleDeleteCurrentExtraImage = () => {
     if (activeImageIndex === 0) return; // Main poster cannot be deleted
     const extraIdx = activeImageIndex - 1;
     const nextExtra = extraImages.filter((_, idx) => idx !== extraIdx);
     setExtraImages(nextExtra);
-    setActiveImageIndex(0);
+    setActiveImageIndex((prev) => Math.max(0, prev - 1));
     setSelectedBoxId(null);
   };
 
@@ -374,6 +441,22 @@ export const AnkiEditorModal: React.FC<AnkiEditorModalProps> = ({
                   className="w-full h-full object-cover pointer-events-none select-none"
                   draggable={false}
                 />
+
+                {/* Sadece 2. ve 3. Ek Görsellerde: Sağ Üst Zarif [X] (Sil) Butonu (Ana afişte asla gösterilmez) */}
+                {activeImageIndex > 0 && (
+                  <button
+                    type="button"
+                    onPointerDown={(e) => e.stopPropagation()}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleDeleteCurrentExtraImage();
+                    }}
+                    title="Bu ek sahne görselini sil"
+                    className="absolute top-2 right-2 z-30 p-1.5 rounded-lg bg-black/75 hover:bg-rose-600 text-white/80 hover:text-white border border-white/20 shadow-lg backdrop-blur-md transition-all cursor-pointer group"
+                  >
+                    <X className="w-3.5 h-3.5 group-hover:scale-110 transition-transform" />
+                  </button>
+                )}
 
                 {/* Blur Boxes Layer */}
                 {currentBlurs.map((box, index) => {
@@ -544,40 +627,56 @@ export const AnkiEditorModal: React.FC<AnkiEditorModalProps> = ({
             </button>
           </div>
 
-          {/* Sağ: Ek Resim Ekle / Resmi Sil */}
-          <div className="flex items-center gap-1.5">
-            {activeImageIndex > 0 && (
-              <button
-                type="button"
-                onClick={handleDeleteCurrentExtraImage}
-                title="Bu ek resmi sil"
-                className="flex items-center gap-1 px-2 py-1.5 rounded-lg bg-rose-500/15 hover:bg-rose-500/25 text-rose-300 border border-rose-500/30 text-xs transition-colors cursor-pointer"
-              >
-                <Trash2 className="w-3 h-3" />
-                <span className="hidden sm:inline">Resmi Sil</span>
-              </button>
-            )}
+          {/* Hidden File Input for Extra Scene Upload */}
+          <input
+            ref={extraFileInputRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={handleUploadExtraImage}
+          />
 
-            {extraImages.length < 2 && (
-              <>
-                <input
-                  ref={extraFileInputRef}
-                  type="file"
-                  accept="image/*"
-                  className="hidden"
-                  onChange={handleUploadExtraImage}
-                />
-                <button
-                  type="button"
-                  onClick={() => extraFileInputRef.current?.click()}
-                  title="2. veya 3. ek sahne resmi ekle"
-                  className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-sky-500/15 hover:bg-sky-500/25 text-sky-300 border border-sky-500/30 text-xs transition-colors cursor-pointer"
-                >
-                  <Plus className="w-3.5 h-3.5" />
-                  <span>Ek Resim Ekle</span>
-                </button>
-              </>
-            )}
+          {/* Sağ: [ Yükle ] ve [ Yapıştır ] Butonları (Maks 2 ek sahne kotası) */}
+          <div className="flex items-center gap-2">
+            {/* [ Yükle ] Butonu */}
+            <button
+              type="button"
+              disabled={extraImages.length >= 2}
+              onClick={() => extraFileInputRef.current?.click()}
+              title={
+                extraImages.length >= 2
+                  ? 'En fazla 2 ek sahne görseli eklenebilir (Kota doldu)'
+                  : 'Cihazdan yeni ek sahne görseli seç'
+              }
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                extraImages.length >= 2
+                  ? 'bg-white/5 text-slate-500 border border-white/5 cursor-not-allowed opacity-50'
+                  : 'bg-sky-500/15 hover:bg-sky-500/25 text-sky-300 border border-sky-500/30 shadow-sm hover:border-sky-500/50'
+              }`}
+            >
+              <Upload className="w-3.5 h-3.5" />
+              <span>Yükle</span>
+            </button>
+
+            {/* [ Yapıştır ] Butonu */}
+            <button
+              type="button"
+              disabled={extraImages.length >= 2}
+              onClick={handlePasteExtraImage}
+              title={
+                extraImages.length >= 2
+                  ? 'En fazla 2 ek sahne görseli eklenebilir (Kota doldu)'
+                  : 'Panodaki görseli yeni sahne olarak ekle (Ctrl+V)'
+              }
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                extraImages.length >= 2
+                  ? 'bg-white/5 text-slate-500 border border-white/5 cursor-not-allowed opacity-50'
+                  : 'bg-indigo-500/15 hover:bg-indigo-500/25 text-indigo-300 border border-indigo-500/30 shadow-sm hover:border-indigo-500/50'
+              }`}
+            >
+              <ClipboardPaste className="w-3.5 h-3.5" />
+              <span>Yapıştır</span>
+            </button>
           </div>
         </div>
 
