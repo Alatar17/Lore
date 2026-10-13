@@ -292,7 +292,7 @@ export const ItemCard: React.FC<ItemCardProps> = ({
         )}
 
         {/* Top-Right Badges Column: Rating Badge and Custom Badges Stacked Vertically */}
-        <div className="absolute top-1 sm:top-1.5 right-1 sm:right-1.5 z-20 flex flex-col items-center gap-[3px] sm:gap-[7px] pointer-events-none">
+        <div className="absolute top-1 sm:top-1.5 right-1 sm:right-1.5 z-20 flex flex-col items-center gap-[2px] sm:gap-[7px] pointer-events-none">
           {/* Rating Badge (Hidden for -ecek, only visible if rating > 0) */}
           {showRating && !isPlanned && item.rating > 0 && (
             <div

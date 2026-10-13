@@ -364,7 +364,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   const [badgeColor, setBadgeColor] = useState('gold');
   const [badgeScale, setBadgeScale] = useState<number>(1.0);
   const [badgeFormError, setBadgeFormError] = useState<string | null>(null);
-  const [badgeFormSuccess, setBadgeFormSuccess] = useState<string | null>(null);
   const [copiedPromptFeedback, setCopiedPromptFeedback] = useState(false);
   const [showAiPromptTooltip, setShowAiPromptTooltip] = useState(false);
   const [badgeFilterTab, setBadgeFilterTab] = useState<'all' | 'media' | 'game' | 'book'>('all');
@@ -534,7 +533,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         });
       }
       safeLocalStorageSet('lore_custom_badges', JSON.stringify(updated));
-      setBadgeFormSuccess(`"${trimmed}" rozeti güncellendi.`);
     } else {
       const newBadge: CustomBadge = {
         id: `badge_${Date.now()}`,
@@ -557,10 +555,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         });
       }
       safeLocalStorageSet('lore_custom_badges', JSON.stringify(updated));
-      setBadgeFormSuccess(`"${trimmed}" rozeti oluşturuldu.`);
     }
 
-    setTimeout(() => setBadgeFormSuccess(null), 3000);
     resetBadgeForm();
   };
 
@@ -2556,14 +2552,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                       </div>
                     )}
                   </div>
-
-                  {/* Success Alert if any */}
-                  {badgeFormSuccess && (
-                    <div className="p-3 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-xs text-emerald-300 flex items-center gap-2 animate-in fade-in">
-                      <CheckCircle className="w-4 h-4 text-emerald-400 shrink-0" />
-                      <span>{badgeFormSuccess}</span>
-                    </div>
-                  )}
 
                   {/* Yeni Rozet Oluştur Butonu (Form Kapalıyken - Tek İkonlu) */}
                   {!isBadgeAccordionOpen && (
