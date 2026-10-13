@@ -85,6 +85,7 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
     filters.minRating > 0 ||
     Boolean(filters.droppedOnly) ||
     Boolean(filters.readingOnly) ||
+    Boolean(filters.playingOnly) ||
     Boolean(filters.fullAchOnly) ||
     filters.watchingOnly ||
     filters.followingOnly ||
@@ -102,6 +103,7 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
       ratingFilter: 'all',
       droppedOnly: false,
       readingOnly: false,
+      playingOnly: false,
       watchingOnly: false,
       followingOnly: false,
       fullAchOnly: false,
@@ -248,29 +250,36 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
 
         {/* Game-Specific: Status & Full Achievement Filter */}
         {isGame && (
-          <div className="pt-2 border-t border-white/10 space-y-2">
-            <div>
-              <label className="block text-[11px] uppercase tracking-wider text-neutral-400 font-semibold mb-1.5 flex items-center gap-1.5">
-                <Gamepad2 className="w-3.5 h-3.5 text-neutral-300" />
-                <span>Oyun Durumu</span>
-              </label>
-              <select
-                id="filter-game-status-select"
-                value={filters.gameStatus || 'all'}
-                onChange={(e) =>
-                  onChange({
-                    gameStatus: e.target.value as GameStatus | 'all',
-                  })
-                }
-                className="w-full bg-neutral-800 text-neutral-200 border border-white/10 rounded-lg px-2.5 py-1.5 text-xs focus:outline-none focus:border-white/30 cursor-pointer"
-              >
-                {GAME_STATUS_OPTIONS.map((opt) => (
-                  <option key={opt.value} value={opt.value} className="bg-neutral-900 text-white">
-                    {opt.label}
-                  </option>
-                ))}
-              </select>
-            </div>
+          <div className="pt-2 border-t border-white/10 space-y-1">
+            {/* Game-Specific: Şu An Oynananlar */}
+            <label className="flex items-center justify-between text-xs text-neutral-300 hover:text-white cursor-pointer select-none py-1.5 px-1 rounded-lg hover:bg-white/5 transition-colors">
+              <div className="flex items-center gap-2">
+                <Gamepad2 className="w-4 h-4 text-blue-400" />
+                <span className="text-blue-200 font-medium">Şu An Oynananlar</span>
+              </div>
+              <input
+                id="filter-playing-checkbox"
+                type="checkbox"
+                checked={Boolean(filters.playingOnly)}
+                onChange={(e) => onChange({ playingOnly: e.target.checked })}
+                className="w-4 h-4 rounded border-blue-500/50 bg-neutral-800 text-blue-500 focus:ring-0 cursor-pointer accent-blue-500"
+              />
+            </label>
+
+            {/* Game-Specific: Yarım Bırakılanlar */}
+            <label className="flex items-center justify-between text-xs text-neutral-300 hover:text-white cursor-pointer select-none py-1.5 px-1 rounded-lg hover:bg-white/5 transition-colors">
+              <div className="flex items-center gap-2">
+                <PauseCircle className="w-4 h-4 text-rose-400" />
+                <span className="text-rose-200 font-medium">Yarım Bırakılanlar</span>
+              </div>
+              <input
+                id="filter-game-dropped-checkbox"
+                type="checkbox"
+                checked={Boolean(filters.droppedOnly)}
+                onChange={(e) => onChange({ droppedOnly: e.target.checked })}
+                className="w-4 h-4 rounded border-rose-500/50 bg-neutral-800 text-rose-500 focus:ring-0 cursor-pointer accent-rose-500"
+              />
+            </label>
 
             {/* Sadece Tam Başarım */}
             <label className="flex items-center justify-between text-xs text-neutral-300 hover:text-white cursor-pointer select-none py-1.5 px-1 rounded-lg hover:bg-white/5 transition-colors">
@@ -315,8 +324,8 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
           </div>
         )}
 
-        {/* Seri / Evren Bağlantısı */}
-        <div className="pt-2 border-t border-white/10">
+        {/* Seri / Evren Bağlantısı & Özel Rozetli Yapımlar */}
+        <div className="pt-2 border-t border-white/10 space-y-1">
           <label className="flex items-center justify-between text-xs text-neutral-300 hover:text-white cursor-pointer select-none py-1 px-1 rounded-lg hover:bg-white/5 transition-colors">
             <div className="flex items-center gap-2">
               <Layers className="w-3.5 h-3.5 text-indigo-400" />
@@ -330,10 +339,7 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
               className="w-4 h-4 rounded border-neutral-600 bg-neutral-800 text-white focus:ring-0 cursor-pointer accent-white"
             />
           </label>
-        </div>
 
-        {/* Özel Rozetli Yapımlar (On/Off) */}
-        <div className="pt-2 border-t border-white/10">
           <label className="flex items-center justify-between text-xs text-neutral-300 hover:text-white cursor-pointer select-none py-1 px-1 rounded-lg hover:bg-white/5 transition-colors">
             <div className="flex items-center gap-2">
               <Award className="w-3.5 h-3.5 text-amber-400" />

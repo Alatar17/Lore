@@ -525,6 +525,7 @@ export default function App() {
     followingOnly: false,
     droppedOnly: false,
     readingOnly: false,
+    playingOnly: false,
     fullAchOnly: false,
     ankiFilter: 'all',
     uncategorizedOnly: false,
@@ -1980,11 +1981,21 @@ export default function App() {
         return false;
       }
 
-      // Media-specific: Yarım Bırakılanlar filter
-      if (filters.droppedOnly && !item.dropped) return false;
+      // Media, Game & Book: Yarım Bırakılanlar filter
+      if (filters.droppedOnly) {
+        const isDropped =
+          item.dropped ||
+          item.status === 'Yarım Bırakıldı' ||
+          item.mediaStatus === 'Yarım Bırakıldı' ||
+          item.bookStatus === 'Yarım Bırakıldı';
+        if (!isDropped) return false;
+      }
+
+      // Game-specific: Şu An Oynananlar filter
+      if (item.mainTab === 'game' && filters.playingOnly && item.status !== 'Oynanıyor') return false;
 
       // Book-specific: Şu An Okunanlar filter
-      if (item.mainTab === 'book' && filters.readingOnly && !item.reading) return false;
+      if (item.mainTab === 'book' && filters.readingOnly && !item.reading && item.bookStatus !== 'Okunuyor') return false;
 
       if (filters.watchingOnly && !item.watching && !(item as any).isWatching) return false;
       if (filters.followingOnly && !item.following && !(item as any).isFollowing) return false;
@@ -2413,8 +2424,12 @@ export default function App() {
 
             const activeFiltersCount =
               (filters.minRating > 0 ? 1 : 0) +
+              (filters.droppedOnly ? 1 : 0) +
+              (filters.readingOnly ? 1 : 0) +
+              (filters.playingOnly ? 1 : 0) +
               (filters.watchingOnly ? 1 : 0) +
               (filters.followingOnly ? 1 : 0) +
+              (filters.fullAchOnly ? 1 : 0) +
               (filters.ankiFilter !== 'all' ? 1 : 0) +
               (filters.uncategorizedOnly ? 1 : 0) +
               (filters.seriesOnly ? 1 : 0) +

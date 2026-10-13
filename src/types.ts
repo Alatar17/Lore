@@ -386,6 +386,7 @@ export interface FilterState {
   followingOnly: boolean;
   droppedOnly?: boolean;
   readingOnly?: boolean;
+  playingOnly?: boolean;
   ankiFilter: 'all' | 'yes' | 'no';
   gameStatus?: GameStatus | 'all';
   fullAchOnly?: boolean;

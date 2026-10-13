@@ -224,6 +224,23 @@ const AiRecommendationCardView: React.FC<{
   const [isAnsweringWhy, setIsAnsweringWhy] = useState(false);
   const [imgError, setImgError] = useState(false);
   const [failedGalleryIndexes, setFailedGalleryIndexes] = useState<Set<number>>(new Set());
+  const [showMobileBadgePopup, setShowMobileBadgePopup] = useState(false);
+
+  useEffect(() => {
+    if (!showMobileBadgePopup) return;
+    const timer = setTimeout(() => {
+      setShowMobileBadgePopup(false);
+    }, 3500);
+    return () => clearTimeout(timer);
+  }, [showMobileBadgePopup]);
+
+  const getBadgeIcon = (badgeStr?: string) => {
+    if (!badgeStr) return null;
+    if (badgeStr.includes('🎯') || badgeStr.includes('İMZASI')) return '🎯';
+    if (badgeStr.includes('🌀') || badgeStr.includes('FARKLI')) return '🌀';
+    if (badgeStr.includes('🔮') || badgeStr.includes('KEŞİF') || badgeStr.includes('SIRADIŞI')) return '🔮';
+    return '✨';
+  };
 
   const handleAskWhy = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -296,18 +313,58 @@ const AiRecommendationCardView: React.FC<{
             {/* Sağ: Rozet + Genişlet/Daralt Oku */}
             <div className="flex items-center gap-1.5 shrink-0">
               {card.badge && (
-                <span
-                  className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold tracking-wide border shadow-xs whitespace-nowrap ${
-                    card.badge.includes('İMZASI')
-                      ? 'bg-amber-500/15 border-amber-500/30 text-amber-300'
-                      : card.badge.includes('FARKLI')
-                      ? 'bg-sky-500/15 border-sky-500/30 text-sky-300'
-                      : 'bg-purple-500/15 border-purple-500/30 text-purple-300'
-                  }`}
-                >
-                  {card.badge}
-                  {card.matchScore ? <span className="opacity-75">• %{card.matchScore}</span> : null}
-                </span>
+                <>
+                  {/* Masaüstünde: Normal Rozet */}
+                  <span
+                    className={`hidden sm:inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold tracking-wide border shadow-xs whitespace-nowrap ${
+                      card.badge.includes('İMZASI')
+                        ? 'bg-amber-500/15 border-amber-500/30 text-amber-300'
+                        : card.badge.includes('FARKLI')
+                        ? 'bg-sky-500/15 border-sky-500/30 text-sky-300'
+                        : 'bg-purple-500/15 border-purple-500/30 text-purple-300'
+                    }`}
+                  >
+                    {card.badge}
+                    {card.matchScore ? <span className="opacity-75">• %{card.matchScore}</span> : null}
+                  </span>
+
+                  {/* Mobilde: Sadece Mevcut Simge (Başlığın dar ekranda kesilmesini önler) */}
+                  <div className="relative sm:hidden">
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setShowMobileBadgePopup((prev) => !prev);
+                      }}
+                      className={`inline-flex items-center justify-center w-6 h-6 rounded-full text-xs font-bold border shadow-xs transition-transform active:scale-95 cursor-pointer ${
+                        card.badge.includes('İMZASI')
+                          ? 'bg-amber-500/15 border-amber-500/30 text-amber-300'
+                          : card.badge.includes('FARKLI')
+                          ? 'bg-sky-500/15 border-sky-500/30 text-sky-300'
+                          : 'bg-purple-500/15 border-purple-500/30 text-purple-300'
+                      }`}
+                      title={card.badge}
+                    >
+                      <span>{getBadgeIcon(card.badge)}</span>
+                    </button>
+
+                    {/* Mobilde simgeye tıklanınca açılan bilgi baloncuğu */}
+                    {showMobileBadgePopup && (
+                      <div
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setShowMobileBadgePopup(false);
+                        }}
+                        className="absolute right-0 top-full mt-1.5 z-30 px-2.5 py-1 rounded-lg bg-neutral-900/95 border border-white/20 text-[11px] font-semibold text-white shadow-2xl whitespace-nowrap animate-in fade-in zoom-in-95 duration-150 flex items-center gap-1.5"
+                      >
+                        <span>{card.badge}</span>
+                        {card.matchScore ? (
+                          <span className="text-amber-300 font-bold">• %{card.matchScore}</span>
+                        ) : null}
+                      </div>
+                    )}
+                  </div>
+                </>
               )}
 
               <div className="p-1 rounded-lg text-slate-400 group-hover:text-white transition-colors">
@@ -394,7 +451,7 @@ const AiRecommendationCardView: React.FC<{
               )}
             </div>
 
-            {/* Kütüphaneye Ekle Butonu */}
+            {/* Kütüphaneye Ekle Butonu - Mobilde salt okunur olduğu için gizli */}
             {onOpenAddItem && (
               <button
                 type="button"
@@ -402,7 +459,7 @@ const AiRecommendationCardView: React.FC<{
                   e.stopPropagation();
                   onOpenAddItem(card.title, card.mainTab);
                 }}
-                className="inline-flex items-center px-3 py-1.5 rounded-lg bg-indigo-500/15 hover:bg-indigo-500/25 border border-indigo-500/30 hover:border-indigo-500/50 text-indigo-200 hover:text-white text-xs font-semibold tracking-wide transition-all cursor-pointer active:scale-95 shadow-xs shrink-0 ml-auto self-center"
+                className="hidden sm:inline-flex items-center px-3 py-1.5 rounded-lg bg-indigo-500/15 hover:bg-indigo-500/25 border border-indigo-500/30 hover:border-indigo-500/50 text-indigo-200 hover:text-white text-xs font-semibold tracking-wide transition-all cursor-pointer active:scale-95 shadow-xs shrink-0 ml-auto self-center"
               >
                 <span>Kütüphaneye Ekle</span>
               </button>
