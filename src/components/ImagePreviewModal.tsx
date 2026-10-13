@@ -751,10 +751,10 @@ export const ImagePreviewModal: React.FC<ImagePreviewModalProps> = ({
                   assignedBadges.length === 1
                     ? (!isPlanned && item.rating > 0 ? 'h-[100px]' : 'h-[72px]')
                     : assignedBadges.length === 2
-                    ? (!isPlanned && item.rating > 0 ? 'h-[164px]' : 'h-[136px]')
+                    ? (!isPlanned && item.rating > 0 ? 'h-[162px]' : 'h-[134px]')
                     : assignedBadges.length === 3
-                    ? (!isPlanned && item.rating > 0 ? 'h-[228px]' : 'h-[200px]')
-                    : (!isPlanned && item.rating > 0 ? 'h-[292px]' : 'h-[264px]')
+                    ? (!isPlanned && item.rating > 0 ? 'h-[224px]' : 'h-[196px]')
+                    : (!isPlanned && item.rating > 0 ? 'h-[286px]' : 'h-[258px]')
                 } w-[68px] sm:w-[76px]`}
                 style={{
                   background:
@@ -776,7 +776,7 @@ export const ImagePreviewModal: React.FC<ImagePreviewModalProps> = ({
             )}
 
             {/* ROZET 2 - SAĞ ÜST: Puan ve Altında Dikey Asılı Özel Rozetler */}
-            <div className="absolute top-2.5 right-2.5 z-20 flex flex-col items-center gap-2 pointer-events-none">
+            <div className="absolute top-2.5 right-2.5 z-20 flex flex-col items-center gap-[7px] pointer-events-none">
               {!isPlanned && item.rating > 0 && (
                 <div className="px-2.5 py-1 rounded-lg bg-black/85 backdrop-blur-md border border-amber-500/40 text-xs font-black text-amber-300 flex items-center gap-1 shadow-lg pointer-events-auto">
                   <RatingBadgeIcon
@@ -789,7 +789,7 @@ export const ImagePreviewModal: React.FC<ImagePreviewModalProps> = ({
 
               {/* Custom Badges (Maksimum 4 rozet, Puan ile dikey eksende ortalı) */}
               {assignedBadges.length > 0 && (
-                <div className="flex flex-col items-center gap-4 pointer-events-auto">
+                <div className="flex flex-col items-center gap-[14px] pointer-events-auto">
                   {assignedBadges.map((badge) => {
                     const colorOpt = getBadgeColorOption(badge.color);
                     const isGlowActive = viewSettings?.badgeGlowEnabled !== false;
@@ -1459,10 +1459,10 @@ export const ImagePreviewModal: React.FC<ImagePreviewModalProps> = ({
                     assignedBadges.length === 1
                       ? (!isPlanned && item.rating > 0 ? 'h-[96px]' : 'h-[70px]')
                       : assignedBadges.length === 2
-                      ? (!isPlanned && item.rating > 0 ? 'h-[158px]' : 'h-[132px]')
+                      ? (!isPlanned && item.rating > 0 ? 'h-[156px]' : 'h-[130px]')
                       : assignedBadges.length === 3
-                      ? (!isPlanned && item.rating > 0 ? 'h-[220px]' : 'h-[194px]')
-                      : (!isPlanned && item.rating > 0 ? 'h-[282px]' : 'h-[256px]')
+                      ? (!isPlanned && item.rating > 0 ? 'h-[216px]' : 'h-[190px]')
+                      : (!isPlanned && item.rating > 0 ? 'h-[276px]' : 'h-[250px]')
                   } w-[65px]`}
                   style={{
                     background:
@@ -1484,7 +1484,7 @@ export const ImagePreviewModal: React.FC<ImagePreviewModalProps> = ({
               </div>
 
               {/* Sağ Üst: Puan ve Altında Dikey Asılı Özel Rozetler */}
-              <div className="flex flex-col items-center gap-2 z-20">
+              <div className="flex flex-col items-center gap-[7px] z-20">
                 {!isPlanned && item.rating > 0 && (
                   <span className="px-2.5 py-1 rounded-lg bg-black/85 backdrop-blur-md border border-amber-500/50 text-xs font-black text-amber-300 flex items-center gap-1 shadow">
                     <RatingBadgeIcon
@@ -1497,7 +1497,7 @@ export const ImagePreviewModal: React.FC<ImagePreviewModalProps> = ({
 
                 {/* Custom Badges (Maksimum 4 rozet, Puan ile dikey eksende ortalı) */}
                 {assignedBadges.length > 0 && (
-                  <div className="flex flex-col items-center gap-3.5">
+                  <div className="flex flex-col items-center gap-[12px]">
                     {assignedBadges.map((badge) => {
                       const colorOpt = getBadgeColorOption(badge.color);
                       const isGlowActive = viewSettings?.badgeGlowEnabled !== false;

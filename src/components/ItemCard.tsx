@@ -292,7 +292,7 @@ export const ItemCard: React.FC<ItemCardProps> = ({
         )}
 
         {/* Top-Right Badges Column: Rating Badge and Custom Badges Stacked Vertically */}
-        <div className="absolute top-1 sm:top-1.5 right-1 sm:right-1.5 z-20 flex flex-col items-center gap-1 sm:gap-2 pointer-events-none">
+        <div className="absolute top-1 sm:top-1.5 right-1 sm:right-1.5 z-20 flex flex-col items-center gap-[3px] sm:gap-[7px] pointer-events-none">
           {/* Rating Badge (Hidden for -ecek, only visible if rating > 0) */}
           {showRating && !isPlanned && item.rating > 0 && (
             <div
@@ -338,7 +338,7 @@ export const ItemCard: React.FC<ItemCardProps> = ({
 
           {/* Custom Badges (Maksimum 4 rozet, Puan ile dikey eksende ortalı) */}
           {showCustomBadges && !isSelectionMode && assignedBadges.length > 0 && (
-            <div className="flex flex-col items-center gap-1.5 sm:gap-2.5 pointer-events-auto">
+            <div className="flex flex-col items-center gap-[5px] sm:gap-[9px] pointer-events-auto">
               {assignedBadges.map((badge) => {
                 const colorOpt = getBadgeColorOption(badge.color);
                 const isGlowActive = viewSettings.badgeGlowEnabled !== false;
