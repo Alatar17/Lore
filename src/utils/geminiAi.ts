@@ -654,7 +654,6 @@ Kullanıcının kütüphanesini, izlediği/oynadığı/okuduğu yapımları ve k
     "releaseYear": 2024 veya "2022-2024",
     "mainTab": "media", "game" veya "book",
     "badge": "🎯 KÜTÜPHANE İMZASI",
-    "matchScore": 94,
     "shortDesc": "KAPALI KART VURUCU KANCASI (25-45 kelime, 1-2 akıcı cümle): Karakterin kimliği + huzuru bozan temel kırılma anı + ortaya çıkan gizem veya tehdit. Asla boş övgü yapma! Asla [[item:...]] damgası koyma!",
     "detailedDesc": "AÇIK KART DERİN SİNOPSİS (Aralarında çift satır sonu \\n\\n olan KESİNLİKLE 3 AYRI PARAGRAF, 120-220 kelime):\\n\\n1. Paragraf: Karakter kimdir, hangi evrende yaşar ve hayatının olağan akışı hangi kırılma anıyla rayından çıkar?\\n\\n2. Paragraf: Karakter neyle yüzleşmek zorundadır, karşısındaki varoluşsal kriz ve ahlaki ikilem nedir, neyi kaybetme tehlikesiyle karşı karşıyadır?\\n\\n3. Paragraf: Eserin temposunu, duygusal ağırlığını ve izleyicide bıraktığı psikolojik/atmosferik tonu özetleyen güçlü kapanış. (NOT: Asla boş eleştirmen övgüsü yapma; 'tıkır tıkır çalışan saat mekanizması' gibi laflar etme; yalnızca eserin yarattığı atmosferi ve izi anlat! Kesinlikle aralarında boşluk olan 3 ayrı paragraf üret! Asla [[item:...]] damgası koyma!)",
     "matchReason": "KÜTÜPHANE VE ZEVK BAĞLANTISI (DOĞAL VE AKICI DİL): Bu yapımın kullanıcının kütüphanesindeki tüketilmiş [[item:id|Mevcut Yapım]] sevgisine ve tematik ortaklığına dayanma gerekçesi.",
@@ -674,9 +673,9 @@ Kullanıcının kütüphanesini, izlediği/oynadığı/okuduğu yapımları ve k
   ❌ Kötü Örnek: "Looper'a verdiğin yüksek puana dayanarak bu zaman yolculuğu filmini öneriyorum."
   ✅ İyi Örnek: "[[item:media_123|Looper]]'daki neden-sonuç paradokslarını ve soğuk distopik kurguyu sevdiğin için, bu yapımın zaman çizgisi kırılmaları tam senin aradığın zihinsel düğümü sunacaktır."
 - Rozetler ("badge"):
-  * "🎯 KÜTÜPHANE İMZASI" (matchScore: 85 - 99): Zirve yapımlarla ve favorilerle doğrudan organik bağlı.
-  * "🌀 FARKLI BİR TAT" (matchScore: 60 - 85): Sevilen temaların kıyısında, yeni bir alt tür veya üslup getiren.
-  * "🔮 SIRADIŞI KEŞİF" (matchScore: 70 - 90): Kütüphanede az rastlanan ama kalite çıtasına birebir uyan kült/bağımsız yapımlar.
+  * "🎯 KÜTÜPHANE İMZASI": Zirve yapımlarla ve favorilerle doğrudan organik bağlı.
+  * "🌀 FARKLI BİR TAT": Sevilen temaların kıyısında, yeni bir alt tür veya üslup getiren.
+  * "🔮 SIRADIŞI KEŞİF": Kütüphanede az rastlanan ama kalite çıtasına birebir uyan kült/bağımsız yapımlar.
 - Kopya Yasağı: "detailedDesc", "shortDesc" kancasını asla tekrar edemez.
 - Damga Sızıntısı Yasağı: "detailedDesc" ve "shortDesc" alanlarında BAŞKA BİR ESERDEN BAHSETMEK VE [[item:...]] DAMGASI KULLANMAK KESİNLİKLE YASAKTIR. Bu damga YALNIZCA "matchReason" alanında kullanılır.
 

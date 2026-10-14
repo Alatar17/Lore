@@ -204,7 +204,7 @@ export function normalizeTitleForComparison(title: string): string {
     .replace(/ç/g, 'c')
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
-    .replace(/[^\w\s]/g, ' ')
+    .replace(/[^\p{L}\p{N}\s]/gu, ' ')
     .replace(/\s+/g, ' ')
     .trim();
 }
@@ -216,24 +216,28 @@ function computeTitleSimilarity(normTarget: string, normCandidate: string): numb
   if (!normTarget || !normCandidate) return 0;
   if (normTarget === normCandidate) return 1.0;
 
-  // Biri diğerini içeriyorsa
+  // 1. Karakter bazlı içerme (Biri diğerini içeriyorsa)
+  let inclScore = 0;
   if (normCandidate.includes(normTarget) || normTarget.includes(normCandidate)) {
     const minLen = Math.min(normTarget.length, normCandidate.length);
     const maxLen = Math.max(normTarget.length, normCandidate.length);
-    return 0.75 * (minLen / maxLen);
+    inclScore = 0.8 * (minLen / maxLen);
   }
 
-  // Kelime kümesi benzerliği (Jaccard)
+  // 2. Kelime kümesi benzerliği (Jaccard)
   const wordsTarget = new Set(normTarget.split(' ').filter(Boolean));
   const wordsCandidate = new Set(normCandidate.split(' ').filter(Boolean));
-  if (wordsTarget.size === 0 || wordsCandidate.size === 0) return 0;
-
-  let common = 0;
-  for (const w of wordsTarget) {
-    if (wordsCandidate.has(w)) common++;
+  let jaccard = 0;
+  if (wordsTarget.size > 0 && wordsCandidate.size > 0) {
+    let common = 0;
+    for (const w of wordsTarget) {
+      if (wordsCandidate.has(w)) common++;
+    }
+    const union = new Set([...wordsTarget, ...wordsCandidate]).size;
+    jaccard = union > 0 ? common / union : 0;
   }
-  const union = new Set([...wordsTarget, ...wordsCandidate]).size;
-  return union > 0 ? common / union : 0;
+
+  return Math.max(inclScore, jaccard);
 }
 
 function parseYearNumber(val?: number | string): number | null {
@@ -285,93 +289,115 @@ export async function searchTmdbMedia(
         .trim() || trimmedTitle;
 
       const isToken = isTmdbReadAccessToken(apiKey);
-      const url = new URL('https://api.themoviedb.org/3/search/multi');
-      url.searchParams.set('query', cleanQuery);
-      url.searchParams.set('include_adult', 'false');
-      url.searchParams.set('language', 'tr-TR');
 
-      if (!isToken) {
-        url.searchParams.set('api_key', apiKey);
-      }
+      const searchWithLang = async (
+        lang: string
+      ): Promise<{ candidate: any; score: number } | null> => {
+        try {
+          const url = new URL('https://api.themoviedb.org/3/search/multi');
+          url.searchParams.set('query', cleanQuery);
+          url.searchParams.set('include_adult', 'false');
+          url.searchParams.set('language', lang);
 
-      const headers: Record<string, string> = {
-        Accept: 'application/json',
-      };
-      if (isToken) {
-        headers['Authorization'] = `Bearer ${apiKey}`;
-      }
-
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 6500);
-
-      const response = await fetch(url.toString(), {
-        method: 'GET',
-        headers,
-        signal: controller.signal,
-      });
-
-      clearTimeout(timeoutId);
-
-      if (!response.ok) {
-        return null;
-      }
-
-      const data = await response.json();
-      const results: any[] = Array.isArray(data.results) ? data.results : [];
-
-      // Sadece film ve dizileri tara, afişi olmayanları ele
-      const candidates = results.filter(
-        (item) => (item.media_type === 'movie' || item.media_type === 'tv') && Boolean(item.poster_path)
-      );
-
-      if (candidates.length === 0) {
-        return null;
-      }
-
-      let bestCandidate: any = null;
-      let highestScore = -1;
-
-      for (const item of candidates) {
-        const candTitle = item.title || item.name || '';
-        const candOrigTitle = item.original_title || item.original_name || '';
-        const candDateStr = item.release_date || item.first_air_date || '';
-        const candYear = parseYearNumber(candDateStr);
-
-        // Başlık benzerliği
-        const titleScore1 = computeTitleSimilarity(normTarget, normalizeTitleForComparison(candTitle));
-        const titleScore2 = computeTitleSimilarity(normTarget, normalizeTitleForComparison(candOrigTitle));
-        const bestTitleScore = Math.max(titleScore1, titleScore2);
-
-        // Yıl benzerliği
-        let yearScore = 0.7; // Nötr
-        if (targetYear && candYear) {
-          const diff = Math.abs(targetYear - candYear);
-          if (diff === 0) {
-            yearScore = 1.0;
-          } else if (diff === 1) {
-            yearScore = 0.85; // ±1 yıl esneklik (Resimler.md kuralı)
-          } else if (diff === 2) {
-            yearScore = 0.4;
-          } else {
-            yearScore = 0.1; // 2 yıldan fazla fark varsa ağır ceza
+          if (!isToken) {
+            url.searchParams.set('api_key', apiKey);
           }
-        }
 
-        // Genel eşleşme puanı
-        const totalScore = targetYear
-          ? bestTitleScore * 0.65 + yearScore * 0.35
-          : bestTitleScore;
+          const headers: Record<string, string> = {
+            Accept: 'application/json',
+          };
+          if (isToken) {
+            headers['Authorization'] = `Bearer ${apiKey}`;
+          }
 
-        if (totalScore > highestScore) {
-          highestScore = totalScore;
-          bestCandidate = item;
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 6500);
+
+          const response = await fetch(url.toString(), {
+            method: 'GET',
+            headers,
+            signal: controller.signal,
+          });
+
+          clearTimeout(timeoutId);
+
+          if (!response.ok) return null;
+
+          const data = await response.json();
+          const results: any[] = Array.isArray(data.results) ? data.results : [];
+
+          // Sadece film ve dizileri tara, afişi olmayanları ele
+          const candidates = results.filter(
+            (item) => (item.media_type === 'movie' || item.media_type === 'tv') && Boolean(item.poster_path)
+          );
+
+          if (candidates.length === 0) return null;
+
+          let best: any = null;
+          let highest = -1;
+
+          for (const item of candidates) {
+            const candTitle = item.title || item.name || '';
+            const candOrigTitle = item.original_title || item.original_name || '';
+            const candDateStr = item.release_date || item.first_air_date || '';
+            const candYear = parseYearNumber(candDateStr);
+
+            // Başlık benzerliği
+            const titleScore1 = computeTitleSimilarity(normTarget, normalizeTitleForComparison(candTitle));
+            const titleScore2 = computeTitleSimilarity(normTarget, normalizeTitleForComparison(candOrigTitle));
+            const bestTitleScore = Math.max(titleScore1, titleScore2);
+
+            // Yıl benzerliği
+            let yearScore = 0.7; // Nötr
+            if (targetYear && candYear) {
+              const diff = Math.abs(targetYear - candYear);
+              if (diff === 0) {
+                yearScore = 1.0;
+              } else if (diff === 1) {
+                yearScore = 0.85; // ±1 yıl esneklik (Resimler.md kuralı)
+              } else if (diff === 2) {
+                yearScore = 0.4;
+              } else {
+                yearScore = 0.1; // 2 yıldan fazla fark varsa ağır ceza
+              }
+            }
+
+            // Genel eşleşme puanı
+            const totalScore = targetYear
+              ? bestTitleScore * 0.65 + yearScore * 0.35
+              : bestTitleScore;
+
+            if (totalScore > highest) {
+              highest = totalScore;
+              best = item;
+            }
+          }
+
+          if (best && highest >= 0.55) {
+            return { candidate: best, score: highest };
+          }
+          return null;
+        } catch {
+          return null;
         }
+      };
+
+      // 1. Aşama: Önce Türkçe başlıklar için 'tr-TR' ile dene
+      let matchResult = await searchWithLang('tr-TR');
+
+      // 2. Aşama: Eğer eşleşme bulunamadıysa (Örn: Anime veya yabancı yapımlarda Türkçe başlık
+      // kaydı olmayınca TMDB'nin orijinal Japonca başlığı dönmesi ve İngilizce adın kaybolması durumu),
+      // uluslararası 'en-US' ile dene
+      if (!matchResult) {
+        matchResult = await searchWithLang('en-US');
       }
 
       // Güvenilirlik eşiği: Yanlış afiş göstermektense yer tutucu kalmalıdır
-      if (highestScore < 0.6 || !bestCandidate) {
+      if (!matchResult || !matchResult.candidate) {
         return null;
       }
+
+      const bestCandidate = matchResult.candidate;
 
       const mediaType: 'movie' | 'tv' = bestCandidate.media_type === 'tv' ? 'tv' : 'movie';
       const posterPath: string = bestCandidate.poster_path;

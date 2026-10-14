@@ -442,7 +442,6 @@ const AiRecommendationCardView: React.FC<{
                     }`}
                   >
                     {card.badge}
-                    {card.matchScore ? <span className="opacity-75">• %{card.matchScore}</span> : null}
                   </span>
 
                   {/* Mobilde: Sadece Mevcut Simge (Başlığın dar ekranda kesilmesini önler) */}
@@ -475,9 +474,6 @@ const AiRecommendationCardView: React.FC<{
                         className="absolute right-0 top-full mt-1.5 z-30 px-2.5 py-1 rounded-lg bg-neutral-900/95 border border-white/20 text-[11px] font-semibold text-white shadow-2xl whitespace-nowrap animate-in fade-in zoom-in-95 duration-150 flex items-center gap-1.5"
                       >
                         <span>{card.badge}</span>
-                        {card.matchScore ? (
-                          <span className="text-amber-300 font-bold">• %{card.matchScore}</span>
-                        ) : null}
                       </div>
                     )}
                   </div>
@@ -636,10 +632,10 @@ const AiRecommendationCardView: React.FC<{
                         e.stopPropagation();
                         onPlayTrailer?.(trailerKey, card.title);
                       }}
-                      className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-lg bg-red-600/20 hover:bg-red-600/35 border border-red-500/40 text-red-300 hover:text-red-100 text-[11px] font-semibold transition-all cursor-pointer active:scale-95 shadow-xs"
+                      className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/20 text-slate-300 hover:text-white text-[11px] font-medium transition-all cursor-pointer active:scale-95 shadow-xs group/trailer"
                       title={`${card.title} Resmi Fragmanını Oynat`}
                     >
-                      <Play className="w-3 h-3 fill-current" />
+                      <Play className="w-3 h-3 fill-slate-400 group-hover/trailer:fill-white text-slate-400 group-hover/trailer:text-white transition-colors" />
                       <span>Fragmanı Oynat</span>
                     </button>
                   )}
@@ -1876,8 +1872,8 @@ export const AiAssistantModal: React.FC<AiAssistantModalProps> = ({
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center gap-2.5 min-w-0 pr-3">
-              <span className="inline-flex items-center justify-center w-7 h-7 rounded-lg bg-red-600 text-white shrink-0 shadow-md">
-                <Play className="w-4 h-4 fill-current ml-0.5" />
+              <span className="inline-flex items-center justify-center w-7 h-7 rounded-lg bg-white/10 text-slate-200 shrink-0 shadow-md border border-white/10">
+                <Play className="w-3.5 h-3.5 fill-current ml-0.5" />
               </span>
               <div className="min-w-0">
                 <h4 className="font-bold text-sm sm:text-base text-white truncate">
