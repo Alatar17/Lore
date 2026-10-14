@@ -446,19 +446,47 @@ export async function readDataFromFolder(dirHandle: FileSystemDirectoryHandle): 
       }
     }
 
-    // 4. Restore Custom Badges from images/badges/
-    if (imagesDir && json.customBadges && Array.isArray(json.customBadges)) {
+    // 4. Restore Custom Badges from images/badges/ (with automatic migration for embedded data: URLs)
+    if (json.customBadges && Array.isArray(json.customBadges)) {
       for (const badge of json.customBadges) {
-        const targetPath = badge.fileName || (badge.iconData && badge.iconData.startsWith('images/') ? badge.iconData : null);
-        if (targetPath && (!badge.iconData || badge.iconData.startsWith('images/'))) {
-          try {
-            const badgeFile = await readFileFromImagesDir(imagesDir, targetPath, 'badges');
-            if (badgeFile) {
-              const base64 = await readFileAsBase64(badgeFile);
-              badge.iconData = base64;
-              badge.fileName = targetPath;
+        let targetPath = badge.fileName || (badge.iconData && !badge.iconData.startsWith('data:') ? badge.iconData : null);
+        if (!targetPath) {
+          targetPath = `images/badges/badge_${badge.id}.webp`;
+          badge.fileName = targetPath;
+        }
+
+        if (imagesDir) {
+          // If badge still has bulky data: URL embedded in JSON, extract it to disk once
+          if (badge.iconData && badge.iconData.startsWith('data:')) {
+            try {
+              let existingFile = await readFileFromImagesDir(imagesDir, targetPath, 'badges');
+              if (!existingFile) {
+                const badgesDir = await imagesDir.getDirectoryHandle('badges', { create: true });
+                const imgName = targetPath.split('/').pop() || `badge_${badge.id}.webp`;
+                const blob = dataURLtoBlob(badge.iconData);
+                const handle = await badgesDir.getFileHandle(imgName, { create: true });
+                const writable = await (handle as any).createWritable();
+                await writable.write(blob);
+                await writable.close();
+                existingFile = await handle.getFile();
+              }
+              if (existingFile) {
+                badge.iconData = await readFileAsBase64(existingFile);
+                badge.fileName = targetPath;
+              }
+            } catch (migErr) {
+              console.warn('Badge data URL migration warning:', migErr);
             }
-          } catch {}
+          } else if (targetPath && (!badge.iconData || badge.iconData.startsWith('images/') || badge.iconData.startsWith('badges/'))) {
+            try {
+              const badgeFile = await readFileFromImagesDir(imagesDir, targetPath, 'badges');
+              if (badgeFile) {
+                const base64 = await readFileAsBase64(badgeFile);
+                badge.iconData = base64;
+                badge.fileName = targetPath;
+              }
+            } catch {}
+          }
         }
       }
       safeLocalStorageSet('lore_custom_badges', JSON.stringify(json.customBadges));
@@ -517,10 +545,11 @@ export async function writeDataToFolder(dirHandle: FileSystemDirectoryHandle, da
       const itemCopy = { ...item };
 
       // 1. Posters (Thumbnail) -> images/posters/
-      if (item.thumbnail && item.thumbnail.startsWith('data:image/') && postersDir) {
+      if (item.thumbnail && item.thumbnail.startsWith('data:') && postersDir) {
         try {
-          const mimeMatch = item.thumbnail.match(/data:image\/([a-zA-Z0-9]+);/);
-          const ext = mimeMatch ? (mimeMatch[1] === 'jpeg' ? 'jpg' : mimeMatch[1]) : 'jpg';
+          const mimeMatch = item.thumbnail.match(/data:(?:image\/)?([a-zA-Z0-9]+);/);
+          let ext = mimeMatch ? (mimeMatch[1] === 'jpeg' ? 'jpg' : mimeMatch[1]) : 'jpg';
+          if (!['jpg', 'jpeg', 'png', 'webp'].includes(ext)) ext = 'jpg';
 
           const existingCleanName = item.thumbnailFileName
             ? item.thumbnailFileName.split('/').pop()!
@@ -556,21 +585,24 @@ export async function writeDataToFolder(dirHandle: FileSystemDirectoryHandle, da
       }
 
       // Strip bulky base64 thumbnail from written JSON so disk JSON file is only ~150 KB!
-      if (itemCopy.thumbnailFileName) {
+      if (itemCopy.thumbnailFileName || (itemCopy.thumbnail && itemCopy.thumbnail.startsWith('data:'))) {
         delete itemCopy.thumbnail;
       }
 
       // 2. Characters -> images/characters/ (Extract from Base64 so JSON stays lightweight)
-      if (item.characters && Array.isArray(item.characters) && item.characters.length > 0 && charactersDir) {
+      if (item.characters && Array.isArray(item.characters) && item.characters.length > 0) {
         const cleanChars = [];
         for (let idx = 0; idx < item.characters.length; idx++) {
           const char = item.characters[idx];
           const charCopy = { ...char };
-          if (char.image && char.image.startsWith('data:image/')) {
+          const existingCleanName = char.fileName ? char.fileName.split('/').pop()! : '';
+
+          if (char.image && char.image.startsWith('data:') && charactersDir) {
             try {
-              const mimeMatch = char.image.match(/data:image\/([a-zA-Z0-9]+);/);
-              const ext = mimeMatch ? (mimeMatch[1] === 'jpeg' ? 'jpg' : mimeMatch[1]) : 'jpg';
-              const charImgName = `${item.id}_char_${idx}.${ext}`;
+              const mimeMatch = char.image.match(/data:(?:image\/)?([a-zA-Z0-9]+);/);
+              let ext = mimeMatch ? (mimeMatch[1] === 'jpeg' ? 'jpg' : mimeMatch[1]) : 'jpg';
+              if (!['jpg', 'jpeg', 'png', 'webp'].includes(ext)) ext = 'jpg';
+              const charImgName = existingCleanName || `${item.id}_char_${idx}.${ext}`;
               const blob = dataURLtoBlob(char.image);
 
               const imgHandle = await charactersDir.getFileHandle(charImgName, { create: true });
@@ -584,22 +616,40 @@ export async function writeDataToFolder(dirHandle: FileSystemDirectoryHandle, da
               console.warn(`Could not write character image for ${item.id}:`, charErr);
             }
           }
+          // GUARANTEE: In the saved JSON, image MUST NOT remain a bulky data URL
+          if (charCopy.image && charCopy.image.startsWith('data:')) {
+            charCopy.image = charCopy.fileName || `images/characters/${item.id}_char_${idx}.jpg`;
+          }
           cleanChars.push(charCopy);
         }
         itemCopy.characters = cleanChars;
       }
 
       // 3. Anki extra images -> images/anki/
-      if (item.ankiExtraImages && item.ankiExtraImages.length > 0 && ankiDir) {
-        const cleanExtras = [];
+      const cleanExtras = [];
+      const activeItemAnkiFiles = new Set<string>();
+
+      if (item.ankiExtraImages && Array.isArray(item.ankiExtraImages) && item.ankiExtraImages.length > 0) {
         for (let idx = 0; idx < item.ankiExtraImages.length; idx++) {
           const extra = item.ankiExtraImages[idx];
           const extraCopy = { ...extra };
-          if (extra.url && extra.url.startsWith('data:image/')) {
+
+          // Determine existing clean file name if already saved before
+          let existingCleanName = '';
+          if (extra.fileName) {
+            existingCleanName = extra.fileName.split('/').pop()!;
+          } else if (extra.url && extra.url.startsWith('images/')) {
+            existingCleanName = extra.url.split('/').pop()!;
+          }
+
+          if (extra.url && extra.url.startsWith('data:') && ankiDir) {
             try {
-              const mimeMatch = extra.url.match(/data:image\/([a-zA-Z0-9]+);/);
-              const ext = mimeMatch ? (mimeMatch[1] === 'jpeg' ? 'jpg' : mimeMatch[1]) : 'jpg';
-              const extraImgName = `${item.id}_extra_${idx}.${ext}`;
+              const mimeMatch = extra.url.match(/data:(?:image\/)?([a-zA-Z0-9]+);/);
+              let ext = mimeMatch ? (mimeMatch[1] === 'jpeg' ? 'jpg' : mimeMatch[1]) : 'jpg';
+              if (!['jpg', 'jpeg', 'png', 'webp'].includes(ext)) ext = 'jpg';
+              // Use unique extra.id for persistent naming instead of volatile array index
+              const safeExtraId = extra.id ? sanitizeFilename(extra.id.replace(/^img_/, '')) : `${Date.now()}_${idx}`;
+              const extraImgName = existingCleanName || `${item.id}_extra_${safeExtraId}.${ext}`;
               const blob = dataURLtoBlob(extra.url);
 
               const imgHandle = await ankiDir.getFileHandle(extraImgName, { create: true });
@@ -609,13 +659,41 @@ export async function writeDataToFolder(dirHandle: FileSystemDirectoryHandle, da
 
               extraCopy.fileName = `images/anki/${extraImgName}`;
               extraCopy.url = `images/anki/${extraImgName}`;
+              activeItemAnkiFiles.add(extraImgName);
             } catch (extraErr) {
               console.warn(`Could not write extra image ${idx} for ${item.id}:`, extraErr);
             }
+          } else if (existingCleanName) {
+            activeItemAnkiFiles.add(existingCleanName);
           }
+
+          // GUARANTEE: In the saved JSON, url MUST NOT remain a bulky data URL
+          if (extraCopy.url && extraCopy.url.startsWith('data:')) {
+            extraCopy.url = extraCopy.fileName || `images/anki/${item.id}_extra_${idx}.jpg`;
+          }
+
           cleanExtras.push(extraCopy);
         }
         itemCopy.ankiExtraImages = cleanExtras;
+      } else {
+        itemCopy.ankiExtraImages = [];
+      }
+
+      // Safe Auto-Cleanup for this item's removed Anki extra scenes:
+      // If user removed any extra image and clicked Save, delete only those orphaned files for THIS item
+      if (ankiDir && (ankiDir as any).values) {
+        try {
+          for await (const entry of (ankiDir as any).values()) {
+            if (entry.kind === 'file' && entry.name.startsWith(`${item.id}_`)) {
+              if (!activeItemAnkiFiles.has(entry.name)) {
+                try {
+                  await (ankiDir as any).removeEntry(entry.name);
+                  deleteCachedImageBlob(entry.name).catch(() => {});
+                } catch {}
+              }
+            }
+          }
+        } catch {}
       }
 
       cleanItems.push(itemCopy);
@@ -630,28 +708,39 @@ export async function writeDataToFolder(dirHandle: FileSystemDirectoryHandle, da
       } catch {}
     }
 
-    if (cleanBadges && Array.isArray(cleanBadges) && cleanBadges.length > 0 && badgesDir) {
+    if (cleanBadges && Array.isArray(cleanBadges) && cleanBadges.length > 0) {
       const updatedBadges = [];
       for (const badge of cleanBadges) {
         const badgeCopy = { ...badge };
-        if (badge.iconData && badge.iconData.startsWith('data:image/')) {
+        let existingCleanName = badgeCopy.fileName ? badgeCopy.fileName.split('/').pop()! : '';
+        let badgeImgName = existingCleanName || `badge_${badge.id}.webp`;
+
+        if (badge.iconData && badge.iconData.startsWith('data:')) {
           try {
-            const mimeMatch = badge.iconData.match(/data:image\/([a-zA-Z0-9]+);/);
-            const ext = mimeMatch ? (mimeMatch[1] === 'jpeg' ? 'jpg' : mimeMatch[1]) : 'webp';
-            const badgeImgName = `badge_${badge.id}.${ext}`;
-            const blob = dataURLtoBlob(badge.iconData);
+            const mimeMatch = badge.iconData.match(/data:(?:image\/)?([a-zA-Z0-9]+);/);
+            let ext = mimeMatch ? (mimeMatch[1] === 'jpeg' ? 'jpg' : mimeMatch[1]) : 'webp';
+            if (!['jpg', 'jpeg', 'png', 'webp'].includes(ext)) {
+              ext = existingCleanName ? existingCleanName.split('.').pop() || 'webp' : 'webp';
+            }
+            if (!existingCleanName) {
+              badgeImgName = `badge_${badge.id}.${ext}`;
+            }
 
-            const imgHandle = await badgesDir.getFileHandle(badgeImgName, { create: true });
-            const imgWritable = await (imgHandle as any).createWritable();
-            await imgWritable.write(blob);
-            await imgWritable.close();
-
-            badgeCopy.fileName = `images/badges/${badgeImgName}`;
-            badgeCopy.iconData = `images/badges/${badgeImgName}`;
+            if (badgesDir) {
+              const blob = dataURLtoBlob(badge.iconData);
+              const imgHandle = await badgesDir.getFileHandle(badgeImgName, { create: true });
+              const imgWritable = await (imgHandle as any).createWritable();
+              await imgWritable.write(blob);
+              await imgWritable.close();
+            }
           } catch (bErr) {
             console.warn(`Could not write badge icon for ${badge.id}:`, bErr);
           }
         }
+
+        // ABSOLUTE PROTECTION: In the saved JSON, iconData MUST ALWAYS be a path reference, NEVER a data URL!
+        badgeCopy.fileName = `images/badges/${badgeImgName}`;
+        badgeCopy.iconData = `images/badges/${badgeImgName}`;
         updatedBadges.push(badgeCopy);
       }
       cleanBadges = updatedBadges;
@@ -751,13 +840,42 @@ export async function cleanOrphanImagesInFolder(
           if (extra.fileName) {
             const name = extra.fileName.split('/').pop()!;
             activeAnki.add(name);
+            activeAnki.add(name.toLowerCase());
             allActiveBaseNames.add(name);
+            allActiveBaseNames.add(name.toLowerCase());
           }
-          activeAnki.add(`${item.id}_extra_${idx}.jpg`);
-          activeAnki.add(`${item.id}_extra_${idx}.jpeg`);
-          activeAnki.add(`${item.id}_extra_${idx}.png`);
-          activeAnki.add(`${item.id}_extra_${idx}.webp`);
-          allActiveBaseNames.add(`${item.id}_extra_${idx}.jpg`);
+          if (extra.url && !extra.url.startsWith('data:')) {
+            const name = extra.url.split('/').pop()!;
+            activeAnki.add(name);
+            activeAnki.add(name.toLowerCase());
+            allActiveBaseNames.add(name);
+            allActiveBaseNames.add(name.toLowerCase());
+          }
+          const exts = ['jpg', 'jpeg', 'png', 'webp'];
+          if (extra.id) {
+            const safeExtraId = sanitizeFilename(extra.id.replace(/^img_/, ''));
+            const safeRawId = sanitizeFilename(extra.id);
+            for (const ext of exts) {
+              const nameClean = `${item.id}_extra_${safeExtraId}.${ext}`;
+              const nameRaw = `${item.id}_extra_${safeRawId}.${ext}`;
+              activeAnki.add(nameClean);
+              activeAnki.add(nameClean.toLowerCase());
+              activeAnki.add(nameRaw);
+              activeAnki.add(nameRaw.toLowerCase());
+              allActiveBaseNames.add(nameClean);
+              allActiveBaseNames.add(nameClean.toLowerCase());
+              allActiveBaseNames.add(nameRaw);
+              allActiveBaseNames.add(nameRaw.toLowerCase());
+            }
+          }
+          // Backward compatibility check
+          for (const ext of exts) {
+            const nameIdx = `${item.id}_extra_${idx}.${ext}`;
+            activeAnki.add(nameIdx);
+            activeAnki.add(nameIdx.toLowerCase());
+            allActiveBaseNames.add(nameIdx);
+            allActiveBaseNames.add(nameIdx.toLowerCase());
+          }
         }
       }
     }
@@ -768,11 +886,14 @@ export async function cleanOrphanImagesInFolder(
       if (badge.fileName) {
         const name = badge.fileName.split('/').pop()!;
         activeBadges.add(name);
+        activeBadges.add(name.toLowerCase());
         allActiveBaseNames.add(name);
+        allActiveBaseNames.add(name.toLowerCase());
       }
       activeBadges.add(`badge_${badge.id}.webp`);
       activeBadges.add(`badge_${badge.id}.png`);
       allActiveBaseNames.add(`badge_${badge.id}.webp`);
+      allActiveBaseNames.add(`badge_${badge.id}.png`);
     }
 
     const deletedFiles: string[] = [];
@@ -783,12 +904,15 @@ export async function cleanOrphanImagesInFolder(
         const subDir = await imagesDir!.getDirectoryHandle(subName, { create: false });
         if ((subDir as any).values) {
           for await (const entry of (subDir as any).values()) {
-            if (entry.kind === 'file' && !activeSet.has(entry.name)) {
-              try {
-                await (subDir as any).removeEntry(entry.name);
-                deletedFiles.push(`${subName}/${entry.name}`);
-              } catch (delErr) {
-                console.warn(`Could not remove orphan image ${subName}/${entry.name}:`, delErr);
+            if (entry.kind === 'file') {
+              const nameLower = entry.name.toLowerCase();
+              if (!activeSet.has(entry.name) && !activeSet.has(nameLower)) {
+                try {
+                  await (subDir as any).removeEntry(entry.name);
+                  deletedFiles.push(`${subName}/${entry.name}`);
+                } catch (delErr) {
+                  console.warn(`Could not remove orphan image ${subName}/${entry.name}:`, delErr);
+                }
               }
             }
           }
@@ -894,6 +1018,64 @@ export async function deleteImageFromFolder(
     }
   } catch (err) {
     console.warn('Error deleting image file from folder:', err);
+  }
+}
+
+/**
+ * Deletes the specific badge image file(s) for a deleted badge from the local images/badges/ folder.
+ */
+export async function deleteBadgeImageFromFolder(
+  dirHandle: FileSystemDirectoryHandle,
+  badgeId: string,
+  fileName?: string
+): Promise<void> {
+  try {
+    let imagesDir: FileSystemDirectoryHandle | null = null;
+    try {
+      imagesDir = await dirHandle.getDirectoryHandle('images', { create: false });
+    } catch {
+      return;
+    }
+    if (!imagesDir) return;
+
+    let badgesDir: FileSystemDirectoryHandle | null = null;
+    try {
+      badgesDir = await imagesDir.getDirectoryHandle('badges', { create: false });
+    } catch {
+      badgesDir = null;
+    }
+
+    // 1. If explicit fileName specified, remove it from badges subfolder and root imagesDir
+    if (fileName) {
+      const clean = fileName.replace(/^images\//, '');
+      const baseName = clean.split('/').pop()!;
+      if (badgesDir) {
+        try {
+          await (badgesDir as any).removeEntry(baseName);
+        } catch {}
+      }
+      try {
+        await (imagesDir as any).removeEntry(baseName);
+      } catch {}
+    }
+
+    // 2. Remove standard badge_<id>.* files from badgesDir and imagesDir
+    if (badgeId) {
+      const exts = ['webp', 'png', 'jpg', 'jpeg'];
+      for (const ext of exts) {
+        const target = `badge_${badgeId}.${ext}`;
+        if (badgesDir) {
+          try {
+            await (badgesDir as any).removeEntry(target);
+          } catch {}
+        }
+        try {
+          await (imagesDir as any).removeEntry(target);
+        } catch {}
+      }
+    }
+  } catch (err) {
+    console.warn('Error deleting badge image from folder:', err);
   }
 }
 
@@ -1200,8 +1382,11 @@ export function parseUploadedJson(file: File, existingAppData?: AppData): Promis
 // Helper to convert base64/dataURL to Blob
 function dataURLtoBlob(dataurl: string): Blob {
   const arr = dataurl.split(',');
-  const mime = arr[0].match(/:(.*?);/)?.[1] || 'image/jpeg';
-  const bstr = atob(arr[1]);
+  let mime = arr[0].match(/:(.*?);/)?.[1] || 'image/png';
+  if (!mime.startsWith('image/')) {
+    mime = 'image/png';
+  }
+  const bstr = atob(arr[1] || '');
   let n = bstr.length;
   const u8arr = new Uint8Array(n);
   while (n--) {
@@ -1236,10 +1421,11 @@ export async function buildUnifiedZipBlob(data: AppData): Promise<Blob> {
     const itemCopy = { ...item };
 
     // 1. Posters -> images/posters/
-    if (item.thumbnail && item.thumbnail.startsWith('data:image/')) {
+    if (item.thumbnail && item.thumbnail.startsWith('data:')) {
       try {
-        const mimeMatch = item.thumbnail.match(/data:image\/([a-zA-Z0-9]+);/);
-        const ext = mimeMatch ? (mimeMatch[1] === 'jpeg' ? 'jpg' : mimeMatch[1]) : 'jpg';
+        const mimeMatch = item.thumbnail.match(/data:(?:image\/)?([a-zA-Z0-9]+);/);
+        let ext = mimeMatch ? (mimeMatch[1] === 'jpeg' ? 'jpg' : mimeMatch[1]) : 'jpg';
+        if (!['jpg', 'jpeg', 'png', 'webp'].includes(ext)) ext = 'jpg';
         const existingCleanName = item.thumbnailFileName
           ? item.thumbnailFileName.split('/').pop()!
           : '';
@@ -1258,7 +1444,7 @@ export async function buildUnifiedZipBlob(data: AppData): Promise<Blob> {
     }
 
     // Strip bulky base64 thumbnail from itemCopy so JSON inside ZIP is only ~150 KB!
-    if (itemCopy.thumbnailFileName) {
+    if (itemCopy.thumbnailFileName || (itemCopy.thumbnail && itemCopy.thumbnail.startsWith('data:'))) {
       delete itemCopy.thumbnail;
     }
 
@@ -1268,11 +1454,14 @@ export async function buildUnifiedZipBlob(data: AppData): Promise<Blob> {
       for (let idx = 0; idx < item.characters.length; idx++) {
         const char = item.characters[idx];
         const charCopy = { ...char };
-        if (char.image && char.image.startsWith('data:image/')) {
+        const existingCleanName = char.fileName ? char.fileName.split('/').pop()! : '';
+
+        if (char.image && char.image.startsWith('data:')) {
           try {
-            const mimeMatch = char.image.match(/data:image\/([a-zA-Z0-9]+);/);
-            const ext = mimeMatch ? (mimeMatch[1] === 'jpeg' ? 'jpg' : mimeMatch[1]) : 'jpg';
-            const charImgName = `${item.id}_char_${idx}.${ext}`;
+            const mimeMatch = char.image.match(/data:(?:image\/)?([a-zA-Z0-9]+);/);
+            let ext = mimeMatch ? (mimeMatch[1] === 'jpeg' ? 'jpg' : mimeMatch[1]) : 'jpg';
+            if (!['jpg', 'jpeg', 'png', 'webp'].includes(ext)) ext = 'jpg';
+            const charImgName = existingCleanName || `${item.id}_char_${idx}.${ext}`;
             const blob = dataURLtoBlob(char.image);
             if (charactersFolder) {
               charactersFolder.file(charImgName, blob);
@@ -1282,6 +1471,9 @@ export async function buildUnifiedZipBlob(data: AppData): Promise<Blob> {
           } catch (e) {
             console.warn('Character image zip export error:', e);
           }
+        }
+        if (charCopy.image && charCopy.image.startsWith('data:')) {
+          charCopy.image = charCopy.fileName || `images/characters/${item.id}_char_${idx}.jpg`;
         }
         cleanChars.push(charCopy);
       }
@@ -1294,11 +1486,19 @@ export async function buildUnifiedZipBlob(data: AppData): Promise<Blob> {
       for (let idx = 0; idx < item.ankiExtraImages.length; idx++) {
         const extra = item.ankiExtraImages[idx];
         const extraCopy = { ...extra };
-        if (extra.url && extra.url.startsWith('data:image/')) {
+        const existingCleanName = extra.fileName
+          ? extra.fileName.split('/').pop()!
+          : (extra.url && extra.url.startsWith('images/'))
+          ? extra.url.split('/').pop()!
+          : '';
+
+        if (extra.url && extra.url.startsWith('data:')) {
           try {
-            const mimeMatch = extra.url.match(/data:image\/([a-zA-Z0-9]+);/);
-            const ext = mimeMatch ? (mimeMatch[1] === 'jpeg' ? 'jpg' : mimeMatch[1]) : 'jpg';
-            const extraImgName = `${item.id}_extra_${idx}.${ext}`;
+            const mimeMatch = extra.url.match(/data:(?:image\/)?([a-zA-Z0-9]+);/);
+            let ext = mimeMatch ? (mimeMatch[1] === 'jpeg' ? 'jpg' : mimeMatch[1]) : 'jpg';
+            if (!['jpg', 'jpeg', 'png', 'webp'].includes(ext)) ext = 'jpg';
+            const safeExtraId = extra.id ? sanitizeFilename(extra.id.replace(/^img_/, '')) : `${Date.now()}_${idx}`;
+            const extraImgName = existingCleanName || `${item.id}_extra_${safeExtraId}.${ext}`;
             const blob = dataURLtoBlob(extra.url);
             if (ankiFolder) {
               ankiFolder.file(extraImgName, blob);
@@ -1308,6 +1508,9 @@ export async function buildUnifiedZipBlob(data: AppData): Promise<Blob> {
           } catch (e) {
             console.warn('Extra image zip export error:', e);
           }
+        }
+        if (extraCopy.url && extraCopy.url.startsWith('data:')) {
+          extraCopy.url = extraCopy.fileName || `images/anki/${item.id}_extra_${idx}.jpg`;
         }
         cleanExtras.push(extraCopy);
       }
@@ -1330,11 +1533,20 @@ export async function buildUnifiedZipBlob(data: AppData): Promise<Blob> {
     const updatedBadges = [];
     for (const badge of cleanBadges) {
       const badgeCopy = { ...badge };
-      if (badge.iconData && badge.iconData.startsWith('data:image/')) {
+      let existingCleanName = badgeCopy.fileName ? badgeCopy.fileName.split('/').pop()! : '';
+      let badgeImgName = existingCleanName || `badge_${badge.id}.webp`;
+
+      if (badge.iconData && badge.iconData.startsWith('data:')) {
         try {
-          const mimeMatch = badge.iconData.match(/data:image\/([a-zA-Z0-9]+);/);
-          const ext = mimeMatch ? (mimeMatch[1] === 'jpeg' ? 'jpg' : mimeMatch[1]) : 'webp';
-          const badgeImgName = `badge_${badge.id}.${ext}`;
+          const mimeMatch = badge.iconData.match(/data:(?:image\/)?([a-zA-Z0-9]+);/);
+          let ext = mimeMatch ? (mimeMatch[1] === 'jpeg' ? 'jpg' : mimeMatch[1]) : 'webp';
+          if (!['jpg', 'jpeg', 'png', 'webp'].includes(ext)) {
+            ext = existingCleanName ? existingCleanName.split('.').pop() || 'webp' : 'webp';
+          }
+          if (!existingCleanName) {
+            badgeImgName = `badge_${badge.id}.${ext}`;
+          }
+
           const blob = dataURLtoBlob(badge.iconData);
           if (badgesFolder) {
             badgesFolder.file(badgeImgName, blob);
@@ -1345,6 +1557,9 @@ export async function buildUnifiedZipBlob(data: AppData): Promise<Blob> {
           console.warn('Badge zip export error:', e);
         }
       }
+
+      badgeCopy.fileName = `images/badges/${badgeImgName}`;
+      badgeCopy.iconData = `images/badges/${badgeImgName}`;
       updatedBadges.push(badgeCopy);
     }
     cleanBadges = updatedBadges;
@@ -1676,6 +1891,15 @@ export async function importAppDataFromZip(
               imageMap.get(targetName.replace(/^images\//i, '')) ||
               imageMap.get(rawBase);
             if (match) return { ...extra, url: match };
+          }
+          if (extra.id) {
+            const safeExtraId = sanitizeFilename(extra.id.replace(/^img_/, '')).toLowerCase();
+            const idKeyJpgSafe = `${item.id}_extra_${safeExtraId}.jpg`.toLowerCase();
+            const idKeyWebpSafe = `${item.id}_extra_${safeExtraId}.webp`.toLowerCase();
+            const idKeyPngSafe = `${item.id}_extra_${safeExtraId}.png`.toLowerCase();
+            if (imageMap.has(idKeyJpgSafe)) return { ...extra, url: imageMap.get(idKeyJpgSafe)! };
+            if (imageMap.has(idKeyWebpSafe)) return { ...extra, url: imageMap.get(idKeyWebpSafe)! };
+            if (imageMap.has(idKeyPngSafe)) return { ...extra, url: imageMap.get(idKeyPngSafe)! };
           }
           const idKeyJpg = `${item.id}_extra_${idx}.jpg`.toLowerCase();
           const idKeyWebp = `${item.id}_extra_${idx}.webp`.toLowerCase();

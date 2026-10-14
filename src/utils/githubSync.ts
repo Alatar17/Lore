@@ -418,7 +418,7 @@ export async function pushDataToGitHub(
       badgeRelPath = `badges/badge_${badgeCopy.id}.webp`;
     }
     badgeCopy.fileName = `images/${badgeRelPath}`;
-    if (badgeCopy.iconData && badgeCopy.iconData.startsWith('data:image/')) {
+    if (badgeCopy.iconData && badgeCopy.iconData.startsWith('data:')) {
       const base64Data = badgeCopy.iconData.split(',')[1] || '';
       if (base64Data) {
         memoryImageBase64Map.set(badgeRelPath, base64Data);
@@ -833,7 +833,19 @@ export async function resolveGitHubImage(
     }
 
     if (res.ok) {
-      const blob = await res.blob();
+      const rawBlob = await res.blob();
+      const ext = cleanName.split('.').pop()?.toLowerCase() || 'png';
+      const mime =
+        ext === 'png'
+          ? 'image/png'
+          : ext === 'webp'
+          ? 'image/webp'
+          : ext === 'jpg' || ext === 'jpeg'
+          ? 'image/jpeg'
+          : rawBlob.type && rawBlob.type.startsWith('image/')
+          ? rawBlob.type
+          : 'image/png';
+      const blob = new Blob([await rawBlob.arrayBuffer()], { type: mime });
       // Store in IndexedDB for permanent offline access
       await setCachedImageBlob(cleanName, blob);
       const dataUrl = await blobToDataUrl(blob);
@@ -903,7 +915,13 @@ export async function hydrateBadgesFromCache(badges: CustomBadge[]): Promise<Cus
         try {
           const cachedBlob = (await getCachedImageBlob(cleanName)) || (await getCachedImageBlob(bareName));
           if (cachedBlob) {
-            const dataUrl = await blobToDataUrl(cachedBlob);
+            let blobToUse = cachedBlob;
+            if (!cachedBlob.type || !cachedBlob.type.startsWith('image/')) {
+              const ext = cleanName.split('.').pop()?.toLowerCase() || 'webp';
+              const mime = ext === 'png' ? 'image/png' : ext === 'webp' ? 'image/webp' : 'image/jpeg';
+              blobToUse = new Blob([await cachedBlob.arrayBuffer()], { type: mime });
+            }
+            const dataUrl = await blobToDataUrl(blobToUse);
             return { ...badge, iconData: dataUrl };
           }
         } catch {}
@@ -924,6 +942,10 @@ export async function syncBadgesFromGitHub(
   if (!config.owner || !config.repo || !Array.isArray(badges) || badges.length === 0) return;
 
   for (const badge of badges) {
+    if (badge.iconData && (badge.iconData.startsWith('data:image/') || badge.iconData.startsWith('blob:'))) {
+      continue;
+    }
+
     const targetPath =
       badge.fileName ||
       (badge.iconData && (badge.iconData.startsWith('images/') || badge.iconData.startsWith('badges/'))

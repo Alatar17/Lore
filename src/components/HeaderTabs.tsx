@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useState, useMemo } from 'react';
+import React, { useRef, useEffect, useState, useMemo, useCallback } from 'react';
 import {
   Category,
   FilterState,
@@ -8,7 +8,9 @@ import {
   isTierListAvailable,
   PcSyncStatus,
   MobileSyncStatus,
+  ArchiveItem,
 } from '../types';
+import { getGhostSuggestion, GhostSuggestion } from '../utils/ghostTextHelper';
 import { FilterPanel } from './FilterPanel';
 import { ViewPanel } from './ViewPanel';
 import {
@@ -42,6 +44,7 @@ export const TRACKED_TAB_ID = '__tracked__';
 
 interface HeaderTabsProps {
   mainTab: MainTabType;
+  items?: ArchiveItem[];
   categories: {
     media: Category[];
     game: Category[];
@@ -93,6 +96,7 @@ interface HeaderTabsProps {
 
 export const HeaderTabs: React.FC<HeaderTabsProps> = ({
   mainTab,
+  items = [],
   categories,
   activeCatId,
   activeSub,
@@ -135,6 +139,7 @@ export const HeaderTabs: React.FC<HeaderTabsProps> = ({
   onTriggerMobileSync,
 }) => {
   const searchInputRef = useRef<HTMLInputElement>(null);
+  const mobileSearchInputRef = useRef<HTMLInputElement>(null);
   const searchContainerRef = useRef<HTMLDivElement>(null);
   const [openDropdown, setOpenDropdown] = useState<'media' | 'game' | 'book' | null>(null);
   const [mobileDropdown, setMobileDropdown] = useState<'media' | 'game' | 'book' | null>(null);
@@ -328,7 +333,88 @@ export const HeaderTabs: React.FC<HeaderTabsProps> = ({
     onSearchChange(combined);
   };
 
+  // Ghost Text Dismissal State (e.g. user pressed Escape)
+  const [isGhostDismissed, setIsGhostDismissed] = useState(false);
+
+  // Active typed text based on current searchMode
+  const currentTypedText = searchMode === 'tag' ? typedTagInput : searchTextInput;
+
+  // Reset ghost dismissal when user continues typing
+  useEffect(() => {
+    setIsGhostDismissed(false);
+  }, [currentTypedText]);
+
+  // Compute ghost suggestion using the karar.md engine
+  const ghostSuggestion: GhostSuggestion | null = useMemo(() => {
+    if (isGhostDismissed || !isSearchOpen) return null;
+    return getGhostSuggestion({
+      query: currentTypedText,
+      items: items || [],
+      mainTab,
+      searchMode,
+      existingChips: tagChips,
+    });
+  }, [currentTypedText, items, mainTab, searchMode, tagChips, isGhostDismissed, isSearchOpen]);
+
+  // Accept suggestion handler (Tab, ArrowRight, ArrowDown or Touch/Click)
+  const acceptGhostSuggestion = useCallback(() => {
+    if (!ghostSuggestion) return;
+    const fullText = ghostSuggestion.fullText;
+
+    if (searchMode === 'tag') {
+      // Saf İsim Kuralı: Kutuya ve çipe yalnızca temiz isim aktarılır!
+      if (!tagChips.some((c) => c.toLowerCase() === fullText.toLowerCase())) {
+        const updated = [...tagChips, fullText];
+        setTagChips(updated);
+        const q = updated.join(', ');
+        lastEmittedQueryRef.current = q;
+        onSearchChange(q);
+      }
+      setTypedTagInput('');
+    } else {
+      // Normal arama modu: Saf isim arama kutusuna yazılır
+      setSearchTextInput(fullText);
+      lastEmittedQueryRef.current = fullText;
+      onSearchChange(fullText);
+    }
+    setIsGhostDismissed(false);
+
+    // Focus input after acceptance
+    setTimeout(() => {
+      searchInputRef.current?.focus();
+      mobileSearchInputRef.current?.focus();
+    }, 10);
+  }, [ghostSuggestion, searchMode, tagChips, onSearchChange]);
+
+  const handleNormalKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (ghostSuggestion) {
+      if (e.key === 'Tab') {
+        e.preventDefault();
+        acceptGhostSuggestion();
+        return;
+      }
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        setIsGhostDismissed(true);
+        return;
+      }
+    }
+  };
+
   const handleTagKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (ghostSuggestion) {
+      if (e.key === 'Tab') {
+        e.preventDefault();
+        acceptGhostSuggestion();
+        return;
+      }
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        setIsGhostDismissed(true);
+        return;
+      }
+    }
+
     if (e.key === 'Enter' || e.key === ',') {
       e.preventDefault();
       const val = typedTagInput.trim();
@@ -393,8 +479,11 @@ export const HeaderTabs: React.FC<HeaderTabsProps> = ({
       : null;
 
   useEffect(() => {
-    if (isSearchOpen && searchInputRef.current) {
-      searchInputRef.current.focus();
+    if (isSearchOpen) {
+      setTimeout(() => {
+        if (searchInputRef.current) searchInputRef.current.focus();
+        if (mobileSearchInputRef.current) mobileSearchInputRef.current.focus();
+      }, 50);
     }
   }, [isSearchOpen]);
 
@@ -834,28 +923,66 @@ export const HeaderTabs: React.FC<HeaderTabsProps> = ({
                 </span>
               ))}
 
-            {searchMode === 'tag' ? (
-              <input
-                ref={searchInputRef}
-                id="mobile-search-header-input"
-                type="text"
-                value={typedTagInput}
-                onChange={handleTagInputChange}
-                onKeyDown={handleTagKeyDown}
-                placeholder={tagChips.length === 0 ? 'Etiket ara (örn: 2024)...' : '+ etiket...'}
-                className="flex-1 min-w-[80px] bg-transparent text-xs text-neutral-100 placeholder-neutral-500 focus:outline-none py-1"
-              />
-            ) : (
-              <input
-                ref={searchInputRef}
-                id="mobile-search-header-input"
-                type="text"
-                value={searchTextInput}
-                onChange={handleNormalSearchChange}
-                placeholder="Yapım adı ara..."
-                className="flex-1 min-w-[100px] bg-transparent text-xs text-neutral-100 placeholder-neutral-500 focus:outline-none py-1"
-              />
-            )}
+            {/* Input with Ghost Text Overlay */}
+            <div className="relative flex-1 min-w-[80px] flex items-center overflow-hidden">
+              {/* GHOST TEXT OVERLAY LAYER */}
+              {ghostSuggestion && (
+                <div
+                  className="absolute inset-y-0 left-0 right-0 flex items-center pointer-events-none select-none overflow-hidden text-xs font-sans tracking-normal leading-normal whitespace-pre px-0 z-20"
+                  aria-hidden="true"
+                >
+                  {/* Invisible typed part so completion is aligned exactly where cursor is */}
+                  <span className="opacity-0 invisible pointer-events-none select-none">
+                    {currentTypedText}
+                  </span>
+                  {/* Pure ghost completion text */}
+                  <span
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      acceptGhostSuggestion();
+                    }}
+                    onTouchEnd={(e) => {
+                      e.stopPropagation();
+                      acceptGhostSuggestion();
+                    }}
+                    title="Tamamlamak için dokunun"
+                    className="text-neutral-500 font-normal pointer-events-auto cursor-pointer hover:text-neutral-300 transition-colors"
+                  >
+                    {ghostSuggestion.completionText}
+                  </span>
+                </div>
+              )}
+
+              {searchMode === 'tag' ? (
+                <input
+                  ref={mobileSearchInputRef}
+                  id="mobile-search-header-input"
+                  type="text"
+                  value={typedTagInput}
+                  onChange={handleTagInputChange}
+                  onKeyDown={handleTagKeyDown}
+                  placeholder={
+                    ghostSuggestion
+                      ? ''
+                      : tagChips.length === 0
+                      ? 'Etiket ara (örn: 2024)...'
+                      : '+ etiket...'
+                  }
+                  className="relative z-10 w-full bg-transparent text-xs font-sans tracking-normal leading-normal text-neutral-100 placeholder-neutral-500 focus:outline-none py-1 px-0"
+                />
+              ) : (
+                <input
+                  ref={mobileSearchInputRef}
+                  id="mobile-search-header-input"
+                  type="text"
+                  value={searchTextInput}
+                  onChange={handleNormalSearchChange}
+                  onKeyDown={handleNormalKeyDown}
+                  placeholder={ghostSuggestion ? '' : 'Yapım adı ara...'}
+                  className="relative z-10 w-full bg-transparent text-xs font-sans tracking-normal leading-normal text-neutral-100 placeholder-neutral-500 focus:outline-none py-1 px-0"
+                />
+              )}
+            </div>
 
             <button
               type="button"
@@ -1740,33 +1867,62 @@ export const HeaderTabs: React.FC<HeaderTabsProps> = ({
                 </span>
               ))}
 
-            {/* INPUT ELEMENT: Changes behavior based on searchMode */}
-            {searchMode === 'tag' ? (
-              <input
-                ref={searchInputRef}
-                id="search-header-input"
-                type="text"
-                value={typedTagInput}
-                onChange={handleTagInputChange}
-                onKeyDown={handleTagKeyDown}
-                placeholder={
-                  tagChips.length === 0
-                    ? 'Etiket ara (örn: mappa, 2024)...'
-                    : '+ etiket...'
-                }
-                className="flex-1 min-w-[90px] bg-transparent text-xs text-neutral-100 placeholder-neutral-500 focus:outline-none py-0.5"
-              />
-            ) : (
-              <input
-                ref={searchInputRef}
-                id="search-header-input"
-                type="text"
-                value={searchTextInput}
-                onChange={handleNormalSearchChange}
-                placeholder="Yapım ara..."
-                className="flex-1 min-w-[120px] bg-transparent text-xs text-neutral-100 placeholder-neutral-500 focus:outline-none py-0.5"
-              />
-            )}
+            {/* Input with Ghost Text Overlay */}
+            <div className="relative flex-1 min-w-[100px] flex items-center overflow-hidden">
+              {/* GHOST TEXT OVERLAY LAYER */}
+              {ghostSuggestion && (
+                <div
+                  className="absolute inset-y-0 left-0 right-0 flex items-center pointer-events-none select-none overflow-hidden text-xs font-sans tracking-normal leading-normal whitespace-pre px-0 z-20"
+                  aria-hidden="true"
+                >
+                  {/* Invisible typed part so completion is aligned exactly where cursor is */}
+                  <span className="opacity-0 invisible pointer-events-none select-none">
+                    {currentTypedText}
+                  </span>
+                  {/* Pure ghost completion text */}
+                  <span
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      acceptGhostSuggestion();
+                    }}
+                    title="Tamamlamak için tıklayın veya Tab'a basın"
+                    className="text-neutral-500 font-normal pointer-events-auto cursor-pointer hover:text-neutral-300 transition-colors"
+                  >
+                    {ghostSuggestion.completionText}
+                  </span>
+                </div>
+              )}
+
+              {searchMode === 'tag' ? (
+                <input
+                  ref={searchInputRef}
+                  id="search-header-input"
+                  type="text"
+                  value={typedTagInput}
+                  onChange={handleTagInputChange}
+                  onKeyDown={handleTagKeyDown}
+                  placeholder={
+                    ghostSuggestion
+                      ? ''
+                      : tagChips.length === 0
+                      ? 'Etiket ara (örn: mappa, 2024)...'
+                      : '+ etiket...'
+                  }
+                  className="relative z-10 w-full bg-transparent text-xs font-sans tracking-normal leading-normal text-neutral-100 placeholder-neutral-500 focus:outline-none py-0.5 px-0"
+                />
+              ) : (
+                <input
+                  ref={searchInputRef}
+                  id="search-header-input"
+                  type="text"
+                  value={searchTextInput}
+                  onChange={handleNormalSearchChange}
+                  onKeyDown={handleNormalKeyDown}
+                  placeholder={ghostSuggestion ? '' : 'Yapım ara...'}
+                  className="relative z-10 w-full bg-transparent text-xs font-sans tracking-normal leading-normal text-neutral-100 placeholder-neutral-500 focus:outline-none py-0.5 px-0"
+                />
+              )}
+            </div>
 
             {/* Clear / Close Button */}
             <button

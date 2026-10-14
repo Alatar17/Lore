@@ -23,6 +23,7 @@ import {
   Building2,
   Clapperboard,
   Gamepad2,
+  BookOpen,
   BookmarkCheck,
   ThumbsUp,
   ThumbsDown,
@@ -32,6 +33,14 @@ import {
 } from 'lucide-react';
 import { generateTasteProfile, formatTasteProfileForPrompt } from '../utils/aiTasteProfile';
 import { askAiAssistant, getGeminiApiKey, formatAssistantModelLabel } from '../utils/geminiAi';
+import {
+  getTmdbApiKey,
+  getAssistantImagesEnabled,
+  searchTmdbMedia,
+  fetchTmdbMovieOrTvImages,
+  TmdbMediaMatch,
+  TmdbSceneImage,
+} from '../utils/tmdbApi';
 import {
   RecommendationMemoryItem,
   RecommendationPoolType,
@@ -226,6 +235,91 @@ const AiRecommendationCardView: React.FC<{
   const [failedGalleryIndexes, setFailedGalleryIndexes] = useState<Set<number>>(new Set());
   const [showMobileBadgePopup, setShowMobileBadgePopup] = useState(false);
 
+  // TMDB Gerçek Dikey Afiş Durumu (Resimler.md Şartnamesi - 2. Aşama)
+  const [tmdbMatch, setTmdbMatch] = useState<TmdbMediaMatch | null>(null);
+  const [isLoadingTmdb, setIsLoadingTmdb] = useState<boolean>(false);
+
+  // TMDB 10-15 Sahne & Atmosfer Kareleri (Resimler.md Şartnamesi - 3. Aşama)
+  const [scenes, setScenes] = useState<TmdbSceneImage[]>([]);
+  const [isLoadingScenes, setIsLoadingScenes] = useState<boolean>(false);
+  const [failedSceneIndexes, setFailedSceneIndexes] = useState<Set<number>>(new Set());
+  const fetchedScenesRef = useRef(false);
+
+  useEffect(() => {
+    let isCancelled = false;
+    // Sadece Medya kategorisindeki yapımlar için TMDB'ye gidilir.
+    // Oyun ve Kitap kategorilerinde API henüz bağlanmadığından şık degrade yer tutucu korunur.
+    const isMediaCard =
+      card.mainTab === 'media' ||
+      (card.mainTab as string) === 'anime' ||
+      (!card.mainTab && !card.developers && !card.authors);
+
+    if (isMediaCard && getAssistantImagesEnabled() && getTmdbApiKey()) {
+      setIsLoadingTmdb(true);
+      setImgError(false);
+      searchTmdbMedia(card.title, card.releaseYear)
+        .then((match) => {
+          if (!isCancelled) {
+            setTmdbMatch(match);
+            setIsLoadingTmdb(false);
+          }
+        })
+        .catch(() => {
+          if (!isCancelled) {
+            setIsLoadingTmdb(false);
+          }
+        });
+    } else {
+      setTmdbMatch(null);
+      setIsLoadingTmdb(false);
+    }
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [card.title, card.releaseYear, card.mainTab]);
+
+  // Kart genişletildiğinde (isExpanded) TMDB'den 10-15 sahne karesini lazy-load olarak çek
+  useEffect(() => {
+    let isCancelled = false;
+    const isMediaCard =
+      card.mainTab === 'media' ||
+      (card.mainTab as string) === 'anime' ||
+      (!card.mainTab && !card.developers && !card.authors);
+
+    if (
+      isExpanded &&
+      isMediaCard &&
+      tmdbMatch?.tmdbId &&
+      !fetchedScenesRef.current &&
+      getAssistantImagesEnabled() &&
+      getTmdbApiKey()
+    ) {
+      fetchedScenesRef.current = true;
+      setIsLoadingScenes(true);
+      fetchTmdbMovieOrTvImages(
+        tmdbMatch.tmdbId,
+        tmdbMatch.mediaType,
+        tmdbMatch.backdropPath
+      )
+        .then((list) => {
+          if (!isCancelled) {
+            setScenes(list);
+            setIsLoadingScenes(false);
+          }
+        })
+        .catch(() => {
+          if (!isCancelled) {
+            setIsLoadingScenes(false);
+          }
+        });
+    }
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [isExpanded, tmdbMatch, card.mainTab]);
+
   useEffect(() => {
     if (!showMobileBadgePopup) return;
     const timer = setTimeout(() => {
@@ -247,15 +341,13 @@ const AiRecommendationCardView: React.FC<{
     setAskedWhy(true);
   };
 
-  const handleGalleryError = (idx: number) => {
-    setFailedGalleryIndexes((prev) => new Set(prev).add(idx));
-  };
+  const effectivePosterUrl = tmdbMatch?.posterUrl || null;
+  const validScenes = scenes.filter((_, idx) => !failedSceneIndexes.has(idx));
 
-  const validGalleryImages = (card.galleryImages || []).filter((_, idx) => !failedGalleryIndexes.has(idx));
-
-  const allImagesList = [
-    ...(card.thumbnailUrl && !imgError ? [card.thumbnailUrl] : []),
-    ...validGalleryImages,
+  // Lightbox listesi: Sol dikey afiş + TMDB'den gelen tüm yüksek çözünürlüklü (w1280) sahne kareleri
+  const allLightboxImages = [
+    ...(effectivePosterUrl && !imgError ? [effectivePosterUrl] : []),
+    ...validScenes.map((s) => s.fullUrl),
   ];
 
   return (
@@ -268,17 +360,17 @@ const AiRecommendationCardView: React.FC<{
         {/* Dikey 2:3 Afiş Görseli */}
         <div
           onClick={(e) => {
-            if (card.thumbnailUrl && !imgError && allImagesList.length > 0) {
+            if (effectivePosterUrl && !imgError && allLightboxImages.length > 0) {
               e.stopPropagation();
-              onPreviewGallery(allImagesList, 0, card.title);
+              onPreviewGallery(allLightboxImages, 0, card.title);
             }
           }}
           className="w-16 sm:w-20 aspect-[2/3] rounded-xl overflow-hidden bg-black/50 border border-white/10 shrink-0 relative shadow-md group/poster cursor-pointer"
         >
-          {card.thumbnailUrl && !imgError ? (
+          {effectivePosterUrl && !imgError ? (
             <>
               <img
-                src={card.thumbnailUrl}
+                src={effectivePosterUrl}
                 alt={card.title}
                 onError={() => setImgError(true)}
                 className="w-full h-full object-cover group-hover/poster:scale-105 transition-transform duration-300"
@@ -288,8 +380,18 @@ const AiRecommendationCardView: React.FC<{
               </div>
             </>
           ) : (
-            <div className="w-full h-full flex flex-col items-center justify-center p-1 bg-gradient-to-br from-indigo-900/40 to-slate-900/60 text-center">
-              <Sparkles className="w-5 h-5 text-indigo-400 mb-1" />
+            <div className="w-full h-full flex flex-col items-center justify-center p-1.5 bg-gradient-to-br from-indigo-950/60 via-slate-900/70 to-slate-950/90 text-center select-none">
+              {card.mainTab === 'book' ? (
+                <BookOpen className="w-5 h-5 text-amber-400/80 mb-1" />
+              ) : card.mainTab === 'game' ? (
+                <Gamepad2 className="w-5 h-5 text-sky-400/80 mb-1" />
+              ) : (
+                <Sparkles
+                  className={`w-5 h-5 text-indigo-400 mb-1 ${
+                    isLoadingTmdb ? 'animate-pulse' : ''
+                  }`}
+                />
+              )}
               <span className="text-[9px] font-bold text-slate-300 line-clamp-2 px-1 leading-tight">
                 {card.title}
               </span>
@@ -498,39 +600,63 @@ const AiRecommendationCardView: React.FC<{
             )}
           </div>
 
-          {/* 2. Mini Sahne & Görsel Galerisi (Geçici olarak gizlendi - kodlar korundu) */}
-          {false && validGalleryImages.length > 0 && (
-            <div className="pt-1">
-              <h5 className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2">
-                Sahne & Atmosfer Kareleri
-              </h5>
-              <div className="grid grid-cols-3 sm:grid-cols-4 gap-2.5">
-                {validGalleryImages.map((imgUrl, idx) => {
-                  const initialIdx = (card.thumbnailUrl && !imgError) ? idx + 1 : idx;
-                  return (
-                    <div
-                      key={idx}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onPreviewGallery(allImagesList, initialIdx, card.title);
-                      }}
-                      className="aspect-video rounded-xl overflow-hidden bg-black/40 border border-white/10 hover:border-indigo-400/60 cursor-pointer group/img relative shadow-sm hover:scale-[1.03] transition-all"
-                    >
-                      <img
-                        src={imgUrl}
-                        alt={`${card.title} sahne ${idx + 1}`}
-                        onError={() => handleGalleryError(idx)}
-                        className="w-full h-full object-cover"
-                      />
-                      <div className="absolute inset-0 bg-black/40 opacity-0 group-hover/img:opacity-100 transition-opacity flex items-center justify-center">
-                        <Maximize2 className="w-3.5 h-3.5 text-white" />
-                      </div>
-                    </div>
-                  );
-                })}
+          {/* 2. TMDB 3'lü Sahne & Atmosfer Vitrini (Resimler.md Şartnamesi - 3. Aşama) */}
+          {(card.mainTab === 'media' ||
+            (card.mainTab as string) === 'anime' ||
+            (!card.mainTab && !card.developers && !card.authors)) &&
+            (validScenes.length > 0 || isLoadingScenes) && (
+              <div className="pt-1">
+                <h5 className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2 flex items-center gap-2">
+                  <span>Sahne & Atmosfer Kareleri</span>
+                  {isLoadingScenes && (
+                    <Loader2 className="w-3 h-3 animate-spin text-indigo-400" />
+                  )}
+                </h5>
+
+                {validScenes.length > 0 && (
+                  <div className="grid grid-cols-3 gap-2 sm:gap-2.5">
+                    {validScenes.slice(0, 3).map((scene, idx) => {
+                      const initialIdx = effectivePosterUrl && !imgError ? idx + 1 : idx;
+                      const isThird = idx === 2;
+                      const remainingCount = validScenes.length - 3;
+                      const showCounter = isThird && remainingCount > 0;
+
+                      return (
+                        <div
+                          key={idx}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onPreviewGallery(allLightboxImages, initialIdx, card.title);
+                          }}
+                          className="aspect-video rounded-xl overflow-hidden bg-black/40 border border-white/10 hover:border-indigo-400/60 cursor-pointer group/img relative shadow-sm hover:scale-[1.03] transition-all"
+                        >
+                          <img
+                            src={scene.previewUrl}
+                            alt={`${card.title} sahne ${idx + 1}`}
+                            onError={() =>
+                              setFailedSceneIndexes((prev) => new Set(prev).add(idx))
+                            }
+                            className="w-full h-full object-cover"
+                          />
+
+                          {/* Hover Büyütme Simgesi */}
+                          <div className="absolute inset-0 bg-black/40 opacity-0 group-hover/img:opacity-100 transition-opacity flex items-center justify-center">
+                            <Maximize2 className="w-3.5 h-3.5 text-white" />
+                          </div>
+
+                          {/* 3. Karenin Köşesindeki Dinamik +X Görsel Rozeti */}
+                          {showCounter && (
+                            <div className="absolute bottom-1.5 right-1.5 px-2 py-0.5 rounded-md bg-black/85 backdrop-blur-md border border-white/20 text-[10px] font-bold text-white shadow-lg pointer-events-none tracking-tight">
+                              +{remainingCount} Görsel
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
-            </div>
-          )}
+            )}
 
           {/* 3. "Neden bunu önerdin?" İnteraktif Asistan Butonu & Gerekçe Alanı */}
           {card.matchReason && (
@@ -549,7 +675,7 @@ const AiRecommendationCardView: React.FC<{
               {isAnsweringWhy && (
                 <div className="w-full flex items-center gap-2.5 px-4 py-2.5 rounded-xl bg-amber-500/10 border border-amber-500/25 text-xs text-amber-300 animate-pulse">
                   <Loader2 className="w-3.5 h-3.5 animate-spin text-amber-400 shrink-0" />
-                  <span className="font-medium">Kütüphane zevkinle eşleştiriliyor...</span>
+                  <span className="font-medium">Kütüphanendeki arşiv ve beğenilerinle eşleştiriliyor...</span>
                 </div>
               )}
 
@@ -928,8 +1054,8 @@ export const AiAssistantModal: React.FC<AiAssistantModalProps> = ({
       const tasteProfile = generateTasteProfile(items, categories);
       const tasteContext = formatTasteProfileForPrompt(tasteProfile);
 
-      // 2. Format exclusion list from recommendation memory (Sıfır Tekrar Kuralı - Global Havuz)
-      const exclusionContext = formatExclusionListForPrompt(recommendationMemory);
+      // 2. Format exclusion list from recommendation memory and full library (Balatro Kuralı - 5 Statü Dahil)
+      const exclusionContext = formatExclusionListForPrompt(recommendationMemory, items);
 
       // 3. Prepare chat history for context
       const chatHistory = nextMessages.map((m) => ({

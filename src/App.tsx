@@ -2123,6 +2123,7 @@ export default function App() {
         {/* Header Tabs & Navigation */}
         <HeaderTabs
           mainTab={mainTab}
+          items={appData.items}
           categories={appData.categories}
           activeCatId={activeCatId}
           activeSub={activeSub}

@@ -1,5 +1,6 @@
 import {
   AiRecommendationCard,
+  ArchiveItem,
   RecommendationMemoryItem,
   RecommendationPoolType,
   RecommendationCategory,
@@ -119,7 +120,7 @@ export function addCardsToMemory(
     const existingIdx = updatedList.findIndex(
       (it) =>
         normalizeTitleForCompare(it.title) === normalizeTitleForCompare(card.title) &&
-        it.mainTab === (card.mainTab === 'game' ? 'game' : 'media')
+        it.mainTab === (card.mainTab === 'game' ? 'game' : card.mainTab === 'book' ? 'book' : 'media')
     );
 
     if (existingIdx !== -1) {
@@ -259,27 +260,68 @@ export function clearArchivePool(
 
 /**
  * AI Prompt'una eklenecek negatif kısıt / hariç tutma dizesini oluşturan yardımcı:
- * [Tür] Başlık (Yıl)
- * Kullanıcının aktif sekmesine bakılmaksızın; daha önce önerilmiş tüm yapımlar
- * (film, dizi, anime, oyun, kitap) istisnasız AI'a iletilir. Böylece sıfır tekrar garantilenir.
+ * 1. Kullanıcının Kütüphanesindeki TÜM yapımlar (Tamamlanan, İzlenen/Oynanan/Okunan,
+ *    Sırada bekleyen, Yarım bırakılan, Takipte olanlar - Medya, Oyun, Kitap)
+ * 2. Öneri Hafızasındaki yapımlar (Radar, Kara Liste, Arşiv)
+ * 
+ * Sıfır tekrar garantisi (Balatro Kuralı): Kullanıcının elindeki hiçbir yapım yeni bir öneri kartı olarak üretilemez!
  */
 export function formatExclusionListForPrompt(
-  items: RecommendationMemoryItem[],
-  _deprecatedActiveTab?: 'media' | 'game' | 'book'
+  memoryItems: RecommendationMemoryItem[],
+  libraryItems?: ArchiveItem[]
 ): string {
-  if (!items || items.length === 0) return '';
+  const lines: string[] = [];
+  const seenNormTitles = new Set<string>();
 
-  const lines = items.map((it) => {
-    const typeLabel = it.subType
-      ? it.subType.toUpperCase()
-      : it.mainTab === 'game'
-      ? 'OYUN'
-      : it.mainTab === 'book'
-      ? 'KİTAP'
-      : 'MEDYA';
-    const yearStr = it.releaseYear ? ` (${it.releaseYear})` : '';
-    return `- [${typeLabel}] ${it.title}${yearStr}`;
-  });
+  // 1. Kütüphanedeki tüm yapımlar (Tüm 5 Statü: Tamamlandı, Devam Ediyor, Sırada, Yarım Bırakıldı, Takipte)
+  if (libraryItems && libraryItems.length > 0) {
+    libraryItems.forEach((it) => {
+      if (it.isHidden) return;
+      const title = (it.title || '').trim();
+      if (!title) return;
+      const norm = normalizeTitleForCompare(title);
+      if (seenNormTitles.has(norm)) return;
+      seenNormTitles.add(norm);
 
-  return `[DAHA ÖNCE ÖNERİLEN VE ASLA TEKRAR EDİLMEYECEK YAPIMLAR LİSTESİ]:\n${lines.join('\n')}`;
+      const typeLabel =
+        it.mainTab === 'game'
+          ? 'OYUN'
+          : it.mainTab === 'book'
+          ? 'KİTAP'
+          : 'MEDYA';
+      const yearStr = it.releaseYear ? ` (${it.releaseYear})` : '';
+      lines.push(`- [${typeLabel}] ${title}${yearStr}`);
+    });
+  }
+
+  // 2. Öneri Hafızasındaki yapımlar (Radar, Kara Liste, Arşiv)
+  if (memoryItems && memoryItems.length > 0) {
+    memoryItems.forEach((it) => {
+      const title = (it.title || '').trim();
+      if (!title) return;
+      const norm = normalizeTitleForCompare(title);
+      if (seenNormTitles.has(norm)) return;
+      seenNormTitles.add(norm);
+
+      const typeLabel = it.subType
+        ? it.subType.toUpperCase()
+        : it.mainTab === 'game'
+        ? 'OYUN'
+        : it.mainTab === 'book'
+        ? 'KİTAP'
+        : 'MEDYA';
+      const yearStr = it.releaseYear ? ` (${it.releaseYear})` : '';
+      lines.push(`- [${typeLabel}] ${title}${yearStr}`);
+    });
+  }
+
+  if (lines.length === 0) return '';
+
+  return (
+    `[KÜTÜPHANEDE KAYITLI VE DAHA ÖNCE ÖNERİLMİŞ TÜM YAPIMLAR LİSTESİ (ASLA YENİ ÖNERİ OLARAK SUNULAMAZ)]:\n` +
+    `⚠️ KESİN KURAL (BALATRO KURALI): Aşağıdaki yapımlar kullanıcının kütüphanesinde mevcuttur (tamamlanmış, şu an izlenen/oynanan/okunan, sırada bekleyen, takip edilen veya yarım bırakılmış) ya da daha önce asistan tarafından önerilmiştir.\n` +
+    `Bu listedeki yapımların HİÇBİRİNİ yeni bir öneri olarak sunamazsın ve ASLA yeni bir öneri kartının başlığı ("title") olarak üretemezsin!\n` +
+    `Bu yapımları YALNIZCA VE YALNIZCA "matchReason" (tavsiye gerekçesi) alanında [[item:id|Başlık]] şeklinde referans olarak anabilirsin.\n` +
+    lines.join('\n')
+  );
 }

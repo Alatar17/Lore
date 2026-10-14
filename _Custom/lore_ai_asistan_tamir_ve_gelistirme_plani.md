@@ -121,9 +121,39 @@ Yapay zekaya kütüphane verisi giderken kesin bir çizgiyle ikiye ayrılacak:
 
 ---
 
-## 8. ÇALIŞMA YOL HARİTASI VE DURUM ÖZETİ
+## 9. KÜTÜPHANEDE KAYITLI YAPIMLARIN TEKRAR ÖNERİLMESİNİN ÖNLENMESİ (BALATRO KURALI)
+
+### 🔍 Teşhis
+* Kullanıcının kütüphanesinde kayıtlı, bitirilmiş ve yüksek puan verilmiş yapımlar (Örn: *Balatro*), yapay zeka tarafından *"Balatro'yu sevdiğin için önerdim"* gerekçesiyle tekrar öneri kartı olarak üretilmiştir.
+* Nedeni: `recommendationMemory.ts` sadece sohbet esnasında üretilen kartları tutmaktadır; kullanıcının kendi kütüphanesi yapay zekaya giden yasaklı hariç tutma listesinde yer almamaktadır. Ayrıca zirve yapımlar başlığında "bunlar elindedir, kart olarak üretme" kalkanı eksiktir.
+
+### 🚫 Kartları Sonradan Silme / Ekranda Eksiltme YASAĞI (Kullanıcı Kararı)
+* Kartları kod seviyesinde sonradan sessizce çöpe atmak **KESİNLİKLE UYGULANMAYACAKTIR**.
+* Kullanıcı "bana 2 film öner" dediğinde sistem arka planda 1 tanesini silerse ekranda tek kart kalır; bu da arayüzü eksik ve tutarsız gösterir.
+* Free API sınırları ve yapay zekanın doğası kabul edilmiştir; binde bir hata yapıp kütüphaneden bir şey önerse dahi karta müdahale edilip silinmeyecektir. Önemli olan yapay zekayı en baştan önleyici kalkanla eğitmektir.
+
+### 🗣️ "Zevk Profili" Tabirinin Kaldırılması ve Doğal Dil İlkesi
+* "Zevk profili" gibi Türkçe'de yapay, soğuk ve çeviri kokan tüm ifadeler prompttan ve asistan dilinden temizlenir.
+* Yapay zekaya genel geçiş cümlelerinde şu asil ve doğal ifade kullandırılır:  
+  *`"Kütüphanendeki arşive ve beğenilerine göre seçtiğim önerileri aşağıya kartlar halinde bıraktım:"`*
+
+### 🛠️ Çözüm Mimarisi (Önleyici Kalkan)
+1. **Birleşik Hariç Tutma Listesi:** Kullanıcının kütüphanesindeki tüm yapımların başlıkları (aşağıdaki 5 statünün tamamı istisnasız dahil edilerek), yapay zekaya giden `[DAHA ÖNCE ÖNERİLEN VE ASLA TEKRAR EDİLMEYECEK YAPIMLAR LİSTESİ]` bloğuna eklenir:
+   - **Tamamlananlar** (Bitirilmiş tüm film, dizi, anime, oyun, kitaplar)
+   - **Şu An Devam Edenler** (*İzleniyor*, *Oynanıyor*, *Okunuyor*)
+   - **Sırada Bekleyenler** (*İzlenecek*, *Oynanacak*, *Okunacak*)
+   - **Yarım Bırakılanlar** (*Yarım Bırakıldı / Dropped*)
+   - **Takip Edilenler** (*Takipte / Gelecek sezonu veya çıkışı beklenenler*)
+2. **Zirve ve Favori Kalkanı:** `formatTasteProfileForPrompt` içindeki zirve ve güçlü favori listelerine şu kural eklenir:  
+   *`"DİKKAT: Bu yapımlar kullanıcının zaten tüketip bitirdiği eserlerdir. Bu yapımları sadece bir pusula ve referans olarak kullan; bu isimlerin hiçbirini asla yeni bir öneri kartı olarak üretme!"`*
+3. **Kitap Tür Eşleşmesi:** `recommendationMemory.ts:122` satırındaki `card.mainTab === 'game' ? 'game' : 'media'` pürüzü kitapları (`book`) da kapsayacak şekilde düzeltilir.
+
+---
+
+## 10. ÇALIŞMA YOL HARİTASI VE DURUM ÖZETİ
 
 * 🚀 **1. Aşama:** Asistan Motoru, Bekleme Listesi Koruma Kalkanı ve Zevk Profili Tamiri -> **TAMAMLANDI**
 * 🎯 **2. Aşama:** Öneri Hafızası Sekme Filtresinin Kaldırılması (Global Hafıza Kalkanı) -> **TAMAMLANDI**
 * 📊 **3. Aşama:** Beklemedeki Yapımların Tier List'ten Gizlenmesi (`TierListView.tsx`) -> **TAMAMLANDI**
-* 🧪 **4. Aşama:** Canlı Test ve Doğrulama aşamasına geçilmiştir.
+* 🛡️ **4. Aşama:** Balatro Kuralı ve Önleyici Kütüphane Kalkanı (Planlandı ve Netleştirildi)
+* 🧪 **5. Aşama:** Kodlama onayı sonrasında uygulama ve doğrulama.

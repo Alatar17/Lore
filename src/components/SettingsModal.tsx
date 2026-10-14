@@ -41,6 +41,8 @@ import {
   parseTierListBackupFile,
   checkDirectoryHandleAccessibility,
   safeLocalStorageSet,
+  deleteBadgeImageFromFolder,
+  deleteCachedImageBlob,
 } from '../utils/fileSystem';
 import {
   getFieldScopedTags,
@@ -114,12 +116,21 @@ import {
   parseOwnerAndRepo,
   testGitHubConnection,
   saveGitHubSyncConfig,
+  clearMemoryDataUrlCache,
 } from '../utils/githubSync';
 import {
   getGeminiApiKey,
   setGeminiApiKey,
   testGeminiApiKey,
 } from '../utils/geminiAi';
+import {
+  getTmdbApiKey,
+  setTmdbApiKey,
+  getAssistantImagesEnabled,
+  setAssistantImagesEnabled,
+  testTmdbConnection,
+  isTmdbReadAccessToken,
+} from '../utils/tmdbApi';
 
 interface SettingsModalProps {
   appData: AppData;
@@ -567,6 +578,21 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       message: `"${badge.name}" rozetini silmek istediğinize emin misiniz? Bu işlem rozeti kütüphanedeki tüm yapımlardan otomatik olarak kaldıracaktır (kaskad temizlik).`,
       confirmText: 'Sil',
       onConfirm: () => {
+        // Option B: Automatically delete the badge image from disk folder and memory cache immediately
+        if (dirHandle) {
+          deleteBadgeImageFromFolder(dirHandle, badge.id, badge.fileName).catch((err) => {
+            console.warn('Failed to delete badge image from folder:', err);
+          });
+        }
+        if (badge.fileName) {
+          deleteCachedImageBlob(badge.fileName).catch(() => {});
+          clearMemoryDataUrlCache(badge.fileName);
+        }
+        deleteCachedImageBlob(`badge_${badge.id}.webp`).catch(() => {});
+        deleteCachedImageBlob(`badge_${badge.id}.png`).catch(() => {});
+        clearMemoryDataUrlCache(`badge_${badge.id}.webp`);
+        clearMemoryDataUrlCache(`badge_${badge.id}.png`);
+
         const currentBadges = appData.customBadges || [];
         const updatedBadges = currentBadges.filter((b) => b.id !== badge.id);
         const updatedItems = appData.items.map((it) => {
@@ -705,6 +731,69 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       type: 'alert',
       title: 'Gemini API Anahtarı Silindi',
       message: 'API anahtarı tarayıcı hafızasından kaldırıldı.',
+    });
+  };
+
+  // TMDB & Görsel Sağlayıcıları State (Resimler.md Şartnamesi - 1. Aşama)
+  const [tmdbKey, setTmdbKey] = useState<string>(() => getTmdbApiKey());
+  const [showTmdbKey, setShowTmdbKey] = useState<boolean>(false);
+  const [testingTmdb, setTestingTmdb] = useState<boolean>(false);
+  const [tmdbTestResult, setTmdbTestResult] = useState<{ success: boolean; message: string } | null>(null);
+  const [showTmdbHelp, setShowTmdbHelp] = useState<boolean>(false);
+  const [assistantImagesEnabled, setLocalAssistantImagesEnabled] = useState<boolean>(() => getAssistantImagesEnabled());
+
+  const handleToggleAssistantImages = (enabled: boolean) => {
+    setLocalAssistantImagesEnabled(enabled);
+    setAssistantImagesEnabled(enabled);
+  };
+
+  const handleSaveTmdbKey = () => {
+    const trimmed = tmdbKey.trim();
+    setTmdbApiKey(trimmed);
+    setTmdbTestResult(null);
+    setDialogOptions({
+      type: 'alert',
+      variant: 'success',
+      title: 'TMDB API Anahtarı Kaydedildi',
+      message: trimmed
+        ? 'TMDB bağlantı bilgisi bu tarayıcıya güvenle kaydedildi. Asistan önerilerinde dikey afişler ve sahne galerileri aktif olacaktır.'
+        : 'TMDB API anahtarı temizlendi.',
+    });
+  };
+
+  const handleTestTmdbConnection = async () => {
+    const trimmed = tmdbKey.trim();
+    if (!trimmed) {
+      setTmdbTestResult({
+        success: false,
+        message: 'Lütfen test etmeden önce bir TMDB API anahtarı veya jetonu girin.',
+      });
+      return;
+    }
+    setTestingTmdb(true);
+    setTmdbTestResult(null);
+    try {
+      const res = await testTmdbConnection(trimmed);
+      setTmdbTestResult(res);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setTmdbTestResult({
+        success: false,
+        message: `Bağlantı hatası: ${msg.slice(0, 100)}`,
+      });
+    } finally {
+      setTestingTmdb(false);
+    }
+  };
+
+  const handleClearTmdbKey = () => {
+    setTmdbKey('');
+    setTmdbApiKey('');
+    setTmdbTestResult(null);
+    setDialogOptions({
+      type: 'alert',
+      title: 'TMDB API Anahtarı Silindi',
+      message: 'TMDB anahtarı tarayıcı hafızasından kaldırıldı.',
     });
   };
 
@@ -3301,6 +3390,16 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
                   <div className="flex items-center justify-between p-3 rounded-xl bg-white/5 border border-white/10">
                     <div className="space-y-0.5">
+                      <span className="text-sm font-semibold text-slate-100">Arama Önerisini Tamamla</span>
+                      <p className="text-xs text-slate-400">Arama çubuğunda çıkan silik metin (Ghost Text) önerisini tek tuşla kabul eder</p>
+                    </div>
+                    <kbd className="px-3 py-1.5 rounded-lg bg-black/60 border border-white/20 text-slate-200 text-xs font-mono font-bold shadow-inner">
+                      TAB
+                    </kbd>
+                  </div>
+
+                  <div className="flex items-center justify-between p-3 rounded-xl bg-white/5 border border-white/10">
+                    <div className="space-y-0.5">
                       <span className="text-sm font-semibold text-slate-100">Sıradakiler Modu (Aç / Kapa)</span>
                       <p className="text-xs text-slate-400">Yalnızca izlenecek, oynanacak veya okunacak sıradaki yapımları listeler</p>
                     </div>
@@ -3817,6 +3916,254 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                             type="button"
                             onClick={handleClearGeminiKey}
                             title="Gemini API Anahtarını Kaldır"
+                            className="py-2 px-3 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-300 border border-red-500/30 text-xs font-medium flex items-center gap-1.5 transition-all cursor-pointer ml-auto"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                            <span className="hidden sm:inline">Anahtarı Kaldır</span>
+                          </button>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* 2. GÖRSEL & AFİŞ SAĞLAYICILARI (TMDB & ASİSTAN ŞARTNAMESİ) */}
+                    <div className="p-4 rounded-xl bg-gradient-to-br from-indigo-500/5 via-white/5 to-white/5 border border-indigo-500/25 space-y-4 shadow-sm">
+                      <div className="flex items-center justify-between border-b border-white/10 pb-3 flex-wrap gap-2">
+                        <div className="flex items-center gap-2.5">
+                          <div className="p-2 rounded-lg bg-indigo-500/15 border border-indigo-500/30 text-indigo-400">
+                            <ImageIcon className="w-4 h-4 text-indigo-400" />
+                          </div>
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <h4 className="text-sm font-bold text-slate-100 flex items-center gap-1.5">
+                                Görsel & Afiş Sağlayıcıları
+                              </h4>
+                              <span className="text-[10px] font-semibold text-indigo-300 font-mono bg-indigo-500/15 px-2 py-0.5 rounded border border-indigo-500/30">
+                                TMDB (The Movie Database)
+                              </span>
+                            </div>
+                            <p className="text-[11px] text-slate-400">
+                              Asistan önerilerinde gerçek dikey afişler ve 3'lü sahne/atmosfer galerisi için resmi sağlayıcı.
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          {!assistantImagesEnabled ? (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-slate-500/15 text-slate-400 border border-slate-500/30">
+                              Görseller Kapalı
+                            </span>
+                          ) : tmdbKey.trim() ? (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
+                              <Check className="w-3 h-3" /> Anahtar Tanımlı
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/15 text-amber-300 border border-amber-500/30">
+                              <AlertCircle className="w-3 h-3" /> Anahtar Girilmedi
+                            </span>
+                          )}
+
+                          <button
+                            type="button"
+                            onClick={() => setShowTmdbHelp((prev) => !prev)}
+                            className="py-1 px-2.5 rounded-lg bg-indigo-500/10 hover:bg-indigo-500/20 border border-indigo-500/30 text-indigo-300 text-[11px] font-medium flex items-center gap-1.5 transition-colors cursor-pointer"
+                          >
+                            <HelpCircle className="w-3.5 h-3.5 text-indigo-400" />
+                            <span>Nasıl Alınır?</span>
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Enable/Disable Assistant Images Toggle Switch */}
+                      <div className="flex items-center justify-between p-3 rounded-xl bg-black/30 border border-white/10">
+                        <div className="space-y-0.5 pr-3">
+                          <div className="text-xs font-semibold text-slate-200">
+                            Asistan Görsellerini Etkinleştir
+                          </div>
+                          <div className="text-[11px] text-slate-400">
+                            Kapalıyken görsel çekilmez, salt metin ve yer tutucular kullanılır.
+                          </div>
+                        </div>
+                        <button
+                          id="toggle-assistant-images-btn"
+                          type="button"
+                          onClick={() => handleToggleAssistantImages(!assistantImagesEnabled)}
+                          className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                            assistantImagesEnabled ? 'bg-indigo-600' : 'bg-slate-700'
+                          }`}
+                          title={assistantImagesEnabled ? 'Görselleri Kapat' : 'Görselleri Aç'}
+                        >
+                          <span
+                            className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                              assistantImagesEnabled ? 'translate-x-5' : 'translate-x-0'
+                            }`}
+                          />
+                        </button>
+                      </div>
+
+                      {/* Help info accordion */}
+                      {showTmdbHelp && (
+                        <div className="p-3.5 rounded-xl bg-black/50 border border-indigo-500/30 space-y-2 text-xs text-slate-300">
+                          <div className="flex items-center justify-between text-indigo-300 font-semibold">
+                            <span className="flex items-center gap-1.5">
+                              <KeyRound className="w-3.5 h-3.5 text-indigo-400" />
+                              TMDB API Anahtarı Nasıl Alınır? (Ücretsiz)
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => setShowTmdbHelp(false)}
+                              className="text-slate-400 hover:text-white"
+                            >
+                              <X className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                          <ol className="list-decimal list-inside space-y-1.5 text-[11px] text-slate-300/90 leading-relaxed pl-1">
+                            <li>
+                              <a
+                                href="https://www.themoviedb.org/signup"
+                                target="_blank"
+                                rel="noreferrer"
+                                className="text-indigo-400 underline hover:text-indigo-300 inline-flex items-center gap-1 font-medium"
+                              >
+                                themoviedb.org <ExternalLink className="w-3 h-3" />
+                              </a>{' '}
+                              üzerinden ücretsiz bir hesap oluşturun veya giriş yapın.
+                            </li>
+                            <li>
+                              Hesap Ayarları &gt;{' '}
+                              <a
+                                href="https://www.themoviedb.org/settings/api"
+                                target="_blank"
+                                rel="noreferrer"
+                                className="text-indigo-400 underline hover:text-indigo-300 inline-flex items-center gap-1 font-medium"
+                              >
+                                API <ExternalLink className="w-3 h-3" />
+                              </a>{' '}
+                              bölümüne gidin.
+                            </li>
+                            <li>
+                              <strong>"Developer" (Geliştirici)</strong> seçeneği ile ücretsiz anahtar başvurusu yapın (Kişisel arşivleme).
+                            </li>
+                            <li>
+                              İster kısa <strong>API Key (v3)</strong> (~32 karakter), ister uzun <strong>API Read Access Token (v4)</strong> (<code>eyJ...</code>) kopyalayın. Sistem ikisini de otomatik tanır.
+                            </li>
+                            <li>
+                              Kopyaladığınız anahtarı aşağıdaki kutucuğa yapıştırıp <strong>"Bağlantıyı Test Et"</strong>e ve ardından <strong>"Kaydet"</strong>e basın.
+                            </li>
+                            <li className="text-slate-400 text-[10px]">
+                              🔒 Anahtarınız yalnızca bu tarayıcının yerel hafızasında saklanır; GitHub senkronizasyonuna veya dışa aktarılan dosyalara asla sızmaz.
+                            </li>
+                          </ol>
+                        </div>
+                      )}
+
+                      {/* Medya (Film/Dizi/Anime) TMDB Key Input */}
+                      <div className="space-y-1.5">
+                        <label className="text-[11px] font-semibold text-slate-300 flex items-center justify-between">
+                          <span className="flex items-center gap-1.5">
+                            <KeyRound className="w-3.5 h-3.5 text-indigo-400" />
+                            Medya (Film / Dizi / Anime) — TMDB API Anahtarı veya Jetonu
+                          </span>
+                          <span className="text-[10px] text-slate-400 font-mono">
+                            v3 Key veya v4 Token (eyJ...)
+                          </span>
+                        </label>
+                        <div className="relative">
+                          <input
+                            id="tmdb-api-key-input"
+                            type={showTmdbKey ? 'text' : 'password'}
+                            value={tmdbKey}
+                            onChange={(e) => {
+                              setTmdbKey(e.target.value);
+                              setTmdbTestResult(null);
+                            }}
+                            placeholder="32 karakterlik v3 anahtarı veya eyJ... ile başlayan v4 jetonu"
+                            className="w-full pl-3 pr-20 py-2.5 rounded-xl bg-black/40 border border-white/10 focus:border-indigo-500/60 focus:ring-1 focus:ring-indigo-500/40 text-xs text-white placeholder-slate-500 font-mono outline-none transition-colors"
+                          />
+                          <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
+                            {tmdbKey && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setTmdbKey('');
+                                  setTmdbTestResult(null);
+                                }}
+                                className="text-slate-400 hover:text-slate-200 p-1 text-[11px] cursor-pointer"
+                                title="Temizle"
+                              >
+                                <X className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                            <button
+                              type="button"
+                              onClick={() => setShowTmdbKey((p) => !p)}
+                              className="text-slate-400 hover:text-white p-1 text-[11px] cursor-pointer"
+                              title={showTmdbKey ? 'Gizle' : 'Göster'}
+                            >
+                              {showTmdbKey ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                            </button>
+                          </div>
+                        </div>
+                        {tmdbKey.trim() && (
+                          <div className="text-[10px] text-indigo-300/80 font-mono flex items-center gap-1 pl-1">
+                            <span>Format:</span>
+                            <span className="font-semibold text-indigo-200">
+                              {isTmdbReadAccessToken(tmdbKey)
+                                ? 'v4 Read Access Token (Bearer Header)'
+                                : 'v3 API Key (URL Param)'}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Test Result Message */}
+                      {tmdbTestResult && (
+                        <div
+                          className={`p-3 rounded-xl text-xs flex items-start gap-2.5 transition-all ${
+                            tmdbTestResult.success
+                              ? 'bg-emerald-500/15 border border-emerald-500/30 text-emerald-200'
+                              : 'bg-red-500/15 border border-red-500/30 text-red-200'
+                          }`}
+                        >
+                          {tmdbTestResult.success ? (
+                            <CheckCircle className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                          ) : (
+                            <AlertCircle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
+                          )}
+                          <div className="flex-1 text-[11px] leading-relaxed">
+                            {tmdbTestResult.message}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Action Buttons */}
+                      <div className="flex flex-wrap gap-2 pt-1 items-center">
+                        <button
+                          id="save-tmdb-key-btn"
+                          type="button"
+                          onClick={handleSaveTmdbKey}
+                          className="py-2 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold flex items-center gap-1.5 shadow-lg shadow-indigo-600/20 transition-all cursor-pointer"
+                        >
+                          <Check className="w-3.5 h-3.5 stroke-[3]" />
+                          <span>Kaydet</span>
+                        </button>
+
+                        <button
+                          id="test-tmdb-key-btn"
+                          type="button"
+                          onClick={handleTestTmdbConnection}
+                          disabled={testingTmdb || !tmdbKey.trim()}
+                          className="py-2 px-3.5 rounded-xl bg-white/10 hover:bg-white/15 text-slate-200 border border-white/10 text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                        >
+                          <Sparkles className={`w-3.5 h-3.5 text-indigo-400 ${testingTmdb ? 'animate-spin' : ''}`} />
+                          <span>{testingTmdb ? 'Bağlantı Test Ediliyor...' : 'Bağlantıyı Test Et'}</span>
+                        </button>
+
+                        {getTmdbApiKey() && (
+                          <button
+                            id="clear-tmdb-key-btn"
+                            type="button"
+                            onClick={handleClearTmdbKey}
+                            title="TMDB API Anahtarını Kaldır"
                             className="py-2 px-3 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-300 border border-red-500/30 text-xs font-medium flex items-center gap-1.5 transition-all cursor-pointer ml-auto"
                           >
                             <Trash2 className="w-3.5 h-3.5" />

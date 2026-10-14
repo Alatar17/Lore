@@ -332,7 +332,7 @@ export function generateTasteProfile(
 export function formatTasteProfileForPrompt(profile: TasteProfile): string {
   const lines: string[] = [];
 
-  lines.push(`=== KULLANICININ LORE KÜTÜPHANESİ VE ZEVK HARİTASI ===`);
+  lines.push(`=== KULLANICININ LORE KÜTÜPHANESİ VE BEĞENİ DİZİNİ ===`);
   lines.push(`Toplam Arşivlenen Yapım Sayısı: ${profile.totalCount}`);
   lines.push(`[NOT - PUANSIZ YAPIMLAR]: Kullanıcı tamamladığı bazı yapımlara puan vermeyebilir (Puan: Belirtilmedi). Puanın olmaması eserin sevilmediği anlamına gelmez; eserin türü, dünyası ve yaratıcıları kullanıcının ilgi alanına dahildir.`);
 
@@ -346,7 +346,11 @@ export function formatTasteProfileForPrompt(profile: TasteProfile): string {
         return `• [id: ${m.id}] ${m.title} (${m.category}${m.sub ? ` - ${m.sub}` : ''}, Puan: ${m.rating ?? 'Belirtilmedi'}${m.tierName ? `, Tier: ${m.tierName}` : ''}${m.year ? `, ${m.year}` : ''})${charInfo}${authorInfo}`;
       })
       .join('\n');
-    lines.push(`\n[EN ÇOK BEĞENİLEN ZİRVE BAŞYAPITLAR (9-10 Puan veya S-Tier Zirvesi - Tüketilmiş)]:\n${list}`);
+    lines.push(
+      `\n[EN ÇOK BEĞENİLEN ZİRVE BAŞYAPITLAR (9-10 Puan veya S-Tier Zirvesi - Tüketilmiş)]:\n` +
+      `⚠️ DİKKAT (BALATRO KURALI): Bu yapımlar kullanıcının kütüphanesinde zaten kayıtlıdır ve tüketip bitirdiği eserlerdir. Bu yapımları sadece kullanıcının beğenisini anlamak için pusula ve kalite standardı olarak kullan; bu isimlerin HİÇBİRİNİ asla yeni bir öneri kartı olarak üretme!\n` +
+      list
+    );
   }
 
   if (profile.strongFavorites.length > 0) {
@@ -359,7 +363,11 @@ export function formatTasteProfileForPrompt(profile: TasteProfile): string {
         return `• [id: ${m.id}] ${m.title} (${m.category}${m.sub ? ` - ${m.sub}` : ''}, Puan: ${m.rating}${m.year ? `, ${m.year}` : ''})${charInfo}${authorInfo}`;
       })
       .join('\n');
-    lines.push(`\n[GÜÇLÜ FAVORİLER & YÜKSEK KALİTE STANDARDI (8 Puan - Not: Kullanıcı 10 puanı çok nadir verir, bu 8 puanlık yapımlar kullanıcının çekirdek beğeni havuzudur)]:\n${list}`);
+    lines.push(
+      `\n[GÜÇLÜ FAVORİLER & YÜKSEK KALİTE STANDARDI (8 Puan - Çekirdek Beğeni Havuzu)]:\n` +
+      `⚠️ DİKKAT: Bu yapımlar da kullanıcının kütüphanesinde mevcuttur. Sadece beğeni referansı olarak kullan, asla yeni öneri kartı olarak üretme!\n` +
+      list
+    );
   }
 
   if (profile.dislikedItems.length > 0) {
