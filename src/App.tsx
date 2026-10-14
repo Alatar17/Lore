@@ -552,7 +552,7 @@ export default function App() {
     return <CalendarClock className={sizeClass} />;
   };
 
-  // Items visible under current hide mode (for Tier List, Statistics, Recent Activity, and PNG Export)
+  // Items visible under current hide mode (for Tier List, Statistics, Recent Activity, Anki, and PNG Export)
   const visibleItems = useMemo(() => {
     if (isHideModeActive) {
       return appData.items.filter((it) => !it.isHidden);
@@ -1385,8 +1385,11 @@ export default function App() {
     }));
     // If the currently active category was deleted, safely clear activeCatId and activeSub
     if (tab === mainTab && activeCatId && activeCatId !== TRACKED_TAB_ID) {
-      if (!newCategories.some((c) => c.id === activeCatId)) {
+      const activeCat = newCategories.find((c) => c.id === activeCatId);
+      if (!activeCat) {
         setActiveCatId(null);
+        setActiveSub(null);
+      } else if (activeSub && (!activeCat.subgroups || !activeCat.subgroups.includes(activeSub))) {
         setActiveSub(null);
       }
     }
@@ -3906,7 +3909,7 @@ export default function App() {
         <AnkiHubModal
           isOpen={isAnkiHubOpen}
           onClose={() => setIsAnkiHubOpen(false)}
-          items={appData.items}
+          items={visibleItems}
           categories={appData.categories}
           virtualTimeOffsetMs={virtualTimeOffsetMs}
           onSetVirtualTimeOffsetMs={setVirtualTimeOffsetMs}

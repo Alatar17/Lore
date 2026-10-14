@@ -1105,6 +1105,80 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     });
   };
 
+  const handleRenameSubgroup = (catId: string, currentSubName: string) => {
+    const targetCat = cats.find((c) => c.id === catId);
+    if (!targetCat) return;
+
+    setDialogOptions({
+      type: 'prompt',
+      title: 'Alt Grup Adını Değiştir',
+      promptDefaultValue: currentSubName,
+      promptPlaceholder: 'Yeni alt grup adı...',
+      confirmText: 'Güncelle',
+      onConfirm: (newName) => {
+        const trimmed = newName ? newName.trim() : '';
+        if (!trimmed || trimmed === currentSubName) return;
+
+        // Check if another subgroup already has this name in this category
+        if (targetCat.subgroups.includes(trimmed)) {
+          setDialogOptions({
+            type: 'alert',
+            title: 'Alt Grup Zaten Mevcut',
+            message: `"${trimmed}" alt grubu bu kategoride zaten mevcut. Lütfen farklı bir isim seçin.`,
+          });
+          return;
+        }
+
+        // 1. Update Category subgroups and tierSubgroups
+        const updated = cats.map((c) => {
+          if (c.id === catId) {
+            const newSubgroups = c.subgroups.map((s) => (s === currentSubName ? trimmed : s));
+            const newTierSubgroups = c.tierSubgroups
+              ? c.tierSubgroups.map((s) => (s === currentSubName ? trimmed : s))
+              : undefined;
+            return {
+              ...c,
+              subgroups: newSubgroups,
+              tierSubgroups: newTierSubgroups,
+            };
+          }
+          return c;
+        });
+        onUpdateCategories(settingsMainTab, updated);
+
+        // 2. Cascade rename across all items in this category
+        let affectedCount = 0;
+        if (onUpdateItems) {
+          const updatedItems = appData.items.map((it) => {
+            if (it.mainTab === settingsMainTab && it.cat === catId && it.sub === currentSubName) {
+              affectedCount++;
+              return {
+                ...it,
+                sub: trimmed,
+                updatedAt: Date.now(),
+              };
+            }
+            return it;
+          });
+          if (affectedCount > 0) {
+            onUpdateItems(updatedItems);
+          }
+        }
+
+        // 3. Informative success confirmation
+        setDialogOptions({
+          type: 'alert',
+          variant: 'success',
+          title: 'Alt Grup Adı Güncellendi',
+          message:
+            affectedCount > 0
+              ? `"${currentSubName}" alt grubu başarıyla "${trimmed}" olarak güncellendi.\nBağlı ${affectedCount} adet yapım otomatik olarak yeni alt gruba aktarıldı.`
+              : `"${currentSubName}" alt grubu başarıyla "${trimmed}" olarak güncellendi.`,
+        });
+      },
+    });
+  };
+
   const handleDeleteSubgroup = (catId: string, subName: string) => {
     setDialogOptions({
       type: 'confirm',
@@ -1997,7 +2071,13 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                                     <ChevronLeft className="w-3 h-3" />
                                   </button>
 
-                                  <span className="font-medium px-0.5">{sub}</span>
+                                  <span
+                                    onClick={() => handleRenameSubgroup(c.id, sub)}
+                                    className="font-medium px-1 py-0.5 rounded hover:text-blue-400 hover:bg-white/10 transition-colors cursor-pointer select-none"
+                                    title="Alt grubun adını değiştirmek için tıklayın"
+                                  >
+                                    {sub}
+                                  </span>
 
                                   <button
                                     type="button"
