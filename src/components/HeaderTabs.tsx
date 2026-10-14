@@ -548,6 +548,7 @@ export const HeaderTabs: React.FC<HeaderTabsProps> = ({
 
   // Hover handlers for Category items to align subcategory flyout vertically to the exact item
   const handleCatMouseEnter = (cat: Category, e: React.MouseEvent) => {
+    if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
     if (subMenuTimeoutRef.current) clearTimeout(subMenuTimeoutRef.current);
     setHoveredCat(cat);
     const target = e.currentTarget as HTMLElement;
@@ -1396,7 +1397,12 @@ export const HeaderTabs: React.FC<HeaderTabsProps> = ({
                 }}
               >
                 {/* Main Category Menu List (Fixed Width & Stable) */}
-                <div className="w-60 p-2 bg-[#181818]/95 backdrop-blur-xl border border-white/15 rounded-xl shadow-2xl space-y-1 relative">
+                <div
+                  onMouseEnter={() => {
+                    if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
+                  }}
+                  className="w-60 p-2 bg-[#181818]/95 backdrop-blur-xl border border-white/15 rounded-xl shadow-2xl space-y-1 relative"
+                >
                   {/* İzlenen / Takip Quick Item */}
                   <button
                     onClick={() => handleSelectCategoryFromMenu('media', TRACKED_TAB_ID)}
@@ -1470,7 +1476,6 @@ export const HeaderTabs: React.FC<HeaderTabsProps> = ({
                       onMouseEnter={() => {
                         if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
                       }}
-                      onMouseLeave={handleMouseLeave}
                     >
                       <div className="px-3 py-1.5 text-[10px] font-semibold text-neutral-400 uppercase tracking-wider flex items-center justify-between border-b border-white/10 mb-1">
                         <span>{hoveredCat.name} Alt Grupları</span>
@@ -1536,7 +1541,12 @@ export const HeaderTabs: React.FC<HeaderTabsProps> = ({
                 }}
               >
                 {/* Main Category Menu List (Fixed Width & Stable) */}
-                <div className="w-60 p-2 bg-[#181818]/95 backdrop-blur-xl border border-white/15 rounded-xl shadow-2xl space-y-1 relative">
+                <div
+                  onMouseEnter={() => {
+                    if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
+                  }}
+                  className="w-60 p-2 bg-[#181818]/95 backdrop-blur-xl border border-white/15 rounded-xl shadow-2xl space-y-1 relative"
+                >
                   {/* Categories */}
                   <div className="max-h-72 overflow-y-auto space-y-0.5 custom-scrollbar">
                     {(categories?.game || []).length === 0 ? (
@@ -1593,7 +1603,6 @@ export const HeaderTabs: React.FC<HeaderTabsProps> = ({
                       onMouseEnter={() => {
                         if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
                       }}
-                      onMouseLeave={handleMouseLeave}
                     >
                       <div className="px-3 py-1.5 text-[10px] font-semibold text-neutral-400 uppercase tracking-wider flex items-center justify-between border-b border-white/10 mb-1">
                         <span>{hoveredCat.name} Alt Grupları</span>
@@ -1659,7 +1668,12 @@ export const HeaderTabs: React.FC<HeaderTabsProps> = ({
                 }}
               >
                 {/* Main Category Menu List (Fixed Width & Stable) */}
-                <div className="w-60 p-2 bg-[#181818]/95 backdrop-blur-xl border border-white/15 rounded-xl shadow-2xl space-y-1 relative">
+                <div
+                  onMouseEnter={() => {
+                    if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
+                  }}
+                  className="w-60 p-2 bg-[#181818]/95 backdrop-blur-xl border border-white/15 rounded-xl shadow-2xl space-y-1 relative"
+                >
                   {/* Categories */}
                   <div className="max-h-72 overflow-y-auto space-y-0.5 custom-scrollbar">
                     {(categories?.book || []).length === 0 ? (
@@ -1717,7 +1731,6 @@ export const HeaderTabs: React.FC<HeaderTabsProps> = ({
                       onMouseEnter={() => {
                         if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
                       }}
-                      onMouseLeave={handleMouseLeave}
                     >
                       <div className="px-3 py-1.5 text-[10px] font-semibold text-neutral-400 uppercase tracking-wider flex items-center justify-between border-b border-white/10 mb-1">
                         <span>{hoveredCat.name} Alt Grupları</span>
