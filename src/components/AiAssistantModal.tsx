@@ -30,6 +30,7 @@ import {
   Target,
   Ban,
   Archive,
+  Play,
 } from 'lucide-react';
 import { generateTasteProfile, formatTasteProfileForPrompt } from '../utils/aiTasteProfile';
 import { askAiAssistant, getGeminiApiKey, formatAssistantModelLabel } from '../utils/geminiAi';
@@ -38,6 +39,7 @@ import {
   getAssistantImagesEnabled,
   searchTmdbMedia,
   fetchTmdbMovieOrTvImages,
+  fetchTmdbTrailer,
   TmdbMediaMatch,
   TmdbSceneImage,
 } from '../utils/tmdbApi';
@@ -227,7 +229,8 @@ const AiRecommendationCardView: React.FC<{
   onOpenAddItem?: (initialTitle?: string, targetTab?: 'media' | 'game' | 'book') => void;
   onOpenItemDetail?: (item: ArchiveItem) => void;
   onPreviewGallery: (images: string[], initialIndex: number, title?: string) => void;
-}> = ({ card, items, onOpenAddItem, onOpenItemDetail, onPreviewGallery }) => {
+  onPlayTrailer?: (youtubeKey: string, title: string) => void;
+}> = ({ card, items, onOpenAddItem, onOpenItemDetail, onPreviewGallery, onPlayTrailer }) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const [askedWhy, setAskedWhy] = useState(false);
   const [isAnsweringWhy, setIsAnsweringWhy] = useState(false);
@@ -244,6 +247,9 @@ const AiRecommendationCardView: React.FC<{
   const [isLoadingScenes, setIsLoadingScenes] = useState<boolean>(false);
   const [failedSceneIndexes, setFailedSceneIndexes] = useState<Set<number>>(new Set());
   const fetchedScenesRef = useRef(false);
+
+  // TMDB Resmi Fragman (Resimler.md Şartnamesi - 4. Aşama)
+  const [trailerKey, setTrailerKey] = useState<string | null>(null);
 
   useEffect(() => {
     let isCancelled = false;
@@ -279,7 +285,7 @@ const AiRecommendationCardView: React.FC<{
     };
   }, [card.title, card.releaseYear, card.mainTab]);
 
-  // Kart genişletildiğinde (isExpanded) TMDB'den 10-15 sahne karesini lazy-load olarak çek
+  // Kart genişletildiğinde (isExpanded) TMDB'den 10-15 sahne karesini ve resmi fragmanı lazy-load olarak çek
   useEffect(() => {
     let isCancelled = false;
     const isMediaCard =
@@ -313,6 +319,15 @@ const AiRecommendationCardView: React.FC<{
             setIsLoadingScenes(false);
           }
         });
+
+      // Resmi YouTube fragmanını getir
+      fetchTmdbTrailer(tmdbMatch.tmdbId, tmdbMatch.mediaType)
+        .then((key) => {
+          if (!isCancelled) {
+            setTrailerKey(key);
+          }
+        })
+        .catch(() => {});
     }
 
     return () => {
@@ -600,18 +615,35 @@ const AiRecommendationCardView: React.FC<{
             )}
           </div>
 
-          {/* 2. TMDB 3'lü Sahne & Atmosfer Vitrini (Resimler.md Şartnamesi - 3. Aşama) */}
+          {/* 2. TMDB 3'lü Sahne & Atmosfer Vitrini ve Fragman (Resimler.md Şartnamesi - 3. ve 4. Aşama) */}
           {(card.mainTab === 'media' ||
             (card.mainTab as string) === 'anime' ||
             (!card.mainTab && !card.developers && !card.authors)) &&
-            (validScenes.length > 0 || isLoadingScenes) && (
+            (validScenes.length > 0 || isLoadingScenes || trailerKey) && (
               <div className="pt-1">
-                <h5 className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2 flex items-center gap-2">
-                  <span>Sahne & Atmosfer Kareleri</span>
-                  {isLoadingScenes && (
-                    <Loader2 className="w-3 h-3 animate-spin text-indigo-400" />
+                <div className="flex items-center justify-between mb-2">
+                  <h5 className="text-[11px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-2">
+                    <span>Sahne & Atmosfer Kareleri</span>
+                    {isLoadingScenes && (
+                      <Loader2 className="w-3 h-3 animate-spin text-indigo-400" />
+                    )}
+                  </h5>
+
+                  {trailerKey && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onPlayTrailer?.(trailerKey, card.title);
+                      }}
+                      className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-lg bg-red-600/20 hover:bg-red-600/35 border border-red-500/40 text-red-300 hover:text-red-100 text-[11px] font-semibold transition-all cursor-pointer active:scale-95 shadow-xs"
+                      title={`${card.title} Resmi Fragmanını Oynat`}
+                    >
+                      <Play className="w-3 h-3 fill-current" />
+                      <span>Fragmanı Oynat</span>
+                    </button>
                   )}
-                </h5>
+                </div>
 
                 {validScenes.length > 0 && (
                   <div className="grid grid-cols-3 gap-2 sm:gap-2.5">
@@ -840,6 +872,10 @@ export const AiAssistantModal: React.FC<AiAssistantModalProps> = ({
     currentIndex: number;
     title: string;
   } | null>(null);
+  const [activeTrailer, setActiveTrailer] = useState<{
+    youtubeKey: string;
+    title: string;
+  } | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const recognitionRef = useRef<any>(null);
@@ -912,6 +948,14 @@ export const AiAssistantModal: React.FC<AiAssistantModalProps> = ({
   useEffect(() => {
     if (!isOpen) return;
     const handleKeyDown = (e: KeyboardEvent) => {
+      if (activeTrailer) {
+        if (e.key === 'Escape') {
+          e.preventDefault();
+          e.stopPropagation();
+          setActiveTrailer(null);
+          return;
+        }
+      }
       if (lightboxGallery) {
         if (e.key === 'Escape') {
           e.preventDefault();
@@ -950,7 +994,7 @@ export const AiAssistantModal: React.FC<AiAssistantModalProps> = ({
     };
     window.addEventListener('keydown', handleKeyDown, true);
     return () => window.removeEventListener('keydown', handleKeyDown, true);
-  }, [isOpen, onClose, lightboxGallery]);
+  }, [isOpen, onClose, lightboxGallery, activeTrailer]);
 
   const toggleSpeechRecognition = () => {
     if (isListening) {
@@ -1351,6 +1395,9 @@ export const AiAssistantModal: React.FC<AiAssistantModalProps> = ({
                                       currentIndex: initialIndex,
                                       title: title || '',
                                     })
+                                  }
+                                  onPlayTrailer={(youtubeKey, title) =>
+                                    setActiveTrailer({ youtubeKey, title })
                                   }
                                 />
                               ))}
@@ -1814,6 +1861,57 @@ export const AiAssistantModal: React.FC<AiAssistantModalProps> = ({
               </span>
             </div>
           )}
+        </div>
+      )}
+
+      {/* 4. AŞAMA: Resmi YouTube Fragman Sinema Modu Penceresi */}
+      {activeTrailer && (
+        <div
+          className="fixed inset-0 z-50 bg-black/90 backdrop-blur-md flex flex-col items-center justify-center p-3 sm:p-6 select-none animate-in fade-in duration-200"
+          onClick={() => setActiveTrailer(null)}
+        >
+          {/* Üst Başlık & Kapat Butonu */}
+          <div
+            className="w-full max-w-4xl flex items-center justify-between mb-3 text-white"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center gap-2.5 min-w-0 pr-3">
+              <span className="inline-flex items-center justify-center w-7 h-7 rounded-lg bg-red-600 text-white shrink-0 shadow-md">
+                <Play className="w-4 h-4 fill-current ml-0.5" />
+              </span>
+              <div className="min-w-0">
+                <h4 className="font-bold text-sm sm:text-base text-white truncate">
+                  {activeTrailer.title}
+                </h4>
+                <p className="text-[11px] text-slate-400 font-medium">
+                  Resmi TMDB / YouTube Fragmanı
+                </p>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setActiveTrailer(null)}
+              title="Kapat (ESC veya Dışarı Tıkla)"
+              className="p-2 text-white/80 hover:text-white bg-white/10 hover:bg-white/20 rounded-full transition-colors cursor-pointer active:scale-95 shadow-lg"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+
+          {/* 16:9 YouTube Oynatıcı */}
+          <div
+            className="w-full max-w-4xl aspect-video rounded-2xl overflow-hidden shadow-2xl border border-white/20 bg-black relative"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <iframe
+              src={`https://www.youtube-nocookie.com/embed/${activeTrailer.youtubeKey}?autoplay=1&rel=0`}
+              title={`${activeTrailer.title} Fragman`}
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+              allowFullScreen
+              className="w-full h-full border-0"
+            />
+          </div>
         </div>
       )}
     </div>

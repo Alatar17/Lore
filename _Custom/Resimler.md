@@ -157,3 +157,25 @@ LORE şahsi, çevrimdışı ve elit bir kişisel arşiv aracıdır; ticari bir p
   2. Konu metninin hemen altında eserin atmosferini yansıtan 3 adet yazısız sahne karesini gör.
   3. 3. karenin köşesindeki dinamik görsel sayacını kontrol et.
   4. Resimlerden birine tıkla; tam ekran Lightbox açılsın ve sağ/sol oklarla yapımın 10-15 sahne karesini yüksek çözünürlükte gez.
+
+---
+
+### 📌 4. AŞAMA: Resmi YouTube Fragman Entegrasyonu (Videos)
+* **Kapsam ve Hedef:** Asistan öneri kartında "Sahne & Atmosfer Kareleri" satırının sağına şık bir "Fragmanı Oynat" butonu eklemek, tıklandığında dahili sinema penceresinde resmi YouTube fragmanını oynatmak.
+* **Tasarım & Yerleşim Kuralı:**
+  - Buton, `Sahne & Atmosfer Kareleri` başlığı ile aynı hizada (`justify-between`) konumlandırılır.
+  - Alttaki 3'lü sahne görsellerini asla aşağıya ittirmez.
+* **Oynatıcı (Sinema Modu):**
+  - Tıklandığında sayfa dışına çıkılmaz; arka plan kararır, ortada 16:9 YouTube oynatıcısı açılır.
+  - Sağ üstteki çarpı (`✕`) veya `ESC` tuşuyla kapatıldığında video ve ses anında kesilir.
+  - Butona tıklanana kadar sıfır veri harcanır (önceden gizli video yükleme yapılmaz).
+* **Akıllı Seçim:**
+  - TMDB `/videos` listesinden resmi `"Trailer"` etiketli video seçilir (röportaj/kamera arkası elenir). Dil ayrımı yapılmaz, resmi ana fragman alınır.
+  - Resmi fragman yoksa buton gizlenir.
+* **Ayarlar Koruması:**
+  - Ayarlardan "Asistan Görsellerini Etkinleştir" kapatıldığında bu buton da tamamen kaybolur (salt metin modunu korur).
+* **📋 Kullanıcı Test Rehberi (4. Aşama Sonu):**
+  1. Asistan kartını genişlet ve "Sahne & Atmosfer Kareleri" başlığının sağında `▶ Fragmanı Oynat` butonunu gör.
+  2. Butona bas; ortada sinema penceresi açılsın ve YouTube fragmanı başlasın.
+  3. `✕` veya `ESC` tuşuna basıp kapat; sesin ve videonun anında kesildiğini doğrula.
+  4. Ayarlardan "Asistan Görsellerini Etkinleştir"i kapat; fragman butonunun da kaybolduğunu doğrula.

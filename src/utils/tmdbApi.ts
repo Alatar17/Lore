@@ -580,4 +580,85 @@ export async function fetchTmdbMovieOrTvImages(
   return promise;
 }
 
+const trailerCache = new Map<string, Promise<string | null>>();
+
+/**
+ * Bir yapımın TMDB üzerinden resmi YouTube fragman anahtarını (video key) çeker.
+ * Öncelik: site === 'YouTube' && type === 'Trailer' (resmi olanlar önde)
+ * Görseller kapalıysa veya anahtar yoksa null döner.
+ */
+export async function fetchTmdbTrailer(
+  tmdbId: number,
+  mediaType: 'movie' | 'tv'
+): Promise<string | null> {
+  if (!getAssistantImagesEnabled()) return null;
+  const apiKey = getTmdbApiKey();
+  if (!apiKey || !tmdbId) return null;
+
+  const cacheKey = `trailer_${mediaType}_${tmdbId}`;
+  if (trailerCache.has(cacheKey)) {
+    return trailerCache.get(cacheKey)!;
+  }
+
+  const promise = (async (): Promise<string | null> => {
+    try {
+      const isToken = isTmdbReadAccessToken(apiKey);
+      const url = new URL(`https://api.themoviedb.org/3/${mediaType}/${tmdbId}/videos`);
+
+      if (!isToken) {
+        url.searchParams.set('api_key', apiKey);
+      }
+
+      const headers: Record<string, string> = {
+        Accept: 'application/json',
+      };
+      if (isToken) {
+        headers['Authorization'] = `Bearer ${apiKey}`;
+      }
+
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 6000);
+
+      const response = await fetch(url.toString(), {
+        method: 'GET',
+        headers,
+        signal: controller.signal,
+      });
+
+      clearTimeout(timeoutId);
+
+      if (!response.ok) return null;
+
+      const data = await response.json();
+      const results: any[] = Array.isArray(data.results) ? data.results : [];
+
+      const youtubeVideos = results.filter((v) => v.site === 'YouTube' && Boolean(v.key));
+      if (youtubeVideos.length === 0) return null;
+
+      // Sıralama Önceliği:
+      // 1. type === 'Trailer' && official === true
+      // 2. type === 'Trailer'
+      // 3. type === 'Teaser' && official === true
+      // 4. Herhangi bir YouTube videosu
+      const sorted = [...youtubeVideos].sort((a, b) => {
+        const score = (v: any) => {
+          let s = 0;
+          if (v.type === 'Trailer') s += 10;
+          else if (v.type === 'Teaser') s += 5;
+          if (v.official) s += 4;
+          return s;
+        };
+        return score(b) - score(a);
+      });
+
+      return sorted[0]?.key || null;
+    } catch {
+      return null;
+    }
+  })();
+
+  trailerCache.set(cacheKey, promise);
+  return promise;
+}
+
 
