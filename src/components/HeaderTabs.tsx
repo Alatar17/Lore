@@ -1466,10 +1466,11 @@ export const HeaderTabs: React.FC<HeaderTabsProps> = ({
                     <div
                       id="flyout-subgroups-menu"
                       style={{ top: `${Math.max(0, hoveredCatTop - 4)}px` }}
-                      className="absolute left-full ml-1.5 w-52 p-2 bg-[#181818]/95 backdrop-blur-xl border border-white/15 rounded-2xl shadow-2xl space-y-1 animate-in fade-in zoom-in-95 duration-100 z-50"
+                      className="absolute left-full ml-1.5 w-52 p-2 bg-[#181818]/95 backdrop-blur-xl border border-white/15 rounded-2xl shadow-2xl space-y-1 animate-in fade-in zoom-in-95 duration-100 z-50 before:content-[''] before:absolute before:-left-3 before:top-0 before:bottom-0 before:w-3 before:bg-transparent"
                       onMouseEnter={() => {
                         if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
                       }}
+                      onMouseLeave={handleMouseLeave}
                     >
                       <div className="px-3 py-1.5 text-[10px] font-semibold text-neutral-400 uppercase tracking-wider flex items-center justify-between border-b border-white/10 mb-1">
                         <span>{hoveredCat.name} Alt Grupları</span>
@@ -1588,10 +1589,11 @@ export const HeaderTabs: React.FC<HeaderTabsProps> = ({
                     <div
                       id="flyout-game-subgroups-menu"
                       style={{ top: `${Math.max(0, hoveredCatTop - 4)}px` }}
-                      className="absolute left-full ml-1.5 w-52 p-2 bg-[#181818]/95 backdrop-blur-xl border border-white/15 rounded-2xl shadow-2xl space-y-1 animate-in fade-in zoom-in-95 duration-100 z-50"
+                      className="absolute left-full ml-1.5 w-52 p-2 bg-[#181818]/95 backdrop-blur-xl border border-white/15 rounded-2xl shadow-2xl space-y-1 animate-in fade-in zoom-in-95 duration-100 z-50 before:content-[''] before:absolute before:-left-3 before:top-0 before:bottom-0 before:w-3 before:bg-transparent"
                       onMouseEnter={() => {
                         if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
                       }}
+                      onMouseLeave={handleMouseLeave}
                     >
                       <div className="px-3 py-1.5 text-[10px] font-semibold text-neutral-400 uppercase tracking-wider flex items-center justify-between border-b border-white/10 mb-1">
                         <span>{hoveredCat.name} Alt Grupları</span>
@@ -1711,10 +1713,11 @@ export const HeaderTabs: React.FC<HeaderTabsProps> = ({
                     <div
                       id="flyout-book-subgroups-menu"
                       style={{ top: `${Math.max(0, hoveredCatTop - 4)}px` }}
-                      className="absolute left-full ml-1.5 w-52 p-2 bg-[#181818]/95 backdrop-blur-xl border border-white/15 rounded-2xl shadow-2xl space-y-1 animate-in fade-in zoom-in-95 duration-100 z-50"
+                      className="absolute left-full ml-1.5 w-52 p-2 bg-[#181818]/95 backdrop-blur-xl border border-white/15 rounded-2xl shadow-2xl space-y-1 animate-in fade-in zoom-in-95 duration-100 z-50 before:content-[''] before:absolute before:-left-3 before:top-0 before:bottom-0 before:w-3 before:bg-transparent"
                       onMouseEnter={() => {
                         if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
                       }}
+                      onMouseLeave={handleMouseLeave}
                     >
                       <div className="px-3 py-1.5 text-[10px] font-semibold text-neutral-400 uppercase tracking-wider flex items-center justify-between border-b border-white/10 mb-1">
                         <span>{hoveredCat.name} Alt Grupları</span>
