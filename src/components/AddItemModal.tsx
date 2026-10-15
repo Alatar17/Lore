@@ -1641,8 +1641,8 @@ export const AddItemModal: React.FC<AddItemModalProps> = ({
                                 <div className="min-w-0 flex-1 flex flex-col justify-center">
                                   <span className="truncate text-xs font-medium text-slate-200">{b.name}</span>
                                   {isAssignedToOther && otherOwner && (
-                                    <span className="text-[10px] text-amber-400 font-semibold truncate flex items-center gap-1 mt-0.5">
-                                      📌 {otherOwner.title}'ta takılı
+                                    <span className="text-[10px] text-amber-400 font-semibold truncate mt-0.5">
+                                      {otherOwner.title}
                                     </span>
                                   )}
                                 </div>
