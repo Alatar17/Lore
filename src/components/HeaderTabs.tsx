@@ -719,7 +719,7 @@ export const HeaderTabs: React.FC<HeaderTabsProps> = ({
             {mobileDropdown !== null && (
               <div
                 id="mobile-category-dropdown-menu"
-                className="absolute top-full left-0 mt-2 w-64 max-w-[calc(100vw-2rem)] p-2 bg-[#181818]/98 backdrop-blur-2xl border border-white/20 rounded-2xl shadow-2xl space-y-1 z-50 animate-in fade-in zoom-in-95 duration-150 max-h-[75vh] overflow-y-auto custom-scrollbar"
+                className="absolute top-full left-0 mt-2 w-64 max-w-[calc(100vw-2rem)] p-2 bg-[#181818]/98 backdrop-blur-2xl border border-white/20 rounded-2xl shadow-2xl space-y-1 z-50 animate-in fade-in zoom-in-95 duration-150 max-h-[75vh] overflow-y-auto no-scrollbar"
                 onClick={(e) => e.stopPropagation()}
               >
                 {/* 1. İzlenen & Takip (Sadece Medya için en tepede özel alan) */}
@@ -1421,7 +1421,7 @@ export const HeaderTabs: React.FC<HeaderTabsProps> = ({
                   <div className="my-1 border-t border-white/10" />
 
                   {/* Categories */}
-                  <div className="max-h-72 overflow-y-auto space-y-0.5 custom-scrollbar">
+                  <div className="max-h-72 overflow-y-auto space-y-0.5 no-scrollbar">
                     {(categories?.media || []).length === 0 ? (
                       <div className="py-2.5 px-3 text-center">
                         <p className="text-[11px] text-neutral-400">Henüz kategori yok</p>
@@ -1481,7 +1481,7 @@ export const HeaderTabs: React.FC<HeaderTabsProps> = ({
                         <span>{hoveredCat.name} Alt Grupları</span>
                       </div>
 
-                      <div className="max-h-60 overflow-y-auto space-y-0.5 custom-scrollbar">
+                      <div className="max-h-60 overflow-y-auto space-y-0.5 no-scrollbar">
                         {hoveredCat.subgroups.map((sub) => {
                           const isSubActive =
                             mainTab === 'media' && activeCatId === hoveredCat.id && activeSub === sub;
@@ -1548,7 +1548,7 @@ export const HeaderTabs: React.FC<HeaderTabsProps> = ({
                   className="w-60 p-2 bg-[#181818]/95 backdrop-blur-xl border border-white/15 rounded-xl shadow-2xl space-y-1 relative"
                 >
                   {/* Categories */}
-                  <div className="max-h-72 overflow-y-auto space-y-0.5 custom-scrollbar">
+                  <div className="max-h-72 overflow-y-auto space-y-0.5 no-scrollbar">
                     {(categories?.game || []).length === 0 ? (
                       <div className="py-2.5 px-3 text-center">
                         <p className="text-[11px] text-neutral-400">Henüz kategori yok</p>
@@ -1608,7 +1608,7 @@ export const HeaderTabs: React.FC<HeaderTabsProps> = ({
                         <span>{hoveredCat.name} Alt Grupları</span>
                       </div>
 
-                      <div className="max-h-60 overflow-y-auto space-y-0.5 custom-scrollbar">
+                      <div className="max-h-60 overflow-y-auto space-y-0.5 no-scrollbar">
                         {hoveredCat.subgroups.map((sub) => {
                           const isSubActive =
                             mainTab === 'game' && activeCatId === hoveredCat.id && activeSub === sub;
@@ -1675,7 +1675,7 @@ export const HeaderTabs: React.FC<HeaderTabsProps> = ({
                   className="w-60 p-2 bg-[#181818]/95 backdrop-blur-xl border border-white/15 rounded-xl shadow-2xl space-y-1 relative"
                 >
                   {/* Categories */}
-                  <div className="max-h-72 overflow-y-auto space-y-0.5 custom-scrollbar">
+                  <div className="max-h-72 overflow-y-auto space-y-0.5 no-scrollbar">
                     {(categories?.book || []).length === 0 ? (
                       <div className="py-2.5 px-3 text-center">
                         <p className="text-[11px] text-neutral-400">Henüz kategori yok</p>
@@ -1736,7 +1736,7 @@ export const HeaderTabs: React.FC<HeaderTabsProps> = ({
                         <span>{hoveredCat.name} Alt Grupları</span>
                       </div>
 
-                      <div className="max-h-60 overflow-y-auto space-y-0.5 custom-scrollbar">
+                      <div className="max-h-60 overflow-y-auto space-y-0.5 no-scrollbar">
                         {hoveredCat.subgroups.map((sub) => {
                           const isSubActive =
                             mainTab === 'book' && activeCatId === hoveredCat.id && activeSub === sub;

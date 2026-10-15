@@ -51,6 +51,7 @@ import {
   removeTagFromItems,
 } from '../utils/tagUtils';
 import { CustomDialog, DialogOptions } from './CustomDialog';
+import { BadgeSpotlightModal } from './BadgeSpotlightModal';
 import { initAnkiCard } from '../utils/ankiUtils';
 import {
   X,
@@ -158,6 +159,7 @@ interface SettingsModalProps {
   onTriggerPcSync?: () => Promise<void>;
   onTriggerMobileSync?: () => Promise<void>;
   onUpdateCustomBadges?: (newBadges: CustomBadge[]) => void;
+  onBadgeClick?: (badge: CustomBadge) => void;
 }
 
 interface ThemeOption {
@@ -262,7 +264,18 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   onTriggerPcSync,
   onTriggerMobileSync,
   onUpdateCustomBadges,
+  onBadgeClick,
 }) => {
+  const [spotlightBadge, setSpotlightBadge] = useState<CustomBadge | null>(null);
+
+  const handleBadgeClick = (badge: CustomBadge) => {
+    if (onBadgeClick) {
+      onBadgeClick(badge);
+    } else {
+      setSpotlightBadge(badge);
+    }
+  };
+
   const [activeTab, setActiveTab] = useState<'categories' | 'tags' | 'themes' | 'shortcuts' | 'storage'>(() => {
     if (initialTab) {
       if (initialTab === 'shortcuts' && typeof window !== 'undefined' && window.innerWidth < 640) {
@@ -2570,12 +2583,17 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                             >
                               {/* Sol: İkon + Ad + Kapsam + Glow Rengi */}
                               <div className="flex items-center gap-3.5 min-w-0 flex-1">
-                                <div className="w-12 h-12 sm:w-14 sm:h-14 flex items-center justify-center shrink-0 select-none">
+                                <button
+                                  type="button"
+                                  onClick={() => handleBadgeClick(badge)}
+                                  title={`"${badge.name}" rozetini büyük incele`}
+                                  className="w-12 h-12 sm:w-14 sm:h-14 flex items-center justify-center shrink-0 select-none cursor-pointer transition-transform duration-200 hover:scale-115 active:scale-95 group/badge-icon rounded-xl hover:bg-white/5 p-1 focus:outline-none"
+                                >
                                   {badge.iconData ? (
                                     <img
                                       src={badge.iconData}
                                       alt={badge.name}
-                                      className="w-full h-full object-contain transition-transform duration-200 group-hover/row:scale-110"
+                                      className="w-full h-full object-contain pointer-events-none transition-transform duration-200 group-hover/badge-icon:scale-105"
                                       style={{
                                         transform: badge.scale && badge.scale !== 1 ? `scale(${badge.scale})` : undefined,
                                         filter: `drop-shadow(0 0 8px ${colorOpt.hex}) drop-shadow(0 0 16px ${colorOpt.hex}80) drop-shadow(0 2px 6px rgba(0,0,0,0.9))`,
@@ -2584,13 +2602,18 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                                   ) : (
                                     <span className="text-3xl">🏆</span>
                                   )}
-                                </div>
+                                </button>
 
                                 <div className="min-w-0 flex-1 space-y-1">
                                   <div className="flex items-center gap-2 flex-wrap">
-                                    <span className="text-sm font-bold text-slate-100 group-hover/row:text-white truncate">
+                                    <button
+                                      type="button"
+                                      onClick={() => handleBadgeClick(badge)}
+                                      title={`"${badge.name}" rozetini büyük incele`}
+                                      className="text-sm font-bold text-slate-100 hover:text-white hover:underline truncate cursor-pointer text-left transition-colors focus:outline-none"
+                                    >
                                       {badge.name}
-                                    </span>
+                                    </button>
                                   </div>
                                   <div className="flex items-center gap-1.5 flex-wrap">
                                     <span
@@ -5066,6 +5089,16 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
       {/* Global In-App Dialog Component */}
       <CustomDialog options={dialogOptions} onClose={() => setDialogOptions(null)} />
+
+      {/* Badge Spotlight Modal (Nişan İnceleme Vitrini) */}
+      {spotlightBadge && (
+        <BadgeSpotlightModal
+          isOpen={Boolean(spotlightBadge)}
+          badge={spotlightBadge}
+          glowEnabled={viewSettings.badgeGlowEnabled !== false}
+          onClose={() => setSpotlightBadge(null)}
+        />
+      )}
     </>
   );
 };

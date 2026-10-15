@@ -3797,6 +3797,7 @@ export default function App() {
             safeLocalStorageSet('lore_custom_badges', JSON.stringify(newBadges));
             markDataDirty();
           }}
+          onBadgeClick={(badge) => setSpotlightBadge({ badge })}
           onClose={() => {
             setIsSettingsOpen(false);
             setHighlightConnectFolder(false);
