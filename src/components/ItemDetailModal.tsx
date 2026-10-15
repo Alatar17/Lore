@@ -62,6 +62,8 @@ import {
   MinusCircle,
   Award,
   Settings,
+  Eye,
+  EyeOff,
 } from 'lucide-react';
 
 interface ItemDetailModalProps {
@@ -288,11 +290,41 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
     }
   }, [customBadges]);
 
+  const [hideAssignedBadges, setHideAssignedBadges] = useState(false);
+  const [transferDialog, setTransferDialog] = useState<DialogOptions | null>(null);
+  const [transferredBadgeIds, setTransferredBadgeIds] = useState<Set<string>>(new Set());
+
   const currentItemTab: MainTabType = formData.mainTab || item.mainTab || 'media';
   const scopedBadges = useMemo(
     () => customBadges.filter((b) => b.targetTab === currentItemTab),
     [customBadges, currentItemTab]
   );
+
+  const assignedOtherItemMap = useMemo(() => {
+    const map = new Map<string, ArchiveItem>();
+    const currentId = formData.id;
+    for (const it of allItems) {
+      if (it.id !== currentId && it.badges && Array.isArray(it.badges)) {
+        for (const bId of it.badges) {
+          if (!transferredBadgeIds.has(bId) && !map.has(bId)) {
+            map.set(bId, it);
+          }
+        }
+      }
+    }
+    return map;
+  }, [allItems, formData.id, transferredBadgeIds]);
+
+  const displayedBadges = useMemo(() => {
+    return scopedBadges.filter((b) => {
+      const isSelected = badges.includes(b.id);
+      if (isSelected) return true;
+      if (hideAssignedBadges && assignedOtherItemMap.has(b.id)) {
+        return false;
+      }
+      return true;
+    });
+  }, [scopedBadges, badges, hideAssignedBadges, assignedOtherItemMap]);
 
   const handleToggleBadge = (badgeId: string) => {
     if (badges.includes(badgeId)) {
@@ -1799,6 +1831,22 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
                         )}
                       </span>
                       <div className="flex items-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => setHideAssignedBadges((prev) => !prev)}
+                          className={`p-1 rounded-lg transition-colors cursor-pointer flex items-center justify-center ${
+                            hideAssignedBadges
+                              ? 'bg-blue-600/30 text-blue-400 border border-blue-500/40 shadow-sm'
+                              : 'text-slate-400 hover:text-white hover:bg-white/10'
+                          }`}
+                          title={
+                            hideAssignedBadges
+                              ? 'Dolu rozetler gizleniyor (Tümünü göster)'
+                              : 'Tüm rozetler gösteriliyor (Dolu olanları gizle)'
+                          }
+                        >
+                          {hideAssignedBadges ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                        </button>
                         {onOpenSettings && (
                           <button
                             type="button"
@@ -1826,36 +1874,68 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
 
                     {/* Rozet Listesi (Sadece bu alana ait rozetler) */}
                     <div className="max-h-[240px] overflow-y-auto no-scrollbar space-y-1.5">
-                      {scopedBadges.length === 0 ? (
-                        <div className="py-4 px-2 text-center space-y-1 text-slate-400">
+                      {displayedBadges.length === 0 ? (
+                        <div className="py-5 px-2 text-center space-y-1 text-slate-400">
                           <p className="text-[11px] font-semibold text-slate-300">
-                            Henüz bir rozet tanımlamadınız
+                            {hideAssignedBadges ? 'Boşta rozet bulunmuyor' : 'Henüz bir rozet tanımlamadınız'}
                           </p>
                           <p className="text-[10px] text-slate-500 leading-snug">
-                            {currentItemTab === 'game' ? 'Oyun' : currentItemTab === 'book' ? 'Kitap' : 'Medya'} alanı için henüz tanımlanmış rozet bulunmuyor.
+                            {hideAssignedBadges
+                              ? 'Tüm rozetleri görmek için göz ikonuna tıklayabilirsiniz.'
+                              : `${currentItemTab === 'game' ? 'Oyun' : currentItemTab === 'book' ? 'Kitap' : 'Medya'} alanı için henüz tanımlanmış rozet bulunmuyor.`}
                           </p>
                         </div>
                       ) : (
-                        scopedBadges.map((b) => {
+                        displayedBadges.map((b) => {
                           const isSelected = badges.includes(b.id);
+                          const otherOwner = assignedOtherItemMap.get(b.id);
+                          const isAssignedToOther = Boolean(otherOwner && !isSelected);
                           const colorOpt = getBadgeColorOption(b.color);
 
                           return (
                             <button
                               key={b.id}
                               type="button"
-                              onClick={() => handleToggleBadge(b.id)}
+                              onClick={() => {
+                                if (isAssignedToOther && otherOwner) {
+                                  if (badges.length >= 4) {
+                                    setTransferDialog({
+                                      type: 'alert',
+                                      title: 'Rozet Yuvaları Dolu',
+                                      message: 'Bu yapıma en fazla 4 rozet takabilirsiniz. Önce takılı olan rozetlerden birini çıkarın.',
+                                      confirmText: 'Tamam',
+                                    });
+                                    return;
+                                  }
+                                  setTransferDialog({
+                                    type: 'confirm',
+                                    title: 'Rozeti Devret',
+                                    message: `"${b.name}" rozeti şu anda "${otherOwner.title}" yapımında takılı.\n\nRozeti oradan söküp bu yapıma devretmek istiyor musunuz?`,
+                                    confirmText: 'Devret ve Tak',
+                                    cancelText: 'Vazgeç',
+                                    onConfirm: () => {
+                                      setTransferredBadgeIds((prev) => new Set([...prev, b.id]));
+                                      handleToggleBadge(b.id);
+                                      setTransferDialog(null);
+                                    },
+                                  });
+                                  return;
+                                }
+                                handleToggleBadge(b.id);
+                              }}
                               className={`w-full text-left px-2.5 py-1.5 rounded-lg text-xs transition-all flex items-center justify-between gap-2.5 border cursor-pointer group ${
                                 isSelected
                                   ? 'bg-blue-600/20 border-blue-500/40 text-blue-200 font-semibold'
+                                  : isAssignedToOther
+                                  ? 'bg-white/[0.02] border-white/5 hover:bg-white/[0.06] hover:border-amber-500/30'
                                   : badges.length >= 4
                                   ? 'bg-white/5 border-white/5 text-slate-500 opacity-50 cursor-not-allowed'
                                   : 'bg-white/5 hover:bg-white/10 border-white/10 text-slate-200 hover:text-white'
                               }`}
-                              disabled={!isSelected && badges.length >= 4}
+                              disabled={!isSelected && !isAssignedToOther && badges.length >= 4}
                             >
                               <div className="flex items-center gap-2.5 min-w-0 flex-1">
-                                <div className="w-10 h-10 flex items-center justify-center shrink-0">
+                                <div className={`w-10 h-10 flex items-center justify-center shrink-0 ${isAssignedToOther ? 'opacity-85' : ''}`}>
                                   {b.iconData ? (
                                     <img
                                       src={b.iconData}
@@ -1869,12 +1949,23 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
                                     <span className="text-xl">🏆</span>
                                   )}
                                 </div>
-                                <span className="truncate text-xs font-medium text-slate-200">{b.name}</span>
+                                <div className="min-w-0 flex-1 flex flex-col justify-center">
+                                  <span className="truncate text-xs font-medium text-slate-200">{b.name}</span>
+                                  {isAssignedToOther && otherOwner && (
+                                    <span className="text-[10px] text-amber-400 font-semibold truncate flex items-center gap-1 mt-0.5">
+                                      📌 {otherOwner.title}'ta takılı
+                                    </span>
+                                  )}
+                                </div>
                               </div>
 
                               <span className="shrink-0 text-xs">
                                 {isSelected ? (
                                   <span className="text-emerald-400 font-bold">✓</span>
+                                ) : isAssignedToOther ? (
+                                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/15 border border-amber-500/30 text-amber-300 font-semibold group-hover:bg-amber-500/25">
+                                    Devret
+                                  </span>
                                 ) : (
                                   <span className="text-slate-500 group-hover:text-slate-300">+</span>
                                 )}
@@ -3748,6 +3839,14 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
         <CustomDialog
           options={deleteConfirmDialog}
           onClose={() => setDeleteConfirmDialog(null)}
+        />
+      )}
+
+      {/* Badge Transfer Confirmation Modal */}
+      {transferDialog && (
+        <CustomDialog
+          options={transferDialog}
+          onClose={() => setTransferDialog(null)}
         />
       )}
 

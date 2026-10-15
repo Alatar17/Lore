@@ -28,6 +28,7 @@ import {
   Users,
   Gamepad2,
   Tags,
+  Check,
   CheckCircle2,
   Play,
   Layers,
@@ -136,6 +137,21 @@ export const ImagePreviewModal: React.FC<ImagePreviewModalProps> = ({
   const catObj = categories.find((c) => c.id === item.cat);
   const isPlanned = isPlannedItem(item);
   const isOngoing = isOngoingItem(item);
+
+  const [showTitleCopiedFeedback, setShowTitleCopiedFeedback] = useState(false);
+  const copiedTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  const handleTitleDoubleClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!item.title) return;
+    navigator.clipboard.writeText(item.title).then(() => {
+      setShowTitleCopiedFeedback(true);
+      if (copiedTimeoutRef.current) clearTimeout(copiedTimeoutRef.current);
+      copiedTimeoutRef.current = setTimeout(() => {
+        setShowTitleCopiedFeedback(false);
+      }, 1400);
+    }).catch(() => {});
+  };
 
   // Custom Badges (prestij ve denge: maks 4 rozet)
   const assignedBadges: CustomBadge[] = useMemo(() => {
@@ -1079,9 +1095,21 @@ export const ImagePreviewModal: React.FC<ImagePreviewModalProps> = ({
         <div className="flex-1 h-full p-6 lg:p-7 flex flex-col overflow-y-auto custom-scrollbar space-y-4">
           {/* Başlık (En tepede dev ve net) */}
           <div className="pr-12 flex items-center gap-3 flex-wrap">
-            <h2 className="text-2xl lg:text-3xl font-extrabold text-white tracking-tight leading-tight">
+            <h2
+              onDoubleClick={handleTitleDoubleClick}
+              title="Başlığı kopyalamak için çift tıklayın"
+              className="text-2xl lg:text-3xl font-extrabold text-white tracking-tight leading-tight select-none cursor-pointer hover:text-blue-100 transition-colors"
+            >
               {item.title}
             </h2>
+
+            {/* Çift Tıklama Kopyalandı Bildirimi */}
+            {showTitleCopiedFeedback && (
+              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 animate-in fade-in zoom-in-95 duration-150 shadow-sm">
+                <Check className="w-3 h-3 text-emerald-400 stroke-[2.5]" />
+                <span>Kopyalandı!</span>
+              </span>
+            )}
 
             {/* Bağlantılı Yapımlar İkonu (PC - Başlığın Sağında) */}
             {hasOtherSeriesItems && (

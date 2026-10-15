@@ -1167,10 +1167,21 @@ export default function App() {
       updatedAt: newItem.updatedAt || Date.now(),
     };
     setAppData((prev) => {
+      const newBadges = new Set(itemWithTimestamps.badges || []);
+      const cleanedExisting = prev.items.map((it) => {
+        if (it.badges && it.badges.some((b) => newBadges.has(b))) {
+          return {
+            ...it,
+            badges: it.badges.filter((b) => !newBadges.has(b)),
+            updatedAt: Date.now(),
+          };
+        }
+        return it;
+      });
       const updated: AppData = {
         ...prev,
         lastUpdated: new Date().toISOString(),
-        items: [itemWithTimestamps, ...prev.items],
+        items: [itemWithTimestamps, ...cleanedExisting],
       };
       saveDataToLocalStorage(updated);
       if (dirHandle) {
@@ -1189,11 +1200,25 @@ export default function App() {
       ...updatedItem,
       updatedAt: Date.now(),
     };
+    const newBadges = new Set(itemWithTimestamp.badges || []);
     setAppData((prev) => {
+      const cleanedItems = prev.items.map((it) => {
+        if (it.id === itemWithTimestamp.id) {
+          return itemWithTimestamp;
+        }
+        if (it.badges && it.badges.some((b) => newBadges.has(b))) {
+          return {
+            ...it,
+            badges: it.badges.filter((b) => !newBadges.has(b)),
+            updatedAt: Date.now(),
+          };
+        }
+        return it;
+      });
       const updated: AppData = {
         ...prev,
         lastUpdated: new Date().toISOString(),
-        items: prev.items.map((it) => (it.id === itemWithTimestamp.id ? itemWithTimestamp : it)),
+        items: cleanedItems,
       };
       saveDataToLocalStorage(updated);
       if (dirHandle) {
