@@ -107,40 +107,103 @@ export async function deleteCachedImageBlob(fileName: string): Promise<void> {
 export async function hydrateThumbnailsFromCache(items: ArchiveItem[]): Promise<ArchiveItem[]> {
   if (!Array.isArray(items) || items.length === 0) return items;
 
-  const itemsNeedingCache = items.filter(
-    (it) => (!it.thumbnail || it.thumbnail.trim() === '' || it.thumbnail.startsWith('blob:')) && it.thumbnailFileName
-  );
+  return Promise.all(
+    items.map(async (item) => {
+      let currentItem = item;
+      let hasChanges = false;
 
-  if (itemsNeedingCache.length === 0) return items;
+      // 1. Poster / Thumbnail
+      if (
+        (!currentItem.thumbnail || currentItem.thumbnail.trim() === '' || currentItem.thumbnail.startsWith('blob:') || currentItem.thumbnail.startsWith('images/')) &&
+        currentItem.thumbnailFileName
+      ) {
+        const cleanName = currentItem.thumbnailFileName.replace(/^images\//, '');
+        try {
+          let cachedBlob = await getCachedImageBlob(cleanName);
+          if (!cachedBlob && cleanName.includes('/')) {
+            cachedBlob = await getCachedImageBlob(cleanName.split('/').pop()!);
+          }
+          if (cachedBlob) {
+            const dataUrl = await readFileAsBase64(new File([cachedBlob], cleanName, { type: cachedBlob.type || 'image/jpeg' }));
+            if (dataUrl) {
+              currentItem = { ...currentItem, thumbnail: dataUrl };
+              hasChanges = true;
+            }
+          }
+        } catch {}
+      }
 
-  const resolvedMap = new Map<string, string>();
-  await Promise.all(
-    itemsNeedingCache.map(async (item) => {
-      if (!item.thumbnailFileName) return;
-      const cleanName = item.thumbnailFileName.replace(/^images\//, '');
-      try {
-        let cachedBlob = await getCachedImageBlob(cleanName);
-        if (!cachedBlob && cleanName.includes('/')) {
-          cachedBlob = await getCachedImageBlob(cleanName.split('/').pop()!);
-        }
-        if (cachedBlob) {
-          const dataUrl = await readFileAsBase64(new File([cachedBlob], cleanName, { type: cachedBlob.type || 'image/jpeg' }));
-          if (dataUrl) {
-            resolvedMap.set(item.id, dataUrl);
+      // 2. Characters
+      if (Array.isArray(currentItem.characters) && currentItem.characters.length > 0) {
+        const needsCharHydration = currentItem.characters.some(
+          (c) => Boolean(c.fileName || c.image) && (!c.image || c.image.startsWith('images/') || c.image.startsWith('characters/'))
+        );
+        if (needsCharHydration) {
+          const hydratedChars = await Promise.all(
+            currentItem.characters.map(async (char) => {
+              const targetPath = char.fileName || char.image;
+              if (targetPath && (!char.image || char.image.startsWith('images/') || char.image.startsWith('characters/'))) {
+                const cleanName = targetPath.replace(/^images\//, '');
+                try {
+                  let cachedBlob = await getCachedImageBlob(cleanName);
+                  if (!cachedBlob && cleanName.includes('/')) {
+                    cachedBlob = await getCachedImageBlob(cleanName.split('/').pop()!);
+                  }
+                  if (cachedBlob) {
+                    const dataUrl = await readFileAsBase64(new File([cachedBlob], cleanName, { type: cachedBlob.type || 'image/jpeg' }));
+                    if (dataUrl) {
+                      hasChanges = true;
+                      return { ...char, image: dataUrl };
+                    }
+                  }
+                } catch {}
+              }
+              return char;
+            })
+          );
+          if (hasChanges) {
+            currentItem = { ...currentItem, characters: hydratedChars };
           }
         }
-      } catch (err) {
-        // Ignore individual cache lookup errors
       }
+
+      // 3. Anki Extra Images
+      if (Array.isArray(currentItem.ankiExtraImages) && currentItem.ankiExtraImages.length > 0) {
+        const needsAnkiHydration = currentItem.ankiExtraImages.some(
+          (e) => Boolean(e.fileName || e.url) && (!e.url || e.url.startsWith('images/') || e.url.startsWith('anki/'))
+        );
+        if (needsAnkiHydration) {
+          const hydratedExtras = await Promise.all(
+            currentItem.ankiExtraImages.map(async (extra) => {
+              const targetPath = extra.fileName || extra.url;
+              if (targetPath && (!extra.url || extra.url.startsWith('images/') || extra.url.startsWith('anki/'))) {
+                const cleanName = targetPath.replace(/^images\//, '');
+                try {
+                  let cachedBlob = await getCachedImageBlob(cleanName);
+                  if (!cachedBlob && cleanName.includes('/')) {
+                    cachedBlob = await getCachedImageBlob(cleanName.split('/').pop()!);
+                  }
+                  if (cachedBlob) {
+                    const dataUrl = await readFileAsBase64(new File([cachedBlob], cleanName, { type: cachedBlob.type || 'image/jpeg' }));
+                    if (dataUrl) {
+                      hasChanges = true;
+                      return { ...extra, url: dataUrl };
+                    }
+                  }
+                } catch {}
+              }
+              return extra;
+            })
+          );
+          if (hasChanges) {
+            currentItem = { ...currentItem, ankiExtraImages: hydratedExtras };
+          }
+        }
+      }
+
+      return currentItem;
     })
   );
-
-  if (resolvedMap.size === 0) return items;
-
-  return items.map((it) => {
-    const cachedUrl = resolvedMap.get(it.id);
-    return cachedUrl ? { ...it, thumbnail: cachedUrl } : it;
-  });
 }
 
 export async function getStoredDirectoryHandle(): Promise<FileSystemDirectoryHandle | null> {

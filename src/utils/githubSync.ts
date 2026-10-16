@@ -778,11 +778,25 @@ export async function resolveGitHubImage(
   fileName: string,
   config: GitHubSyncConfig
 ): Promise<string | null> {
+  if (!fileName || fileName.trim() === '') return null;
+  // If already a Data URL, Blob URL, or external HTTP URL, return as-is
+  if (fileName.startsWith('data:') || fileName.startsWith('blob:') || fileName.startsWith('http://') || fileName.startsWith('https://')) {
+    return fileName;
+  }
+
   let cleanName = fileName.replace(/^images\//, '').trim();
   if (!cleanName) return null;
-  // If cleanName lacks a subfolder prefix, default to posters/
+  // If cleanName lacks a subfolder prefix, detect based on convention or fallback
   if (!cleanName.includes('/')) {
-    cleanName = `posters/${cleanName}`;
+    if (cleanName.includes('_char_')) {
+      cleanName = `characters/${cleanName}`;
+    } else if (cleanName.includes('_extra_')) {
+      cleanName = `anki/${cleanName}`;
+    } else if (cleanName.startsWith('badge_')) {
+      cleanName = `badges/${cleanName}`;
+    } else {
+      cleanName = `posters/${cleanName}`;
+    }
   }
   const bareName = cleanName.split('/').pop() || cleanName;
 
@@ -800,6 +814,7 @@ export async function resolveGitHubImage(
     if (cachedBlob) {
       const dataUrl = await blobToDataUrl(cachedBlob);
       memoryDataUrlCache.set(cleanName, dataUrl);
+      memoryDataUrlCache.set(bareName, dataUrl);
       return dataUrl;
     }
   } catch (e) {
@@ -833,47 +848,109 @@ export async function resolveGitHubImage(
     }
 
     if (res.ok) {
-      const rawBlob = await res.blob();
-      const ext = cleanName.split('.').pop()?.toLowerCase() || 'png';
-      const mime =
-        ext === 'png'
-          ? 'image/png'
-          : ext === 'webp'
-          ? 'image/webp'
-          : ext === 'jpg' || ext === 'jpeg'
-          ? 'image/jpeg'
-          : rawBlob.type && rawBlob.type.startsWith('image/')
-          ? rawBlob.type
-          : 'image/png';
-      const blob = new Blob([await rawBlob.arrayBuffer()], { type: mime });
+      let blob: Blob | null = null;
+      const contentType = res.headers.get('content-type') || '';
+      if (contentType.includes('application/json')) {
+        try {
+          const json = await res.json();
+          if (json.content && json.encoding === 'base64') {
+            const rawBase64 = json.content.replace(/\s/g, '');
+            const byteChars = atob(rawBase64);
+            const byteNums = new Array(byteChars.length);
+            for (let i = 0; i < byteChars.length; i++) {
+              byteNums[i] = byteChars.charCodeAt(i);
+            }
+            const byteArray = new Uint8Array(byteNums);
+            const ext = cleanName.split('.').pop()?.toLowerCase() || 'jpeg';
+            const mime = ext === 'png' ? 'image/png' : ext === 'webp' ? 'image/webp' : 'image/jpeg';
+            blob = new Blob([byteArray], { type: mime });
+          }
+        } catch {}
+      }
+
+      if (!blob) {
+        const rawBlob = await res.blob();
+        const ext = cleanName.split('.').pop()?.toLowerCase() || 'png';
+        const mime =
+          ext === 'png'
+            ? 'image/png'
+            : ext === 'webp'
+            ? 'image/webp'
+            : ext === 'jpg' || ext === 'jpeg'
+            ? 'image/jpeg'
+            : rawBlob.type && rawBlob.type.startsWith('image/')
+            ? rawBlob.type
+            : 'image/png';
+        blob = new Blob([await rawBlob.arrayBuffer()], { type: mime });
+      }
+
       // Store in IndexedDB for permanent offline access
       await setCachedImageBlob(cleanName, blob);
+      if (bareName !== cleanName) {
+        await setCachedImageBlob(bareName, blob).catch(() => {});
+      }
       const dataUrl = await blobToDataUrl(blob);
       memoryDataUrlCache.set(cleanName, dataUrl);
+      memoryDataUrlCache.set(bareName, dataUrl);
       return dataUrl;
     }
   } catch (err) {
-    console.warn(`Failed to fetch image ${cleanName} from GitHub:`, err);
+    console.warn(`Failed to fetch image ${cleanName} from GitHub API:`, err);
   }
 
-  // 4. Fallback to raw.githubusercontent URL (useful for public repositories)
+  // 4. Fallback: try raw.githubusercontent directly and convert to permanent cached blob
+  try {
+    const rawRes = await fetch(
+      `https://raw.githubusercontent.com/${owner}/${repo}/${cleanBranch}/images/${cleanName}`
+    );
+    if (rawRes.ok) {
+      const rawBlob = await rawRes.blob();
+      const ext = cleanName.split('.').pop()?.toLowerCase() || 'jpeg';
+      const mime = ext === 'png' ? 'image/png' : ext === 'webp' ? 'image/webp' : 'image/jpeg';
+      const blob = new Blob([await rawBlob.arrayBuffer()], { type: mime });
+      await setCachedImageBlob(cleanName, blob);
+      if (bareName !== cleanName) {
+        await setCachedImageBlob(bareName, blob).catch(() => {});
+      }
+      const dataUrl = await blobToDataUrl(blob);
+      memoryDataUrlCache.set(cleanName, dataUrl);
+      memoryDataUrlCache.set(bareName, dataUrl);
+      return dataUrl;
+    }
+  } catch {}
+
+  // 5. Final fallback to raw.githubusercontent URL
   return `https://raw.githubusercontent.com/${owner}/${repo}/${cleanBranch}/images/${cleanName}`;
 }
 
 /**
- * Background worker to fetch missing images for items pulled from GitHub.
+ * Background worker to fetch missing images (posters, characters, anki extra scenes)
+ * for items pulled from GitHub.
  * Resolves images in concurrent batches and informs caller via onImageLoaded.
  */
 export async function syncImagesForItems(
   items: ArchiveItem[],
   config: GitHubSyncConfig,
-  onImageLoaded: (itemId: string, dataUrl: string) => void
+  onImageLoaded: (itemId: string, dataUrl: string, partialItem?: Partial<ArchiveItem>) => void
 ): Promise<void> {
   if (!config.owner || !config.repo) return;
 
-  const itemsNeedingImages = items.filter(
-    (it) => (!it.thumbnail || it.thumbnail.trim() === '' || it.thumbnail.startsWith('blob:')) && it.thumbnailFileName
-  );
+  const itemsNeedingImages = items.filter((it) => {
+    const needsPoster =
+      (!it.thumbnail || it.thumbnail.trim() === '' || it.thumbnail.startsWith('blob:') || it.thumbnail.startsWith('images/')) &&
+      Boolean(it.thumbnailFileName);
+    const needsCharacters =
+      Array.isArray(it.characters) &&
+      it.characters.some(
+        (c) => Boolean(c.image || c.fileName) && (!c.image || c.image.startsWith('images/') || c.image.startsWith('characters/'))
+      );
+    const needsAnki =
+      Array.isArray(it.ankiExtraImages) &&
+      it.ankiExtraImages.some(
+        (e) => Boolean(e.url || e.fileName) && (!e.url || e.url.startsWith('images/') || e.url.startsWith('anki/'))
+      );
+    return needsPoster || needsCharacters || needsAnki;
+  });
 
   if (itemsNeedingImages.length === 0) return;
 
@@ -883,14 +960,89 @@ export async function syncImagesForItems(
   async function worker() {
     while (index < itemsNeedingImages.length) {
       const currentItem = itemsNeedingImages[index++];
-      if (!currentItem || !currentItem.thumbnailFileName) continue;
-      try {
-        const url = await resolveGitHubImage(currentItem.thumbnailFileName, config);
-        if (url) {
-          onImageLoaded(currentItem.id, url);
+      if (!currentItem) continue;
+
+      let changed = false;
+      let resolvedPosterUrl = currentItem.thumbnail;
+
+      // 1. Poster / Thumbnail
+      if (
+        (!currentItem.thumbnail || currentItem.thumbnail.trim() === '' || currentItem.thumbnail.startsWith('blob:') || currentItem.thumbnail.startsWith('images/')) &&
+        currentItem.thumbnailFileName
+      ) {
+        try {
+          const url = await resolveGitHubImage(currentItem.thumbnailFileName, config);
+          if (url) {
+            resolvedPosterUrl = url;
+            changed = true;
+          }
+        } catch (err) {
+          console.warn(`Error resolving poster for item ${currentItem.id}:`, err);
         }
-      } catch (err) {
-        console.warn(`Error resolving image for item ${currentItem.id}:`, err);
+      }
+
+      // 2. Characters
+      let updatedCharacters = currentItem.characters;
+      if (Array.isArray(currentItem.characters) && currentItem.characters.length > 0) {
+        const hasUnresolvedChar = currentItem.characters.some(
+          (c) => Boolean(c.image || c.fileName) && (!c.image || c.image.startsWith('images/') || c.image.startsWith('characters/'))
+        );
+        if (hasUnresolvedChar) {
+          const resolvedChars = await Promise.all(
+            currentItem.characters.map(async (char) => {
+              const targetPath = char.fileName || char.image;
+              if (targetPath && (!char.image || char.image.startsWith('images/') || char.image.startsWith('characters/'))) {
+                try {
+                  const url = await resolveGitHubImage(targetPath, config);
+                  if (url) {
+                    changed = true;
+                    return { ...char, image: url };
+                  }
+                } catch (err) {
+                  console.warn(`Error resolving character image for ${char.name}:`, err);
+                }
+              }
+              return char;
+            })
+          );
+          updatedCharacters = resolvedChars;
+        }
+      }
+
+      // 3. Anki Extra Scene Images
+      let updatedAnkiExtra = currentItem.ankiExtraImages;
+      if (Array.isArray(currentItem.ankiExtraImages) && currentItem.ankiExtraImages.length > 0) {
+        const hasUnresolvedAnki = currentItem.ankiExtraImages.some(
+          (e) => Boolean(e.url || e.fileName) && (!e.url || e.url.startsWith('images/') || e.url.startsWith('anki/'))
+        );
+        if (hasUnresolvedAnki) {
+          const resolvedExtras = await Promise.all(
+            currentItem.ankiExtraImages.map(async (extra) => {
+              const targetPath = extra.fileName || extra.url;
+              if (targetPath && (!extra.url || extra.url.startsWith('images/') || extra.url.startsWith('anki/'))) {
+                try {
+                  const url = await resolveGitHubImage(targetPath, config);
+                  if (url) {
+                    changed = true;
+                    return { ...extra, url };
+                  }
+                } catch (err) {
+                  console.warn(`Error resolving anki extra image:`, err);
+                }
+              }
+              return extra;
+            })
+          );
+          updatedAnkiExtra = resolvedExtras;
+        }
+      }
+
+      if (changed) {
+        onImageLoaded(currentItem.id, resolvedPosterUrl || '', {
+          thumbnail: resolvedPosterUrl,
+          characters: updatedCharacters,
+          ankiExtraImages: updatedAnkiExtra,
+        });
       }
     }
   }

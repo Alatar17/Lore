@@ -24,6 +24,7 @@ import { getGeminiApiKey, fetchAiMetadata, formatMetadataModelLabel, AiItemMetad
 import { AiProcessLogModal } from './AiProcessLogModal';
 import { AnkiEditorModal } from './AnkiEditorModal';
 import { initAnkiCard } from '../utils/ankiUtils';
+import { resolveGitHubImage, getGitHubSyncConfig } from '../utils/githubSync';
 import {
   X,
   Upload,
@@ -89,6 +90,68 @@ function formatReviewDate(dateStr?: string): string {
   return trimmed;
 }
 
+const CharacterRowAvatar: React.FC<{
+  character: ItemCharacter;
+  onRemoveImage: () => void;
+}> = ({ character, onRemoveImage }) => {
+  const [src, setSrc] = useState<string | null>(() => {
+    if (character.image && !character.image.startsWith('images/') && !character.image.startsWith('characters/')) {
+      return character.image;
+    }
+    return null;
+  });
+
+  useEffect(() => {
+    if (character.image && !character.image.startsWith('images/') && !character.image.startsWith('characters/')) {
+      setSrc(character.image);
+      return;
+    }
+    const targetPath = character.fileName || character.image;
+    if (!targetPath) {
+      setSrc(null);
+      return;
+    }
+    let isMounted = true;
+    const cfg = getGitHubSyncConfig();
+    resolveGitHubImage(targetPath, cfg)
+      .then((url) => {
+        if (isMounted && url) {
+          setSrc(url);
+        }
+      })
+      .catch(() => {});
+    return () => {
+      isMounted = false;
+    };
+  }, [character.image, character.fileName]);
+
+  if (src) {
+    return (
+      <div className="relative group/cavatar w-9 h-9 rounded-lg overflow-hidden border border-white/25 bg-black/50 shadow shrink-0">
+        <img
+          src={src}
+          alt={character.name || 'Karakter'}
+          className="w-full h-full object-cover"
+        />
+        <button
+          type="button"
+          onClick={onRemoveImage}
+          title="Resmi Kaldır (Sil)"
+          className="absolute inset-0 bg-black/80 opacity-0 group-hover/cavatar:opacity-100 flex items-center justify-center text-rose-400 hover:text-rose-200 transition-all cursor-pointer"
+        >
+          <Trash2 className="w-4 h-4" />
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="w-9 h-9 rounded-lg border border-white/10 bg-white/[0.04] flex items-center justify-center text-slate-400 shrink-0">
+      <Users className="w-4 h-4 text-slate-400" />
+    </div>
+  );
+};
+
 export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
   item,
   categories,
@@ -132,6 +195,38 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
   const [isReviewDateUpdated, setIsReviewDateUpdated] = useState(false);
   const originalReviewDateRef = useRef<string | undefined>(item.reviewDate);
   const [titleError, setTitleError] = useState(false);
+  const [titleCopied, setTitleCopied] = useState(false);
+
+  const handleCopyTitle = () => {
+    if (formData.title && formData.title.trim()) {
+      const textToCopy = formData.title.trim();
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(textToCopy).then(() => {
+          setTitleCopied(true);
+          setTimeout(() => setTitleCopied(false), 1500);
+        }).catch(() => {
+          fallbackCopyText(textToCopy);
+        });
+      } else {
+        fallbackCopyText(textToCopy);
+      }
+    }
+  };
+
+  const fallbackCopyText = (text: string) => {
+    try {
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      ta.style.position = 'fixed';
+      ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
+      setTitleCopied(true);
+      setTimeout(() => setTitleCopied(false), 1500);
+    } catch {}
+  };
   const [pasteNotice, setPasteNotice] = useState<string | null>(null);
   const [showFollowDetails, setShowFollowDetails] = useState(false);
   const [showFranchiseTooltip, setShowFranchiseTooltip] = useState(false);
@@ -1984,8 +2079,17 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
             <div className="flex-1 w-full space-y-2.5">
               {/* Title with AI Doldur Button */}
               <div>
-                <label className="block text-[10px] uppercase tracking-wider text-slate-400 font-semibold mb-0.5">
-                  Başlık *
+                <label
+                  onDoubleClick={handleCopyTitle}
+                  title="Başlığı kopyalamak için çift tıklayın"
+                  className="block text-[10px] uppercase tracking-wider text-slate-400 font-semibold mb-0.5 select-none cursor-pointer"
+                >
+                  <span>Başlık *</span>
+                  {titleCopied && (
+                    <span className="ml-2 text-emerald-400 font-bold lowercase animate-in fade-in duration-150 inline-flex items-center gap-1">
+                      <Check className="w-3 h-3 text-emerald-400" /> Kopyalandı!
+                    </span>
+                  )}
                 </label>
                 <div className="flex items-center gap-2">
                   <input
@@ -1995,6 +2099,8 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
                     autoComplete="off"
                     value={formData.title}
                     onChange={(e) => handleChange('title', e.target.value)}
+                    onDoubleClick={handleCopyTitle}
+                    title="Başlığı panoya kopyalamak için çift tıklayın"
                     className={`flex-1 min-w-0 bg-black/30 text-white font-semibold rounded-xl px-3 py-1.5 text-xs focus:outline-none transition-all ${
                       titleError
                         ? 'border-2 border-rose-500/90 ring-4 ring-rose-500/20 bg-rose-950/20 animate-input-shake'
@@ -3561,21 +3667,10 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
                         }}
                       />
                       {char.image ? (
-                        <div className="relative group/cavatar w-9 h-9 rounded-lg overflow-hidden border border-white/25 bg-black/50 shadow shrink-0">
-                          <img
-                            src={char.image}
-                            alt={char.name || 'Karakter'}
-                            className="w-full h-full object-cover"
-                          />
-                          <button
-                            type="button"
-                            onClick={() => handleUpdateCharacter(index, 'image', undefined)}
-                            title="Resmi Kaldır (Sil)"
-                            className="absolute inset-0 bg-black/80 opacity-0 group-hover/cavatar:opacity-100 flex items-center justify-center text-rose-400 hover:text-rose-200 transition-all cursor-pointer"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </div>
+                        <CharacterRowAvatar
+                          character={char}
+                          onRemoveImage={() => handleUpdateCharacter(index, 'image', undefined)}
+                        />
                       ) : (
                         <div className="flex items-center gap-1">
                           <label

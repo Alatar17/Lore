@@ -179,7 +179,7 @@ export default function App() {
   const [isAiAssistantOpen, setIsAiAssistantOpen] = useState(false);
   const [isShortcutsModalOpen, setIsShortcutsModalOpen] = useState(false);
   const [hasAiAssistantOpened, setHasAiAssistantOpened] = useState(false);
-  const [spotlightBadge, setSpotlightBadge] = useState<{ badge: CustomBadge; item: ArchiveItem } | null>(null);
+  const [spotlightBadge, setSpotlightBadge] = useState<{ badge: CustomBadge; item?: ArchiveItem } | null>(null);
 
   useEffect(() => {
     if (isAiAssistantOpen && !hasAiAssistantOpened) {
@@ -392,9 +392,45 @@ export default function App() {
             }
           }
 
+          // 2. Character images preservation (Keep already downloaded local base64/data URLs)
+          let charactersToUse = remoteItem.characters;
+          if (Array.isArray(remoteItem.characters) && localItem?.characters && Array.isArray(localItem.characters)) {
+            charactersToUse = remoteItem.characters.map((rChar, idx) => {
+              const lChar = localItem.characters?.[idx] || localItem.characters?.find((c) => c.name === rChar.name || (rChar.fileName && c.fileName === rChar.fileName));
+              if (
+                lChar &&
+                lChar.image &&
+                (lChar.image.startsWith('data:') || lChar.image.startsWith('blob:') || lChar.image.startsWith('http')) &&
+                (!rChar.fileName || lChar.fileName === rChar.fileName)
+              ) {
+                return { ...rChar, image: lChar.image };
+              }
+              return rChar;
+            });
+          }
+
+          // 3. Anki extra images preservation (Keep already downloaded local base64/data URLs)
+          let ankiExtraToUse = remoteItem.ankiExtraImages;
+          if (Array.isArray(remoteItem.ankiExtraImages) && localItem?.ankiExtraImages && Array.isArray(localItem.ankiExtraImages)) {
+            ankiExtraToUse = remoteItem.ankiExtraImages.map((rExtra, idx) => {
+              const lExtra = localItem.ankiExtraImages?.[idx] || localItem.ankiExtraImages?.find((e) => (rExtra.fileName && e.fileName === rExtra.fileName));
+              if (
+                lExtra &&
+                lExtra.url &&
+                (lExtra.url.startsWith('data:') || lExtra.url.startsWith('blob:') || lExtra.url.startsWith('http')) &&
+                (!rExtra.fileName || lExtra.fileName === rExtra.fileName)
+              ) {
+                return { ...rExtra, url: lExtra.url };
+              }
+              return rExtra;
+            });
+          }
+
           return {
             ...remoteItem,
             thumbnail: thumbnailToUse,
+            characters: charactersToUse,
+            ankiExtraImages: ankiExtraToUse,
             ankiCard: remoteItem.ankiCard ? ensureAnkiCardDates(remoteItem.ankiCard) : undefined,
           };
         });
@@ -412,10 +448,16 @@ export default function App() {
         setGitHubConfig(getGitHubSyncConfig());
         setMobileSyncStatus('synced');
 
-        // 2. Incrementally load missing or updated posters in the background without UI flicker
-        syncImagesForItems(mergedData.items, cfg, (itemId, dataUrl) => {
+        // 2. Incrementally load missing or updated posters, characters, and anki scenes in the background without UI flicker
+        syncImagesForItems(mergedData.items, cfg, (itemId, dataUrl, partialItem) => {
           setAppData((prev) => {
-            const updatedItems = prev.items.map((it) => (it.id === itemId ? { ...it, thumbnail: dataUrl } : it));
+            const updatedItems = prev.items.map((it) => {
+              if (it.id !== itemId) return it;
+              if (partialItem) {
+                return { ...it, ...partialItem };
+              }
+              return { ...it, thumbnail: dataUrl };
+            });
             const updatedData = { ...prev, items: updatedItems };
             debouncedSaveData(updatedData);
             return updatedData;
@@ -496,13 +538,22 @@ export default function App() {
     if (!cfg.owner || !cfg.repo) return;
 
     const needsImages = appData.items.some(
-      (it) => (!it.thumbnail || it.thumbnail.trim() === '' || it.thumbnail.startsWith('blob:')) && it.thumbnailFileName
+      (it) =>
+        ((!it.thumbnail || it.thumbnail.trim() === '' || it.thumbnail.startsWith('blob:') || it.thumbnail.startsWith('images/')) && Boolean(it.thumbnailFileName)) ||
+        (Array.isArray(it.characters) && it.characters.some((c) => Boolean(c.image || c.fileName) && (!c.image || c.image.startsWith('images/') || c.image.startsWith('characters/')))) ||
+        (Array.isArray(it.ankiExtraImages) && it.ankiExtraImages.some((e) => Boolean(e.url || e.fileName) && (!e.url || e.url.startsWith('images/') || e.url.startsWith('anki/'))))
     );
     if (!needsImages) return;
 
-    syncImagesForItems(appData.items, cfg, (itemId, dataUrl) => {
+    syncImagesForItems(appData.items, cfg, (itemId, dataUrl, partialItem) => {
       setAppData((prev) => {
-        const updatedItems = prev.items.map((it) => (it.id === itemId ? { ...it, thumbnail: dataUrl } : it));
+        const updatedItems = prev.items.map((it) => {
+          if (it.id !== itemId) return it;
+          if (partialItem) {
+            return { ...it, ...partialItem };
+          }
+          return { ...it, thumbnail: dataUrl };
+        });
         const updatedData = { ...prev, items: updatedItems };
         debouncedSaveData(updatedData);
         return updatedData;

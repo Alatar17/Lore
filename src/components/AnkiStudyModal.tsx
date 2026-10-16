@@ -10,6 +10,7 @@ import {
   getAnkiFrontBadges,
 } from '../utils/ankiUtils';
 import { MEDIA_COLORS, GAME_COLORS, BOOK_COLORS } from '../data/initialData';
+import { resolveGitHubImage, getGitHubSyncConfig } from '../utils/githubSync';
 import {
   X,
   RotateCcw,
@@ -265,6 +266,40 @@ export const AnkiStudyModal: React.FC<AnkiStudyModalProps> = ({
   }, [isOpen, galleryImages.length]);
 
   const activeImage = galleryImages[activeImageIndex] || galleryImages[0];
+
+  // Dynamically resolve image URL if it's a relative path (e.g. images/anki/...)
+  const [resolvedActiveImageUrl, setResolvedActiveImageUrl] = useState<string | null>(() => {
+    const rawUrl = activeImage?.url;
+    if (rawUrl && (rawUrl.startsWith('data:') || rawUrl.startsWith('blob:') || rawUrl.startsWith('http'))) {
+      return rawUrl;
+    }
+    return null;
+  });
+
+  useEffect(() => {
+    const rawUrl = activeImage?.url;
+    if (!rawUrl) {
+      setResolvedActiveImageUrl(null);
+      return;
+    }
+    if (rawUrl.startsWith('data:') || rawUrl.startsWith('blob:') || rawUrl.startsWith('http')) {
+      setResolvedActiveImageUrl(rawUrl);
+      return;
+    }
+    setResolvedActiveImageUrl(null);
+    let isMounted = true;
+    const cfg = getGitHubSyncConfig();
+    resolveGitHubImage(rawUrl, cfg)
+      .then((url) => {
+        if (isMounted && url) {
+          setResolvedActiveImageUrl(url);
+        }
+      })
+      .catch(() => {});
+    return () => {
+      isMounted = false;
+    };
+  }, [activeImage?.url]);
 
   // Helper colors
   const isGame = currentItem?.mainTab === 'game';
@@ -534,10 +569,10 @@ export const AnkiStudyModal: React.FC<AnkiStudyModalProps> = ({
                   >
                     {/* Visual Scene & Poster */}
                     <div className="absolute inset-0 z-0 bg-neutral-950 flex items-center justify-center overflow-hidden">
-                      {activeImage?.url ? (
+                      {resolvedActiveImageUrl ? (
                         <div className="relative w-full h-full">
                           <img
-                            src={activeImage.url}
+                            src={resolvedActiveImageUrl}
                             alt="Kart Görseli"
                             className="w-full h-full object-cover select-none"
                             draggable={false}
@@ -557,6 +592,13 @@ export const AnkiStudyModal: React.FC<AnkiStudyModalProps> = ({
                                 className="absolute rounded-lg backdrop-blur-xl bg-white/20 border border-white/35 shadow-md overflow-hidden pointer-events-none"
                               />
                             ))}
+                        </div>
+                      ) : activeImage?.url ? (
+                        <div className="w-full h-full flex flex-col items-center justify-center p-6 text-center bg-neutral-900 border border-white/10 animate-pulse">
+                          <Brain className="w-12 h-12 text-slate-500 mb-2 animate-bounce" />
+                          <span className="text-xs text-slate-400">
+                            Görsel Yükleniyor...
+                          </span>
                         </div>
                       ) : (
                         <div className="w-full h-full flex flex-col items-center justify-center p-6 text-center bg-neutral-900 border border-white/10">

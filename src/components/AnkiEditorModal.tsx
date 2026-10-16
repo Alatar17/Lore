@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { AnkiBlurBox, AnkiExtraImage } from '../types';
 import { optimizeImageFile } from '../utils/imageOptimizer';
+import { resolveGitHubImage, getGitHubSyncConfig } from '../utils/githubSync';
 import {
   X,
   Plus,
@@ -63,10 +64,43 @@ export const AnkiEditorModal: React.FC<AnkiEditorModalProps> = ({
   const totalImages = 1 + extraImages.length;
 
   // Active image URL and blurs
-  const currentImageUrl =
+  const currentImageUrlRaw =
     activeImageIndex === 0
       ? currentThumbnail
       : extraImages[activeImageIndex - 1]?.url;
+
+  const [resolvedImageUrl, setResolvedImageUrl] = useState<string | null>(() => {
+    if (currentImageUrlRaw && (currentImageUrlRaw.startsWith('data:') || currentImageUrlRaw.startsWith('blob:') || currentImageUrlRaw.startsWith('http'))) {
+      return currentImageUrlRaw;
+    }
+    return null;
+  });
+
+  useEffect(() => {
+    if (!currentImageUrlRaw) {
+      setResolvedImageUrl(null);
+      return;
+    }
+    if (currentImageUrlRaw.startsWith('data:') || currentImageUrlRaw.startsWith('blob:') || currentImageUrlRaw.startsWith('http')) {
+      setResolvedImageUrl(currentImageUrlRaw);
+      return;
+    }
+    setResolvedImageUrl(null);
+    let isMounted = true;
+    const cfg = getGitHubSyncConfig();
+    resolveGitHubImage(currentImageUrlRaw, cfg)
+      .then((url) => {
+        if (isMounted && url) {
+          setResolvedImageUrl(url);
+        }
+      })
+      .catch(() => {});
+    return () => {
+      isMounted = false;
+    };
+  }, [currentImageUrlRaw]);
+
+  const currentImageUrl = resolvedImageUrl || currentImageUrlRaw;
 
   const currentBlurs: AnkiBlurBox[] =
     activeImageIndex === 0

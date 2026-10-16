@@ -39,6 +39,120 @@ import {
 } from 'lucide-react';
 import { MEDIA_COLORS, GAME_COLORS, BOOK_COLORS } from '../data/initialData';
 import { FollowBadge, getFollowColor, getFollowModel, RatingBadgeIcon } from './FollowIndicatorIcon';
+import { resolveGitHubImage, getGitHubSyncConfig } from '../utils/githubSync';
+
+// Resolving character thumbnail with zero-latency IndexedDB & GitHub fallback
+const CharacterThumbnail: React.FC<{
+  character: ItemCharacter;
+}> = ({ character }) => {
+  const [src, setSrc] = useState<string | null>(() => {
+    if (character.image && !character.image.startsWith('images/') && !character.image.startsWith('characters/')) {
+      return character.image;
+    }
+    return null;
+  });
+
+  useEffect(() => {
+    if (character.image && !character.image.startsWith('images/') && !character.image.startsWith('characters/')) {
+      setSrc(character.image);
+      return;
+    }
+
+    const targetPath = character.fileName || character.image;
+    if (!targetPath) {
+      setSrc(null);
+      return;
+    }
+
+    let isMounted = true;
+    const cfg = getGitHubSyncConfig();
+    resolveGitHubImage(targetPath, cfg)
+      .then((url) => {
+        if (isMounted && url) {
+          setSrc(url);
+        }
+      })
+      .catch(() => {});
+
+    return () => {
+      isMounted = false;
+    };
+  }, [character.image, character.fileName]);
+
+  if (src) {
+    return (
+      <img
+        src={src}
+        alt={character.name}
+        className="w-8 h-8 rounded-md object-cover border border-white/20 bg-black/40 hover:border-sky-400/50"
+        onError={() => setSrc(null)}
+      />
+    );
+  }
+
+  return (
+    <div className="w-8 h-8 rounded-md border border-white/10 bg-white/[0.04] flex items-center justify-center">
+      <Users className="w-4 h-4 text-slate-400" />
+    </div>
+  );
+};
+
+// Resolving character lightbox image
+const CharacterLightboxImage: React.FC<{
+  character: ItemCharacter;
+}> = ({ character }) => {
+  const [src, setSrc] = useState<string | null>(() => {
+    if (character.image && !character.image.startsWith('images/') && !character.image.startsWith('characters/')) {
+      return character.image;
+    }
+    return null;
+  });
+
+  useEffect(() => {
+    if (character.image && !character.image.startsWith('images/') && !character.image.startsWith('characters/')) {
+      setSrc(character.image);
+      return;
+    }
+
+    const targetPath = character.fileName || character.image;
+    if (!targetPath) {
+      setSrc(null);
+      return;
+    }
+
+    let isMounted = true;
+    const cfg = getGitHubSyncConfig();
+    resolveGitHubImage(targetPath, cfg)
+      .then((url) => {
+        if (isMounted && url) {
+          setSrc(url);
+        }
+      })
+      .catch(() => {});
+
+    return () => {
+      isMounted = false;
+    };
+  }, [character.image, character.fileName]);
+
+  if (src) {
+    return (
+      <img
+        src={src}
+        alt={character.name}
+        className="max-w-full max-h-[62vh] w-auto h-auto object-contain rounded-lg pointer-events-none"
+        onError={() => setSrc(null)}
+      />
+    );
+  }
+
+  return (
+    <div className="w-48 h-48 flex flex-col items-center justify-center text-slate-500 gap-2 p-4">
+      <Users className="w-12 h-12 text-slate-500 stroke-[1.5]" />
+      <span className="text-xs text-slate-400">Görsel yükleniyor...</span>
+    </div>
+  );
+};
 
 // Safely copy an image to the device clipboard as PNG blob
 async function copyImageToClipboard(imageSource?: string): Promise<boolean> {
@@ -1952,17 +2066,7 @@ export const ImagePreviewModal: React.FC<ImagePreviewModalProps> = ({
                           className="shrink-0 cursor-pointer active:scale-95 transition-transform"
                           title="Büyük resmi aç"
                         >
-                          {c.image ? (
-                            <img
-                              src={c.image}
-                              alt={c.name}
-                              className="w-8 h-8 rounded-md object-cover border border-white/20 bg-black/40 hover:border-sky-400/50"
-                            />
-                          ) : (
-                            <div className="w-8 h-8 rounded-md border border-white/10 bg-white/[0.04] flex items-center justify-center">
-                              <Users className="w-4 h-4 text-slate-400" />
-                            </div>
-                          )}
+                          <CharacterThumbnail character={c} />
                         </div>
 
                         {/* İSİM VE OYUNCU (Karakter adının altında, emoji olmadan yer alır) */}
@@ -2126,18 +2230,7 @@ export const ImagePreviewModal: React.FC<ImagePreviewModalProps> = ({
               className="max-w-full max-h-[64vh] rounded-xl overflow-hidden border border-white/15 bg-black/60 shadow-2xl flex items-center justify-center relative p-0.5 cursor-pointer hover:border-white/30 active:scale-[0.99] transition-all"
               title="Kapatmak için dokunun"
             >
-              {selectedCharacter.image ? (
-                <img
-                  src={selectedCharacter.image}
-                  alt={selectedCharacter.name}
-                  className="max-w-full max-h-[62vh] w-auto h-auto object-contain rounded-lg pointer-events-none"
-                />
-              ) : (
-                <div className="w-48 h-48 flex flex-col items-center justify-center text-slate-500 gap-2 p-4">
-                  <Users className="w-12 h-12 text-slate-500 stroke-[1.5]" />
-                  <span className="text-xs text-slate-400">Görsel bulunmuyor</span>
-                </div>
-              )}
+              <CharacterLightboxImage character={selectedCharacter} />
             </div>
 
             {/* Karakter Bilgileri */}
