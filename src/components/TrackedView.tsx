@@ -16,6 +16,7 @@ interface TrackedViewProps {
   selectedItemIds?: Set<string>;
   onToggleSelectItem?: (id: string) => void;
   onBadgeClick?: (badge: CustomBadge, item: ArchiveItem) => void;
+  isDataLoaded?: boolean;
 }
 
 export const TrackedView: React.FC<TrackedViewProps> = ({
@@ -31,6 +32,7 @@ export const TrackedView: React.FC<TrackedViewProps> = ({
   selectedItemIds,
   onToggleSelectItem,
   onBadgeClick,
+  isDataLoaded = true,
 }) => {
   const [showPromptBox, setShowPromptBox] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -152,6 +154,8 @@ ${names || '- (Takip listesinde henüz yapım yok)'}`;
               />
             ))}
           </div>
+        ) : !isDataLoaded ? (
+          <div className="p-6 min-h-[72px]" />
         ) : (
           <div className="p-6 rounded-xl border border-dashed border-[#2e3340] text-center text-gray-400 text-xs bg-[#16171d]">
             Şu an izlenen listesinde kayıtlı yapım yok.
@@ -260,6 +264,8 @@ ${names || '- (Takip listesinde henüz yapım yok)'}`;
               />
             ))}
           </div>
+        ) : !isDataLoaded ? (
+          <div className="p-6 min-h-[72px]" />
         ) : (
           <div className="p-6 rounded-xl border border-dashed border-[#2e3340] text-center text-gray-400 text-xs bg-[#16171d]">
             Takip listesinde henüz yapım yok. Detay ekranından "Takip

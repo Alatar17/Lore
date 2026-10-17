@@ -2425,6 +2425,7 @@ export default function App() {
               viewSettings={viewSettings}
               uiExperiments={uiExperiments}
               customBadges={appData.customBadges}
+              isDataLoaded={isDataLoaded}
               onItemClick={(item) => {
                 if (isSelectionMode) {
                   handleToggleSelectItem(item.id);
@@ -2519,6 +2520,8 @@ export default function App() {
                     />
                   ))}
                 </div>
+              ) : !isDataLoaded ? (
+                <div className="py-20 min-h-[220px]" />
               ) : (
                 <div
                   id="empty-items-state"
