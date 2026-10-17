@@ -265,6 +265,51 @@ export const AnkiStudyModal: React.FC<AnkiStudyModalProps> = ({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, galleryImages.length]);
 
+  // Touch swipe support for multi-image cards on mobile (Karakter lightbox mantığının birebiri)
+  const touchStartXRef = useRef<number | null>(null);
+  const touchStartYRef = useRef<number | null>(null);
+  const wasSwipeRef = useRef<boolean>(false);
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    if (isFlipped || galleryImages.length <= 1) return;
+    touchStartXRef.current = e.touches[0].clientX;
+    touchStartYRef.current = e.touches[0].clientY;
+    wasSwipeRef.current = false;
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (touchStartXRef.current === null || touchStartYRef.current === null) return;
+    const diffX = e.touches[0].clientX - touchStartXRef.current;
+    const diffY = e.touches[0].clientY - touchStartYRef.current;
+    if (Math.abs(diffX) > 15 && Math.abs(diffX) > Math.abs(diffY)) {
+      wasSwipeRef.current = true;
+    }
+  };
+
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    if (touchStartXRef.current === null) return;
+    const touchEndX = e.changedTouches[0].clientX;
+    const touchEndY = e.changedTouches[0].clientY;
+    const diffX = touchEndX - touchStartXRef.current;
+    const diffY = touchEndY - (touchStartYRef.current ?? 0);
+    touchStartXRef.current = null;
+    touchStartYRef.current = null;
+
+    if (Math.abs(diffX) > 35 && Math.abs(diffX) > Math.abs(diffY)) {
+      wasSwipeRef.current = true;
+      if (diffX < 0) {
+        // Sola kaydırma (Swipe Left) -> Sonraki görsel (1. -> 2.)
+        setActiveImageIndex((prev) => Math.min(galleryImages.length - 1, prev + 1));
+      } else {
+        // Sağa kaydırma (Swipe Right) -> Önceki görsel (2. -> 1.)
+        setActiveImageIndex((prev) => Math.max(0, prev - 1));
+      }
+      setTimeout(() => {
+        wasSwipeRef.current = false;
+      }, 250);
+    }
+  };
+
   const activeImage = galleryImages[activeImageIndex] || galleryImages[0];
 
   // Dynamically resolve image URL if it's a relative path (e.g. images/anki/...)
@@ -531,7 +576,14 @@ export const AnkiStudyModal: React.FC<AnkiStudyModalProps> = ({
               >
                 <div
                   id="anki-study-card"
+                  onTouchStart={handleTouchStart}
+                  onTouchMove={handleTouchMove}
+                  onTouchEnd={handleTouchEnd}
                   onClick={() => {
+                    if (wasSwipeRef.current) {
+                      wasSwipeRef.current = false;
+                      return;
+                    }
                     // Only allow 3D flip after answer is shown
                     if (isAnswerShown) {
                       setIsFlipped(!isFlipped);
@@ -616,6 +668,22 @@ export const AnkiStudyModal: React.FC<AnkiStudyModalProps> = ({
                         <span className="inline-flex items-center px-2.5 py-1 rounded-lg bg-black/75 backdrop-blur-md border border-white/25 text-xs font-mono font-bold text-slate-100 shadow-xl">
                           {formattedYear}
                         </span>
+                      </div>
+                    )}
+
+                    {/* Front Top-Right: Multi-image dots indicator (Hem soru hem cevap aşamasında mobilde ve masaüstünde görsel geri bildirim) */}
+                    {galleryImages.length > 1 && (
+                      <div className="absolute top-3 right-3 z-10 flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-black/75 backdrop-blur-md border border-white/25 shadow-xl pointer-events-none animate-in fade-in duration-200">
+                        {galleryImages.map((_, idx) => (
+                          <span
+                            key={idx}
+                            className={`rounded-full transition-all duration-300 ${
+                              idx === activeImageIndex
+                                ? 'w-3.5 h-1.5 bg-sky-400 shadow-[0_0_8px_rgba(56,189,248,0.7)]'
+                                : 'w-1.5 h-1.5 bg-white/40'
+                            }`}
+                          />
+                        ))}
                       </div>
                     )}
 
