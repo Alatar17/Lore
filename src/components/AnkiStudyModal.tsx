@@ -671,9 +671,9 @@ export const AnkiStudyModal: React.FC<AnkiStudyModalProps> = ({
                       </div>
                     )}
 
-                    {/* Front Top-Right: Multi-image dots indicator (Hem soru hem cevap aşamasında mobilde ve masaüstünde görsel geri bildirim) */}
+                    {/* Front Top-Right: Multi-image dots indicator (Sadece mobilde görünür, PC'de gizlidir) */}
                     {galleryImages.length > 1 && (
-                      <div className="absolute top-3 right-3 z-10 flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-black/75 backdrop-blur-md border border-white/25 shadow-xl pointer-events-none animate-in fade-in duration-200">
+                      <div className="sm:hidden absolute top-3 right-3 z-10 flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-black/75 backdrop-blur-md border border-white/25 shadow-xl pointer-events-none animate-in fade-in duration-200">
                         {galleryImages.map((_, idx) => (
                           <span
                             key={idx}

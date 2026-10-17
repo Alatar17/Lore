@@ -358,6 +358,36 @@ export const AnkiCardsModal: React.FC<AnkiCardsModalProps> = ({
   const safeImageIndex = Math.min(activeImageIndex, Math.max(0, galleryImages.length - 1));
   const activeImage = galleryImages[safeImageIndex];
 
+  // Touch swipe support for multi-image cards on mobile
+  const touchStartXRef = useRef<number | null>(null);
+  const touchStartYRef = useRef<number | null>(null);
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    if (galleryImages.length <= 1) return;
+    touchStartXRef.current = e.touches[0].clientX;
+    touchStartYRef.current = e.touches[0].clientY;
+  };
+
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    if (touchStartXRef.current === null) return;
+    const touchEndX = e.changedTouches[0].clientX;
+    const touchEndY = e.changedTouches[0].clientY;
+    const diffX = touchEndX - touchStartXRef.current;
+    const diffY = touchEndY - (touchStartYRef.current ?? 0);
+    touchStartXRef.current = null;
+    touchStartYRef.current = null;
+
+    if (Math.abs(diffX) > 35 && Math.abs(diffX) > Math.abs(diffY)) {
+      if (diffX < 0) {
+        // Sola kaydırma (Swipe Left) -> Sonraki görsel
+        setActiveImageIndex((prev) => Math.min(galleryImages.length - 1, prev + 1));
+      } else {
+        // Sağa kaydırma (Swipe Right) -> Önceki görsel
+        setActiveImageIndex((prev) => Math.max(0, prev - 1));
+      }
+    }
+  };
+
   // Front badges (User custom tags or Otomatik Akıl)
   const frontBadges = useMemo(() => {
     if (!selectedItem) return [];
@@ -830,8 +860,12 @@ export const AnkiCardsModal: React.FC<AnkiCardsModalProps> = ({
                     ) : null}
                   </div>
 
-                  {/* Visual Poster & Live Blur Boxes */}
-                  <div className="relative w-56 sm:w-64 aspect-[2/3] max-h-[380px] rounded-xl overflow-hidden border border-white/15 bg-black/40 shadow-2xl group select-none">
+                  {/* Visual Poster & Live Blur Boxes (Mobilde çoklu görsel varsa parmakla sağa/sola kaydırarak geçiş yapılabilir) */}
+                  <div
+                    onTouchStart={handleTouchStart}
+                    onTouchEnd={handleTouchEnd}
+                    className="relative w-56 sm:w-64 aspect-[2/3] max-h-[380px] rounded-xl overflow-hidden border border-white/15 bg-black/40 shadow-2xl group select-none"
+                  >
                     {activeImage?.url ? (
                       <img
                         key={`${selectedItem.id}-${safeImageIndex}`}

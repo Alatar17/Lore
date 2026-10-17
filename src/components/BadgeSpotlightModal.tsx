@@ -39,7 +39,7 @@ export const BadgeSpotlightModal: React.FC<BadgeSpotlightModalProps> = ({
     >
       <div
         id="badge-spotlight-card"
-        className="relative w-full max-w-[340px] sm:max-w-[400px] bg-[#0d111a]/98 border rounded-3xl p-5 sm:p-6 text-center shadow-2xl animate-in zoom-in-95 duration-200 transform-gpu will-change-transform"
+        className="relative w-full max-w-[340px] sm:max-w-[400px] bg-[#0d111a]/98 border rounded-3xl px-4 py-5 sm:p-6 text-center shadow-2xl animate-in zoom-in-95 duration-200 transform-gpu will-change-transform"
         style={{
           borderColor: isGlowActive ? `${colorOpt.hex}55` : 'rgba(255, 255, 255, 0.18)',
           boxShadow: isGlowActive
@@ -58,12 +58,12 @@ export const BadgeSpotlightModal: React.FC<BadgeSpotlightModalProps> = ({
           <X className="w-4 h-4" />
         </button>
 
-        {/* Rozet Heybetli Vitrin Alanı (Mobilde 260px, Bilgisayarda Doğal 320px) */}
+        {/* Rozet Heybetli Vitrin Alanı (Mobilde 280px, Bilgisayarda Doğal 320px) */}
         <div className="relative flex items-center justify-center my-1 py-1">
           {/* Arkadaki Genişleyen Radyal Parıltı Havuzu (Donanım Hızlandırmalı) */}
           {isGlowActive && (
             <div
-              className="absolute inset-0 m-auto w-64 h-64 sm:w-80 sm:h-80 rounded-full pointer-events-none transform-gpu"
+              className="absolute inset-0 m-auto w-72 h-72 sm:w-80 sm:h-80 rounded-full pointer-events-none transform-gpu"
               style={{
                 background: `radial-gradient(circle, ${colorOpt.hex}50 0%, ${colorOpt.hex}18 50%, transparent 75%)`,
                 filter: 'blur(22px)',
@@ -71,8 +71,8 @@ export const BadgeSpotlightModal: React.FC<BadgeSpotlightModalProps> = ({
             />
           )}
 
-          {/* Rozet İkonu Görseli (260px mobil, tam 320px masaüstü) */}
-          <div className="relative w-[260px] h-[260px] sm:w-[320px] sm:h-[320px] flex items-center justify-center">
+          {/* Rozet İkonu Görseli (280px mobil, tam 320px masaüstü) */}
+          <div className="relative w-[280px] h-[280px] sm:w-[320px] sm:h-[320px] flex items-center justify-center">
             {badge.iconData && !badge.iconData.startsWith('images/') && !badge.iconData.startsWith('badges/') ? (
               <img
                 src={badge.iconData}

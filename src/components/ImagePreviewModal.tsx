@@ -1202,6 +1202,25 @@ export const ImagePreviewModal: React.FC<ImagePreviewModalProps> = ({
               </div>
             </div>
           )}
+
+          {/* Oyuncular / Seslendirme (Yalnızca Medya ve veri varsa - Türler'in Hemen Altında) */}
+          {!isGame && !isBook && item.actors && item.actors.length > 0 && (
+            <div className={`w-full space-y-1.5 px-0.5 shrink-0 ${item.genre && item.genre.length > 0 ? 'mt-3' : ''}`}>
+              <span className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold flex items-center gap-1">
+                <Users className="w-3 h-3 text-sky-400" /> Oyuncular / Seslendirme
+              </span>
+              <div className="flex flex-wrap gap-1.5 max-h-28 overflow-y-auto custom-scrollbar">
+                {item.actors.map((actor) => (
+                  <span
+                    key={actor}
+                    className="px-2 py-0.5 rounded-md bg-white/[0.06] border border-white/10 text-slate-300 text-xs font-medium"
+                  >
+                    {actor}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* 3. Sağ Tarafın Sadeleştirilmesi ve Temizlenmesi */}
@@ -1399,66 +1418,62 @@ export const ImagePreviewModal: React.FC<ImagePreviewModalProps> = ({
             </>
           )}
 
-          {/* Ayraç */}
-          <div className="border-t border-white/10 my-1" />
+          {/* 4. Karakterler & Kadro: Yalnızca Karakter Varsa Gösterilir */}
+          {hasCharacters && (
+            <>
+              {/* Ayraç */}
+              <div className="border-t border-white/10 my-1" />
 
-          {/* 4. Karakterler & Kadro: Karakter Kartlarına Tıklayınca Lightbox Açılır */}
-          <div className="space-y-2.5 pt-1">
-            <div className="flex items-center gap-2">
-              <Users className="w-4 h-4 text-sky-400" />
-              <span className="text-xs uppercase font-bold tracking-wider text-slate-200">
-                {isBook ? 'Karakterler' : 'Karakterler & Kadro'}
-              </span>
-              {hasCharacters && (
-                <span className="text-[10px] px-2 py-0.5 rounded-full bg-sky-500/20 text-sky-300 font-semibold">
-                  {item.characters?.length}
-                </span>
-              )}
-            </div>
+              <div className="space-y-2.5 pt-1">
+                <div className="flex items-center gap-2">
+                  <Users className="w-4 h-4 text-sky-400" />
+                  <span className="text-xs uppercase font-bold tracking-wider text-slate-200">
+                    {isBook ? 'Karakterler' : 'Karakterler & Kadro'}
+                  </span>
+                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-sky-500/20 text-sky-300 font-semibold">
+                    {item.characters?.length}
+                  </span>
+                </div>
 
-            {hasCharacters ? (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                {item.characters?.map((c, i) => (
-                  <div
-                    key={i}
-                    onClick={() => setSelectedCharIndex(i)}
-                    className="p-2 rounded-xl bg-white/[0.03] border border-white/10 flex items-center gap-2.5 hover:bg-white/[0.07] hover:border-white/20 transition-all cursor-pointer group"
-                    title="Karakter detayını görüntüle"
-                  >
-                    {/* Karakter Görseli */}
-                    {c.image ? (
-                      <div className="relative shrink-0 w-10 h-10 rounded-lg overflow-hidden">
-                        <img
-                          src={c.image}
-                          alt={c.name}
-                          className="w-10 h-10 rounded-lg object-cover border border-white/15 bg-black/40 transition-transform duration-200 group-hover:scale-105"
-                        />
-                      </div>
-                    ) : (
-                      <div className="w-10 h-10 rounded-lg border border-white/10 bg-white/[0.03] flex items-center justify-center text-slate-500 shrink-0">
-                        <Users className="w-4 h-4 text-slate-500" />
-                      </div>
-                    )}
-
-                    <div className="flex-1 min-w-0 flex flex-col justify-center">
-                      <span className="text-xs font-bold text-slate-100 group-hover:text-white truncate">
-                        {c.name}
-                      </span>
-                      {c.actor && (
-                        <span className="text-[11px] text-sky-300 truncate mt-0.5">
-                          {c.actor}
-                        </span>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  {item.characters?.map((c, i) => (
+                    <div
+                      key={i}
+                      onClick={() => setSelectedCharIndex(i)}
+                      className="p-2 rounded-xl bg-white/[0.03] border border-white/10 flex items-center gap-2.5 hover:bg-white/[0.07] hover:border-white/20 transition-all cursor-pointer group"
+                      title="Karakter detayını görüntüle"
+                    >
+                      {/* Karakter Görseli */}
+                      {c.image ? (
+                        <div className="relative shrink-0 w-10 h-10 rounded-lg overflow-hidden">
+                          <img
+                            src={c.image}
+                            alt={c.name}
+                            className="w-10 h-10 rounded-lg object-cover border border-white/15 bg-black/40 transition-transform duration-200 group-hover:scale-105"
+                          />
+                        </div>
+                      ) : (
+                        <div className="w-10 h-10 rounded-lg border border-white/10 bg-white/[0.03] flex items-center justify-center text-slate-500 shrink-0">
+                          <Users className="w-4 h-4 text-slate-500" />
+                        </div>
                       )}
+
+                      <div className="flex-1 min-w-0 flex flex-col justify-center">
+                        <span className="text-xs font-bold text-slate-100 group-hover:text-white truncate">
+                          {c.name}
+                        </span>
+                        {c.actor && (
+                          <span className="text-[11px] text-sky-300 truncate mt-0.5">
+                            {c.actor}
+                          </span>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
-            ) : (
-              <p className="text-xs text-slate-400 italic py-1">
-                Henüz bir karakter veya seslendirmen bilgisi eklenmemiş.
-              </p>
-            )}
-          </div>
+            </>
+          )}
 
           {/* 5. ✍️ KİŞİSEL İNCELEME & YORUM (Yalnızca yorum girilmişse gösterilir - Sıfır Kalabalık Kuralı) */}
           {item.review && item.review.trim().length > 0 && (
@@ -2045,12 +2060,12 @@ export const ImagePreviewModal: React.FC<ImagePreviewModalProps> = ({
                 </div>
               )}
 
-              {/* Karakterler */}
-              <div>
-                <span className="block text-[10px] uppercase font-bold tracking-wider text-slate-400 mb-1 flex items-center gap-1">
-                  <Users className="w-3 h-3 text-sky-400" /> {isBook ? 'Karakterler' : 'Karakterler & Kadro'}
-                </span>
-                {hasCharacters ? (
+              {/* Karakterler (Yalnızca Karakter Varsa Gösterilir) */}
+              {hasCharacters && (
+                <div>
+                  <span className="block text-[10px] uppercase font-bold tracking-wider text-slate-400 mb-1 flex items-center gap-1">
+                    <Users className="w-3 h-3 text-sky-400" /> {isBook ? 'Karakterler' : 'Karakterler & Kadro'}
+                  </span>
                   <div className="grid grid-cols-2 gap-1.5 sm:gap-2">
                     {item.characters?.map((c, i) => (
                       <div
@@ -2083,34 +2098,6 @@ export const ImagePreviewModal: React.FC<ImagePreviewModalProps> = ({
                       </div>
                     ))}
                   </div>
-                ) : (
-                  <p className="text-[11px] text-slate-400 italic">
-                    Karakter eklenmemiş.
-                  </p>
-                )}
-              </div>
-
-              {/* ✍️ KİŞİSEL İNCELEME & YORUM (Yalnızca yorum girilmişse gösterilir - Karakterlerin altı, Türler'in üstü) */}
-              {item.review && item.review.trim().length > 0 && (
-                <div id="preview-review-section-mobile" className="space-y-1.5 pt-0.5">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[10px] uppercase font-bold tracking-wider text-amber-300 flex items-center gap-1.5">
-                      <PenTool className="w-3 h-3 text-amber-400" /> YORUM
-                    </span>
-                    {item.reviewDate && (
-                      <span className="text-[9px] font-medium text-slate-400">
-                        {formatReviewDate(item.reviewDate)}
-                      </span>
-                    )}
-                  </div>
-                  <div
-                    id="preview-review-box-mobile"
-                    className="p-3 rounded-xl bg-gradient-to-br from-amber-500/[0.05] to-amber-950/[0.10] border border-amber-500/30 text-xs text-slate-200 leading-relaxed whitespace-pre-wrap pl-3 border-l-3 border-l-amber-500/80"
-                  >
-                    <p className="font-normal italic text-slate-200">
-                      {item.review.trim()}
-                    </p>
-                  </div>
                 </div>
               )}
 
@@ -2133,6 +2120,25 @@ export const ImagePreviewModal: React.FC<ImagePreviewModalProps> = ({
                 </div>
               )}
 
+              {/* Oyuncular / Seslendirme (Mobil için Türler'in Altında) */}
+              {!isGame && !isBook && item.actors && item.actors.length > 0 && (
+                <div className="pt-0.5">
+                  <span className="block text-[10px] uppercase font-bold tracking-wider text-slate-400 mb-1 flex items-center gap-1">
+                    <Users className="w-3 h-3 text-sky-400" /> Oyuncular / Seslendirme
+                  </span>
+                  <div className="flex flex-wrap gap-1.5">
+                    {item.actors.map((actor) => (
+                      <span
+                        key={actor}
+                        className="px-2 py-0.5 rounded-md bg-white/[0.06] border border-white/10 text-slate-300 text-[10px] font-medium"
+                      >
+                        {actor}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               {/* Kitap Formatı (Ciltli / Ciltsiz vb. - Türler Altında) */}
               {isBook && item.format && (
                 <div className="pt-0.5">
@@ -2143,6 +2149,30 @@ export const ImagePreviewModal: React.FC<ImagePreviewModalProps> = ({
                     <span className="px-2 py-0.5 rounded-md bg-indigo-500/15 border border-indigo-500/30 text-indigo-300 text-[10px] font-medium flex items-center gap-1">
                       📖 {item.format}
                     </span>
+                  </div>
+                </div>
+              )}
+
+              {/* ✍️ KİŞİSEL İNCELEME & YORUM (Yalnızca yorum girilmişse gösterilir - Sayfanın En Altında Kapanış) */}
+              {item.review && item.review.trim().length > 0 && (
+                <div id="preview-review-section-mobile" className="space-y-1.5 pt-0.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] uppercase font-bold tracking-wider text-amber-300 flex items-center gap-1.5">
+                      <PenTool className="w-3 h-3 text-amber-400" /> YORUM
+                    </span>
+                    {item.reviewDate && (
+                      <span className="text-[9px] font-medium text-slate-400">
+                        {formatReviewDate(item.reviewDate)}
+                      </span>
+                    )}
+                  </div>
+                  <div
+                    id="preview-review-box-mobile"
+                    className="p-3 rounded-xl bg-gradient-to-br from-amber-500/[0.05] to-amber-950/[0.10] border border-amber-500/30 text-xs text-slate-200 leading-relaxed whitespace-pre-wrap pl-3 border-l-3 border-l-amber-500/80"
+                  >
+                    <p className="font-normal italic text-slate-200">
+                      {item.review.trim()}
+                    </p>
                   </div>
                 </div>
               )}
