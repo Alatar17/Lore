@@ -42,6 +42,7 @@ import {
   hydrateBadgesFromCache,
   clearMemoryDataUrlCache,
 } from './utils/githubSync';
+import { warmBadgeThumbnails } from './utils/badgeCache';
 import { INITIAL_DATA } from './data/initialData';
 import {
   getStoredDirectoryHandle,
@@ -539,7 +540,9 @@ export default function App() {
 
     // 1. Hydrate badges from local IndexedDB cache or GitHub
     if (appData?.customBadges && appData.customBadges.length > 0) {
+      warmBadgeThumbnails(appData.customBadges);
       hydrateBadgesFromCache(appData.customBadges).then((hydrated) => {
+        warmBadgeThumbnails(hydrated);
         const hasChanges = hydrated.some((b, i) => b.iconData !== appData.customBadges?.[i]?.iconData);
         if (hasChanges) {
           setAppData((prev) => {
@@ -552,6 +555,7 @@ export default function App() {
 
       if (cfg.owner && cfg.repo) {
         syncBadgesFromGitHub(appData.customBadges, cfg, (badgeId, dataUrl) => {
+          warmBadgeThumbnails([{ id: badgeId, iconData: dataUrl }]);
           setAppData((prev) => {
             const updatedBadges = (prev.customBadges || []).map((b) =>
               b.id === badgeId ? { ...b, iconData: dataUrl } : b

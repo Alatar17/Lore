@@ -12,6 +12,105 @@ import {
 import { MEDIA_COLORS, GAME_COLORS, BOOK_COLORS } from '../data/initialData';
 import { Tv, Star, Layers, Check, Calendar, X, BookmarkCheck, PauseCircle, BookOpen, Gamepad2 } from 'lucide-react';
 import { FollowBadge, getFollowColor, RatingBadgeIcon } from './FollowIndicatorIcon';
+import { useBadgeCardIcon } from '../utils/badgeCache';
+
+interface ItemCardBadgeProps {
+  itemId: string;
+  badge: CustomBadge;
+  colorOpt: ReturnType<typeof getBadgeColorOption>;
+  isGlowActive: boolean;
+  isMobileActive: boolean;
+  onBadgeClick: (e: React.MouseEvent) => void;
+}
+
+const ItemCardBadge: React.FC<ItemCardBadgeProps> = ({
+  itemId,
+  badge,
+  colorOpt,
+  isGlowActive,
+  isMobileActive,
+  onBadgeClick,
+}) => {
+  const thumbnailSrc = useBadgeCardIcon(badge);
+  const iconSrc = thumbnailSrc || badge.iconData;
+
+  return (
+    <div
+      id={`badge-custom-${itemId}-${badge.id}`}
+      onClick={onBadgeClick}
+      className="group/badge relative pointer-events-auto cursor-pointer"
+    >
+      {/* Rozet Saf Şeffaf Madalya (Mobilde 26px tam ölçü, PC'de 37px - Ortalanmış ve çakışmasız) */}
+      <div
+        className={`w-[26px] h-[26px] sm:w-[37px] sm:h-[37px] flex items-center justify-center transition-all duration-200 ease-out select-none hover:scale-115 active:scale-95 ${
+          isMobileActive ? 'scale-115' : ''
+        }`}
+      >
+        {badge.iconData && !badge.iconData.startsWith('images/') && !badge.iconData.startsWith('badges/') ? (
+          <img
+            src={iconSrc}
+            alt={badge.name}
+            className="w-full h-full object-contain select-none transition-all duration-200"
+            style={{
+              transform: badge.scale && badge.scale !== 1 ? `scale(${badge.scale})` : undefined,
+              filter: isGlowActive
+                ? (isMobileActive
+                    ? `drop-shadow(0 0 1.5px rgba(0,0,0,0.98)) drop-shadow(0 0 3px rgba(0,0,0,0.85)) drop-shadow(0 0 9px ${colorOpt.hex}) drop-shadow(0 0 20px ${colorOpt.hex}95) drop-shadow(0 3px 6px rgba(0,0,0,0.9))`
+                    : `drop-shadow(0 0 1.5px rgba(0,0,0,0.98)) drop-shadow(0 0 3px rgba(0,0,0,0.85)) drop-shadow(0 0 6px ${colorOpt.hex}) drop-shadow(0 2px 5px rgba(0,0,0,0.85))`)
+                : 'drop-shadow(0 0 1.5px rgba(0,0,0,0.98)) drop-shadow(0 0 3px rgba(0,0,0,0.85)) drop-shadow(0 2px 5px rgba(0,0,0,0.85))',
+            }}
+            onError={(e) => {
+              (e.currentTarget as HTMLElement).style.display = 'none';
+            }}
+            loading="lazy"
+          />
+        ) : (
+          <span className="text-base sm:text-xl select-none leading-none">🏆</span>
+        )}
+      </div>
+
+      {/* Sola Doğru Açılan Unvan Balonu (Tooltip) */}
+      <div
+        className={`absolute right-full top-1/2 -translate-y-1/2 mr-2 pointer-events-none transition-all duration-200 z-50 whitespace-nowrap ${
+          isMobileActive ? 'block' : 'hidden sm:block'
+        } ${
+          isMobileActive
+            ? 'opacity-100 scale-100 translate-x-0'
+            : 'opacity-0 scale-95 translate-x-1 group-hover/badge:opacity-100 group-hover/badge:scale-100 group-hover/badge:translate-x-0'
+        }`}
+      >
+        <div
+          className="relative px-2.5 py-1 rounded-lg bg-[#0d111a]/95 border text-left shadow-2xl sm:backdrop-blur-xl flex items-center gap-1.5"
+          style={{
+            borderColor: isGlowActive ? `${colorOpt.hex}88` : 'rgba(255, 255, 255, 0.25)',
+            boxShadow: isGlowActive
+              ? `0 10px 25px -3px rgba(0, 0, 0, 0.85), 0 0 12px ${colorOpt.hex}45`
+              : '0 10px 25px -3px rgba(0, 0, 0, 0.85)',
+          }}
+        >
+          {/* Küçük ok işareti (sağa dönük, rozeti işaret eden) */}
+          <div
+            className="absolute -right-1 top-1/2 -translate-y-1/2 w-2 h-2 rotate-45 bg-[#0d111a]/95 border-t border-r"
+            style={{
+              borderColor: isGlowActive ? `${colorOpt.hex}88` : 'rgba(255, 255, 255, 0.25)',
+            }}
+          />
+
+          {/* Rozet Unvan Metni */}
+          <span
+            className="text-[11px] font-bold tracking-tight max-w-[240px] sm:max-w-[300px] truncate"
+            style={{
+              color: isGlowActive ? colorOpt.hex : '#f1f5f9',
+              textShadow: isGlowActive ? `0 0 8px ${colorOpt.hex}60` : undefined,
+            }}
+          >
+            {badge.name}
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 interface ItemCardProps {
   item: ArchiveItem;
@@ -345,74 +444,15 @@ export const ItemCard: React.FC<ItemCardProps> = ({
                 const isMobileActive = activeMobileBadgeId === badge.id;
 
                 return (
-                  <div
+                  <ItemCardBadge
                     key={badge.id}
-                    id={`badge-custom-${item.id}-${badge.id}`}
-                    onClick={(e) => handleBadgeClick(e, badge)}
-                    className="group/badge relative pointer-events-auto cursor-pointer"
-                  >
-                    {/* Rozet Saf Şeffaf Madalya (Mobilde 26px tam ölçü, PC'de 37px - Ortalanmış ve çakışmasız) */}
-                    <div
-                      className={`w-[26px] h-[26px] sm:w-[37px] sm:h-[37px] flex items-center justify-center transition-all duration-200 ease-out select-none hover:scale-115 active:scale-95 ${
-                        isMobileActive ? 'scale-115' : ''
-                      }`}
-                    >
-                      {badge.iconData && !badge.iconData.startsWith('images/') && !badge.iconData.startsWith('badges/') ? (
-                        <img
-                          src={badge.iconData}
-                          alt={badge.name}
-                          className="w-full h-full object-contain select-none transition-all duration-200"
-                          style={{
-                            transform: badge.scale && badge.scale !== 1 ? `scale(${badge.scale})` : undefined,
-                          }}
-                          onError={(e) => {
-                            (e.currentTarget as HTMLElement).style.display = 'none';
-                          }}
-                          loading="lazy"
-                        />
-                      ) : (
-                        <span className="text-base sm:text-xl select-none leading-none">🏆</span>
-                      )}
-                    </div>
-
-                    {/* Sola Doğru Açılan Unvan Balonu (Tooltip) */}
-                    <div
-                      className={`absolute right-full top-1/2 -translate-y-1/2 mr-2 pointer-events-none transition-all duration-200 z-50 whitespace-nowrap ${
-                        isMobileActive
-                          ? 'opacity-100 scale-100 translate-x-0'
-                          : 'opacity-0 scale-95 translate-x-1 group-hover/badge:opacity-100 group-hover/badge:scale-100 group-hover/badge:translate-x-0'
-                      }`}
-                    >
-                      <div
-                        className="relative px-2.5 py-1 rounded-lg bg-[#0d111a]/95 border text-left shadow-2xl backdrop-blur-xl flex items-center gap-1.5"
-                        style={{
-                          borderColor: isGlowActive ? `${colorOpt.hex}88` : 'rgba(255, 255, 255, 0.25)',
-                          boxShadow: isGlowActive
-                            ? `0 10px 25px -3px rgba(0, 0, 0, 0.85), 0 0 12px ${colorOpt.hex}45`
-                            : '0 10px 25px -3px rgba(0, 0, 0, 0.85)',
-                        }}
-                      >
-                        {/* Küçük ok işareti (sağa dönük, rozeti işaret eden) */}
-                        <div
-                          className="absolute -right-1 top-1/2 -translate-y-1/2 w-2 h-2 rotate-45 bg-[#0d111a]/95 border-t border-r"
-                          style={{
-                            borderColor: isGlowActive ? `${colorOpt.hex}88` : 'rgba(255, 255, 255, 0.25)',
-                          }}
-                        />
-
-                        {/* Rozet Unvan Metni */}
-                        <span
-                          className="text-[11px] font-bold tracking-tight max-w-[240px] sm:max-w-[300px] truncate"
-                          style={{
-                            color: isGlowActive ? colorOpt.hex : '#f1f5f9',
-                            textShadow: isGlowActive ? `0 0 8px ${colorOpt.hex}60` : undefined,
-                          }}
-                        >
-                          {badge.name}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
+                    itemId={item.id}
+                    badge={badge}
+                    colorOpt={colorOpt}
+                    isGlowActive={isGlowActive}
+                    isMobileActive={isMobileActive}
+                    onBadgeClick={(e) => handleBadgeClick(e, badge)}
+                  />
                 );
               })}
             </div>
