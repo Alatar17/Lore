@@ -2450,52 +2450,50 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   </label>
                 </div>
 
-                {/* Ayırıcı Çizgi */}
+                {/* Ayırıcı Çizgi (Yalnızca Masaüstü) */}
                 <hr className="border-white/10 my-1 hidden md:block" />
 
-                {/* 2. Özel Rozetler & Nişan Yönetimi (Yalnızca Masaüstü: hidden md:block) */}
-                <div className="hidden md:block space-y-4 pt-1">
-                  {/* Başlık ve Açıklama */}
-                  <div className="flex items-center justify-between">
-                    <div className="space-y-0.5">
-                      <div className="flex items-center gap-2">
-                        <Award className="w-4 h-4 text-amber-400" />
-                        <span className="text-xs font-bold text-slate-100 uppercase tracking-wider">
-                          Özel Rozetler & Nişan Yönetimi
-                        </span>
-                      </div>
-                      <p className="text-[11px] text-slate-400">
-                        Kütüphanenizdeki yapımlara özel unvanlar, ödüller ve şeref nişanları verin.
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* Rozet Parıltısı (Glow) Efekti Switch */}
-                  <div className="p-3.5 rounded-xl bg-white/5 border border-white/10 flex items-center justify-between">
-                    <div className="space-y-0.5 pr-2">
-                      <span className="text-xs font-semibold text-slate-100 block">
-                        Rozet Parıltısı (Glow) Efekti
+                {/* 2. Özel Rozetler & Nişan Yönetimi Başlığı (Yalnızca Masaüstü) */}
+                <div className="hidden md:flex items-center justify-between pt-1">
+                  <div className="space-y-0.5">
+                    <div className="flex items-center gap-2">
+                      <Award className="w-4 h-4 text-amber-400" />
+                      <span className="text-xs font-bold text-slate-100 uppercase tracking-wider">
+                        Özel Rozetler & Nişan Yönetimi
                       </span>
-                      <p className="text-[11px] text-slate-400 leading-snug">
-                        Kart afişindeki rozetlere renkli neon/madalya ışıma efekti verir.
-                      </p>
                     </div>
+                    <p className="text-[11px] text-slate-400">
+                      Kütüphanenizdeki yapımlara özel unvanlar, ödüller ve şeref nişanları verin.
+                    </p>
+                  </div>
+                </div>
 
-                    <label className="relative inline-flex items-center cursor-pointer shrink-0">
-                      <input
-                        type="checkbox"
-                        checked={viewSettings.badgeGlowEnabled !== false}
-                        onChange={(e) => onUpdateViewSettings({ badgeGlowEnabled: e.target.checked })}
-                        className="sr-only peer"
-                      />
-                      <div className="w-10 h-5.5 bg-neutral-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4.5 after:w-4.5 after:transition-all peer-checked:bg-blue-600"></div>
-                    </label>
+                {/* Rozet Parıltısı (Glow) Efekti Switch (Hem Mobil Hem Masaüstü) */}
+                <div className="p-3.5 rounded-xl bg-white/5 border border-white/10 flex items-center justify-between">
+                  <div className="space-y-0.5 pr-2">
+                    <span className="text-xs font-semibold text-slate-100 block">
+                      Rozet Parıltısı (Glow) Efekti
+                    </span>
+                    <p className="text-[11px] text-slate-400 leading-snug">
+                      Kart afişindeki rozetlere renkli neon/madalya ışıma efekti verir.
+                    </p>
                   </div>
 
-                  {/* Rozetler Listesi */}
+                  <label className="relative inline-flex items-center cursor-pointer shrink-0">
+                    <input
+                      type="checkbox"
+                      checked={viewSettings.badgeGlowEnabled !== false}
+                      onChange={(e) => onUpdateViewSettings({ badgeGlowEnabled: e.target.checked })}
+                      className="sr-only peer"
+                    />
+                    <div className="w-10 h-5.5 bg-neutral-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4.5 after:w-4.5 after:transition-all peer-checked:bg-blue-600"></div>
+                  </label>
+                </div>
 
-                  {/* Rozetler Listesi */}
-                  <div className="p-4 rounded-xl bg-white/5 border border-white/10 space-y-3">
+                {/* Rozet Listesi & Yönetimi (Yalnızca Masaüstü: hidden md:block) */}
+                <div className="hidden md:block space-y-4">
+                    {/* Rozetler Listesi */}
+                    <div className="p-4 rounded-xl bg-white/5 border border-white/10 space-y-3">
                     {/* Filtre ve Başlık */}
                     <div className="flex items-center justify-between flex-wrap gap-2">
                       <div className="flex items-center gap-2">
@@ -3074,7 +3072,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                       </form>
                     </div>
                   )}
-                </div>
+                  </div>
 
                 {/* Yüzen Buton (FAB) Konumları ve Presetleri - UI'da geçici olarak gizlendi (silinmedi, ileride gerekirse tekrar açılabilir) */}
                 {false && (

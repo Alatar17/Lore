@@ -286,7 +286,14 @@ export async function saveDataToIndexedDB(data: AppData): Promise<void> {
     const db = await openDB();
     const tx = db.transaction(APP_DATA_STORE, 'readwrite');
     const store = tx.objectStore(APP_DATA_STORE);
-    store.put(data, APP_DATA_KEY);
+    const sanitizedItems = (data.items || []).map((it) => {
+      if (it.cardThumbnail) {
+        const { cardThumbnail, ...rest } = it;
+        return rest;
+      }
+      return it;
+    });
+    store.put({ ...data, items: sanitizedItems }, APP_DATA_KEY);
     await new Promise((resolve, reject) => {
       tx.oncomplete = resolve;
       tx.onerror = reject;
@@ -359,12 +366,64 @@ export async function checkDirectoryHandleAccessibility(
   }
 }
 
-function readFileAsBase64(file: File): Promise<string> {
+export function readFileAsBase64(file: File | Blob): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = () => resolve(reader.result as string);
     reader.onerror = reject;
     reader.readAsDataURL(file);
+  });
+}
+
+/**
+ * Derives the small poster key (relative to images/) from thumbnailFileName.
+ * Small copy path = "posters-small/" + (original filename without extension) + ".webp".
+ * e.g. "images/posters/item_123.jpg" -> "posters-small/item_123.webp"
+ */
+export function getCardThumbnailKey(thumbnailFileName: string): string {
+  const clean = thumbnailFileName.replace(/^images\//, '').trim();
+  const baseName = clean.split('/').pop() || clean;
+  const nameWithoutExt = baseName.replace(/\.[^/.]+$/, '');
+  return `posters-small/${nameWithoutExt}.webp`;
+}
+
+/**
+ * Hydrates cardThumbnail directly from local IndexedDB image_cache for instant, fast initial render.
+ * Does NOT use bareName or root fallback; only checks exact key 'posters-small/<name>.webp'.
+ */
+export async function hydrateCardThumbnailsFromCache(items: ArchiveItem[]): Promise<ArchiveItem[]> {
+  if (!Array.isArray(items) || items.length === 0) return items;
+
+  const itemsNeedingCache = items.filter(
+    (it) => (!it.cardThumbnail || it.cardThumbnail.trim() === '') && it.thumbnailFileName
+  );
+
+  if (itemsNeedingCache.length === 0) return items;
+
+  const resolvedMap = new Map<string, string>();
+  await Promise.all(
+    itemsNeedingCache.map(async (item) => {
+      if (!item.thumbnailFileName) return;
+      const smallKey = getCardThumbnailKey(item.thumbnailFileName);
+      try {
+        const cachedBlob = await getCachedImageBlob(smallKey);
+        if (cachedBlob) {
+          const dataUrl = await readFileAsBase64(cachedBlob);
+          if (dataUrl) {
+            resolvedMap.set(item.id, dataUrl);
+          }
+        }
+      } catch {
+        // Silently skip cache miss
+      }
+    })
+  );
+
+  if (resolvedMap.size === 0) return items;
+
+  return items.map((it) => {
+    const cachedUrl = resolvedMap.get(it.id);
+    return cachedUrl ? { ...it, cardThumbnail: cachedUrl } : it;
   });
 }
 
@@ -651,6 +710,7 @@ export async function writeDataToFolder(dirHandle: FileSystemDirectoryHandle, da
       if (itemCopy.thumbnailFileName || (itemCopy.thumbnail && itemCopy.thumbnail.startsWith('data:'))) {
         delete itemCopy.thumbnail;
       }
+      delete itemCopy.cardThumbnail;
 
       // 2. Characters -> images/characters/ (Extract from Base64 so JSON stays lightweight)
       if (item.characters && Array.isArray(item.characters) && item.characters.length > 0) {
@@ -1038,6 +1098,8 @@ export async function deleteImageFromFolder(
 
     if (thumbnailFileName) {
       const clean = thumbnailFileName.replace(/^images\//, '');
+      const smallKey = getCardThumbnailKey(thumbnailFileName);
+      deleteCachedImageBlob(smallKey).catch(() => {});
       try {
         if (clean.includes('/')) {
           const parts = clean.split('/');
@@ -1227,12 +1289,13 @@ export function saveDataToLocalStorage(data: AppData): void {
   // 2. Save a lightweight version in LocalStorage (without large base64 strings to never exceed 5MB quota)
   try {
     const lightweightItems = (data.items || []).map((it) => {
-      if (it.thumbnail && it.thumbnail.startsWith('data:') && it.thumbnail.length > 5000) {
+      const { cardThumbnail, ...restWithoutCardThumb } = it;
+      if (restWithoutCardThumb.thumbnail && restWithoutCardThumb.thumbnail.startsWith('data:') && restWithoutCardThumb.thumbnail.length > 5000) {
         // Exclude large base64 thumbnails from localStorage since IndexedDB holds them intact
-        const { thumbnail, ...rest } = it;
+        const { thumbnail, ...rest } = restWithoutCardThumb;
         return rest;
       }
-      return it;
+      return restWithoutCardThumb;
     });
 
     const lightweightData: AppData = {
@@ -1254,8 +1317,16 @@ export function saveDataToLocalStorage(data: AppData): void {
 // --- Export / Import JSON File ---
 
 export function downloadJsonFile(data: AppData, filename = 'yapim-arsivim-data.json'): void {
+  const cleanItems = (data.items || []).map((it) => {
+    if (it.cardThumbnail) {
+      const { cardThumbnail, ...rest } = it;
+      return rest;
+    }
+    return it;
+  });
   const fullData: AppData = {
     ...data,
+    items: cleanItems,
     recommendationMemory: data.recommendationMemory || loadRecommendationMemory(),
   };
   const jsonStr = JSON.stringify(fullData, null, 2);
@@ -1510,6 +1581,7 @@ export async function buildUnifiedZipBlob(data: AppData): Promise<Blob> {
     if (itemCopy.thumbnailFileName || (itemCopy.thumbnail && itemCopy.thumbnail.startsWith('data:'))) {
       delete itemCopy.thumbnail;
     }
+    delete itemCopy.cardThumbnail;
 
     // 2. Characters -> images/characters/ (Extract to zip so JSON is lightweight)
     if (item.characters && Array.isArray(item.characters) && item.characters.length > 0) {
@@ -2024,7 +2096,17 @@ export async function importAppDataFromZip(
 
 // --- Standalone HTML Export for Mobile/Phone ("Telefon için Dışa Aktar") ---
 export function generatePhoneStandaloneHtml(data: AppData): string {
-  const embeddedJson = JSON.stringify(data);
+  const cleanData: AppData = {
+    ...data,
+    items: (data.items || []).map((it) => {
+      if (it.cardThumbnail) {
+        const { cardThumbnail, ...rest } = it;
+        return rest;
+      }
+      return it;
+    }),
+  };
+  const embeddedJson = JSON.stringify(cleanData);
 
   return `<!DOCTYPE html>
 <html lang="tr">
@@ -2491,13 +2573,21 @@ export function exportTierListBackup(
     (it) => it.mainTab === mainTab && it.cat === category.id
   );
 
+  const cleanCatItems = catItems.map((it) => {
+    if (it.cardThumbnail) {
+      const { cardThumbnail, ...rest } = it;
+      return rest;
+    }
+    return it;
+  });
+
   const backupData: TierListCategoryExportData = {
     type: 'LORE_TIER_LIST_BACKUP',
     version: 1,
     exportedAt: new Date().toISOString(),
     category,
     mainTab,
-    items: catItems,
+    items: cleanCatItems,
   };
 
   const dateStr = getFormattedDateForFilename();
