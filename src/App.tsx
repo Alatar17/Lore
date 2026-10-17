@@ -37,7 +37,6 @@ import {
   pullDataFromGitHub,
   checkGitHubUpdateAvailable,
   syncImagesForItems,
-  syncCardThumbnailsForItems,
   syncBadgesFromGitHub,
   hydrateBadgesFromCache,
   clearMemoryDataUrlCache,
@@ -62,8 +61,6 @@ import {
   checkDirectoryHandleAccessibility,
   importAppDataFromZip,
   hydrateThumbnailsFromCache,
-  hydrateCardThumbnailsFromCache,
-  getCardThumbnailKey,
 } from './utils/fileSystem';
 import { sortArchiveItems } from './utils/sortUtils';
 import { downloadTierListAsPng } from './utils/tierImageExport';
@@ -368,43 +365,30 @@ export default function App() {
         const mergedItems = res.appData.items.map((remoteItem) => {
           const localItem = localItemsMap.get(remoteItem.id);
           let thumbnailToUse: string | undefined = remoteItem.thumbnail;
-          let cardThumbnailToUse: string | undefined = undefined;
 
           // 1. If remote item has NO thumbnailFileName, it was deleted on PC! Remove thumbnail completely & evict cache
           if (!remoteItem.thumbnailFileName || remoteItem.thumbnailFileName.trim() === '') {
             thumbnailToUse = undefined;
-            cardThumbnailToUse = undefined;
             if (localItem?.thumbnailFileName) {
-              const smallKey = getCardThumbnailKey(localItem.thumbnailFileName);
               deleteCachedImageBlob(localItem.thumbnailFileName).catch(() => {});
-              deleteCachedImageBlob(smallKey).catch(() => {});
               clearMemoryDataUrlCache(localItem.thumbnailFileName);
-              clearMemoryDataUrlCache(smallKey);
             }
           } else if (
             localItem &&
+            localItem.thumbnail &&
+            localItem.thumbnail.trim() !== '' &&
+            !localItem.thumbnail.startsWith('blob:') &&
             localItem.thumbnailFileName === remoteItem.thumbnailFileName
           ) {
-            // 2. If image filename is identical to what we have locally, keep existing local image & small cardThumbnail (saves bandwidth)
-            if (
-              localItem.thumbnail &&
-              localItem.thumbnail.trim() !== '' &&
-              !localItem.thumbnail.startsWith('blob:')
-            ) {
-              thumbnailToUse = localItem.thumbnail;
-            }
-            cardThumbnailToUse = localItem.cardThumbnail;
+            // 2. If image filename is identical to what we have locally, keep existing local image (saves bandwidth)
+            thumbnailToUse = localItem.thumbnail;
           } else {
-            // 3. New image or changed image (different filename) -> clear to let sync fetch it
+            // 3. New image or changed image (different filename) -> clear to let syncImagesForItems fetch it
             thumbnailToUse = undefined;
-            cardThumbnailToUse = undefined;
             // Evict old cached image blob so it never resurrects!
             if (localItem?.thumbnailFileName && localItem.thumbnailFileName !== remoteItem.thumbnailFileName) {
-              const smallKey = getCardThumbnailKey(localItem.thumbnailFileName);
               deleteCachedImageBlob(localItem.thumbnailFileName).catch(() => {});
-              deleteCachedImageBlob(smallKey).catch(() => {});
               clearMemoryDataUrlCache(localItem.thumbnailFileName);
-              clearMemoryDataUrlCache(smallKey);
             }
           }
 
@@ -445,7 +429,6 @@ export default function App() {
           return {
             ...remoteItem,
             thumbnail: thumbnailToUse,
-            cardThumbnail: cardThumbnailToUse,
             characters: charactersToUse,
             ankiExtraImages: ankiExtraToUse,
             ankiCard: remoteItem.ankiCard ? ensureAnkiCardDates(remoteItem.ankiCard) : undefined,
@@ -465,20 +448,7 @@ export default function App() {
         setGitHubConfig(getGitHubSyncConfig());
         setMobileSyncStatus('synced');
 
-        // 1. Download missing small posters (fast!) in bulk batches first
-        syncCardThumbnailsForItems(mergedData.items, cfg, (batch) => {
-          setAppData((prev) => {
-            const updatedItems = prev.items.map((it) => {
-              const smallUrl = batch.get(it.id);
-              return smallUrl ? { ...it, cardThumbnail: smallUrl } : it;
-            });
-            const updatedData = { ...prev, items: updatedItems };
-            debouncedSaveData(updatedData);
-            return updatedData;
-          });
-        }).catch((e) => console.warn('Background small poster sync error:', e));
-
-        // 2. Incrementally load missing or updated full posters, characters, and anki scenes in the background without UI flicker
+        // 2. Incrementally load missing or updated posters, characters, and anki scenes in the background without UI flicker
         syncImagesForItems(mergedData.items, cfg, (itemId, dataUrl, partialItem) => {
           setAppData((prev) => {
             const updatedItems = prev.items.map((it) => {
@@ -567,25 +537,6 @@ export default function App() {
     if (!appData?.items || appData.items.length === 0) return;
     if (!cfg.owner || !cfg.repo) return;
 
-    // 1. Check and download missing small posters in batches
-    const needsSmallPosters = appData.items.some(
-      (it) => (!it.cardThumbnail || it.cardThumbnail.trim() === '') && Boolean(it.thumbnailFileName)
-    );
-    if (needsSmallPosters) {
-      syncCardThumbnailsForItems(appData.items, cfg, (batch) => {
-        setAppData((prev) => {
-          const updatedItems = prev.items.map((it) => {
-            const smallUrl = batch.get(it.id);
-            return smallUrl ? { ...it, cardThumbnail: smallUrl } : it;
-          });
-          const updatedData = { ...prev, items: updatedItems };
-          debouncedSaveData(updatedData);
-          return updatedData;
-        });
-      }).catch((e) => console.warn('Startup small poster resolution error:', e));
-    }
-
-    // 2. Incrementally resolve full-size posters, characters, and anki scenes
     const needsImages = appData.items.some(
       (it) =>
         ((!it.thumbnail || it.thumbnail.trim() === '' || it.thumbnail.startsWith('blob:') || it.thumbnail.startsWith('images/')) && Boolean(it.thumbnailFileName)) ||
@@ -818,57 +769,19 @@ export default function App() {
         let currentBestData: AppData | null = null;
 
         if (idbData && idbData.categories && Array.isArray(idbData.items) && idbData.items.length > 0) {
-          // 1. Instant first render: hydrate cardThumbnails rapidly from local image_cache
-          const fastItems = await hydrateCardThumbnailsFromCache(idbData.items);
-          const fastData = { ...idbData, items: fastItems };
-          setAppData(fastData);
-          currentBestData = fastData;
-
-          // 2. Hydrate full posters, characters, and anki scenes in background without overwriting cardThumbnail
-          hydrateThumbnailsFromCache(fastItems)
-            .then((fullItems) => {
-              setAppData((prev) => {
-                const prevCardMap = new Map<string, string>();
-                for (const it of prev.items) {
-                  if (it.cardThumbnail) prevCardMap.set(it.id, it.cardThumbnail);
-                }
-                const preserved = fullItems.map((fi) => {
-                  const ct = prevCardMap.get(fi.id) || fi.cardThumbnail;
-                  return ct ? { ...fi, cardThumbnail: ct } : fi;
-                });
-                const fullData = { ...prev, items: preserved };
-                currentBestData = fullData;
-                return fullData;
-              });
-            })
-            .catch(() => {});
+          const hydratedItems = await hydrateThumbnailsFromCache(idbData.items);
+          const hydratedData = { ...idbData, items: hydratedItems };
+          setAppData(hydratedData);
+          currentBestData = hydratedData;
         } else {
           // Fallback to localStorage
           const rawLocal = loadDataFromLocalStorage();
           const local = sanitize(rawLocal);
           if (local && local.categories && Array.isArray(local.items) && local.items.length > 0) {
-            const fastItems = await hydrateCardThumbnailsFromCache(local.items);
-            const fastData = { ...local, items: fastItems };
-            setAppData(fastData);
-            currentBestData = fastData;
-
-            hydrateThumbnailsFromCache(fastItems)
-              .then((fullItems) => {
-                setAppData((prev) => {
-                  const prevCardMap = new Map<string, string>();
-                  for (const it of prev.items) {
-                    if (it.cardThumbnail) prevCardMap.set(it.id, it.cardThumbnail);
-                  }
-                  const preserved = fullItems.map((fi) => {
-                    const ct = prevCardMap.get(fi.id) || fi.cardThumbnail;
-                    return ct ? { ...fi, cardThumbnail: ct } : fi;
-                  });
-                  const fullData = { ...prev, items: preserved };
-                  currentBestData = fullData;
-                  return fullData;
-                });
-              })
-              .catch(() => {});
+            const hydratedItems = await hydrateThumbnailsFromCache(local.items);
+            const hydratedData = { ...local, items: hydratedItems };
+            setAppData(hydratedData);
+            currentBestData = hydratedData;
           }
         }
 
@@ -1334,15 +1247,6 @@ export default function App() {
   };
 
   const handleSaveItem = (updatedItem: ArchiveItem) => {
-    const oldItem = appData.items.find((it) => it.id === updatedItem.id);
-    if (oldItem?.thumbnailFileName && oldItem.thumbnailFileName !== updatedItem.thumbnailFileName) {
-      const oldSmallKey = getCardThumbnailKey(oldItem.thumbnailFileName);
-      deleteCachedImageBlob(oldItem.thumbnailFileName).catch(() => {});
-      deleteCachedImageBlob(oldSmallKey).catch(() => {});
-      clearMemoryDataUrlCache(oldItem.thumbnailFileName);
-      clearMemoryDataUrlCache(oldSmallKey);
-    }
-
     const itemWithTimestamp: ArchiveItem = {
       ...updatedItem,
       updatedAt: Date.now(),
@@ -1419,11 +1323,8 @@ export default function App() {
   const handleDeleteItem = (itemId: string) => {
     const itemToDelete = appData.items.find((it) => it.id === itemId);
     if (itemToDelete?.thumbnailFileName) {
-      const smallKey = getCardThumbnailKey(itemToDelete.thumbnailFileName);
       deleteCachedImageBlob(itemToDelete.thumbnailFileName).catch(() => {});
-      deleteCachedImageBlob(smallKey).catch(() => {});
       clearMemoryDataUrlCache(itemToDelete.thumbnailFileName);
-      clearMemoryDataUrlCache(smallKey);
     }
     if (dirHandle) {
       deleteImageFromFolder(dirHandle, itemToDelete?.thumbnailFileName, itemId).catch((e) => {

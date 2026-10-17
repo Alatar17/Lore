@@ -146,7 +146,6 @@ export interface ArchiveItem {
   releaseYear?: number | string; // Yapım Yılı (örn: 2024 veya '2021 - 2026')
   desc: string;
   thumbnail?: string; // base64 or object URL or image path
-  cardThumbnail?: string; // runtime-only 400px small poster data URL for grid cards
   thumbnailFileName?: string;
 
   // Media specific

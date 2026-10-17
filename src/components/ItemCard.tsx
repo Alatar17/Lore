@@ -219,16 +219,16 @@ export const ItemCard: React.FC<ItemCardProps> = ({
       <div
         className={`relative w-full aspect-[2/3] ${getRadiusClasses()} border bg-[#181818] shadow-md transition-all duration-300 ${getPosterBorderClasses()}`}
         style={{
-          background: (item.cardThumbnail || item.thumbnail)
+          background: item.thumbnail
             ? '#141414'
             : `radial-gradient(circle at 50% 30%, ${baseColor}25 0%, #141414 100%)`,
         }}
       >
         {/* Clipped Media Layer (Image, Vignettes & Soft Tulle Background) */}
         <div className={`absolute inset-0 ${getRadiusClasses()} overflow-hidden pointer-events-none`}>
-          {(item.cardThumbnail || item.thumbnail) ? (
+          {item.thumbnail ? (
             <img
-              src={item.cardThumbnail || item.thumbnail}
+              src={item.thumbnail}
               alt={item.title}
               className={`w-full h-full object-cover transition-transform duration-500 ease-out ${
                 isSelectionMode ? '' : 'group-hover:scale-105'

@@ -1,6 +1,5 @@
 import { AppData, ArchiveItem, CustomBadge } from '../types';
-import { getCachedImageBlob, setCachedImageBlob, getFileHandleFromRelativePath, getCardThumbnailKey } from './fileSystem';
-import { optimizeImageFile } from './imageOptimizer';
+import { getCachedImageBlob, setCachedImageBlob, getFileHandleFromRelativePath } from './fileSystem';
 
 export interface GitHubSyncConfig {
   owner: string;
@@ -355,7 +354,6 @@ export async function pushDataToGitHub(
     }
     // Always strip bulky inline base64 thumbnail so JSON sent to GitHub stays pure text (~150 KB)
     delete copy.thumbnail;
-    delete copy.cardThumbnail;
 
     // 2. Characters normalization -> images/characters/
     if (copy.characters && Array.isArray(copy.characters) && copy.characters.length > 0) {
@@ -470,9 +468,9 @@ export async function pushDataToGitHub(
     }
 
     if (neededImageNames.size > 0) {
-      // Query existing files in GitHub subdirectories ONLY (posters, characters, anki, badges, posters-small)
+      // Query existing files in GitHub subdirectories ONLY (posters, characters, anki, badges)
       const existingGhFiles = new Map<string, string>();
-      const checkDirs = ['posters', 'characters', 'anki', 'badges', 'posters-small'];
+      const checkDirs = ['posters', 'characters', 'anki', 'badges'];
       for (const subDir of checkDirs) {
         try {
           const listRes = await fetch(
@@ -561,141 +559,11 @@ export async function pushDataToGitHub(
             );
             if (uploadRes.ok) {
               uploadedImagesCount++;
-              existingGhFiles.set(imgName, 'uploaded');
             }
           }
         } catch (err) {
           console.warn(`Could not upload image ${imgName} to GitHub:`, err);
         }
-      }
-
-      // --- Step 4.3: Generate and upload 400px WebP small posters (images/posters-small/<name>.webp) ---
-      let smallUploadSuccess = 0;
-      let smallUploadFailed = 0;
-
-      for (const item of cleanItems) {
-        if (!item.thumbnailFileName) continue;
-        const smallKey = getCardThumbnailKey(item.thumbnailFileName); // e.g. "posters-small/item_123.webp"
-        const existingSha = existingGhFiles.get(smallKey);
-        if (existingSha) continue; // Already on GitHub, fast skip!
-
-        try {
-          const origRelPath = item.thumbnailFileName.replace(/^images\//, '');
-          let origSource: File | Blob | string | null = null;
-
-          // 1. Check in-memory base64 map
-          const memBase64 = memoryImageBase64Map.get(origRelPath);
-          if (memBase64) {
-            origSource = `data:image/jpeg;base64,${memBase64}`;
-          }
-
-          // 2. Check local imagesDir file handle
-          if (!origSource && imagesDir) {
-            try {
-              const fileHandle = await getFileHandleFromRelativePath(imagesDir, origRelPath, false);
-              origSource = await fileHandle.getFile();
-            } catch {
-              const bareName = origRelPath.split('/').pop();
-              if (bareName) {
-                try {
-                  const fileHandle = await imagesDir.getFileHandle(bareName, { create: false });
-                  origSource = await fileHandle.getFile();
-                } catch {}
-              }
-            }
-          }
-
-          // 3. Check local IndexedDB image cache
-          if (!origSource) {
-            try {
-              const cleanKey = origRelPath.replace(/^(posters|characters|anki|badges)\//, '');
-              const cachedBlob = (await getCachedImageBlob(origRelPath)) || (await getCachedImageBlob(cleanKey));
-              if (cachedBlob) {
-                origSource = cachedBlob;
-              }
-            } catch {}
-          }
-
-          if (!origSource) continue; // Silently skip if original source cannot be found
-
-          // 4. Generate 400x600 WebP (quality 0.85)
-          const optimizedDataUrl = await optimizeImageFile(origSource, 400, 600, 0.85);
-          if (!optimizedDataUrl || !optimizedDataUrl.startsWith('data:image/')) continue;
-
-          const smallBase64 = optimizedDataUrl.split(',')[1] || '';
-          if (!smallBase64) continue;
-
-          // Also save in local IndexedDB image_cache so PC immediately has small posters cached
-          try {
-            const arr = optimizedDataUrl.split(',');
-            const mime = arr[0].match(/:(.*?);/)?.[1] || 'image/webp';
-            const bstr = atob(arr[1] || '');
-            let n = bstr.length;
-            const u8arr = new Uint8Array(n);
-            while (n--) {
-              u8arr[n] = bstr.charCodeAt(n);
-            }
-            await setCachedImageBlob(smallKey, new Blob([u8arr], { type: mime }));
-          } catch {}
-
-          // 5. Upload to GitHub with retry on 403 or 409
-          const putPayload = {
-            message: `Küçük Afiş: ${smallKey} [skip ci]`,
-            content: smallBase64,
-            branch: cleanBranch,
-          };
-
-          let uploaded = false;
-          let retries = 0;
-          const maxRetries = 3;
-
-          while (!uploaded && retries < maxRetries) {
-            // Safety throttle between PUT requests (~110ms)
-            await new Promise((r) => setTimeout(r, 110));
-
-            try {
-              const uploadRes = await fetch(
-                `https://api.github.com/repos/${owner}/${repo}/contents/images/${smallKey}`,
-                {
-                  method: 'PUT',
-                  headers: {
-                    Authorization: `Bearer ${token}`,
-                    Accept: 'application/vnd.github.v3+json',
-                    'Content-Type': 'application/json',
-                  },
-                  body: JSON.stringify(putPayload),
-                }
-              );
-
-              if (uploadRes.ok) {
-                uploaded = true;
-                smallUploadSuccess++;
-                existingGhFiles.set(smallKey, 'uploaded');
-              } else if (uploadRes.status === 403 || uploadRes.status === 409) {
-                retries++;
-                const delayMs = retries === 1 ? 500 : retries === 2 ? 1500 : 3000;
-                console.warn(`[GitHub Push] Retrying small poster ${smallKey} (${uploadRes.status}) in ${delayMs}ms...`);
-                await new Promise((r) => setTimeout(r, delayMs));
-              } else {
-                break; // Non-retryable error, stop trying this small poster
-              }
-            } catch {
-              retries++;
-              await new Promise((r) => setTimeout(r, 1000));
-            }
-          }
-
-          if (!uploaded) {
-            smallUploadFailed++;
-          }
-        } catch (smallErr) {
-          console.warn(`Could not produce/upload small poster for ${item.id}:`, smallErr);
-          smallUploadFailed++;
-        }
-      }
-
-      if (smallUploadSuccess > 0 || smallUploadFailed > 0) {
-        console.log(`[GitHub Push] Small posters sync complete: ${smallUploadSuccess} uploaded, ${smallUploadFailed} failed/skipped.`);
       }
     }
   } catch (imgSyncErr) {
@@ -1184,156 +1052,6 @@ export async function syncImagesForItems(
     () => worker()
   );
   await Promise.all(workers);
-}
-
-/**
- * Resolves a 400px small poster from IndexedDB image_cache or GitHub.
- * Strict rules per LORE instruction:
- * - Checks exact key 'posters-small/<name>.webp'.
- * - NO bareName fallback.
- * - NO root images/ fallback.
- * - NO raw.githubusercontent fallback.
- * - Returns null on miss/404 without error.
- */
-export async function resolveSmallPoster(
-  thumbnailFileName: string,
-  config: GitHubSyncConfig
-): Promise<string | null> {
-  if (!thumbnailFileName || thumbnailFileName.trim() === '') return null;
-  const smallKey = getCardThumbnailKey(thumbnailFileName);
-
-  // 1. Check in-memory Data URL cache
-  if (memoryDataUrlCache.has(smallKey)) {
-    return memoryDataUrlCache.get(smallKey)!;
-  }
-
-  // 2. Check local IndexedDB cache with exact path key
-  try {
-    const cachedBlob = await getCachedImageBlob(smallKey);
-    if (cachedBlob) {
-      let blobToUse = cachedBlob;
-      if (!cachedBlob.type || !cachedBlob.type.startsWith('image/')) {
-        blobToUse = new Blob([await cachedBlob.arrayBuffer()], { type: 'image/webp' });
-      }
-      const dataUrl = await blobToDataUrl(blobToUse);
-      memoryDataUrlCache.set(smallKey, dataUrl);
-      return dataUrl;
-    }
-  } catch (e) {
-    console.warn('Error reading small poster from IndexedDB cache:', e);
-  }
-
-  // 3. Fetch from GitHub with exact path
-  const { owner, repo, branch, token } = config;
-  if (!owner || !repo) return null;
-  const cleanBranch = branch || 'main';
-
-  try {
-    const headers: Record<string, string> = {
-      Accept: 'application/vnd.github.v3.raw',
-    };
-    if (token) {
-      headers.Authorization = `Bearer ${token}`;
-    }
-
-    const res = await fetch(
-      `https://api.github.com/repos/${owner}/${repo}/contents/images/${smallKey}?ref=${cleanBranch}&_nocache=${Date.now()}`,
-      { headers }
-    );
-
-    if (res.ok) {
-      let blob: Blob | null = null;
-      const contentType = res.headers.get('content-type') || '';
-      if (contentType.includes('application/json')) {
-        try {
-          const json = await res.json();
-          if (json.content && json.encoding === 'base64') {
-            const rawBase64 = json.content.replace(/\s/g, '');
-            const byteChars = atob(rawBase64);
-            const byteNums = new Array(byteChars.length);
-            for (let i = 0; i < byteChars.length; i++) {
-              byteNums[i] = byteChars.charCodeAt(i);
-            }
-            const byteArray = new Uint8Array(byteNums);
-            blob = new Blob([byteArray], { type: 'image/webp' });
-          }
-        } catch {}
-      } else {
-        blob = await res.blob();
-      }
-
-      if (blob) {
-        let finalBlob = blob;
-        if (!blob.type || !blob.type.startsWith('image/')) {
-          finalBlob = new Blob([await blob.arrayBuffer()], { type: 'image/webp' });
-        }
-        const dataUrl = await blobToDataUrl(finalBlob);
-        await setCachedImageBlob(smallKey, finalBlob);
-        memoryDataUrlCache.set(smallKey, dataUrl);
-        return dataUrl;
-      }
-    }
-  } catch {
-    // 404 or network error silently tolerated
-  }
-
-  return null;
-}
-
-/**
- * Background worker to download missing small posters for mobile grid cards.
- * Fetches small copies concurrently and batches updates into a Map to minimize setAppData calls (at most 2-3 re-renders).
- */
-export async function syncCardThumbnailsForItems(
-  items: ArchiveItem[],
-  config: GitHubSyncConfig,
-  onBatchLoaded: (updates: Map<string, string>) => void
-): Promise<void> {
-  if (!config.owner || !config.repo) return;
-
-  const itemsNeedingSmall = items.filter(
-    (it) => (!it.cardThumbnail || it.cardThumbnail.trim() === '') && Boolean(it.thumbnailFileName)
-  );
-
-  if (itemsNeedingSmall.length === 0) return;
-
-  const CONCURRENCY = 6;
-  let index = 0;
-  const pendingUpdates = new Map<string, string>();
-  const FLUSH_INTERVAL = 35;
-
-  async function worker() {
-    while (index < itemsNeedingSmall.length) {
-      const currentItem = itemsNeedingSmall[index++];
-      if (!currentItem || !currentItem.thumbnailFileName) continue;
-
-      try {
-        const url = await resolveSmallPoster(currentItem.thumbnailFileName, config);
-        if (url) {
-          pendingUpdates.set(currentItem.id, url);
-          if (pendingUpdates.size >= FLUSH_INTERVAL) {
-            const batch = new Map(pendingUpdates);
-            pendingUpdates.clear();
-            onBatchLoaded(batch);
-          }
-        }
-      } catch {
-        // Silently tolerate
-      }
-    }
-  }
-
-  const workers = Array.from(
-    { length: Math.min(CONCURRENCY, itemsNeedingSmall.length) },
-    () => worker()
-  );
-  await Promise.all(workers);
-
-  if (pendingUpdates.size > 0) {
-    const finalBatch = new Map(pendingUpdates);
-    pendingUpdates.clear();
-    onBatchLoaded(finalBatch);
-  }
 }
 
 /**
