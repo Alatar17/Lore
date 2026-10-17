@@ -56,11 +56,14 @@ const ItemCardBadge: React.FC<ItemCardBadgeProps> = ({
             <img
               src={bakedSrc}
               alt={badge.name}
-              className="absolute pointer-events-none object-contain select-none transition-transform duration-200"
+              className="absolute pointer-events-none object-contain select-none transition-transform duration-200 max-w-none max-h-none"
               style={{
-                inset: '-12px',
+                top: '-12px',
+                left: '-12px',
                 width: '50px',
                 height: '50px',
+                minWidth: '50px',
+                minHeight: '50px',
                 transform: badge.scale && badge.scale !== 1 ? `scale(${badge.scale})` : undefined,
                 transformOrigin: 'center center',
               }}
