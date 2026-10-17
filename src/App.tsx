@@ -816,6 +816,46 @@ export default function App() {
           };
         };
 
+        const mergeHydratedFields = (
+          prevItems: ArchiveItem[],
+          fullItems: ArchiveItem[]
+        ): { updated: ArchiveItem[]; hasChanges: boolean } => {
+          const fullMap = new Map(fullItems.map((fi) => [fi.id, fi]));
+          let hasChanges = false;
+
+          const updated = prevItems.map((item) => {
+            const full = fullMap.get(item.id);
+            if (!full) return item;
+
+            const needThumbnail =
+              (!item.thumbnail || item.thumbnail.trim() === '') &&
+              Boolean(full.thumbnail) &&
+              item.thumbnailFileName === full.thumbnailFileName;
+
+            const needCharacters =
+              (!item.characters || item.characters.length === 0) &&
+              Boolean(full.characters && full.characters.length > 0);
+
+            const needAnkiImages =
+              (!item.ankiExtraImages || item.ankiExtraImages.length === 0) &&
+              Boolean(full.ankiExtraImages && full.ankiExtraImages.length > 0);
+
+            if (!needThumbnail && !needCharacters && !needAnkiImages) {
+              return item;
+            }
+
+            hasChanges = true;
+            return {
+              ...item,
+              ...(needThumbnail ? { thumbnail: full.thumbnail } : {}),
+              ...(needCharacters ? { characters: full.characters } : {}),
+              ...(needAnkiImages ? { ankiExtraImages: full.ankiExtraImages } : {}),
+            };
+          });
+
+          return { updated, hasChanges };
+        };
+
         // 1. First check IndexedDB (which stores full items, custom posters & modifications)
         const rawIdbData = await loadDataFromIndexedDB();
         const idbData = sanitize(rawIdbData);
@@ -828,19 +868,13 @@ export default function App() {
           setAppData(fastData);
           currentBestData = fastData;
 
-          // 2. Hydrate full posters, characters, and anki scenes in background without overwriting cardThumbnail
+          // 2. Hydrate full posters, characters, and anki scenes in background without overwriting other state
           hydrateThumbnailsFromCache(fastItems)
             .then((fullItems) => {
               setAppData((prev) => {
-                const prevCardMap = new Map<string, string>();
-                for (const it of prev.items) {
-                  if (it.cardThumbnail) prevCardMap.set(it.id, it.cardThumbnail);
-                }
-                const preserved = fullItems.map((fi) => {
-                  const ct = prevCardMap.get(fi.id) || fi.cardThumbnail;
-                  return ct ? { ...fi, cardThumbnail: ct } : fi;
-                });
-                const fullData = { ...prev, items: preserved };
+                const { updated, hasChanges } = mergeHydratedFields(prev.items, fullItems);
+                if (!hasChanges) return prev;
+                const fullData = { ...prev, items: updated };
                 currentBestData = fullData;
                 return fullData;
               });
@@ -859,15 +893,9 @@ export default function App() {
             hydrateThumbnailsFromCache(fastItems)
               .then((fullItems) => {
                 setAppData((prev) => {
-                  const prevCardMap = new Map<string, string>();
-                  for (const it of prev.items) {
-                    if (it.cardThumbnail) prevCardMap.set(it.id, it.cardThumbnail);
-                  }
-                  const preserved = fullItems.map((fi) => {
-                    const ct = prevCardMap.get(fi.id) || fi.cardThumbnail;
-                    return ct ? { ...fi, cardThumbnail: ct } : fi;
-                  });
-                  const fullData = { ...prev, items: preserved };
+                  const { updated, hasChanges } = mergeHydratedFields(prev.items, fullItems);
+                  if (!hasChanges) return prev;
+                  const fullData = { ...prev, items: updated };
                   currentBestData = fullData;
                   return fullData;
                 });
