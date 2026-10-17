@@ -12,7 +12,7 @@ import {
 import { MEDIA_COLORS, GAME_COLORS, BOOK_COLORS } from '../data/initialData';
 import { Tv, Star, Layers, Check, Calendar, X, BookmarkCheck, PauseCircle, BookOpen, Gamepad2 } from 'lucide-react';
 import { FollowBadge, getFollowColor, RatingBadgeIcon } from './FollowIndicatorIcon';
-import { useBadgeCardIcon } from '../utils/badgeCache';
+import { useBadgeCardIcon, useBakedBadgeIcon, useIsMobileBadgeScreen } from '../utils/badgeCache';
 
 interface ItemCardBadgeProps {
   itemId: string;
@@ -31,8 +31,13 @@ const ItemCardBadge: React.FC<ItemCardBadgeProps> = ({
   isMobileActive,
   onBadgeClick,
 }) => {
+  const isMobile = useIsMobileBadgeScreen();
+  const bakedSrc = useBakedBadgeIcon(badge, isGlowActive, colorOpt.hex);
   const thumbnailSrc = useBadgeCardIcon(badge);
   const iconSrc = thumbnailSrc || badge.iconData;
+
+  // Use pre-baked shadow image only on mobile width, when baked variant is ready and not tapped/active
+  const useBaked = isMobile && Boolean(bakedSrc) && !isMobileActive;
 
   return (
     <div
@@ -42,28 +47,47 @@ const ItemCardBadge: React.FC<ItemCardBadgeProps> = ({
     >
       {/* Rozet Saf Şeffaf Madalya (Mobilde 26px tam ölçü, PC'de 37px - Ortalanmış ve çakışmasız) */}
       <div
-        className={`w-[26px] h-[26px] sm:w-[37px] sm:h-[37px] flex items-center justify-center transition-all duration-200 ease-out select-none hover:scale-115 active:scale-95 ${
+        className={`w-[26px] h-[26px] sm:w-[37px] sm:h-[37px] relative flex items-center justify-center transition-all duration-200 ease-out select-none hover:scale-115 active:scale-95 ${
           isMobileActive ? 'scale-115' : ''
         }`}
       >
         {badge.iconData && !badge.iconData.startsWith('images/') && !badge.iconData.startsWith('badges/') ? (
-          <img
-            src={iconSrc}
-            alt={badge.name}
-            className="w-full h-full object-contain select-none transition-all duration-200"
-            style={{
-              transform: badge.scale && badge.scale !== 1 ? `scale(${badge.scale})` : undefined,
-              filter: isGlowActive
-                ? (isMobileActive
-                    ? `drop-shadow(0 0 1.5px rgba(0,0,0,0.98)) drop-shadow(0 0 3px rgba(0,0,0,0.85)) drop-shadow(0 0 9px ${colorOpt.hex}) drop-shadow(0 0 20px ${colorOpt.hex}95) drop-shadow(0 3px 6px rgba(0,0,0,0.9))`
-                    : `drop-shadow(0 0 1.5px rgba(0,0,0,0.98)) drop-shadow(0 0 3px rgba(0,0,0,0.85)) drop-shadow(0 0 6px ${colorOpt.hex}) drop-shadow(0 2px 5px rgba(0,0,0,0.85))`)
-                : 'drop-shadow(0 0 1.5px rgba(0,0,0,0.98)) drop-shadow(0 0 3px rgba(0,0,0,0.85)) drop-shadow(0 2px 5px rgba(0,0,0,0.85))',
-            }}
-            onError={(e) => {
-              (e.currentTarget as HTMLElement).style.display = 'none';
-            }}
-            loading="lazy"
-          />
+          useBaked ? (
+            <img
+              src={bakedSrc}
+              alt={badge.name}
+              className="absolute pointer-events-none object-contain select-none transition-transform duration-200"
+              style={{
+                inset: '-12px',
+                width: '50px',
+                height: '50px',
+                transform: badge.scale && badge.scale !== 1 ? `scale(${badge.scale})` : undefined,
+                transformOrigin: 'center center',
+              }}
+              onError={(e) => {
+                (e.currentTarget as HTMLElement).style.display = 'none';
+              }}
+              loading="lazy"
+            />
+          ) : (
+            <img
+              src={iconSrc}
+              alt={badge.name}
+              className="w-full h-full object-contain select-none transition-all duration-200"
+              style={{
+                transform: badge.scale && badge.scale !== 1 ? `scale(${badge.scale})` : undefined,
+                filter: isGlowActive
+                  ? (isMobileActive
+                      ? `drop-shadow(0 0 1.5px rgba(0,0,0,0.98)) drop-shadow(0 0 3px rgba(0,0,0,0.85)) drop-shadow(0 0 9px ${colorOpt.hex}) drop-shadow(0 0 20px ${colorOpt.hex}95) drop-shadow(0 3px 6px rgba(0,0,0,0.9))`
+                      : `drop-shadow(0 0 1.5px rgba(0,0,0,0.98)) drop-shadow(0 0 3px rgba(0,0,0,0.85)) drop-shadow(0 0 6px ${colorOpt.hex}) drop-shadow(0 2px 5px rgba(0,0,0,0.85))`)
+                  : 'drop-shadow(0 0 1.5px rgba(0,0,0,0.98)) drop-shadow(0 0 3px rgba(0,0,0,0.85)) drop-shadow(0 2px 5px rgba(0,0,0,0.85))',
+              }}
+              onError={(e) => {
+                (e.currentTarget as HTMLElement).style.display = 'none';
+              }}
+              loading="lazy"
+            />
+          )
         ) : (
           <span className="text-base sm:text-xl select-none leading-none">🏆</span>
         )}
