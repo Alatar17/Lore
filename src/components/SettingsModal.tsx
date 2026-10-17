@@ -395,6 +395,13 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   const badgeFileInputRef = useRef<HTMLInputElement>(null);
   const badgePopoverRef = useRef<HTMLDivElement>(null);
   const aiTipRef = useRef<HTMLDivElement>(null);
+  const badgeFormRef = useRef<HTMLDivElement>(null);
+
+  const scrollToBadgeForm = () => {
+    setTimeout(() => {
+      badgeFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 50);
+  };
 
   // Close badge popover on outside click
   useEffect(() => {
@@ -438,6 +445,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     setBadgeScale(1.0);
     setBadgeFormError(null);
     setIsBadgeAccordionOpen(true);
+    scrollToBadgeForm();
   };
 
   const handleEditBadge = (badge: CustomBadge) => {
@@ -449,6 +457,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     setBadgeScale(badge.scale ?? 1.0);
     setBadgeFormError(null);
     setIsBadgeAccordionOpen(true);
+    scrollToBadgeForm();
   };
 
   const handleCopyAiPrompt = async () => {
@@ -2574,10 +2583,16 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                               ? '🎮 Oyun'
                               : '📚 Kitap';
 
+                          const isEditingThisBadge = isBadgeAccordionOpen && editingBadgeId === badge.id;
+
                           return (
                             <div
                               key={badge.id}
-                              className="relative p-3 rounded-xl bg-black/40 border border-white/10 hover:border-white/25 transition-all flex items-center justify-between gap-3 group/row"
+                              className={`relative p-3 rounded-xl border transition-all flex items-center justify-between gap-3 group/row ${
+                                isEditingThisBadge
+                                  ? 'bg-blue-950/40 border-blue-500/60 ring-1 ring-blue-500/40 shadow-lg'
+                                  : 'bg-black/40 border-white/10 hover:border-white/25'
+                              }`}
                             >
                               {/* Sol: İkon + Ad + Kapsam + Glow Rengi */}
                               <div className="flex items-center gap-3.5 min-w-0 flex-1">
@@ -2721,7 +2736,11 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                                   type="button"
                                   onClick={() => handleEditBadge(badge)}
                                   title="Rozeti Düzenle"
-                                  className="p-1.5 text-slate-400 hover:text-blue-400 rounded-lg hover:bg-white/5 transition-colors cursor-pointer"
+                                  className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
+                                    isEditingThisBadge
+                                      ? 'text-blue-300 bg-blue-500/25 ring-1 ring-blue-500/40'
+                                      : 'text-slate-400 hover:text-blue-400 hover:bg-white/5'
+                                  }`}
                                 >
                                   <Pencil className="w-3.5 h-3.5" />
                                 </button>
@@ -2758,7 +2777,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   {/* Açılır Akordiyon Formu (Form Açıkken - 2 Sütunlu Dengeli Mimari) */}
                   {isBadgeAccordionOpen && (
                     <div
-                      className="p-4 rounded-xl bg-black/40 border border-white/15 space-y-4 shadow-xl transition-all animate-in fade-in zoom-in-98 duration-150"
+                      ref={badgeFormRef}
+                      className="p-4 rounded-xl bg-black/40 border border-white/15 space-y-4 shadow-xl transition-all animate-in fade-in zoom-in-98 duration-150 scroll-mt-2"
                       onPaste={handleBadgePasteEvent}
                     >
                       {/* Form Başlığı */}
