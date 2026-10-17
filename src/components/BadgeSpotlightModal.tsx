@@ -77,9 +77,8 @@ export const BadgeSpotlightModal: React.FC<BadgeSpotlightModalProps> = ({
               <img
                 src={badge.iconData}
                 alt={badge.name}
-                className="w-full h-full object-contain select-none transition-transform duration-200"
+                className="w-full h-full object-contain select-none"
                 style={{
-                  transform: badge.scale && badge.scale !== 1 ? `scale(${badge.scale})` : undefined,
                   filter: isGlowActive
                     ? `drop-shadow(0 0 10px ${colorOpt.hex}) drop-shadow(0 8px 16px rgba(0,0,0,0.85))`
                     : 'drop-shadow(0 8px 16px rgba(0,0,0,0.85))',

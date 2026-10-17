@@ -2658,9 +2658,9 @@ export default function App() {
                     {/* 1.1. Desktop Unified Bottom-Left Control Dock (md:flex) */}
                     <div
                       id="desktop-bottom-dock"
-                    className="fixed bottom-2.5 left-2.5 z-40 hidden md:flex items-center gap-0.5 py-0.5 px-1 bg-neutral-900/95 backdrop-blur-xl border border-white/20 rounded-xl shadow-2xl shadow-black/80 select-none animate-in fade-in zoom-in-95 duration-200"
-                    onClick={(e) => e.stopPropagation()}
-                  >
+                      className="fixed bottom-2.5 left-2.5 z-40 hidden md:flex items-center gap-0.5 py-0.5 px-1 bg-neutral-900/95 border border-white/20 rounded-xl shadow-2xl shadow-black/80 select-none animate-in fade-in zoom-in-95 duration-200"
+                      onClick={(e) => e.stopPropagation()}
+                    >
                     {/* 1. Statistics */}
                     <button
                       type="button"
@@ -2899,9 +2899,9 @@ export default function App() {
                   <>
                     <div
                       id="mobile-bottom-dock"
-                    className="fixed bottom-2 left-1/2 -translate-x-1/2 z-40 md:hidden flex items-center py-0.5 px-1 bg-neutral-900/95 backdrop-blur-xl border border-white/20 rounded-xl shadow-2xl shadow-black/80 select-none animate-in fade-in zoom-in-95 duration-200"
-                    onClick={(e) => e.stopPropagation()}
-                  >
+                      className="fixed bottom-2 left-1/2 -translate-x-1/2 z-40 md:hidden flex items-center py-0.5 px-1 bg-neutral-900/95 border border-white/20 rounded-xl shadow-2xl shadow-black/80 select-none animate-in fade-in zoom-in-95 duration-200"
+                      onClick={(e) => e.stopPropagation()}
+                    >
                     {/* Sol Grup: 4 İkon [ 📊 İstatistik | ⏱ Geçmiş | 📚 Anki Hub | ✨ AI Asistan ] */}
                     <div className="flex items-center gap-0.5">
                       {/* 1. İstatistik */}
