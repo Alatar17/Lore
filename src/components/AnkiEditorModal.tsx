@@ -305,6 +305,9 @@ export const AnkiEditorModal: React.FC<AnkiEditorModalProps> = ({
   };
 
   // Handle image upload for main thumbnail
+  // Not: Eski sistemde burada "afişi değiştir" vardı. Artık sadece afişi olmayan yapımda
+  // "Afiş Görseli Yükle" düğmesi görünüyor; afişi olan yapımın afişi buradan değiştirilemiyor.
+  // Afiş değişimi yapım detay penceresinden yapılıyor (yeni dosya adı orada veriliyor).
   const handleUploadMainThumbnail = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;

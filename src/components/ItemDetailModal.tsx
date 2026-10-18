@@ -1429,8 +1429,13 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
   };
 
   // Global Ctrl+V Paste Listener
+  // Ignored while another window is on top (Anki editor, Settings) or another handler already took the paste,
+  // so an image pasted there never replaces this item's poster.
+  const showAnkiEditorRef = useRef(showAnkiEditor);
+  showAnkiEditorRef.current = showAnkiEditor;
   useEffect(() => {
     const handleGlobalPaste = (e: ClipboardEvent) => {
+      if (e.defaultPrevented || showAnkiEditorRef.current || document.getElementById('settings-modal-overlay')) return;
       const items = e.clipboardData?.items;
       if (!items) return;
 

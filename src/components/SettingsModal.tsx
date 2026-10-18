@@ -31,6 +31,7 @@ import {
   downloadPhoneHtml,
   exportAppDataToZip,
   importAppDataFromZip,
+  previewZipBackupItemCount,
   cleanOrphanImagesInFolder,
   generateFullBackupInFolder,
   listFolderBackups,
@@ -1401,19 +1402,32 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   const processZipFile = async (file: File) => {
     setImportingZip(true);
     try {
-      const data = await importAppDataFromZip(file, dirHandle);
+      // Only read the item count first; images and memory are written after the user confirms
+      const itemCount = await previewZipBackupItemCount(file);
       setDialogOptions({
         type: 'confirm',
         title: 'ZIP Yedek Paketi Yükle',
-        message: `"${file.name}" dosyasından ${data.items?.length || 0} yapım, afişler ve Tier List dizilimleri çözüldü. Bu yedek mevcut arşive yüklensin mi?`,
+        message: `"${file.name}" dosyasında ${itemCount} yapım, afişler ve Tier List dizilimleri bulundu. Bu yedek mevcut arşive yüklensin mi?`,
         confirmText: 'Yedeği Yükle',
-        onConfirm: () => {
-          onReplaceAllData(data);
-          setDialogOptions({
-            type: 'alert',
-            title: 'Yükleme Tamamlandı',
-            message: 'ZIP yedek paketi başarıyla yüklendi! Tüm yapımlar, afişler ve Tier List dizilimleri aktarıldı.',
-          });
+        onConfirm: async () => {
+          setImportingZip(true);
+          try {
+            const data = await importAppDataFromZip(file, dirHandle);
+            onReplaceAllData(data);
+            setDialogOptions({
+              type: 'alert',
+              title: 'Yükleme Tamamlandı',
+              message: 'ZIP yedek paketi başarıyla yüklendi! Tüm yapımlar, afişler ve Tier List dizilimleri aktarıldı.',
+            });
+          } catch (err: any) {
+            setDialogOptions({
+              type: 'alert',
+              title: 'ZIP İçe Aktarma Hatası',
+              message: 'ZIP içe aktarma hatası: ' + (err.message || err),
+            });
+          } finally {
+            setImportingZip(false);
+          }
         },
       });
     } catch (err: any) {

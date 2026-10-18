@@ -2097,11 +2097,19 @@ export async function exportAppDataToZip(data: AppData, filename?: string): Prom
   URL.revokeObjectURL(url);
 }
 
-export async function importAppDataFromZip(
-  fileOrBlob: File | Blob,
-  rootDirHandle?: FileSystemDirectoryHandle | null
-): Promise<AppData> {
-  let zip = await JSZip.loadAsync(fileOrBlob);
+/**
+ * Reads only the database JSON inside a backup ZIP and returns its item count.
+ * Writes nothing to disk and changes no memory, so it is safe to call before the user confirms.
+ */
+export async function previewZipBackupItemCount(fileOrBlob: File | Blob): Promise<number> {
+  const { rawAppData } = await readZipBackupJson(fileOrBlob);
+  return Array.isArray(rawAppData.items) ? rawAppData.items.length : 0;
+}
+
+async function readZipBackupJson(
+  fileOrBlob: File | Blob
+): Promise<{ zip: JSZip; innerZip: JSZip | null; rawAppData: AppData }> {
+  const zip = await JSZip.loadAsync(fileOrBlob);
 
   // Check if this is a Master Zip containing an inner 'Lore_AnaKutuphane.zip' or similar archive
   const innerLibZipFile = zip.file(/^(?:Lore_AnaKutuphane|Lore_KutuphanePaketi.*)\.zip$/i)[0];
@@ -2143,6 +2151,19 @@ export async function importAppDataFromZip(
   if (!rawAppData.categories || !rawAppData.items) {
     throw new Error('Geçersiz Yapım Arşivim verisi.');
   }
+
+  return { zip, innerZip, rawAppData };
+}
+
+/**
+ * Fully restores a backup ZIP: writes its images into the connected folder and replaces the
+ * recommendation memory. Call only after the user has confirmed the restore.
+ */
+export async function importAppDataFromZip(
+  fileOrBlob: File | Blob,
+  rootDirHandle?: FileSystemDirectoryHandle | null
+): Promise<AppData> {
+  const { zip, innerZip, rawAppData } = await readZipBackupJson(fileOrBlob);
 
   // Restore recommendation memory from backup if present
   if (Array.isArray(rawAppData.recommendationMemory) && rawAppData.recommendationMemory.length > 0) {
