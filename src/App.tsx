@@ -4142,6 +4142,7 @@ export default function App() {
           onSetVirtualTimeOffsetMs={setVirtualTimeOffsetMs}
           showSimulator={Boolean(viewSettings.showAnkiSimulator)}
           onUpdateItem={handleSaveAnkiItem}
+          onSaveItemDetail={handleSaveItem}
           onDeleteItem={handleDeleteItem}
           onStartStudy={(queue, title) => {
             if (queue.length === 0) {

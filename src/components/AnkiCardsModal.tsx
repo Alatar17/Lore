@@ -42,6 +42,8 @@ interface AnkiCardsModalProps {
   };
   virtualTimeOffsetMs?: number;
   onUpdateItem?: (updatedItem: ArchiveItem) => void;
+  // Full item save (same as the main screen's detail window): character file names, badge rule, poster refresh
+  onSaveItemDetail?: (updatedItem: ArchiveItem) => void;
   onDeleteItem?: (id: string) => void;
 }
 
@@ -117,6 +119,7 @@ export const AnkiCardsModal: React.FC<AnkiCardsModalProps> = ({
   categories,
   virtualTimeOffsetMs = 0,
   onUpdateItem,
+  onSaveItemDetail,
   onDeleteItem,
 }) => {
   // Search & Filter State
@@ -1072,7 +1075,8 @@ export const AnkiCardsModal: React.FC<AnkiCardsModalProps> = ({
           categories={categories[selectedItem.mainTab] || []}
           allItems={items}
           onSave={(updated) => {
-            if (onUpdateItem) onUpdateItem(updated);
+            if (onSaveItemDetail) onSaveItemDetail(updated);
+            else if (onUpdateItem) onUpdateItem(updated);
           }}
           onDelete={(id) => {
             if (onDeleteItem) onDeleteItem(id);

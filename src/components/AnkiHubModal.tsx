@@ -36,6 +36,8 @@ interface AnkiHubModalProps {
   onSetVirtualTimeOffsetMs: (offsetOrUpdater: number | ((prev: number) => number)) => void;
   showSimulator?: boolean;
   onUpdateItem: (updatedItem: ArchiveItem) => void;
+  // Full item save used by the card list's detail window (see AnkiCardsModal)
+  onSaveItemDetail?: (updatedItem: ArchiveItem) => void;
   onDeleteItem?: (id: string) => void;
   onStartStudy?: (studyItems: ArchiveItem[], deckTitle: string) => void;
 }
@@ -60,6 +62,7 @@ export const AnkiHubModal: React.FC<AnkiHubModalProps> = ({
   onSetVirtualTimeOffsetMs,
   showSimulator = false,
   onUpdateItem,
+  onSaveItemDetail,
   onDeleteItem,
   onStartStudy,
 }) => {
@@ -740,6 +743,7 @@ export const AnkiHubModal: React.FC<AnkiHubModalProps> = ({
         categories={categories}
         virtualTimeOffsetMs={virtualTimeOffsetMs}
         onUpdateItem={onUpdateItem}
+        onSaveItemDetail={onSaveItemDetail}
         onDeleteItem={onDeleteItem}
       />
 
