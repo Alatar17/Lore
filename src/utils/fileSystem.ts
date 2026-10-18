@@ -33,6 +33,50 @@ const APP_DATA_KEY = 'current_app_data';
 const DATA_FILE_NAME = 'yapim-arsivim-data.json';
 const IMAGE_CACHE_STORE = 'image_cache';
 
+// --- Written Image Memo ---
+// Remembers, per connected folder, which image content is already on disk (key: "posters/x.webp").
+// writeDataToFolder uses it to skip rewriting images that did not change.
+const writtenImageMemo = new WeakMap<FileSystemDirectoryHandle, Map<string, string>>();
+
+function getWrittenImageMemo(dirHandle: FileSystemDirectoryHandle): Map<string, string> {
+  let memo = writtenImageMemo.get(dirHandle);
+  if (!memo) {
+    memo = new Map();
+    writtenImageMemo.set(dirHandle, memo);
+  }
+  return memo;
+}
+
+// Compares two data URLs by their image bytes only (ignores the "data:image/...;base64," label)
+function isSameImageData(a: string, b: string): boolean {
+  if (a === b) return true;
+  const commaA = a.indexOf(',');
+  const commaB = b.indexOf(',');
+  if (commaA < 0 || commaB < 0) return false;
+  if (a.length - commaA !== b.length - commaB) return false;
+  return a.slice(commaA + 1) === b.slice(commaB + 1);
+}
+
+// True only when the memo says this exact image is on disk AND the file really still exists there
+async function isImageAlreadyOnDisk(
+  memo: Map<string, string>,
+  memoKey: string,
+  dir: FileSystemDirectoryHandle,
+  fileName: string,
+  dataUrl: string
+): Promise<boolean> {
+  const known = memo.get(memoKey);
+  if (!known || !isSameImageData(known, dataUrl)) return false;
+  try {
+    await dir.getFileHandle(fileName, { create: false });
+    memo.set(memoKey, dataUrl);
+    return true;
+  } catch {
+    memo.delete(memoKey);
+    return false;
+  }
+}
+
 // --- IndexedDB Helper ---
 function openDB(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
@@ -509,6 +553,9 @@ export async function readDataFromFolder(dirHandle: FileSystemDirectoryHandle): 
       imagesDir = null;
     }
 
+    const imageMemo = getWrittenImageMemo(dirHandle);
+    const baseName = (path: string) => path.split('/').pop() || path;
+
     if (imagesDir && json.items) {
       for (const item of json.items) {
         // 1. Restore Poster (Thumbnail)
@@ -518,6 +565,7 @@ export async function readDataFromFolder(dirHandle: FileSystemDirectoryHandle): 
             if (imgFile) {
               const base64 = await readFileAsBase64(imgFile);
               item.thumbnail = base64;
+              imageMemo.set(`posters/${baseName(item.thumbnailFileName)}`, base64);
               const cleanCacheKey = item.thumbnailFileName.replace(/^images\//, '');
               setCachedImageBlob(cleanCacheKey, imgFile);
             }
@@ -537,6 +585,7 @@ export async function readDataFromFolder(dirHandle: FileSystemDirectoryHandle): 
                   const base64 = await readFileAsBase64(charFile);
                   char.image = base64;
                   char.fileName = targetPath;
+                  imageMemo.set(`characters/${baseName(targetPath)}`, base64);
                 }
               } catch {}
             }
@@ -558,6 +607,7 @@ export async function readDataFromFolder(dirHandle: FileSystemDirectoryHandle): 
                 if (imgFile) {
                   const base64 = await readFileAsBase64(imgFile);
                   extra.url = base64;
+                  imageMemo.set(`anki/${baseName(targetFileName)}`, base64);
                 }
               } catch {
                 // Ignore missing extra image
@@ -595,6 +645,7 @@ export async function readDataFromFolder(dirHandle: FileSystemDirectoryHandle): 
               if (existingFile) {
                 badge.iconData = await readFileAsBase64(existingFile);
                 badge.fileName = targetPath;
+                imageMemo.set(`badges/${baseName(targetPath)}`, badge.iconData);
               }
             } catch (migErr) {
               console.warn('Badge data URL migration warning:', migErr);
@@ -606,6 +657,7 @@ export async function readDataFromFolder(dirHandle: FileSystemDirectoryHandle): 
                 const base64 = await readFileAsBase64(badgeFile);
                 badge.iconData = base64;
                 badge.fileName = targetPath;
+                imageMemo.set(`badges/${baseName(targetPath)}`, base64);
               }
             } catch {}
           }
@@ -642,7 +694,8 @@ export async function readDataFromFolder(dirHandle: FileSystemDirectoryHandle): 
   }
 }
 
-export async function writeDataToFolder(dirHandle: FileSystemDirectoryHandle, data: AppData): Promise<void> {
+async function writeDataToFolderNow(dirHandle: FileSystemDirectoryHandle, data: AppData): Promise<void> {
+  const imageMemo = getWrittenImageMemo(dirHandle);
   try {
     // 1. Ensure images folder and its 4 subdirectories exist
     let imagesDir: FileSystemDirectoryHandle | null = null;
@@ -663,6 +716,16 @@ export async function writeDataToFolder(dirHandle: FileSystemDirectoryHandle, da
 
     const cleanItems: ArchiveItem[] = [];
 
+    // List images/anki once, instead of once per item
+    const ankiFileNames: string[] = [];
+    if (ankiDir && (ankiDir as any).values) {
+      try {
+        for await (const entry of (ankiDir as any).values()) {
+          if (entry.kind === 'file') ankiFileNames.push(entry.name);
+        }
+      } catch {}
+    }
+
     for (const item of data.items) {
       const itemCopy = { ...item };
 
@@ -677,12 +740,16 @@ export async function writeDataToFolder(dirHandle: FileSystemDirectoryHandle, da
             ? item.thumbnailFileName.split('/').pop()!
             : '';
           const imgName = existingCleanName || `${item.id}_${Date.now()}.${ext}`;
-          const blob = dataURLtoBlob(item.thumbnail);
+          const memoKey = `posters/${imgName}`;
 
-          const imgHandle = await postersDir.getFileHandle(imgName, { create: true });
-          const imgWritable = await (imgHandle as any).createWritable();
-          await imgWritable.write(blob);
-          await imgWritable.close();
+          if (!(await isImageAlreadyOnDisk(imageMemo, memoKey, postersDir, imgName, item.thumbnail))) {
+            const blob = dataURLtoBlob(item.thumbnail);
+            const imgHandle = await postersDir.getFileHandle(imgName, { create: true });
+            const imgWritable = await (imgHandle as any).createWritable();
+            await imgWritable.write(blob);
+            await imgWritable.close();
+            imageMemo.set(memoKey, item.thumbnail);
+          }
 
           itemCopy.thumbnailFileName = `images/posters/${imgName}`;
         } catch (imgErr) {
@@ -726,12 +793,16 @@ export async function writeDataToFolder(dirHandle: FileSystemDirectoryHandle, da
               let ext = mimeMatch ? (mimeMatch[1] === 'jpeg' ? 'jpg' : mimeMatch[1]) : 'jpg';
               if (!['jpg', 'jpeg', 'png', 'webp'].includes(ext)) ext = 'jpg';
               const charImgName = existingCleanName || `${item.id}_char_${idx}.${ext}`;
-              const blob = dataURLtoBlob(char.image);
+              const memoKey = `characters/${charImgName}`;
 
-              const imgHandle = await charactersDir.getFileHandle(charImgName, { create: true });
-              const imgWritable = await (imgHandle as any).createWritable();
-              await imgWritable.write(blob);
-              await imgWritable.close();
+              if (!(await isImageAlreadyOnDisk(imageMemo, memoKey, charactersDir, charImgName, char.image))) {
+                const blob = dataURLtoBlob(char.image);
+                const imgHandle = await charactersDir.getFileHandle(charImgName, { create: true });
+                const imgWritable = await (imgHandle as any).createWritable();
+                await imgWritable.write(blob);
+                await imgWritable.close();
+                imageMemo.set(memoKey, char.image);
+              }
 
               charCopy.fileName = `images/characters/${charImgName}`;
               charCopy.image = `images/characters/${charImgName}`;
@@ -773,12 +844,16 @@ export async function writeDataToFolder(dirHandle: FileSystemDirectoryHandle, da
               // Use unique extra.id for persistent naming instead of volatile array index
               const safeExtraId = extra.id ? sanitizeFilename(extra.id.replace(/^img_/, '')) : `${Date.now()}_${idx}`;
               const extraImgName = existingCleanName || `${item.id}_extra_${safeExtraId}.${ext}`;
-              const blob = dataURLtoBlob(extra.url);
+              const memoKey = `anki/${extraImgName}`;
 
-              const imgHandle = await ankiDir.getFileHandle(extraImgName, { create: true });
-              const imgWritable = await (imgHandle as any).createWritable();
-              await imgWritable.write(blob);
-              await imgWritable.close();
+              if (!(await isImageAlreadyOnDisk(imageMemo, memoKey, ankiDir, extraImgName, extra.url))) {
+                const blob = dataURLtoBlob(extra.url);
+                const imgHandle = await ankiDir.getFileHandle(extraImgName, { create: true });
+                const imgWritable = await (imgHandle as any).createWritable();
+                await imgWritable.write(blob);
+                await imgWritable.close();
+                imageMemo.set(memoKey, extra.url);
+              }
 
               extraCopy.fileName = `images/anki/${extraImgName}`;
               extraCopy.url = `images/anki/${extraImgName}`;
@@ -804,19 +879,15 @@ export async function writeDataToFolder(dirHandle: FileSystemDirectoryHandle, da
 
       // Safe Auto-Cleanup for this item's removed Anki extra scenes:
       // If user removed any extra image and clicked Save, delete only those orphaned files for THIS item
-      if (ankiDir && (ankiDir as any).values) {
-        try {
-          for await (const entry of (ankiDir as any).values()) {
-            if (entry.kind === 'file' && entry.name.startsWith(`${item.id}_`)) {
-              if (!activeItemAnkiFiles.has(entry.name)) {
-                try {
-                  await (ankiDir as any).removeEntry(entry.name);
-                  deleteCachedImageBlob(entry.name).catch(() => {});
-                } catch {}
-              }
-            }
+      if (ankiDir) {
+        for (const name of ankiFileNames) {
+          if (name.startsWith(`${item.id}_extra_`) && !activeItemAnkiFiles.has(name)) {
+            try {
+              await (ankiDir as any).removeEntry(name);
+              deleteCachedImageBlob(name).catch(() => {});
+            } catch {}
           }
-        } catch {}
+        }
       }
 
       cleanItems.push(itemCopy);
@@ -849,12 +920,14 @@ export async function writeDataToFolder(dirHandle: FileSystemDirectoryHandle, da
               badgeImgName = `badge_${badge.id}.${ext}`;
             }
 
-            if (badgesDir) {
+            const memoKey = `badges/${badgeImgName}`;
+            if (badgesDir && !(await isImageAlreadyOnDisk(imageMemo, memoKey, badgesDir, badgeImgName, badge.iconData))) {
               const blob = dataURLtoBlob(badge.iconData);
               const imgHandle = await badgesDir.getFileHandle(badgeImgName, { create: true });
               const imgWritable = await (imgHandle as any).createWritable();
               await imgWritable.write(blob);
               await imgWritable.close();
+              imageMemo.set(memoKey, badge.iconData);
             }
           } catch (bErr) {
             console.warn(`Could not write badge icon for ${badge.id}:`, bErr);
@@ -884,6 +957,46 @@ export async function writeDataToFolder(dirHandle: FileSystemDirectoryHandle, da
     console.error('Error writing data to folder:', err);
     throw err;
   }
+}
+
+// --- Folder Save Queue ---
+// Only one folder save runs at a time, so an older save can never finish after (and overwrite) a newer one.
+// Saves requested while one is running are merged: only the newest data is written next.
+type FolderWriteWaiter = { resolve: () => void; reject: (err: unknown) => void };
+let pendingFolderWrite: { dirHandle: FileSystemDirectoryHandle; data: AppData; waiters: FolderWriteWaiter[] } | null = null;
+let isFolderWriteRunning = false;
+
+async function runFolderWriteQueue(): Promise<void> {
+  isFolderWriteRunning = true;
+  try {
+    while (pendingFolderWrite) {
+      const job = pendingFolderWrite;
+      pendingFolderWrite = null;
+      try {
+        await writeDataToFolderNow(job.dirHandle, job.data);
+        job.waiters.forEach((w) => w.resolve());
+      } catch (err) {
+        job.waiters.forEach((w) => w.reject(err));
+      }
+    }
+  } finally {
+    isFolderWriteRunning = false;
+  }
+}
+
+export function writeDataToFolder(dirHandle: FileSystemDirectoryHandle, data: AppData): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (pendingFolderWrite) {
+      pendingFolderWrite.dirHandle = dirHandle;
+      pendingFolderWrite.data = data;
+      pendingFolderWrite.waiters.push({ resolve, reject });
+    } else {
+      pendingFolderWrite = { dirHandle, data, waiters: [{ resolve, reject }] };
+    }
+    if (!isFolderWriteRunning) {
+      runFolderWriteQueue();
+    }
+  });
 }
 
 export async function saveImageToFolder(
@@ -1112,13 +1225,16 @@ export async function deleteImageFromFolder(
     }
 
     if (itemId) {
+      // Match only this item's own files: "<id>", "<id>.ext" or "<id>_..." (so deleting item_1 never touches item_10)
+      const belongsToItem = (name: string) =>
+        name === itemId || name.startsWith(`${itemId}_`) || name.startsWith(`${itemId}.`);
       const subDirs = ['posters', 'characters', 'anki'];
       for (const subName of subDirs) {
         try {
           const sub = await imagesDir.getDirectoryHandle(subName, { create: false });
           if ((sub as any).values) {
             for await (const entry of (sub as any).values()) {
-              if (entry.kind === 'file' && entry.name.startsWith(itemId)) {
+              if (entry.kind === 'file' && belongsToItem(entry.name)) {
                 try {
                   await (sub as any).removeEntry(entry.name);
                 } catch {}
@@ -1132,7 +1248,7 @@ export async function deleteImageFromFolder(
       if ((imagesDir as any).values) {
         try {
           for await (const entry of (imagesDir as any).values()) {
-            if (entry.kind === 'file' && entry.name.startsWith(itemId)) {
+            if (entry.kind === 'file' && belongsToItem(entry.name)) {
               try {
                 await (imagesDir as any).removeEntry(entry.name);
               } catch {}
@@ -1859,6 +1975,8 @@ export async function importAppDataFromZip(
   let localBadgesDir: any = null;
 
   if (rootDirHandle) {
+    // Images on disk are about to be replaced from the ZIP, so the next save should not trust the memo
+    writtenImageMemo.delete(rootDirHandle);
     try {
       localImagesDirHandle = await rootDirHandle.getDirectoryHandle('images', { create: true });
       localPostersDir = await localImagesDirHandle.getDirectoryHandle('posters', { create: true });
