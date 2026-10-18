@@ -1,5 +1,12 @@
 import { AppData, ArchiveItem, CustomBadge } from '../types';
-import { getCachedImageBlob, setCachedImageBlob, getFileHandleFromRelativePath, getCardThumbnailKey } from './fileSystem';
+import {
+  getCachedImageBlob,
+  setCachedImageBlob,
+  getFileHandleFromRelativePath,
+  getCardThumbnailKey,
+  sanitizeFilename,
+  imageExtFromDataUrl,
+} from './fileSystem';
 import { optimizeImageFile } from './imageOptimizer';
 
 export interface GitHubSyncConfig {
@@ -451,6 +458,12 @@ export async function pushDataToGitHub(
           if (!ankiRelPath.startsWith('anki/')) {
             ankiRelPath = `anki/${ankiRelPath.split('/').pop() || `${copy.id}_extra_${idx}.jpg`}`;
           }
+        } else if (extraCopy.url && extraCopy.url.startsWith('images/anki/')) {
+          // Not loaded as data yet: its path already is its file name
+          ankiRelPath = extraCopy.url.replace(/^images\//, '');
+        } else if (extraCopy.id && extraCopy.url && extraCopy.url.startsWith('data:')) {
+          // Same unique name the folder save uses, so a newly added image never reuses an old image's name
+          ankiRelPath = `anki/${copy.id}_extra_${sanitizeFilename(extraCopy.id.replace(/^img_/, ''))}.${imageExtFromDataUrl(extraCopy.url)}`;
         } else {
           ankiRelPath = `anki/${copy.id}_extra_${idx}.jpg`;
         }
