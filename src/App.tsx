@@ -58,6 +58,7 @@ import {
   safeLocalStorageRemove,
   deleteImageFromFolder,
   deleteCachedImageBlob,
+  assignCharacterFileNames,
   exportTierListBackup,
   parseTierListBackupFile,
   checkDirectoryHandleAccessibility,
@@ -1377,7 +1378,8 @@ export default function App() {
     }
 
     const itemWithTimestamp: ArchiveItem = {
-      ...updatedItem,
+      // Changed character images get a new file name, so GitHub and the phone pick up the new image
+      ...assignCharacterFileNames(oldItem, updatedItem),
       // Poster changed: drop the old small grid poster so the card shows the new image right away
       ...(posterChanged ? { cardThumbnail: undefined } : {}),
       updatedAt: Date.now(),

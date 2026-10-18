@@ -90,6 +90,64 @@ async function isImageAlreadyOnDisk(
   }
 }
 
+// --- Changed image naming ---
+// A changed character / badge image gets a NEW file name (like posters do). Devices that cache images
+// by file name (the phone) would otherwise keep showing the old image.
+
+// File extension the folder save uses for a data URL ("jpg", "png", "webp")
+export function imageExtFromDataUrl(dataUrl: string, fallback = 'jpg'): string {
+  const mimeMatch = dataUrl.match(/data:(?:image\/)?([a-zA-Z0-9]+);/);
+  const ext = mimeMatch ? (mimeMatch[1] === 'jpeg' ? 'jpg' : mimeMatch[1]) : fallback;
+  return ['jpg', 'jpeg', 'png', 'webp'].includes(ext) ? ext : fallback;
+}
+
+/**
+ * Gives every character image of an edited item a file name:
+ * - same image as before -> keeps its previous file name
+ * - new or changed image -> new unique name "<id>_char_<idx>_<time>.<ext>"
+ */
+export function assignCharacterFileNames(oldItem: ArchiveItem | undefined, newItem: ArchiveItem): ArchiveItem {
+  if (!Array.isArray(newItem.characters) || newItem.characters.length === 0) return newItem;
+  const oldChars = oldItem?.characters || [];
+  const now = Date.now();
+  const characters = newItem.characters.map((char, idx) => {
+    if (!char.image) return char;
+    // Already a file path (image not loaded as data): that path is its file name
+    if (!char.image.startsWith('data:')) {
+      return char.fileName || !char.image.startsWith('images/') ? char : { ...char, fileName: char.image };
+    }
+    const oldIdx = oldChars.findIndex((o) => Boolean(o.image) && isSameImageData(o.image!, char.image!));
+    if (oldIdx >= 0) {
+      const old = oldChars[oldIdx];
+      // Unchanged image: keep the name it has on disk (old saves used "<id>_char_<idx>.<ext>")
+      const keptName = old.fileName || `images/characters/${newItem.id}_char_${oldIdx}.${imageExtFromDataUrl(char.image)}`;
+      return { ...char, fileName: keptName };
+    }
+    return {
+      ...char,
+      fileName: `images/characters/${newItem.id}_char_${idx}_${now}.${imageExtFromDataUrl(char.image)}`,
+    };
+  });
+  return { ...newItem, characters };
+}
+
+/**
+ * Badge icon changed while editing a badge: returns a new unique file name "badge_<id>_<time>.<ext>",
+ * otherwise the badge's current file name.
+ */
+export function nextBadgeFileName(
+  badgeId: string,
+  previousIconData: string | undefined,
+  newIconData: string,
+  currentFileName: string | undefined
+): string | undefined {
+  if (!newIconData.startsWith('data:')) return currentFileName;
+  if (previousIconData && previousIconData.startsWith('data:') && isSameImageData(previousIconData, newIconData)) {
+    return currentFileName;
+  }
+  return `images/badges/badge_${badgeId}_${Date.now()}.${imageExtFromDataUrl(newIconData, 'webp')}`;
+}
+
 // --- IndexedDB Helper ---
 function openDB(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
@@ -719,6 +777,20 @@ async function writeDataToFolderNow(dirHandle: FileSystemDirectoryHandle, data: 
   for (const it of data.items) {
     if (it.thumbnailFileName) activePosterNames.add(it.thumbnailFileName.split('/').pop()!);
   }
+  // Every character / badge file name still referenced somewhere (a replaced file is deleted only if nobody uses it)
+  const activeCharacterNames = new Set<string>();
+  for (const it of data.items) {
+    for (const c of it.characters || []) {
+      const ref = c.fileName || (c.image && c.image.startsWith('images/') ? c.image : '');
+      if (ref) activeCharacterNames.add(ref.split('/').pop()!);
+    }
+  }
+  const activeBadgeNames = new Set<string>();
+  for (const b of data.customBadges || []) {
+    const ref = b.fileName || (b.iconData && b.iconData.startsWith('images/') ? b.iconData : '');
+    if (ref) activeBadgeNames.add(ref.split('/').pop()!);
+  }
+  let characterFileNames: string[] | null = null; // images/characters listing, read only when needed
   try {
     // 1. Ensure images folder and its 4 subdirectories exist
     let imagesDir: FileSystemDirectoryHandle | null = null;
@@ -818,6 +890,7 @@ async function writeDataToFolderNow(dirHandle: FileSystemDirectoryHandle, data: 
       // 2. Characters -> images/characters/ (Extract from Base64 so JSON stays lightweight)
       if (item.characters && Array.isArray(item.characters) && item.characters.length > 0) {
         const cleanChars = [];
+        let wroteNewCharacterFile = false;
         for (let idx = 0; idx < item.characters.length; idx++) {
           const char = item.characters[idx];
           const charCopy = { ...char };
@@ -838,6 +911,7 @@ async function writeDataToFolderNow(dirHandle: FileSystemDirectoryHandle, data: 
                 await imgWritable.write(blob);
                 await imgWritable.close();
                 imageMemo.set(memoKey, char.image);
+                wroteNewCharacterFile = true;
               }
 
               charCopy.fileName = `images/characters/${charImgName}`;
@@ -853,6 +927,39 @@ async function writeDataToFolderNow(dirHandle: FileSystemDirectoryHandle, data: 
           cleanChars.push(charCopy);
         }
         itemCopy.characters = cleanChars;
+
+        // A character image of this item was (re)written: delete this item's character files that
+        // are no longer used (e.g. the previous file of a replaced image). Skipped if any character's
+        // file name is unknown, and never touches a file another item still references.
+        if (wroteNewCharacterFile && charactersDir) {
+          const itemNames = new Set<string>();
+          let allNamesKnown = true;
+          for (const c of cleanChars) {
+            const ref = c.fileName || (c.image && c.image.startsWith('images/') ? c.image : '');
+            if (ref) itemNames.add(ref.split('/').pop()!);
+            else allNamesKnown = false;
+          }
+          if (allNamesKnown) {
+            if (!characterFileNames) {
+              characterFileNames = [];
+              try {
+                for await (const entry of (charactersDir as any).values()) {
+                  if (entry.kind === 'file') characterFileNames.push(entry.name);
+                }
+              } catch {}
+            }
+            for (const name of characterFileNames) {
+              if (name.startsWith(`${item.id}_char_`) && !itemNames.has(name) && !activeCharacterNames.has(name)) {
+                try {
+                  await (charactersDir as any).removeEntry(name);
+                } catch {}
+                imageMemo.delete(`characters/${name}`);
+                deleteCachedImageBlob(`characters/${name}`).catch(() => {});
+                deleteCachedImageBlob(name).catch(() => {});
+              }
+            }
+          }
+        }
       }
 
       // 3. Anki extra images -> images/anki/
@@ -872,6 +979,7 @@ async function writeDataToFolderNow(dirHandle: FileSystemDirectoryHandle, data: 
             existingCleanName = extra.url.split('/').pop()!;
           }
 
+          let keepOnFailure = existingCleanName;
           if (extra.url && extra.url.startsWith('data:') && ankiDir) {
             try {
               const mimeMatch = extra.url.match(/data:(?:image\/)?([a-zA-Z0-9]+);/);
@@ -881,6 +989,7 @@ async function writeDataToFolderNow(dirHandle: FileSystemDirectoryHandle, data: 
               const safeExtraId = extra.id ? sanitizeFilename(extra.id.replace(/^img_/, '')) : `${Date.now()}_${idx}`;
               const extraImgName = existingCleanName || `${item.id}_extra_${safeExtraId}.${ext}`;
               const memoKey = `anki/${extraImgName}`;
+              keepOnFailure = extraImgName;
 
               if (!(await isImageAlreadyOnDisk(imageMemo, memoKey, ankiDir, extraImgName, extra.url))) {
                 const blob = dataURLtoBlob(extra.url);
@@ -896,6 +1005,8 @@ async function writeDataToFolderNow(dirHandle: FileSystemDirectoryHandle, data: 
               activeItemAnkiFiles.add(extraImgName);
             } catch (extraErr) {
               console.warn(`Could not write extra image ${idx} for ${item.id}:`, extraErr);
+              // Keep the previous file if the new one could not be written
+              if (keepOnFailure) activeItemAnkiFiles.add(keepOnFailure);
             }
           } else if (existingCleanName) {
             activeItemAnkiFiles.add(existingCleanName);
@@ -964,6 +1075,31 @@ async function writeDataToFolderNow(dirHandle: FileSystemDirectoryHandle, data: 
               await imgWritable.write(blob);
               await imgWritable.close();
               imageMemo.set(memoKey, badge.iconData);
+
+              // New badge file is on disk now: delete this badge's previous files ("badge_<id>.*" / "badge_<id>_*")
+              // that no badge references any more
+              const ownPrefixes = [`badge_${badge.id}.`, `badge_${badge.id}_`];
+              try {
+                const stale: string[] = [];
+                for await (const entry of (badgesDir as any).values()) {
+                  if (
+                    entry.kind === 'file' &&
+                    entry.name !== badgeImgName &&
+                    ownPrefixes.some((p) => entry.name.startsWith(p)) &&
+                    !activeBadgeNames.has(entry.name)
+                  ) {
+                    stale.push(entry.name);
+                  }
+                }
+                for (const name of stale) {
+                  try {
+                    await (badgesDir as any).removeEntry(name);
+                  } catch {}
+                  imageMemo.delete(`badges/${name}`);
+                  deleteCachedImageBlob(`badges/${name}`).catch(() => {});
+                  deleteCachedImageBlob(name).catch(() => {});
+                }
+              } catch {}
             }
           } catch (bErr) {
             console.warn(`Could not write badge icon for ${badge.id}:`, bErr);

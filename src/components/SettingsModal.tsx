@@ -43,6 +43,7 @@ import {
   safeLocalStorageSet,
   deleteBadgeImageFromFolder,
   deleteCachedImageBlob,
+  nextBadgeFileName,
 } from '../utils/fileSystem';
 import {
   getFieldScopedTags,
@@ -549,6 +550,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               ...b,
               name: trimmed,
               iconData: badgeIconData,
+              // Changed icon gets a new file name, so GitHub and the phone pick up the new image
+              fileName: nextBadgeFileName(b.id, b.iconData, badgeIconData, b.fileName),
               color: badgeColor,
               targetTab: badgeTargetTab,
               scale: badgeScale > 1 ? Number(badgeScale.toFixed(2)) : undefined,
