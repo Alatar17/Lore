@@ -47,6 +47,19 @@ function getWrittenImageMemo(dirHandle: FileSystemDirectoryHandle): Map<string, 
   return memo;
 }
 
+// Remembers, per connected folder, which poster file each item has on disk (key: item id, value: "x.webp").
+// When an item's poster changes, the old file is deleted after the new one is safely on disk.
+const knownPosterNames = new WeakMap<FileSystemDirectoryHandle, Map<string, string>>();
+
+function getKnownPosterNames(dirHandle: FileSystemDirectoryHandle): Map<string, string> {
+  let names = knownPosterNames.get(dirHandle);
+  if (!names) {
+    names = new Map();
+    knownPosterNames.set(dirHandle, names);
+  }
+  return names;
+}
+
 // Compares two data URLs by their image bytes only (ignores the "data:image/...;base64," label)
 function isSameImageData(a: string, b: string): boolean {
   if (a === b) return true;
@@ -554,10 +567,15 @@ export async function readDataFromFolder(dirHandle: FileSystemDirectoryHandle): 
     }
 
     const imageMemo = getWrittenImageMemo(dirHandle);
+    const posterNames = getKnownPosterNames(dirHandle);
     const baseName = (path: string) => path.split('/').pop() || path;
 
     if (imagesDir && json.items) {
       for (const item of json.items) {
+        if (item.thumbnailFileName) {
+          posterNames.set(item.id, baseName(item.thumbnailFileName));
+        }
+
         // 1. Restore Poster (Thumbnail)
         if (!item.thumbnail && item.thumbnailFileName) {
           try {
@@ -696,6 +714,11 @@ export async function readDataFromFolder(dirHandle: FileSystemDirectoryHandle): 
 
 async function writeDataToFolderNow(dirHandle: FileSystemDirectoryHandle, data: AppData): Promise<void> {
   const imageMemo = getWrittenImageMemo(dirHandle);
+  const posterNames = getKnownPosterNames(dirHandle);
+  const activePosterNames = new Set<string>();
+  for (const it of data.items) {
+    if (it.thumbnailFileName) activePosterNames.add(it.thumbnailFileName.split('/').pop()!);
+  }
   try {
     // 1. Ensure images folder and its 4 subdirectories exist
     let imagesDir: FileSystemDirectoryHandle | null = null;
@@ -752,6 +775,19 @@ async function writeDataToFolderNow(dirHandle: FileSystemDirectoryHandle, data: 
           }
 
           itemCopy.thumbnailFileName = `images/posters/${imgName}`;
+
+          // Poster changed: the new file is on disk now, so delete this item's previous poster file
+          // (never one that another item still uses)
+          const previousName = posterNames.get(item.id);
+          posterNames.set(item.id, imgName);
+          if (previousName && previousName !== imgName && !activePosterNames.has(previousName)) {
+            try {
+              await (postersDir as any).removeEntry(previousName);
+            } catch {}
+            imageMemo.delete(`posters/${previousName}`);
+            deleteCachedImageBlob(`posters/${previousName}`).catch(() => {});
+            deleteCachedImageBlob(getCardThumbnailKey(`images/posters/${previousName}`)).catch(() => {});
+          }
         } catch (imgErr) {
           console.warn(`Could not write poster for ${item.id}:`, imgErr);
         }
@@ -1977,6 +2013,7 @@ export async function importAppDataFromZip(
   if (rootDirHandle) {
     // Images on disk are about to be replaced from the ZIP, so the next save should not trust the memo
     writtenImageMemo.delete(rootDirHandle);
+    knownPosterNames.delete(rootDirHandle);
     try {
       localImagesDirHandle = await rootDirHandle.getDirectoryHandle('images', { create: true });
       localPostersDir = await localImagesDirHandle.getDirectoryHandle('posters', { create: true });
