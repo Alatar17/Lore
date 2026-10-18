@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
-import { ArchiveItem, Category, MainTabType, AnkiBlurBox } from '../types';
+import { ArchiveItem, Category, MainTabType, AnkiBlurBox, CustomBadge } from '../types';
 import { AnkiEditorModal } from './AnkiEditorModal';
 import { ItemDetailModal } from './ItemDetailModal';
 import { CustomDialog, DialogOptions } from './CustomDialog';
@@ -45,6 +45,7 @@ interface AnkiCardsModalProps {
   // Full item save (same as the main screen's detail window): character file names, badge rule, poster refresh
   onSaveItemDetail?: (updatedItem: ArchiveItem) => void;
   onDeleteItem?: (id: string) => void;
+  customBadges?: CustomBadge[];
 }
 
 type TabFilter = 'all' | 'media' | 'game' | 'book';
@@ -121,6 +122,7 @@ export const AnkiCardsModal: React.FC<AnkiCardsModalProps> = ({
   onUpdateItem,
   onSaveItemDetail,
   onDeleteItem,
+  customBadges,
 }) => {
   // Search & Filter State
   const [searchQuery, setSearchQuery] = useState('');
@@ -1074,9 +1076,11 @@ export const AnkiCardsModal: React.FC<AnkiCardsModalProps> = ({
           item={selectedItem}
           categories={categories[selectedItem.mainTab] || []}
           allItems={items}
+          customBadges={customBadges}
           onSave={(updated) => {
             if (onSaveItemDetail) onSaveItemDetail(updated);
             else if (onUpdateItem) onUpdateItem(updated);
+            setIsDetailOpen(false);
           }}
           onDelete={(id) => {
             if (onDeleteItem) onDeleteItem(id);

@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { ArchiveItem, Category, MainTabType } from '../types';
+import { ArchiveItem, Category, MainTabType, CustomBadge } from '../types';
 import {
   calculateAnkiCounts,
   initAnkiCard,
@@ -39,6 +39,7 @@ interface AnkiHubModalProps {
   // Full item save used by the card list's detail window (see AnkiCardsModal)
   onSaveItemDetail?: (updatedItem: ArchiveItem) => void;
   onDeleteItem?: (id: string) => void;
+  customBadges?: CustomBadge[];
   onStartStudy?: (studyItems: ArchiveItem[], deckTitle: string) => void;
 }
 
@@ -64,6 +65,7 @@ export const AnkiHubModal: React.FC<AnkiHubModalProps> = ({
   onUpdateItem,
   onSaveItemDetail,
   onDeleteItem,
+  customBadges,
   onStartStudy,
 }) => {
   // Collapsed / expanded branches state (keys: node.id) - Persisted in localStorage, default is true (collapsed)
@@ -745,6 +747,7 @@ export const AnkiHubModal: React.FC<AnkiHubModalProps> = ({
         onUpdateItem={onUpdateItem}
         onSaveItemDetail={onSaveItemDetail}
         onDeleteItem={onDeleteItem}
+        customBadges={customBadges}
       />
 
       {/* Confirmation Dialog */}

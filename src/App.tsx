@@ -4144,6 +4144,7 @@ export default function App() {
           onUpdateItem={handleSaveAnkiItem}
           onSaveItemDetail={handleSaveItem}
           onDeleteItem={handleDeleteItem}
+          customBadges={appData.customBadges}
           onStartStudy={(queue, title) => {
             if (queue.length === 0) {
               setDialogOptions({
