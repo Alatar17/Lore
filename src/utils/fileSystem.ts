@@ -149,7 +149,32 @@ export function nextBadgeFileName(
 }
 
 // --- IndexedDB Helper ---
+// One shared connection, reused by every call. Forgotten if it closes or fails, so the next call reopens it.
+let dbPromise: Promise<IDBDatabase> | null = null;
+
 function openDB(): Promise<IDBDatabase> {
+  if (!dbPromise) {
+    dbPromise = openDBConnection().then(
+      (db) => {
+        db.onclose = () => {
+          dbPromise = null;
+        };
+        db.onversionchange = () => {
+          db.close();
+          dbPromise = null;
+        };
+        return db;
+      },
+      (err) => {
+        dbPromise = null;
+        throw err;
+      }
+    );
+  }
+  return dbPromise;
+}
+
+function openDBConnection(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
     const request = indexedDB.open(DB_NAME, 3);
     request.onupgradeneeded = (e: IDBVersionChangeEvent) => {
