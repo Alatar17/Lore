@@ -1367,6 +1367,7 @@ export default function App() {
 
   const handleSaveItem = (updatedItem: ArchiveItem) => {
     const oldItem = appData.items.find((it) => it.id === updatedItem.id);
+    const posterChanged = Boolean(oldItem) && oldItem!.thumbnailFileName !== updatedItem.thumbnailFileName;
     if (oldItem?.thumbnailFileName && oldItem.thumbnailFileName !== updatedItem.thumbnailFileName) {
       const oldSmallKey = getCardThumbnailKey(oldItem.thumbnailFileName);
       deleteCachedImageBlob(oldItem.thumbnailFileName).catch(() => {});
@@ -1377,6 +1378,8 @@ export default function App() {
 
     const itemWithTimestamp: ArchiveItem = {
       ...updatedItem,
+      // Poster changed: drop the old small grid poster so the card shows the new image right away
+      ...(posterChanged ? { cardThumbnail: undefined } : {}),
       updatedAt: Date.now(),
     };
     const newBadges = new Set(itemWithTimestamp.badges || []);
