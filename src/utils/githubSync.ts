@@ -282,6 +282,67 @@ function blobToBase64Raw(blob: Blob): Promise<string> {
  * Writes clean JSON with `images/` references so the payload stays 1-2 MB.
  * If dirHandle is provided, incrementally uploads any missing images in `images/` folder to GitHub.
  */
+/**
+ * Lists every file under images/ on GitHub in a single request using the git tree API
+ * (no 1000-file-per-folder limit). Returns a map of "posters/x.webp" -> blob SHA,
+ * or null if the listing failed or was truncated (caller falls back to per-folder listing).
+ */
+async function listGitHubImagesViaTree(
+  owner: string,
+  repo: string,
+  branch: string,
+  token: string
+): Promise<Map<string, string> | null> {
+  try {
+    const res = await fetch(
+      `https://api.github.com/repos/${owner}/${repo}/git/trees/${encodeURIComponent(branch)}?recursive=1&_nocache=${Date.now()}`,
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          Accept: 'application/vnd.github.v3+json',
+        },
+      }
+    );
+    if (!res.ok) return null;
+    const data = await res.json();
+    if (!data || !Array.isArray(data.tree) || data.truncated) return null;
+
+    const result = new Map<string, string>();
+    for (const entry of data.tree) {
+      if (entry && entry.type === 'blob' && typeof entry.path === 'string' && entry.sha && entry.path.startsWith('images/')) {
+        result.set(entry.path.replace(/^images\//, ''), entry.sha);
+      }
+    }
+    return result;
+  } catch (e) {
+    console.warn('[GitHub Push] Tree listing failed, falling back to folder listing:', e);
+    return null;
+  }
+}
+
+/**
+ * Computes the git blob SHA-1 of raw base64 content, the same value GitHub reports for a file.
+ * Returns null if hashing is unavailable.
+ */
+async function computeGitBlobShaFromBase64(base64: string): Promise<string | null> {
+  try {
+    if (!crypto?.subtle) return null;
+    const bin = atob(base64);
+    const header = new TextEncoder().encode(`blob ${bin.length}\0`);
+    const bytes = new Uint8Array(header.length + bin.length);
+    bytes.set(header, 0);
+    for (let i = 0; i < bin.length; i++) {
+      bytes[header.length + i] = bin.charCodeAt(i);
+    }
+    const digest = await crypto.subtle.digest('SHA-1', bytes);
+    return Array.from(new Uint8Array(digest))
+      .map((b) => b.toString(16).padStart(2, '0'))
+      .join('');
+  } catch {
+    return null;
+  }
+}
+
 export async function pushDataToGitHub(
   config: GitHubSyncConfig,
   appData: AppData,
@@ -470,9 +531,17 @@ export async function pushDataToGitHub(
     }
 
     if (neededImageNames.size > 0) {
-      // Query existing files in GitHub subdirectories ONLY (posters, characters, anki, badges, posters-small)
+      // Query existing files on GitHub. First try the git tree API: one request, no 1000-file limit,
+      // and it returns each file's blob SHA so changed images with the same name can be detected.
       const existingGhFiles = new Map<string, string>();
-      const checkDirs = ['posters', 'characters', 'anki', 'badges', 'posters-small'];
+      const treeEntries = await listGitHubImagesViaTree(owner, repo, cleanBranch, token);
+      if (treeEntries) {
+        for (const [relPath, sha] of treeEntries) {
+          existingGhFiles.set(relPath, sha);
+        }
+      }
+      // Fallback: old per-folder listing (max 1000 files per folder)
+      const checkDirs = treeEntries ? [] : ['posters', 'characters', 'anki', 'badges', 'posters-small'];
       for (const subDir of checkDirs) {
         try {
           const listRes = await fetch(
@@ -500,13 +569,13 @@ export async function pushDataToGitHub(
         }
       }
 
-      // Upload missing images only! If file already exists in GitHub's subfolder, skip it completely!
+      // Upload missing or changed images only.
+      // With the tree listing we compare blob SHAs, so an image whose content changed but kept
+      // the same name (characters, anki, badges) is re-uploaded. Without it, existing names are skipped.
       for (const imgName of neededImageNames) {
         const existingSha = existingGhFiles.get(imgName);
 
-        // Fast skip: If the image already exists on GitHub, DO NOT re-upload it!
-        // This ensures subsequent syncs complete in 1-2 seconds instead of minutes.
-        if (existingSha) continue;
+        if (existingSha && !treeEntries) continue;
 
         try {
           let base64 = memoryImageBase64Map.get(imgName);
@@ -540,12 +609,22 @@ export async function pushDataToGitHub(
             } catch {}
           }
 
+          if (existingSha) {
+            // Already on GitHub: skip unless the local content differs
+            if (!base64) continue;
+            const localSha = await computeGitBlobShaFromBase64(base64);
+            if (!localSha || localSha === existingSha) continue;
+          }
+
           if (base64) {
             const putPayload: Record<string, any> = {
-              message: `Görsel Yükle: ${imgName} [skip ci]`,
+              message: `Görsel ${existingSha ? 'Güncelle' : 'Yükle'}: ${imgName} [skip ci]`,
               content: base64,
               branch: cleanBranch,
             };
+            if (existingSha) {
+              putPayload.sha = existingSha;
+            }
 
             const uploadRes = await fetch(
               `https://api.github.com/repos/${owner}/${repo}/contents/images/${imgName}`,
