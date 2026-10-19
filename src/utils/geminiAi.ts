@@ -427,8 +427,8 @@ Kurallar:
 1. "releaseYear": Kitabın ilk orijinal basım/yayın yılı (örn: 1866 veya 1949). Tek bir yıl ise sayı (örn: 1866). Seri ise "YYYY-YYYY" string.
 2. "genres": En fazla 2-4 adet en uygun kitap türü veya edebi teması (örn: ["Dünya Klasikleri", "Psikolojik Roman", "Felsefe"]). Havuzda olmayan yeni tür en fazla ${NEW_TAG_LIMIT} adet olabilir.
 3. "authors": Kitabın yazar(lar)ı (dizi olarak, örn: ["Fyodor Dostoyevski"]). Yazar havuzdaysa havuzdaki yazılışı kullan.
-4. "publishers": Türkiye'de bu kitabın en bilinen/yaygın yayınevi veya orijinal yayıncısı (dizi olarak, örn: ["İş Bankası Kültür Yayınları", "Can Yayınları", "İthaki Yayınları"]). Havuzda olmayan yeni yayınevi en fazla ${NEW_TAG_LIMIT} adet olabilir.
-5. "translators": Varsa en popüler Türkçe çevirmen(ler)i (örn: ["Mazlum Beyhan"]). Türk edebiyatı ise veya çevirmeni yoksa boş dizi [] bırak. Çevirmen havuzdaysa havuzdaki yazılışı kullan.
+4. "publishers": Genelde 1 tane: Türkiye'de bu kitabın en bilinen baskısının yayınevi (dizi olarak, örn: ["İş Bankası Kültür Yayınları"]). Birden fazla yayınevi sayma.
+5. "translators": O baskının çevirmeni, genelde 1 kişi (örn: ["Mazlum Beyhan"]). Türk edebiyatı ise veya çevirmeni yoksa boş dizi [] bırak. Çevirmen havuzdaysa havuzdaki yazılışı kullan.
 6. "characters": Kitaptaki en önemli ana ve olay örgüsünü taşıyan kilit yan karakterler (en fazla 12 adet, eserin derinliğine ve kapsamına göre; zorla 12'ye tamamlama veya önemsiz figüranları ekleme). Her karakter için: "name" (Karakterin adı) ve "actor" alanına karakterin romandaki öz rolü/kimliği (EN FAZLA 2-4 KELİME, kısa ve öz; örn: "Eski Hukuk Öğrencisi", "Özel Dedektif", "Müfettiş", "Bakanlık Memuru", "Köy Muhtarı", "Ağabeyi"). Asla uzun cümle veya paragraf yazma, sadece kısa unvan/rol yaz.
 7. "description": KİTAP EDEBİ VE FELSEFİ HAFIZA ÖZETİ:
    - Kitabın edebi derinliğini, karakterin iç dünyasını ve eserin felsefi/tematik özünü detaylıca aktaran kapsamlı bir kütüphane özeti yaz (Aralarında çift satır sonu \n\n olan 2 ya da 3 ayrı paragraf, toplam 120-180 kelime).
