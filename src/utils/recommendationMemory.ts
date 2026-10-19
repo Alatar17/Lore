@@ -150,6 +150,26 @@ export function findMemoryItem(
 }
 
 /**
+ * Kartta TMDB'den bulunan afiş adresini hafızadaki kayda yazar.
+ * Kayıt yoksa veya adres aynıysa hiçbir şey yapmaz. TMDB adresi, yapay zekânın
+ * verdiği (çoğu zaman çalışmayan) adresten güvenilir olduğu için onun yerine geçer.
+ */
+export function setMemoryItemThumbnail(
+  title: string,
+  mainTab: 'media' | 'game' | 'book',
+  thumbnailUrl: string
+): void {
+  const url = thumbnailUrl ? thumbnailUrl.trim() : '';
+  if (!url) return;
+  const items = loadRecommendationMemory();
+  const target = findMemoryItem(items, title, mainTab);
+  if (!target || target.thumbnailUrl === url) return;
+  saveRecommendationMemory(
+    items.map((it) => (it.id === target.id ? { ...it, thumbnailUrl: url } : it))
+  );
+}
+
+/**
  * Automatically registers newly received AI recommendation cards into memory.
  * - If item already exists in Radar or Blacklist, KEEP its pool!
  * - If item already exists in Archive, update recommendedAt.

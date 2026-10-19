@@ -56,6 +56,7 @@ import {
   formatExclusionListForPrompt,
   findMemoryItem,
   findLibraryMatchForCard,
+  setMemoryItemThumbnail,
 } from '../utils/recommendationMemory';
 import { RecommendationMemoryPanel } from './RecommendationMemoryPanel';
 
@@ -276,6 +277,10 @@ const AiRecommendationCardView: React.FC<{
           if (!isCancelled) {
             setTmdbMatch(match);
             setIsLoadingTmdb(false);
+          }
+          // Bulunan afiş öneri hafızasındaki kayda da yazılır (hafıza panelinde görünsün)
+          if (match?.posterUrl) {
+            setMemoryItemThumbnail(card.title, 'media', match.posterUrl);
           }
         })
         .catch(() => {
