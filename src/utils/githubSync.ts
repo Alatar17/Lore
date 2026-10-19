@@ -8,6 +8,7 @@ import {
   imageExtFromDataUrl,
 } from './fileSystem';
 import { optimizeImageFile } from './imageOptimizer';
+import { loadRecommendationMemory } from './recommendationMemory';
 
 export interface GitHubSyncConfig {
   owner: string;
@@ -800,6 +801,8 @@ export async function pushDataToGitHub(
     lastUpdated: nowIso,
     items: cleanItems,
     customBadges: cleanBadges,
+    // Her zaman güncel öneri hafızası (appData içindeki kopya güncellenmiyor)
+    recommendationMemory: loadRecommendationMemory(),
   };
 
   const jsonString = JSON.stringify(payloadData, null, 2);

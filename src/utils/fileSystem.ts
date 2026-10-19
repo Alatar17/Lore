@@ -780,8 +780,14 @@ export async function readDataFromFolder(dirHandle: FileSystemDirectoryHandle): 
       }));
     }
 
-    // Restore recommendation memory if stored in folder
-    if (json && Array.isArray(json.recommendationMemory) && json.recommendationMemory.length > 0) {
+    // Klasördeki öneri hafızası sadece tarayıcının hafızası boşsa geri yüklenir
+    // (yeni tarayıcı / silinmiş veri). Aksi hâlde güncel hafızanın üstüne eski kopya yazılırdı.
+    if (
+      json &&
+      Array.isArray(json.recommendationMemory) &&
+      json.recommendationMemory.length > 0 &&
+      loadRecommendationMemory().length === 0
+    ) {
       saveRecommendationMemory(json.recommendationMemory);
     }
 
@@ -1146,7 +1152,8 @@ async function writeDataToFolderNow(dirHandle: FileSystemDirectoryHandle, data: 
       ...data,
       items: cleanItems,
       customBadges: cleanBadges,
-      recommendationMemory: data.recommendationMemory || loadRecommendationMemory(),
+      // Her zaman güncel hafıza (appData içindeki kopya güncellenmiyor)
+      recommendationMemory: loadRecommendationMemory(),
     };
     await writable.write(JSON.stringify(dataToWrite, null, 2));
     await writable.close();
@@ -1640,7 +1647,7 @@ export function downloadJsonFile(data: AppData, filename = 'yapim-arsivim-data.j
   const fullData: AppData = {
     ...data,
     items: cleanItems,
-    recommendationMemory: data.recommendationMemory || loadRecommendationMemory(),
+    recommendationMemory: loadRecommendationMemory(),
   };
   const jsonStr = JSON.stringify(fullData, null, 2);
   const blob = new Blob([jsonStr], { type: 'application/json' });
@@ -2013,7 +2020,7 @@ export async function buildUnifiedZipBlob(data: AppData): Promise<Blob> {
     cleanBadges = updatedBadges;
   }
 
-  const recMemory = data.recommendationMemory || loadRecommendationMemory();
+  const recMemory = loadRecommendationMemory();
   const exportData: AppData = {
     ...data,
     items: cleanItems,
