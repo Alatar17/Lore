@@ -194,6 +194,8 @@ export default function App() {
   }, [isAiAssistantOpen, hasAiAssistantOpened]);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [addModalInitialTitle, setAddModalInitialTitle] = useState<string | undefined>(undefined);
+  // Asistandan "Kütüphaneye Ekle" ile açılınca durum ileride yapılacak olarak gelir
+  const [addModalPlanned, setAddModalPlanned] = useState<boolean>(false);
   const [selectedItem, setSelectedItem] = useState<ArchiveItem | null>(null);
   const [highlightedTagInDetail, setHighlightedTagInDetail] = useState<string | null>(null);
   const [hoveredItem, setHoveredItem] = useState<ArchiveItem | null>(null);
@@ -1209,6 +1211,9 @@ export default function App() {
         e.preventDefault();
         closeAllPanels();
         if (!requireFolderOnDesktop()) return;
+        // Normal ekleme: asistandan kalan başlık/durum taşınmasın
+        setAddModalInitialTitle(undefined);
+        setAddModalPlanned(false);
         setIsAddModalOpen(true);
         return;
       }
@@ -2551,6 +2556,9 @@ export default function App() {
                   <button
                     onClick={() => {
                       if (!requireFolderOnDesktop()) return;
+                      // Normal ekleme: asistandan kalan başlık/durum taşınmasın
+                      setAddModalInitialTitle(undefined);
+                      setAddModalPlanned(false);
                       setIsAddModalOpen(true);
                     }}
                     className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold shadow-lg shadow-blue-600/30 transition-all cursor-pointer"
@@ -3144,6 +3152,9 @@ export default function App() {
                         }
                         closeAllPanels();
                         if (!requireFolderOnDesktop()) return;
+                        // Normal ekleme: asistandan kalan başlık/durum taşınmasın
+                        setAddModalInitialTitle(undefined);
+                        setAddModalPlanned(false);
                         setIsAddModalOpen(true);
                       }}
                       title={
@@ -3940,6 +3951,7 @@ export default function App() {
           activeSub={activeSub}
           allItems={appData.items}
           initialTitle={addModalInitialTitle}
+          initialPlanned={addModalPlanned}
           customBadges={appData.customBadges}
           onOpenSettings={(tab) => {
             setSettingsInitialTab(tab || 'themes');
@@ -3949,6 +3961,7 @@ export default function App() {
           onClose={() => {
             setIsAddModalOpen(false);
             setAddModalInitialTitle(undefined);
+            setAddModalPlanned(false);
           }}
         />
       )}
@@ -4078,6 +4091,7 @@ export default function App() {
               setMainTab(targetTab);
             }
             setAddModalInitialTitle(initialTitle);
+            setAddModalPlanned(true);
             setIsAddModalOpen(true);
           }}
         />

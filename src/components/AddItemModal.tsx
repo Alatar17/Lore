@@ -72,6 +72,8 @@ interface AddItemModalProps {
   activeSub: string | null;
   allItems?: ArchiveItem[];
   initialTitle?: string;
+  // Asistandan açılınca durum "İzlenecek / Oynanacak / Okunacak" ile başlar
+  initialPlanned?: boolean;
   customBadges?: CustomBadge[];
   onOpenSettings?: (tab?: 'categories' | 'tags' | 'themes' | 'shortcuts' | 'storage') => void;
   onAdd: (newItem: ArchiveItem) => void;
@@ -95,6 +97,7 @@ export const AddItemModal: React.FC<AddItemModalProps> = ({
   activeSub,
   allItems = [],
   initialTitle,
+  initialPlanned = false,
   customBadges = [],
   onOpenSettings,
   onAdd,
@@ -113,10 +116,11 @@ export const AddItemModal: React.FC<AddItemModalProps> = ({
   const [titleError, setTitleError] = useState(false);
   const [cat, setCat] = useState(defaultCat.id);
   const [sub, setSub] = useState<string | null>(validDefaultSub);
-  const [rating, setRating] = useState<number>(8);
-  const [rememberedRating, setRememberedRating] = useState<number>(8);
+  // Yeni yapım puansız başlar
+  const [rating, setRating] = useState<number>(0);
+  const [rememberedRating, setRememberedRating] = useState<number>(0);
   const [date, setDate] = useState<string>(
-    new Date().toISOString().split('T')[0]
+    initialPlanned ? '' : new Date().toISOString().split('T')[0]
   );
   const [desc, setDesc] = useState('');
   const [review, setReview] = useState('');
@@ -137,7 +141,7 @@ export const AddItemModal: React.FC<AddItemModalProps> = ({
   // Book specific states
   const [pageCount, setPageCount] = useState<number | string>('');
   const [bookFormat, setBookFormat] = useState<BookFormat>('Ciltsiz');
-  const [bookStatus, setBookStatus] = useState<BookStatus>('Tamamlandı');
+  const [bookStatus, setBookStatus] = useState<BookStatus>(initialPlanned ? 'Okunacak' : 'Tamamlandı');
   const [reading, setReading] = useState(false);
   const [author, setAuthor] = useState<string[]>([]);
   const [publisher, setPublisher] = useState<string[]>([]);
@@ -236,7 +240,7 @@ export const AddItemModal: React.FC<AddItemModalProps> = ({
   );
 
   // Media Specific
-  const [mediaStatus, setMediaStatus] = useState<MediaStatus>('Tamamlandı');
+  const [mediaStatus, setMediaStatus] = useState<MediaStatus>(initialPlanned ? 'İzlenecek' : 'Tamamlandı');
   const [watching, setWatching] = useState(false);
   const [following, setFollowing] = useState(false);
   const [dropped, setDropped] = useState(false);
@@ -913,7 +917,7 @@ export const AddItemModal: React.FC<AddItemModalProps> = ({
       if (rating > 0) setRememberedRating(rating);
       setRating(0);
     } else if (mediaStatus === 'İzlenecek' && rating === 0) {
-      setRating(rememberedRating || 8);
+      setRating(rememberedRating);
     }
   };
 
@@ -932,7 +936,7 @@ export const AddItemModal: React.FC<AddItemModalProps> = ({
       if (rating > 0) setRememberedRating(rating);
       setRating(0);
     } else if (bookStatus === 'Okunacak' && rating === 0) {
-      setRating(rememberedRating || 8);
+      setRating(rememberedRating);
     }
   };
 
@@ -949,7 +953,7 @@ export const AddItemModal: React.FC<AddItemModalProps> = ({
       if (rating > 0) setRememberedRating(rating);
       setRating(0);
     } else if (status === 'Oynanacak' && rating === 0) {
-      setRating(rememberedRating || 8);
+      setRating(rememberedRating);
     }
   };
 
@@ -978,7 +982,7 @@ export const AddItemModal: React.FC<AddItemModalProps> = ({
   };
 
   // Game Specific
-  const [status, setStatus] = useState<GameStatus>('Tamamlandı');
+  const [status, setStatus] = useState<GameStatus>(initialPlanned ? 'Oynanacak' : 'Tamamlandı');
   const [achPercent, setAchPercent] = useState<number | null>(null);
   const [achMax, setAchMax] = useState<number>(100);
   const [hours, setHours] = useState<number>(0);
