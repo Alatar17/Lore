@@ -1,4 +1,4 @@
-import { GoogleGenAI } from '@google/genai';
+import { GoogleGenAI, Type } from '@google/genai';
 import { AiRecommendationCard } from '../types';
 
 export const GEMINI_API_KEY_STORAGE_KEY = 'lore_gemini_api_key';
@@ -136,6 +136,7 @@ export interface FetchAiMetadataParams {
   existingGenres?: string[];
   existingFirms?: string[];
   existingDirectors?: string[];
+  existingActors?: string[];
   existingDevelopers?: string[];
   existingAuthors?: string[];
   existingPublishers?: string[];
@@ -159,6 +160,131 @@ function parseBase64Image(dataUrl: string): { mimeType: string; data: string } |
     mimeType: match[1],
     data: match[2],
   };
+}
+
+// --- Etiket havuzuyla hizalama ---
+// Yapay zekânın yazdığı adı, havuzdaki yazılışa çevirir ("Bilimkurgu" → "Bilim Kurgu").
+// Boşluk, tire, nokta, virgül, büyük/küçük harf ve Türkçe harf işaretleri farkı yok sayılır.
+const NEW_TAG_LIMIT = 3;
+
+function tagKey(value: string): string {
+  return value
+    .toLocaleLowerCase('tr')
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .replace(/ı/g, 'i')
+    .replace(/[\s\-_.,'’`·:;/]+/g, '');
+}
+
+// Kişi adlarında sıra farkı da yok sayılır ("Kamiya Hiroshi" = "Hiroshi Kamiya").
+function personKey(value: string): string {
+  return value
+    .split(/[\s\-_.,]+/)
+    .map(tagKey)
+    .filter(Boolean)
+    .sort()
+    .join('|');
+}
+
+function toCleanStringList(value: unknown): string[] {
+  const raw: unknown[] = Array.isArray(value)
+    ? value
+    : typeof value === 'string'
+      ? value.split(',')
+      : [];
+  return raw
+    .filter((v): v is string => typeof v === 'string')
+    .map((v) => v.trim().replace(/^[,;.\s]+|[,;.\s]+$/g, ''))
+    .filter((v) => v.length > 0);
+}
+
+function buildPoolMatcher(pool: string[], isPerson: boolean): (value: string) => string | undefined {
+  const byKey = new Map<string, string>();
+  const byPersonKey = new Map<string, string>();
+  for (const entry of pool) {
+    const clean = entry.trim();
+    if (!clean) continue;
+    const k = tagKey(clean);
+    if (k && !byKey.has(k)) byKey.set(k, clean);
+    if (isPerson) {
+      const pk = personKey(clean);
+      if (pk && !byPersonKey.has(pk)) byPersonKey.set(pk, clean);
+    }
+  }
+  return (value: string) =>
+    byKey.get(tagKey(value)) || (isPerson ? byPersonKey.get(personKey(value)) : undefined);
+}
+
+// Havuz listelerini tekrarsız birleştirir (kütüphane havuzu + formdaki mevcut değerler).
+export function mergeTagPools(...lists: Array<Array<string | undefined> | undefined>): string[] {
+  const seen = new Set<string>();
+  const result: string[] = [];
+  for (const list of lists) {
+    for (const entry of list || []) {
+      const clean = typeof entry === 'string' ? entry.trim() : '';
+      if (!clean || seen.has(clean)) continue;
+      seen.add(clean);
+      result.push(clean);
+    }
+  }
+  return result;
+}
+
+// Medya ve oyunlardaki oyuncu/seslendirme adları (kitap rolleri hariç).
+export function collectActorPool(
+  items: Array<{ mainTab?: string; actors?: string[]; characters?: Array<{ actor?: string }> }>
+): string[] {
+  const names: string[] = [];
+  for (const it of items) {
+    if (it.mainTab === 'book') continue;
+    it.actors?.forEach((a) => names.push(a));
+    it.characters?.forEach((c) => c.actor && names.push(c.actor));
+  }
+  return mergeTagPools(names);
+}
+
+export function alignTagsToPool(
+  value: unknown,
+  pool: string[],
+  options: { isPerson?: boolean; limitNew?: number } = {}
+): string[] {
+  const match = buildPoolMatcher(pool, Boolean(options.isPerson));
+  const result: string[] = [];
+  const seen = new Set<string>();
+  let newCount = 0;
+  for (const item of toCleanStringList(value)) {
+    const fromPool = match(item);
+    const finalValue = fromPool || item;
+    const k = tagKey(finalValue);
+    if (!k || seen.has(k)) continue;
+    if (!fromPool && options.limitNew !== undefined) {
+      if (newCount >= options.limitNew) continue;
+      newCount++;
+    }
+    seen.add(k);
+    result.push(finalValue);
+  }
+  return result;
+}
+
+function alignCharacters(
+  value: unknown,
+  actorPool: string[]
+): Array<{ name: string; actor?: string }> {
+  if (!Array.isArray(value)) return [];
+  const matchActor = buildPoolMatcher(actorPool, true);
+  const result: Array<{ name: string; actor?: string }> = [];
+  const seen = new Set<string>();
+  for (const c of value) {
+    if (!c || typeof c !== 'object') continue;
+    const name = typeof (c as any).name === 'string' ? (c as any).name.trim() : '';
+    if (!name || seen.has(tagKey(name))) continue;
+    seen.add(tagKey(name));
+    const rawActor = typeof (c as any).actor === 'string' ? (c as any).actor.trim() : '';
+    const actor = rawActor ? matchActor(rawActor) || rawActor : '';
+    result.push(actor ? { name, actor } : { name });
+  }
+  return result;
 }
 
 function getCurrentTimeStr(): string {
@@ -211,6 +337,7 @@ export async function fetchAiMetadata(
     existingGenres = [],
     existingFirms = [],
     existingDirectors = [],
+    existingActors = [],
     existingDevelopers = [],
     existingAuthors = [],
     existingPublishers = [],
@@ -249,17 +376,19 @@ Görevin: Verilen kitap hakkında en güncel, doğrulanmış ve tutarlı bilgile
 Kullanıcı Bilgileri:
 - Başlık: "${title.trim() || 'Kapak resminden tespit et'}"
 - Kategori Türü: "Kitap / Edebiyat (${categoryName || 'Kitap'})"
-${existingGenres.length > 0 ? `- Kullanıcının Mevcut Tür/Etiket Havuzu: [${existingGenres.slice(0, 40).join(', ')}]` : ''}
-${existingAuthors.length > 0 ? `- Kullanıcının Mevcut Yazar Havuzu: [${existingAuthors.slice(0, 30).join(', ')}]` : ''}
-${existingPublishers.length > 0 ? `- Kullanıcının Mevcut Yayınevi Havuzu: [${existingPublishers.slice(0, 30).join(', ')}]` : ''}
-${existingTranslators.length > 0 ? `- Kullanıcının Mevcut Çevirmen Havuzu: [${existingTranslators.slice(0, 20).join(', ')}]` : ''}
+${existingGenres.length > 0 ? `- Kullanıcının Mevcut Tür/Etiket Havuzu: [${existingGenres.join(', ')}]` : ''}
+${existingAuthors.length > 0 ? `- Kullanıcının Mevcut Yazar Havuzu: [${existingAuthors.join(', ')}]` : ''}
+${existingPublishers.length > 0 ? `- Kullanıcının Mevcut Yayınevi Havuzu: [${existingPublishers.join(', ')}]` : ''}
+${existingTranslators.length > 0 ? `- Kullanıcının Mevcut Çevirmen Havuzu: [${existingTranslators.join(', ')}]` : ''}
+
+HAVUZ KURALI (tüm etiket alanları için): Önce kullanıcının mevcut havuzundan seç ve havuzdaki yazılışı harfi harfine aynen kullan (boşluk, tire, büyük/küçük harf, isim sırası dahil). Havuzdaki bir etiketin eş anlamlısını veya farklı yazılışını yeni etiket olarak üretme. Yeni değer sadece havuzda karşılığı gerçekten yoksa eklenir.
 
 Kurallar:
 1. "releaseYear": Kitabın ilk orijinal basım/yayın yılı (örn: 1866 veya 1949). Tek bir yıl ise sayı (örn: 1866). Seri ise "YYYY-YYYY" string.
-2. "genres": En fazla 2-4 adet en uygun kitap türü veya edebi teması (örn: ["Dünya Klasikleri", "Psikolojik Roman", "Felsefe"]). KRİTİK KURAL: Kullanıcının mevcut tür/etiket havuzunda uyanlar varsa ÖNCELİKLE onları kullan.
-3. "authors": Kitabın yazar(lar)ı (dizi olarak, örn: ["Fyodor Dostoyevski"]). Mevcut yazar havuzundaki isimler önceliklidir.
-4. "publishers": Türkiye'de bu kitabın en bilinen/yaygın yayınevi veya orijinal yayıncısı (dizi olarak, örn: ["İş Bankası Kültür Yayınları", "Can Yayınları", "İthaki Yayınları"]). Mevcut yayınevi havuzundaki isimler önceliklidir.
-5. "translators": Varsa en popüler Türkçe çevirmen(ler)i (örn: ["Mazlum Beyhan"]). Türk edebiyatı ise veya çevirmeni yoksa boş dizi [] bırak. Mevcut çevirmen havuzu önceliklidir.
+2. "genres": En fazla 2-4 adet en uygun kitap türü veya edebi teması (örn: ["Dünya Klasikleri", "Psikolojik Roman", "Felsefe"]). Havuzda olmayan yeni tür en fazla ${NEW_TAG_LIMIT} adet olabilir.
+3. "authors": Kitabın yazar(lar)ı (dizi olarak, örn: ["Fyodor Dostoyevski"]). Yazar havuzdaysa havuzdaki yazılışı kullan.
+4. "publishers": Türkiye'de bu kitabın en bilinen/yaygın yayınevi veya orijinal yayıncısı (dizi olarak, örn: ["İş Bankası Kültür Yayınları", "Can Yayınları", "İthaki Yayınları"]). Havuzda olmayan yeni yayınevi en fazla ${NEW_TAG_LIMIT} adet olabilir.
+5. "translators": Varsa en popüler Türkçe çevirmen(ler)i (örn: ["Mazlum Beyhan"]). Türk edebiyatı ise veya çevirmeni yoksa boş dizi [] bırak. Çevirmen havuzdaysa havuzdaki yazılışı kullan.
 6. "characters": Kitaptaki en önemli ana ve olay örgüsünü taşıyan kilit yan karakterler (en fazla 12 adet, eserin derinliğine ve kapsamına göre; zorla 12'ye tamamlama veya önemsiz figüranları ekleme). Her karakter için: "name" (Karakterin adı) ve "actor" alanına karakterin romandaki öz rolü/kimliği (EN FAZLA 2-4 KELİME, kısa ve öz; örn: "Eski Hukuk Öğrencisi", "Özel Dedektif", "Müfettiş", "Bakanlık Memuru", "Köy Muhtarı", "Ağabeyi"). Asla uzun cümle veya paragraf yazma, sadece kısa unvan/rol yaz.
 7. "description": KİTAP EDEBİ VE FELSEFİ HAFIZA ÖZETİ:
    - Kitabın edebi derinliğini, karakterin iç dünyasını ve eserin felsefi/tematik özünü detaylıca aktaran kapsamlı bir kütüphane özeti yaz (Aralarında çift satır sonu \n\n olan 2 ya da 3 ayrı paragraf, toplam 120-180 kelime).
@@ -292,20 +421,23 @@ Görevin: Verilen yapım hakkında en güncel, doğrulanmış ve tutarlı bilgil
 Kullanıcı Bilgileri:
 - Başlık: "${title.trim() || 'Afişten tespit et'}"
 - Kategori Türü: "${isGame ? 'Video Oyunu (Game)' : `Medya (${categoryName || 'Film/Dizi/Anime'})`}"
-${existingGenres.length > 0 ? `- Kullanıcının Mevcut Tür/Etiket Havuzu: [${existingGenres.slice(0, 40).join(', ')}]` : ''}
-${existingFirms.length > 0 ? `- Kullanıcının Mevcut Stüdyo/Şirket Havuzu: [${existingFirms.slice(0, 30).join(', ')}]` : ''}
-${existingDirectors.length > 0 ? `- Kullanıcının Mevcut Yönetmen Havuzu: [${existingDirectors.slice(0, 20).join(', ')}]` : ''}
-${existingDevelopers.length > 0 ? `- Kullanıcının Mevcut Geliştirici Havuzu: [${existingDevelopers.slice(0, 30).join(', ')}]` : ''}
+${existingGenres.length > 0 ? `- Kullanıcının Mevcut Tür/Etiket Havuzu: [${existingGenres.join(', ')}]` : ''}
+${!isGame && existingFirms.length > 0 ? `- Kullanıcının Mevcut Stüdyo/Şirket Havuzu: [${existingFirms.join(', ')}]` : ''}
+${!isGame && existingDirectors.length > 0 ? `- Kullanıcının Mevcut Yönetmen Havuzu: [${existingDirectors.join(', ')}]` : ''}
+${existingActors.length > 0 ? `- Kullanıcının Mevcut Oyuncu/Seslendirme Havuzu: [${existingActors.join(', ')}]` : ''}
+${isGame && existingDevelopers.length > 0 ? `- Kullanıcının Mevcut Geliştirici Havuzu: [${existingDevelopers.join(', ')}]` : ''}
+
+HAVUZ KURALI (tüm etiket alanları ve karakterlerin "actor" alanı için): Önce kullanıcının mevcut havuzundan seç ve havuzdaki yazılışı harfi harfine aynen kullan (boşluk, tire, büyük/küçük harf, isim sırası dahil). Havuzdaki bir etiketin eş anlamlısını veya farklı yazılışını yeni etiket olarak üretme. Yeni değer sadece havuzda karşılığı gerçekten yoksa eklenir.
 
 Kurallar:
 1. "releaseYear": Tek bir yıl ise sayı (örn: 2022), dizi veya seri gibi yıllara yayılıyorsa "YYYY-YYYY" veya "YYYY-" aralık formatında string (örn: "2008-2013").
-2. "genres": En fazla 3-5 adet en uygun tür. KRİTİK KURAL: Eğer mevcut tür/etiket havuzunda uyanlar varsa ÖNCELİKLE onları kullan. Yoksa popüler Türkçe tür adları ver.
+2. "genres": En fazla 3-5 adet en uygun tür. Havuzda olmayan yeni tür en fazla ${NEW_TAG_LIMIT} adet olabilir; yeni tür gerekiyorsa popüler Türkçe tür adı ver.
 3. ${
   isGame
-    ? '"developers": Oyunu geliştiren ve/veya yayınlayan ana stüdyolar (dizi olarak, örn: ["FromSoftware", "Bandai Namco"]). Mevcut havuzdaki isimler önceliklidir.'
-    : '"firms": Yapımcı şirketler veya stüdyolar (örn: ["HBO", "Warner Bros."]). Mevcut havuz öncelikli.\n"directors": Yönetmen(ler) (Dizilerde ve filmlerde ana yönetmenleri/yaratıcıları en az 1-3 kişi eksiksiz listele, tek kişiyle geçiştirme). Mevcut havuz öncelikli.\n"actors": Başrol oyuncuları veya seslendirme sanatçıları (dizi olarak, örn: ["Bryan Cranston", "Aaron Paul"]). Mevcut havuz öncelikli.'
+    ? `"developers": Oyunu geliştiren ve/veya yayınlayan ana stüdyolar (dizi olarak, örn: ["FromSoftware", "Bandai Namco"]). Havuzda olmayan yeni stüdyo en fazla ${NEW_TAG_LIMIT} adet olabilir.`
+    : `"firms": Yapımcı şirketler veya stüdyolar (örn: ["HBO", "Warner Bros."]). Havuzda olmayan yeni şirket en fazla ${NEW_TAG_LIMIT} adet olabilir.\n"directors": Yönetmen(ler) (Dizilerde ve filmlerde ana yönetmenleri/yaratıcıları en az 1-3 kişi eksiksiz listele, tek kişiyle geçiştirme). Kişi havuzdaysa havuzdaki yazılışı kullan.\n"actors": Başrol oyuncuları veya seslendirme sanatçıları (dizi olarak, örn: ["Bryan Cranston", "Aaron Paul"]). Kişi havuzdaysa havuzdaki yazılışı kullan.`
 }
-4. "characters": Öne çıkan en popüler ana karakterler (en fazla 8 adet). Karakterin adı ("name") ve canlandıran/seslendiren ("actor").
+4. "characters": Öne çıkan en popüler ana karakterler (en fazla 8 adet). Karakterin adı ("name") ve canlandıran/seslendiren ("actor"). "actor" kişisi oyuncu havuzundaysa havuzdaki yazılışı kullan.
 5. "description": ${
   isGame
     ? `OYUN KONUSU (STEAM / MAĞAZA TARZI DOĞAL ÖZET):
@@ -472,19 +604,40 @@ Kurallar:
       const cleaned = rawText.replace(/```json/gi, '').replace(/```/g, '').trim();
       parsedData = JSON.parse(cleaned);
     }
+    if (!parsedData || typeof parsedData !== 'object' || Array.isArray(parsedData)) {
+      throw new Error('Yapay zekâ beklenen biçimde (JSON nesnesi) yanıt vermedi.');
+    }
 
-    // Ensure actors list is populated (fallback to characters' actors if needed)
-    if ((!parsedData.actors || parsedData.actors.length === 0) && Array.isArray(parsedData.characters)) {
-      const extractedActors = Array.from(
-        new Set(
-          parsedData.characters
-            .map((c) => c.actor?.trim())
-            .filter((a): a is string => Boolean(a && a.length > 0))
-        )
-      );
-      if (extractedActors.length > 0) {
-        parsedData.actors = extractedActors;
+    // Cevabı temizle ve havuzdaki yazılışlara hizala.
+    // Tür, firma, geliştirici ve yayınevinde havuzda olmayan en fazla 3 yeni değer kalır.
+    const limited = { limitNew: NEW_TAG_LIMIT };
+    const person = { isPerson: true };
+    parsedData.genres = alignTagsToPool(parsedData.genres, existingGenres, limited);
+    if (isBook) {
+      parsedData.authors = alignTagsToPool(parsedData.authors, existingAuthors, person);
+      parsedData.publishers = alignTagsToPool(parsedData.publishers, existingPublishers, limited);
+      parsedData.translators = alignTagsToPool(parsedData.translators, existingTranslators, person);
+      // Kitapta karakterin ikinci alanı rol olduğu için oyuncu havuzuna hizalanmaz.
+      parsedData.characters = alignCharacters(parsedData.characters, []);
+    } else if (isGame) {
+      parsedData.developers = alignTagsToPool(parsedData.developers, existingDevelopers, limited);
+      parsedData.characters = alignCharacters(parsedData.characters, existingActors);
+    } else {
+      parsedData.firms = alignTagsToPool(parsedData.firms, existingFirms, limited);
+      parsedData.directors = alignTagsToPool(parsedData.directors, existingDirectors, person);
+      parsedData.characters = alignCharacters(parsedData.characters, existingActors);
+      parsedData.actors = alignTagsToPool(parsedData.actors, existingActors, person);
+      // Oyuncu listesi boş geldiyse karakterlerin oyuncularından doldur
+      if (parsedData.actors.length === 0) {
+        parsedData.actors = alignTagsToPool(
+          parsedData.characters.map((c) => c.actor || ''),
+          existingActors,
+          person
+        );
       }
+    }
+    if (typeof parsedData.description !== 'string') {
+      parsedData.description = parsedData.description ? String(parsedData.description) : '';
     }
 
     // Tally found details for log
@@ -567,7 +720,51 @@ export interface AskAssistantOptions {
   chatHistory: AssistantChatHistoryItem[];
   apiKey?: string;
   recommendationExclusionContext?: string;
+  /** "Durdur" düğmesi: iptal edilince Google'a giden istek de kesilir */
+  signal?: AbortSignal;
 }
+
+// Asistan için model başına bekleme süresi (25 sn). Ölçümlerde akıllı model normalde 6–24 sn'de cevap verdi;
+// yoğun günlerde 40 sn'de bile veremiyordu. 25 sn, isabet ile bekleme arasında denge.
+const ASSISTANT_MODEL_TIMEOUT_MS = 25000;
+
+// Asistan cevabının kesin şablonu: sohbet metni (reply) + öneri kartları (cards).
+const stringList = { type: Type.ARRAY, items: { type: Type.STRING } };
+const ASSISTANT_RESPONSE_SCHEMA = {
+  type: Type.OBJECT,
+  properties: {
+    reply: { type: Type.STRING },
+    cards: {
+      type: Type.ARRAY,
+      items: {
+        type: Type.OBJECT,
+        properties: {
+          title: { type: Type.STRING },
+          releaseYear: { type: Type.STRING },
+          mainTab: { type: Type.STRING, enum: ['media', 'game', 'book'] },
+          badge: { type: Type.STRING, enum: ['🎯 KÜTÜPHANE İMZASI', '🌀 FARKLI BİR TAT', '🔮 SIRADIŞI KEŞİF'] },
+          shortDesc: { type: Type.STRING },
+          detailedDesc: { type: Type.STRING },
+          matchReason: { type: Type.STRING },
+          directors: stringList,
+          firms: stringList,
+          developers: stringList,
+          authors: stringList,
+          publishers: stringList,
+          translators: stringList,
+          genres: stringList,
+        },
+        required: ['title', 'mainTab', 'badge', 'shortDesc', 'detailedDesc', 'matchReason'],
+        propertyOrdering: [
+          'title', 'releaseYear', 'mainTab', 'badge', 'shortDesc', 'detailedDesc', 'matchReason',
+          'directors', 'firms', 'developers', 'authors', 'publishers', 'translators', 'genres',
+        ],
+      },
+    },
+  },
+  required: ['reply', 'cards'],
+  propertyOrdering: ['reply', 'cards'],
+};
 
 export interface AskAssistantResult {
   success: boolean;
@@ -584,7 +781,7 @@ export interface AskAssistantResult {
  * using the user's taste profile and library archive.
  */
 export async function askAiAssistant(options: AskAssistantOptions): Promise<AskAssistantResult> {
-  const { userPrompt, tasteProfileContext, chatHistory, apiKey, recommendationExclusionContext } = options;
+  const { userPrompt, tasteProfileContext, chatHistory, apiKey, recommendationExclusionContext, signal } = options;
 
   const key = (apiKey || getGeminiApiKey()).trim();
   if (!key) {
@@ -594,97 +791,71 @@ export async function askAiAssistant(options: AskAssistantOptions): Promise<AskA
     };
   }
 
-  const systemInstruction = `Sen dünya çapında sinema, dizi, anime, oyun ve edebiyat/kitap anlatı sanatını derinlemesine çözümleyen, karakter psikolojisini ve eserin ruhunu gören usta bir ANLATI KÜRATÖRÜSÜN (Lore AI Küratör).
-Kullanıcının kütüphanesini, izlediği/oynadığı/okuduğu yapımları ve kitapları, puanlarını, Tier List sıralamalarını, yarım bıraktıklarını, kişisel arşivini ve beğenilerini çok iyi biliyorsun.
+  const systemInstruction = `Sen "Lore Küratör"sün: kullanıcının film, dizi, anime, animasyon, oyun ve kitap
+kütüphanesini çok iyi tanıyan, samimi ve zevk sahibi bir öneri arkadaşı.
+Türkçe konuşursun. Reklamcı ya da eleştirmen gibi değil, yapımı anlatan biri gibi konuşursun.
 
-======================================================================
-1. ANLATI KÜRATÖRÜ ROLÜ & KESİN YASAKLAR (konu_derinligi.tsx)
-======================================================================
-- SEN KİMSİN: Sen bir pazarlamacı, reklam metin yazarı veya fragman seslendirmeni DEĞİLSİN.
-- BOŞ ÖVGÜ YASAĞI: "Bu yapım çok güzel", "seni koltuğa çivileyecek", "sinema tarihinin en iyi deneyimi", "ödüllü başyapıt", "harika oyunculuklar", "tıkır tıkır çalışan bir saat mekanizması gibi" şeklindeki reklam klişeleri ve boş eleştirmen övgüleri KESİNLİKLE YASAKTIR. Sadece HİKAYE, DÜNYA, KARAKTER ve ATMOSFER konuşur.
-- OYUN MEKANİĞİ YASAĞI: Video oyunu önerilerinde dahi "akrobatik parkur, akıcı nişancılık, bölüm tasarımı" gibi oynanış tekniklerini konuya sokma. Konu yalnızca karakterin hikayesine ve evrene odaklanır.
-- SPOILER KIRMIZI ÇİZGİSİ: Hikayenin ilk 1/3'lük diliminin ötesindeki sürpriz gelişmeler, final düğümleri veya gizli kimlikler (Örn: Arrival'daki zaman kavramı veya benzeri twistler) ASLA ifşa edilemez.
+## 1. TEMEL KURALLAR (en önemlisi bunlar)
+1. ÖNCE O ANKİ İSTEK: Kullanıcı o an ne istiyorsa ("kafa yormayan", "kısa", "korku",
+   "idle oyun") önce ona uy. Kütüphane bilgisi bu isteğe hizmet eder, onu ezemez.
+2. ASLA KÜTÜPHANEDEKİNİ ÖNERME: [KÜTÜPHANE] listesindeki hiçbir yapım öneri kartı olamaz
+   (bitirilen, devam eden, sırada bekleyen, yarım bırakılan, takip edilen; hepsi).
+3. ASLA TEKRAR ÖNERME: [DAHA ÖNCE ÖNERİLENLER] listesindeki hiçbir yapım tekrar kart olamaz.
+4. KART SAYISI: Kullanıcı sayı söylerse o kadar kart. "Bir film öner" gibi tekil isteklerde 1 kart.
+   Sayı belirtilmemiş genel isteklerde ("film öner") 3 kart.
+5. SPOILER YOK: Hikâyenin ilk üçte birinden sonrasını anlatma. Sürpriz sonu İMA ETMEK de
+   yasak ("finaldeki büyük dönemeç", "kimliği değişmeye başlar" gibi).
+6. BOŞ ÖVGÜ YOK: "başyapıt", "harika oyunculuklar", "ödüllü", "sizi ekrana kilitleyecek"
+   gibi reklam laflarını kullanma. Yapımın kendisini anlat.
 
-======================================================================
-2. SOHBET BALONU İLE KARTLARIN KESİN AYRIMI & MANTIKSAL CEVAPLAMA SIRASI
-======================================================================
-- MANTIKSAL CEVAPLAMA SIRASI (ÇOK KRİTİK):
-  Kullanıcı hem genel bir soru/analiz sorup (Örn: 'En sevdiğim oyuncu kim?', 'Şu yapım nasıldır?', kütüphane analizi) hem de öneri istediğinde:
-  1. ADIM (ÖNCELİK): Sohbet balonunda ÖNCE kullanıcının genel sorusunu/analizini samimi, zeki ve doğrudan yanıtla.
-  2. ADIM (KÖPRÜ GEÇİŞİ): Ardından doğal, samimi ve asil bir cümleyle kartlara pas at (Örn: "İstediğin önerilere gelirsek; kütüphanendeki arşive ve beğenilerine göre seçtiğim önerileri aşağıya kartlar halinde bıraktım:"). KESİNLİKLE "zevk profili" veya "zevk haritası" gibi soğuk, robotik ve yapay ifadeler KULLANMA!
-  3. ADIM (KARTLAR): Tüm yapımları mesajının en sonundaki \`\`\`recommendation-cards JSON dizisi içine yaz!
-  - ASLA önce "senin için 4 yapım seçtim" deyip sonra lafı bölerek araya soru cevabını sokma! Akış mutlaka: Soru Cevabı -> Öneri Takdimi -> Kartlar şeklinde insan gibi akmalıdır.
+## 2. KULLANICIYI NASIL OKURSUN
+- Puanlar: 10 çok nadir, gerçek zirve. 9 zirve. 8 "çok sevdim" (asıl beğeni havuzu).
+  7 "beğendim". 6 "fena değil". 1–5 "beğenmedim" (kaçınılacak şeyler).
+- Puansız yapım sevilmemiş demek değildir; nötr say.
+- Kategori sertliği: [KATEGORİ PUAN ORTALAMALARI]'na bak. Ortalaması düşük kategoride
+  7 iyi bir puandır; ortalaması yüksek kategoride 7 ortalamanın altıdır.
+- Sırada bekleyenler henüz izlenmedi/oynanmadı/okunmadı: Bunlardan zevk çıkarma,
+  "bunu sevdiğin için" deme.
+- Yarım bırakılanlar: Kullanıcıyı sarmamış yapımlardır. Benzerlerinde dikkatli ol.
+- [DAHA ÖNCE ÖNERİLENLER] sadece "tekrar etme" listesidir; oradan zevk çıkarma.
+- Kullanıcının zevki geniştir (komedi, animasyon, aksiyon, bilim kurgu, mekanik oyunlar...).
+  Tek bir türe ya da tona (ör. hep karanlık/zihin bükücü) kayma; isteğe ve kütüphaneye bak.
 
-- SOHBET BALONU DİSİPLİNİ:
-  1. Sohbet metninde ASLA yapımların adını listeleyip altına "Konu:", "Tür:", "Geliştirici:" yazıp düz metin olarak DÖKME!
-  2. Tüm öneri yapımlarını, künyelerini, kancalarını, 3 paragraflık derin sinopsislerini ve gerekçelerini YALNIZCA VE YALNIZCA mesajının en sonundaki \`\`\`recommendation-cards JSON DİZİSİ içine yaz!
+## 3. CEVAP DÜZENİ
+- Sohbet metni (reply): Önce kullanıcının sorusunu doğrudan cevapla. Öneri istendiyse
+  sonra doğal bir cümleyle kartlara geç (ör. "Kütüphanendeki arşive ve beğenilerine göre
+  seçtiğim önerileri aşağıya bıraktım:"). Yapımların künyesini ve konusunu sohbet metnine
+  yazma; onlar kartlara.
+- "Zevk profili", "zevk haritası", "çekirdek beğeni" gibi yapay ifadeler kullanma.
+- Öneri istenmediyse (ör. "en sevdiğim yönetmen kim?") kart üretme.
+- Kütüphanedeki bir yapımdan bahsederken [[item:id|Yapım Adı]] yaz; id ve adın İKİSİ de olmalı.
+  Bu damgayı yeni önerdiğin yapımlarda ve kartın konu metinlerinde kullanma.
+- Oyuncu/yönetmen adlarını düz yaz; yanına id ya da parantez ekleme.
 
-======================================================================
-3. KÜTÜPHANE, BEKLEME LİSTESİ VE BALATRO KURALI:
-======================================================================
-- KÜTÜPHANEDEKİ TÜM ESERLER İÇİN KESİN ÖNERİ YASAĞI (BALATRO KURALI):
-  Kullanıcının kütüphanesinde kayıtlı olan (tamamlanmış, şu an izlenen/oynanan/okunan, sırada bekleyen, takip edilen veya yarım bırakılan) HİÇBİR yapımı YENİ BİR ÖNERİ OLARAK SUNAMAZSIN ve ASLA yeni bir öneri kartının başlığı ("title") olarak ÜRETEMEZSİN!
-  Bu yapımları sadece ve sadece "matchReason" (gerekçe) alanında [[item:id|Başlık]] şeklinde referans olarak anabilirsin.
-
-- BEKLEME LİSTESİ ÇİFT TARAFLI KORUMA KALKANI (LUCY VE SHAPEZ 2 KURALI):
-  [KÜTÜPHANEDE SIRADA BEKLEYENLER] bloğundaki yapımlar kullanıcının bekleme listesindedir (İzlenecek, Oynanacak veya Okunacak).
-  1. Kural (Zevk Analizi Yasağı): Bu yapımlar henüz tüketilmemiştir. Kullanıcının beğenisini bunlara bakarak ASLA analiz etme ve "bunu çok sevdiğin için", "buna verdiğin puana göre" gibi referanslar KESİNLİKLE VERME!
-  2. Kural (Tekrar Öneri Yasağı): Bu yapımlar zaten kullanıcının kütüphanesindedir. Bu yapımların hiçbirini kullanıcıya YENİ BİR ÖNERİ olarak ASLA sunma!
-
-- PUANLAMA VE BEĞENİ HİYERARŞİSİ: Kullanıcı 10 puanı çok nadir ve elit bir seçicilikle verir. 9 ve 10 puanlar ile S-Tier kullanıcının zirve başyapıtlarıdır. 8 PUANLAR ise kullanıcının çok severek deneyimlediği, yüksek kaliteli 'Güçlü Çekirdek Beğeni' standardıdır (özellikle oyunlarda ve dizilerde asıl zengin beğeni pusulası 8 puanlı yapımlardır).
-- PUANSIZ YAPIMLAR (UNRATED): Kullanıcı tamamladığı bazı yapımlara puan vermeyebilir (Puan: Belirtilmedi). Puan verilmemiş olması eserin sevilmediği anlamına gelmez; eserin türü, dünyası ve yaratıcıları kullanıcının ilgi alanına dahildir. Bu yapımları asla beğenilmemiş sayma.
-- YARIM BIRAKILANLAR (DROPPED): Negatif pusuladır; neden bırakıldığına bakılarak benzer sıkıcı/yavaş unsurlardan kaçınılır. Asla tekrar önerilmez.
-- 1 PUAN: Kütüphanede devam eden yapımlardır ve nötrdür. 2 ila 5 puanlar ise negatif filtredir.
-- OYUNCU VE KADRO ADLARI (KESİN KURAL): Kullanıcı en sevdiği oyuncuyu veya yönetmeni sorduğunda, sadece doğrudan o kişinin adını yaz (Örn: Leonardo DiCaprio, Matt Damon, Tom Hardy).
-  ASLA aktör adlarının yanına parantez içinde ham id kodları veya yapım referansı (Örn: ([id: media_...|Film])) EKLEME!
-  Sadece saf ve temiz aktör adını an.
-- DAMGA SİSTEMİ DİSİPLİNİ:
-  Sohbet metninde veya tavsiye kartının "matchReason" (Gerekçe) alanında kütüphanedeki mevcut bir yapımdan bahsettiğinde MUTLAKA [[item:item-id|Yapım Adı]] formatında damgala.
-  Yeni önerdiğin yapımları ASLA damgalama.
-  "detailedDesc" (Konu) veya "shortDesc" alanlarında ise [[item:...]] damgası KULLANMAK KESİNLİKLE YASAKTIR!
-
-======================================================================
-4. KART KONU MİMARİSİ VE ŞABLONU (konu_derinligi.tsx & öneri.tsx)
-======================================================================
-Öneri istendiğinde mesajının en sonuna şu JSON dizisini ekle:
-\`\`\`recommendation-cards
-[
-  {
-    "title": "Resmi Yapım / Kitap Adı",
-    "releaseYear": 2024 veya "2022-2024",
-    "mainTab": "media", "game" veya "book",
-    "badge": "🎯 KÜTÜPHANE İMZASI",
-    "shortDesc": "KAPALI KART VURUCU KANCASI (25-45 kelime, 1-2 akıcı cümle): Karakterin kimliği + huzuru bozan temel kırılma anı + ortaya çıkan gizem veya tehdit. Asla boş övgü yapma! Asla [[item:...]] damgası koyma!",
-    "detailedDesc": "AÇIK KART DERİN SİNOPSİS (Aralarında çift satır sonu \\n\\n olan KESİNLİKLE 3 AYRI PARAGRAF, 120-220 kelime):\\n\\n1. Paragraf: Karakter kimdir, hangi evrende yaşar ve hayatının olağan akışı hangi kırılma anıyla rayından çıkar?\\n\\n2. Paragraf: Karakter neyle yüzleşmek zorundadır, karşısındaki varoluşsal kriz ve ahlaki ikilem nedir, neyi kaybetme tehlikesiyle karşı karşıyadır?\\n\\n3. Paragraf: Eserin temposunu, duygusal ağırlığını ve izleyicide bıraktığı psikolojik/atmosferik tonu özetleyen güçlü kapanış. (NOT: Asla boş eleştirmen övgüsü yapma; 'tıkır tıkır çalışan saat mekanizması' gibi laflar etme; yalnızca eserin yarattığı atmosferi ve izi anlat! Kesinlikle aralarında boşluk olan 3 ayrı paragraf üret! Asla [[item:...]] damgası koyma!)",
-    "matchReason": "KÜTÜPHANE VE ZEVK BAĞLANTISI (DOĞAL VE AKICI DİL): Bu yapımın kullanıcının kütüphanesindeki tüketilmiş [[item:id|Mevcut Yapım]] sevgisine ve tematik ortaklığına dayanma gerekçesi.",
-    "directors": ["Yönetmen Adı (Medya)"],
-    "firms": ["Yapımcı Stüdyo (Medya)"],
-    "developers": ["Geliştirici Stüdyo (Sadece Oyunlar)"],
-    "authors": ["Yazar(lar) (Sadece Kitaplar)"],
-    "publishers": ["Yayınevi (Sadece Kitaplar)"],
-    "translators": ["Çevirmen (Sadece Kitaplar)"],
-    "genres": ["Tür 1", "Tür 2"]
-  }
-]
-\`\`\`
-- GÖRSEL YASAĞI (RESİMLER ŞARTNAMESİ): Asla resim/afiş linki, 'thumbnailUrl' veya 'galleryImages' uydurma veya üretme! Görseller sistem tarafından harici resmi sağlayıcılar üzerinden bağımsız olarak çekilir. Sadece saf metin ve künye üret.
-- GEREKÇE (matchReason) DİLİ REHBERİ:
-  Robotik ve tekdüze kalıplar kesinlikle yasaktır!
-  ❌ Kötü Örnek: "Looper'a verdiğin yüksek puana dayanarak bu zaman yolculuğu filmini öneriyorum."
-  ✅ İyi Örnek: "[[item:media_123|Looper]]'daki neden-sonuç paradokslarını ve soğuk distopik kurguyu sevdiğin için, bu yapımın zaman çizgisi kırılmaları tam senin aradığın zihinsel düğümü sunacaktır."
-- Rozetler ("badge"):
-  * "🎯 KÜTÜPHANE İMZASI": Zirve yapımlarla ve favorilerle doğrudan organik bağlı.
-  * "🌀 FARKLI BİR TAT": Sevilen temaların kıyısında, yeni bir alt tür veya üslup getiren.
-  * "🔮 SIRADIŞI KEŞİF": Kütüphanede az rastlanan ama kalite çıtasına birebir uyan kült/bağımsız yapımlar.
-- Kopya Yasağı: "detailedDesc", "shortDesc" kancasını asla tekrar edemez.
-- Damga Sızıntısı Yasağı: "detailedDesc" ve "shortDesc" alanlarında BAŞKA BİR ESERDEN BAHSETMEK VE [[item:...]] DAMGASI KULLANMAK KESİNLİKLE YASAKTIR. Bu damga YALNIZCA "matchReason" alanında kullanılır.
-
-======================================================================
-5. SIFIR TEKRAR GARANTİSİ & DIŞLAMA LİSTESİ (BALATRO KURALI)
-======================================================================
-- SIFIR TEKRAR KURALI: Kullanıcının kütüphanesindeki tüm yapımlar (tamamlanan, şu an izlenen/oynanan/okunan, sırada bekleyen, takipteki ve yarım bırakılan) ile daha önce asistanca önerilmiş (radar, kara liste, arşiv) yapımlar [KÜTÜPHANEDE KAYITLI VE DAHA ÖNCE ÖNERİLMİŞ TÜM YAPIMLAR LİSTESİ] başlığıyla sunulmuştur.
-- BU LİSTEDEKİ HİÇBİR YAPIMI BİR DAHA ASLA YENİ BİR ÖNERİ OLARAK SUNAMAZSIN VE ASLA ÖNERİ KARTI BAŞLIĞI OLARAK ÜRETEMEZSİN!
-- Bu dışlama listesindeki yapımlardan "Kullanıcı bunu beğenmemiş" gibi soyut çıkarımlar YAPMA! Kullanıcının beğeni pusulası yalnızca kendi kütüphanesindeki tüketilmiş 9-10 puanlar, S/A Tier ve yarım bıraktıklarıdır. Bu havuzlar yalnızca "Zaten sunuldu / kütüphanede var, tekrar etme" filtresidir.`;
+## 4. KART
+Her kart iki hâlde görünür: kapalı (kısa) ve açık (detaylı).
+- shortDesc (kapalı kart): 1–2 cümle (25–45 kelime). Merak uyandıran bir kanca:
+  kim, ne oluyor, neden ilginç. Konu metninin özeti değil, girişi.
+- detailedDesc (açık kart): 3 paragraf, toplam 120–200 kelime, paragraflar arasında boş satır.
+  shortDesc'i tekrar etme. Paragrafların içeriği yapımın türüne göre:
+  * Hikâyeli yapım (dram, gerilim, bilim kurgu, hikâyeli oyun, roman):
+    1) Dünya ve karakter, hikâyeyi başlatan kırılma  2) Çatışma ve karakterin bedeli  3) Atmosfer ve ton
+  * Komedi: 1) Kim, nerede, nasıl bir durum  2) Mizahın türü ve karakter dinamikleri  3) Tonu, nasıl bir his bırakır
+  * Mekanik ağırlıklı oyun (idle, bulmaca, roguelike, strateji, simülasyon):
+    1) Oyunda ne yapıyorsun, temel döngü  2) Seni ne bağlar, nasıl ilerlersin  3) Temposu, süresi, hissi
+  * Belgesel / kurgu dışı: 1) Konu  2) Bakış açısı  3) Ton
+- matchReason (gerekçe): 1–2 cümle. Kütüphanedeki hangi yapım(lar)la neden bağlantılı,
+  doğal bir dille. [[item:id|Ad]] damgası sadece burada.
+  Kötü: "Looper'a verdiğin yüksek puana dayanarak bu filmi öneriyorum."
+  İyi: "[[item:film_looper|Looper]]'daki neden-sonuç düğümlerini sevdiysen, bu filmin
+  zaman kırılmaları tam sana göre."
+- badge (rozet), birini seç:
+  "🎯 KÜTÜPHANE İMZASI" → sevdiği yapımlarla doğrudan bağlı, garanti öneri
+  "🌀 FARKLI BİR TAT"   → sevdiği şeylerin kıyısında ama yeni bir tat
+  "🔮 SIRADIŞI KEŞİF"   → az bilinen, kült ya da bağımsız, kalite çıtasına uyan
+- Künye: Film/dizi/anime için directors ve firms; oyun için developers; kitap için authors,
+  publishers ve translators. Bilmediğin bilgiyi uydurma, boş bırak.
+- Resim linki üretme; görseller sistem tarafından eklenir.`;
 
   // Build conversation contents
   const recentHistory = chatHistory.slice(-6);
@@ -703,6 +874,8 @@ Kullanıcının kütüphanesini, izlediği/oynadığı/okuduğu yapımları ve k
   if (recommendationExclusionContext && recommendationExclusionContext.trim()) {
     currentTurnText += `\n\n${recommendationExclusionContext.trim()}`;
   }
+  // Zayıf modeller mesajın sonuna yakın olanı daha iyi hatırlar: kısa hatırlatma kullanıcı mesajının hemen üstünde
+  currentTurnText += `\n\nHatırlatma: Kart başlıkları [KÜTÜPHANE] ve [DAHA ÖNCE ÖNERİLENLER] listelerinde olmamalı.`;
   currentTurnText += `\n\n[KULLANICI MESAJI]:\n${userPrompt}`;
 
   contents.push({
@@ -715,19 +888,47 @@ Kullanıcının kütüphanesini, izlediği/oynadığı/okuduğu yapımları ve k
     let lastError: unknown = null;
 
     for (const model of ASSISTANT_CANDIDATE_MODELS) {
+      if (signal?.aborted) {
+        return { success: false, error: 'İstek durduruldu.' };
+      }
+
+      // Her model için ayrı iptal anahtarı: süre dolarsa ya da kullanıcı "Durdur"a basarsa
+      // Google'a giden istek gerçekten kesilir (kota boşa harcanmaz).
+      const modelController = new AbortController();
+      const abortFromUser = () => modelController.abort();
+      signal?.addEventListener('abort', abortFromUser);
+      let timedOut = false;
+      const timer = setTimeout(() => {
+        timedOut = true;
+        modelController.abort();
+      }, ASSISTANT_MODEL_TIMEOUT_MS);
+
       try {
-        const response = await callWithTimeout(
-          ai.models.generateContent({
+        let response;
+        try {
+          response = await ai.models.generateContent({
             model,
             contents: contents as any,
             config: {
               systemInstruction,
               temperature: 0.7,
+              abortSignal: modelController.signal,
+              // Cevap her zaman bu şablonda gelir; kartlar bozuk JSON yüzünden kaybolmaz
+              responseMimeType: 'application/json',
+              responseSchema: ASSISTANT_RESPONSE_SCHEMA,
             },
-          }),
-          18000,
-          model
-        );
+          });
+        } catch (err) {
+          if (timedOut) {
+            throw new Error(
+              `"${model}" ${ASSISTANT_MODEL_TIMEOUT_MS / 1000} saniye içinde yanıt vermedi (zaman aşımı).`
+            );
+          }
+          throw err;
+        } finally {
+          clearTimeout(timer);
+          signal?.removeEventListener('abort', abortFromUser);
+        }
 
         if (response && response.text) {
           let replyText = response.text.trim();
@@ -778,8 +979,28 @@ Kullanıcının kütüphanesini, izlediği/oynadığı/okuduğu yapımları ve k
             };
           };
 
-          // Check for ```recommendation-cards or ```recommendation-card or ```json block (array or object)
-          const cardsMatch = replyText.match(/```(?:recommendation-cards?|json)?\s*([\[\{][\s\S]*?[\]\}])\s*```/i);
+          // 1) Asıl yol: Yapılandırılmış cevap { reply, cards } (şablon sayesinde her zaman geçerli JSON)
+          let structured = false;
+          try {
+            const parsed = JSON.parse(replyText);
+            if (parsed && typeof parsed === 'object' && typeof parsed.reply === 'string') {
+              structured = true;
+              replyText = parsed.reply.trim();
+              if (Array.isArray(parsed.cards)) {
+                for (const item of parsed.cards) {
+                  const card = normalizeCard(item);
+                  if (card) recommendations.push(card);
+                }
+              }
+            }
+          } catch {
+            // Şablon dışı cevap: aşağıdaki eski yöntemle okunur
+          }
+
+          // 2) Yedek yol: Metnin sonundaki ```recommendation-cards bloğu (eski biçim)
+          const cardsMatch = structured
+            ? null
+            : replyText.match(/```(?:recommendation-cards?|json)?\s*([\[\{][\s\S]*?[\]\}])\s*```/i);
           if (cardsMatch) {
             try {
               const rawJson = cardsMatch[1].trim();
@@ -816,6 +1037,11 @@ Kullanıcının kütüphanesini, izlediği/oynadığı/okuduğu yapımları ve k
             }
           }
 
+          // Kesin kural: en fazla 10 kart (iki yol için de)
+          if (recommendations.length > 10) {
+            recommendations = recommendations.slice(0, 10);
+          }
+
           return {
             success: true,
             reply: replyText,
@@ -826,6 +1052,9 @@ Kullanıcının kütüphanesini, izlediği/oynadığı/okuduğu yapımları ve k
           };
         }
       } catch (err: unknown) {
+        if (signal?.aborted) {
+          return { success: false, error: 'İstek durduruldu.' };
+        }
         lastError = err;
       }
     }

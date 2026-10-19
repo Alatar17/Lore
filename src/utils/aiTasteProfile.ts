@@ -4,6 +4,7 @@ export interface CompactItemBrief {
   id: string;
   title: string;
   category: string;
+  tab?: MainTabType;
   sub?: string;
   rating?: number;
   year?: string | number;
@@ -27,7 +28,9 @@ export interface TasteProfile {
   totalCount: number;
   topMasterpieces: CompactItemBrief[]; // 9-10 puan veya S/A tier
   strongFavorites: CompactItemBrief[]; // 8 puan alan yapımlar (kullanıcının güçlü çekirdek beğeni havuzu)
-  dislikedItems: CompactItemBrief[]; // 2-5 puan (1 puan devam eden yapımlar için hariç tutulur)
+  likedItems: CompactItemBrief[]; // 7 puan alan yapımlar (beğenilenler)
+  dislikedItems: CompactItemBrief[]; // 1-5 puan (beğenilmeyenler)
+  categoryAverages: { name: string; count: number; avg: number }[]; // Kategori bazında puan ortalaması (kullanıcının kendi kategorileri)
   currentlyActive: CompactItemBrief[]; // İzleniyor / Oynanıyor / Okunuyor
   droppedItems: CompactItemBrief[]; // Yarım bırakılanlar
   followingItems: CompactItemBrief[]; // Takip edilenler
@@ -89,7 +92,9 @@ export function generateTasteProfile(
   const catalog: CompactItemBrief[] = [];
   const topMasterpieces: CompactItemBrief[] = [];
   const strongFavorites: CompactItemBrief[] = [];
+  const likedItems: CompactItemBrief[] = [];
   const dislikedItems: CompactItemBrief[] = [];
+  const categoryRatings: Record<string, number[]> = {};
   const currentlyActive: CompactItemBrief[] = [];
   const droppedItems: CompactItemBrief[] = [];
   const followingItems: CompactItemBrief[] = [];
@@ -145,8 +150,10 @@ export function generateTasteProfile(
       id: it.id,
       title: it.title,
       category: catName,
+      tab: it.mainTab,
       sub: it.sub || undefined,
-      rating: it.rating > 0 ? it.rating : undefined,
+      // Sıradaki (henüz tüketilmemiş) yapımların puanı gönderilmez; eski bir kayıtta kalmış puan yanıltmasın.
+      rating: !isPlanned && it.rating > 0 ? it.rating : undefined,
       year: it.releaseYear || undefined,
       date: it.date || undefined,
       lastCompletedDate: it.lastCompletedDate || undefined,
@@ -217,8 +224,14 @@ export function generateTasteProfile(
         topMasterpieces.push(brief);
       } else if (it.rating === 8) {
         strongFavorites.push(brief);
-      } else if (it.rating > 1 && it.rating <= 5) {
+      } else if (it.rating === 7) {
+        likedItems.push(brief);
+      } else if (it.rating >= 1 && it.rating <= 5) {
         dislikedItems.push(brief);
+      }
+
+      if (it.rating > 0) {
+        (categoryRatings[catName] ||= []).push(it.rating);
       }
 
       // Weight genres, directors, developers, firms and authors by rating:
@@ -306,11 +319,32 @@ export function generateTasteProfile(
     .sort((a, b) => b.works.length - a.works.length)
     .slice(0, 25);
 
+  // Favori listeleri dosya sırasına göre değil; önce puan, sonra en son tamamlanma tarihine göre sıralanır.
+  // Böylece sınır aşılırsa en az önemli olanlar dışarıda kalır.
+  const byRatingThenRecent = (a: CompactItemBrief, b: CompactItemBrief) => {
+    const ratingDiff = (b.rating || 0) - (a.rating || 0);
+    if (ratingDiff !== 0) return ratingDiff;
+    const dateA = a.lastCompletedDate || a.date || '';
+    const dateB = b.lastCompletedDate || b.date || '';
+    return dateB.localeCompare(dateA);
+  };
+
+  const categoryAverages = Object.entries(categoryRatings)
+    .filter(([, ratings]) => ratings.length >= 3)
+    .map(([name, ratings]) => ({
+      name,
+      count: ratings.length,
+      avg: Math.round((ratings.reduce((s, r) => s + r, 0) / ratings.length) * 10) / 10,
+    }))
+    .sort((a, b) => b.count - a.count);
+
   return {
     totalCount: safeItems.length,
-    topMasterpieces: topMasterpieces.slice(0, 15),
-    strongFavorites: strongFavorites.slice(0, 15),
-    dislikedItems: dislikedItems.slice(0, 10),
+    topMasterpieces: [...topMasterpieces].sort(byRatingThenRecent).slice(0, 25),
+    strongFavorites: [...strongFavorites].sort(byRatingThenRecent).slice(0, 40),
+    likedItems: [...likedItems].sort(byRatingThenRecent).slice(0, 40),
+    dislikedItems: [...dislikedItems].sort((a, b) => (a.rating || 0) - (b.rating || 0)).slice(0, 15),
+    categoryAverages,
     currentlyActive: currentlyActive.slice(0, 10),
     droppedItems: droppedItems.slice(0, 10),
     followingItems: followingItems.slice(0, 10),
@@ -347,8 +381,7 @@ export function formatTasteProfileForPrompt(profile: TasteProfile): string {
       })
       .join('\n');
     lines.push(
-      `\n[EN ÇOK BEĞENİLEN ZİRVE BAŞYAPITLAR (9-10 Puan veya S-Tier Zirvesi - Tüketilmiş)]:\n` +
-      `⚠️ DİKKAT (BALATRO KURALI): Bu yapımlar kullanıcının kütüphanesinde zaten kayıtlıdır ve tüketip bitirdiği eserlerdir. Bu yapımları sadece kullanıcının beğenisini anlamak için pusula ve kalite standardı olarak kullan; bu isimlerin HİÇBİRİNİ asla yeni bir öneri kartı olarak üretme!\n` +
+      `\n[ZİRVELER (9-10 Puan veya S/A Tier)]:\n` +
       list
     );
   }
@@ -364,8 +397,17 @@ export function formatTasteProfileForPrompt(profile: TasteProfile): string {
       })
       .join('\n');
     lines.push(
-      `\n[GÜÇLÜ FAVORİLER & YÜKSEK KALİTE STANDARDI (8 Puan - Çekirdek Beğeni Havuzu)]:\n` +
-      `⚠️ DİKKAT: Bu yapımlar da kullanıcının kütüphanesinde mevcuttur. Sadece beğeni referansı olarak kullan, asla yeni öneri kartı olarak üretme!\n` +
+      `\n[ÇOK SEVİLENLER (8 Puan)]:\n` +
+      list
+    );
+  }
+
+  if (profile.likedItems.length > 0) {
+    const list = profile.likedItems
+      .map((m) => `• [id: ${m.id}] ${m.title} (${m.category}${m.sub ? ` - ${m.sub}` : ''}, Puan: 7)`)
+      .join('\n');
+    lines.push(
+      `\n[BEĞENİLEN YAPIMLAR (7 Puan)]:\n` +
       list
     );
   }
@@ -374,7 +416,14 @@ export function formatTasteProfileForPrompt(profile: TasteProfile): string {
     const list = profile.dislikedItems
       .map((m) => `• [id: ${m.id}] ${m.title} (${m.category}, Puan: ${m.rating})`)
       .join('\n');
-    lines.push(`\n[DÜŞÜK PUAN VERİLEN / BEĞENİLMEYEN YAPIMLAR (2-5 Puan, Not: 1 puan devam eden yapımlar için hariç tutulmuştur)]:\n${list}`);
+    lines.push(`\n[DÜŞÜK PUAN VERİLEN / BEĞENİLMEYEN YAPIMLAR (1-5 Puan)]:\n${list}`);
+  }
+
+  if (profile.categoryAverages.length > 0) {
+    lines.push(
+      `\n[KATEGORİ PUAN ORTALAMALARI (kullanıcının kategorileri; puanları bu ortalamaya göre yorumla)]: ` +
+      profile.categoryAverages.map((c) => `${c.name} (${c.count} yapım, ort. ${c.avg})`).join(', ')
+    );
   }
 
   if (profile.currentlyActive.length > 0) {
@@ -404,10 +453,7 @@ export function formatTasteProfileForPrompt(profile: TasteProfile): string {
       .map((m) => `• [id: ${m.id}] ${m.title} (${m.category}${m.sub ? ` - ${m.sub}` : ''}, Durum: ${m.status || 'Sırada'}${m.year ? `, ${m.year}` : ''}${m.directors ? `, Yönetmen: ${m.directors.join(', ')}` : ''}${m.developers ? `, Geliştirici: ${m.developers.join(', ')}` : ''}${m.authors ? `, Yazar: ${m.authors.join(', ')}` : ''})`)
       .join('\n');
     lines.push(
-      `\n[KÜTÜPHANEDE SIRADA BEKLEYENLER (İzlenecek / Oynanacak / Okunacak)]:\n` +
-      `⚠️ BEKLEME LİSTESİ İÇİN 2 KIRILMAZ KURAL:\n` +
-      `1. ZEVK ANALİZİ YASAĞI: Bu yapımlar kullanıcının bekleme listesindedir; henüz izlenmedi, oynanmadı veya okunmadı. Kullanıcının zevkini bunlara bakarak analiz etme ve 'bunu çok sevdiğin için' gibi referanslar ASLA verme!\n` +
-      `2. TEKRAR ÖNERİ YASAĞI: Bu yapımlar zaten kütüphanede kayıtlıdır. Bu yapımların hiçbirini kullanıcıya YENİ BİR ÖNERİ olarak ASLA sunma!\n` +
+      `\n[SIRADA BEKLEYENLER (henüz izlenmedi/oynanmadı/okunmadı)]:\n` +
       list
     );
   }
@@ -442,19 +488,19 @@ export function formatTasteProfileForPrompt(profile: TasteProfile): string {
     lines.push(`[FAVORİ YAZARLAR]: ${profile.topAuthors.map((a) => `${a.name}`).join(', ')}`);
   }
 
-  if (profile.topFirms.length > 0) {
-    lines.push(`[FAVORİ STÜDYOLAR]: ${profile.topFirms.map((f) => `${f.name}`).join(', ')}`);
-  }
+  // Not: "Favori stüdyolar" listesi gönderilmiyor. Adet saydığı için başa dağıtımcılar
+  // (Netflix, Warner vb.) çıkıyordu; zevk hakkında yanıltıcı bir sinyaldi.
 
-  // Full library index for precise title lookups
-  lines.push(`\n[KÜTÜPHANEDEKİ DİĞER TÜM YAPIMLARIN LİSTESİ]:`);
+  // Kütüphanenin tamamı TEK liste: hem [[item:id|Ad]] referansı için kimlikler, hem de "bunları önerme" listesi.
+  lines.push(`\n[KÜTÜPHANE] (kullanıcının bütün yapımları; bunların hiçbiri öneri kartı olamaz):`);
   const catalogEntries = profile.libraryCatalog.map((c) => {
     const chars = c.characters && c.characters.length > 0
       ? ` [${c.characters.map((ch) => ch.actor ? `${ch.name}:${ch.actor}` : ch.name).join(', ')}]`
       : '';
-    return `[id: ${c.id}] ${c.title} (${c.category}${c.rating ? `, ${c.rating}/10` : ''}${chars})`;
+    const typeLabel = c.tab === 'game' ? 'Oyun' : c.tab === 'book' ? 'Kitap' : 'Film/Dizi';
+    return `[id: ${c.id}] ${c.title} (${typeLabel}, ${c.category}${c.rating ? `, ${c.rating}/10` : ''}${c.status ? `, ${c.status}` : ''}${chars})`;
   });
-  lines.push(catalogEntries.join(' | '));
+  lines.push(catalogEntries.join('\n'));
 
   return lines.join('\n');
 }

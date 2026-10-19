@@ -80,6 +80,57 @@ export function normalizeTitleForCompare(title: string): string {
 }
 
 /**
+ * Kütüphane eşleştirmesi için daha hoşgörülü başlık temizliği:
+ * büyük/küçük harf, noktalama (; & / ! vb.) ve fazla boşluk yok sayılır.
+ */
+function normalizeTitleLoose(title: string): string {
+  return (title || '')
+    .toLocaleLowerCase('tr')
+    .replace(/[:\-–—.,!?'"’`;&/\\]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+/**
+ * Bir başlığın karşılaştırılacak hâlleri. "Bruce Almighty (Aman Tanrım 1)" için:
+ * tam hâli, parantez dışı ("Bruce Almighty") ve parantez içi ("Aman Tanrım 1").
+ */
+function titleVariants(title: string): string[] {
+  const variants = new Set<string>();
+  const full = normalizeTitleLoose(title.replace(/[()]/g, ' '));
+  if (full) variants.add(full);
+  const outside = normalizeTitleLoose(title.replace(/\([^)]*\)/g, ' '));
+  if (outside) variants.add(outside);
+  for (const match of title.matchAll(/\(([^)]*)\)/g)) {
+    const inside = normalizeTitleLoose(match[1]);
+    if (inside) variants.add(inside);
+  }
+  return Array.from(variants);
+}
+
+/**
+ * Asistanın önerdiği kart kütüphanede zaten varsa o yapımı döndürür.
+ * Aynı sekmede (film/dizi, oyun, kitap) ve başlığın herhangi bir hâli eşleşmeli.
+ * Gizli yapımlar yapay zekâya hiç gönderilmediği için burada da aranmaz.
+ */
+export function findLibraryMatchForCard(
+  card: Pick<AiRecommendationCard, 'title' | 'mainTab'>,
+  libraryItems: ArchiveItem[]
+): ArchiveItem | undefined {
+  if (!card.title || !libraryItems || libraryItems.length === 0) return undefined;
+  const cardVariants = titleVariants(card.title);
+  if (cardVariants.length === 0) return undefined;
+  const cardTab = card.mainTab === 'game' ? 'game' : card.mainTab === 'book' ? 'book' : 'media';
+
+  return libraryItems.find((it) => {
+    if (it.isHidden) return false;
+    if (it.mainTab !== cardTab) return false;
+    const itemVariants = titleVariants(it.title || '');
+    return itemVariants.some((v) => cardVariants.includes(v));
+  });
+}
+
+/**
  * Finds an item in the memory by matching title and mainTab.
  */
 export function findMemoryItem(
@@ -259,42 +310,14 @@ export function clearArchivePool(
 }
 
 /**
- * AI Prompt'una eklenecek negatif kısıt / hariç tutma dizesini oluşturan yardımcı:
- * 1. Kullanıcının Kütüphanesindeki TÜM yapımlar (Tamamlanan, İzlenen/Oynanan/Okunan,
- *    Sırada bekleyen, Yarım bırakılan, Takipte olanlar - Medya, Oyun, Kitap)
- * 2. Öneri Hafızasındaki yapımlar (Radar, Kara Liste, Arşiv)
- * 
- * Sıfır tekrar garantisi (Balatro Kuralı): Kullanıcının elindeki hiçbir yapım yeni bir öneri kartı olarak üretilemez!
+ * AI Prompt'una eklenecek "daha önce önerilenler" listesi: sadece Öneri Hafızası (Radar, Kara Liste, Arşiv).
+ * Kütüphanedeki yapımlar burada tekrar listelenmez; onlar profildeki [KÜTÜPHANE] listesinde tek seferde gider.
  */
-export function formatExclusionListForPrompt(
-  memoryItems: RecommendationMemoryItem[],
-  libraryItems?: ArchiveItem[]
-): string {
+export function formatExclusionListForPrompt(memoryItems: RecommendationMemoryItem[]): string {
   const lines: string[] = [];
   const seenNormTitles = new Set<string>();
 
-  // 1. Kütüphanedeki tüm yapımlar (Tüm 5 Statü: Tamamlandı, Devam Ediyor, Sırada, Yarım Bırakıldı, Takipte)
-  if (libraryItems && libraryItems.length > 0) {
-    libraryItems.forEach((it) => {
-      if (it.isHidden) return;
-      const title = (it.title || '').trim();
-      if (!title) return;
-      const norm = normalizeTitleForCompare(title);
-      if (seenNormTitles.has(norm)) return;
-      seenNormTitles.add(norm);
-
-      const typeLabel =
-        it.mainTab === 'game'
-          ? 'OYUN'
-          : it.mainTab === 'book'
-          ? 'KİTAP'
-          : 'MEDYA';
-      const yearStr = it.releaseYear ? ` (${it.releaseYear})` : '';
-      lines.push(`- [${typeLabel}] ${title}${yearStr}`);
-    });
-  }
-
-  // 2. Öneri Hafızasındaki yapımlar (Radar, Kara Liste, Arşiv)
+  // Öneri Hafızasındaki yapımlar (Radar, Kara Liste, Arşiv)
   if (memoryItems && memoryItems.length > 0) {
     memoryItems.forEach((it) => {
       const title = (it.title || '').trim();
@@ -318,10 +341,7 @@ export function formatExclusionListForPrompt(
   if (lines.length === 0) return '';
 
   return (
-    `[KÜTÜPHANEDE KAYITLI VE DAHA ÖNCE ÖNERİLMİŞ TÜM YAPIMLAR LİSTESİ (ASLA YENİ ÖNERİ OLARAK SUNULAMAZ)]:\n` +
-    `⚠️ KESİN KURAL (BALATRO KURALI): Aşağıdaki yapımlar kullanıcının kütüphanesinde mevcuttur (tamamlanmış, şu an izlenen/oynanan/okunan, sırada bekleyen, takip edilen veya yarım bırakılmış) ya da daha önce asistan tarafından önerilmiştir.\n` +
-    `Bu listedeki yapımların HİÇBİRİNİ yeni bir öneri olarak sunamazsın ve ASLA yeni bir öneri kartının başlığı ("title") olarak üretemezsin!\n` +
-    `Bu yapımları YALNIZCA VE YALNIZCA "matchReason" (tavsiye gerekçesi) alanında [[item:id|Başlık]] şeklinde referans olarak anabilirsin.\n` +
+    `[DAHA ÖNCE ÖNERİLENLER] (asistanın daha önce önerdikleri; hiçbiri tekrar kart olamaz):\n` +
     lines.join('\n')
   );
 }

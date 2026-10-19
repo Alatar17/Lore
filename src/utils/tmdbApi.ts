@@ -215,6 +215,8 @@ export function normalizeTitleForComparison(title: string): string {
 function computeTitleSimilarity(normTarget: string, normCandidate: string): number {
   if (!normTarget || !normCandidate) return 0;
   if (normTarget === normCandidate) return 1.0;
+  // Boşluk farkı: "Dandadan" ↔ "DAN DA DAN"
+  if (normTarget.replace(/\s/g, '') === normCandidate.replace(/\s/g, '')) return 1.0;
 
   // 1. Karakter bazlı içerme (Biri diğerini içeriyorsa)
   let inclScore = 0;
@@ -237,8 +239,17 @@ function computeTitleSimilarity(normTarget: string, normCandidate: string): numb
     jaccard = union > 0 ? common / union : 0;
   }
 
-  return Math.max(inclScore, jaccard);
+  // 3. Alt başlık: "Frieren" ↔ "Frieren: Beyond Journey's End" (bir başlık diğerinin tam kelimeli başı)
+  let prefixScore = 0;
+  if (normCandidate.startsWith(normTarget + ' ') || normTarget.startsWith(normCandidate + ' ')) {
+    prefixScore = 0.75;
+  }
+
+  return Math.max(inclScore, jaccard, prefixScore);
 }
+
+// Yıl tutsa bile başlık bu orandan az benziyorsa aday elenir (yanlış afiş koruması)
+const MIN_TITLE_SIMILARITY = 0.45;
 
 function parseYearNumber(val?: number | string): number | null {
   if (!val) return null;
@@ -290,12 +301,22 @@ export async function searchTmdbMedia(
 
       const isToken = isTmdbReadAccessToken(apiKey);
 
+      type SearchOutcome = {
+        match: { candidate: any; score: number } | null;
+        // Başlık hiç tutmadığında TMDB'nin kendi ilk 2 sonucundan yılı birebir tutan aday
+        // (romaji/alternatif adlar: "Sen to Chihiro no Kamikakushi" → "Spirited Away")
+        trusted: any | null;
+      };
+
       const searchWithLang = async (
+        query: string,
+        normQuery: string,
         lang: string
-      ): Promise<{ candidate: any; score: number } | null> => {
+      ): Promise<SearchOutcome> => {
+        const empty: SearchOutcome = { match: null, trusted: null };
         try {
           const url = new URL('https://api.themoviedb.org/3/search/multi');
-          url.searchParams.set('query', cleanQuery);
+          url.searchParams.set('query', query);
           url.searchParams.set('include_adult', 'false');
           url.searchParams.set('language', lang);
 
@@ -321,7 +342,7 @@ export async function searchTmdbMedia(
 
           clearTimeout(timeoutId);
 
-          if (!response.ok) return null;
+          if (!response.ok) return empty;
 
           const data = await response.json();
           const results: any[] = Array.isArray(data.results) ? data.results : [];
@@ -331,7 +352,13 @@ export async function searchTmdbMedia(
             (item) => (item.media_type === 'movie' || item.media_type === 'tv') && Boolean(item.poster_path)
           );
 
-          if (candidates.length === 0) return null;
+          if (candidates.length === 0) return empty;
+
+          const trusted = targetYear
+            ? candidates
+                .slice(0, 2)
+                .find((item) => parseYearNumber(item.release_date || item.first_air_date) === targetYear) || null
+            : null;
 
           let best: any = null;
           let highest = -1;
@@ -343,23 +370,22 @@ export async function searchTmdbMedia(
             const candYear = parseYearNumber(candDateStr);
 
             // Başlık benzerliği
-            const titleScore1 = computeTitleSimilarity(normTarget, normalizeTitleForComparison(candTitle));
-            const titleScore2 = computeTitleSimilarity(normTarget, normalizeTitleForComparison(candOrigTitle));
+            const titleScore1 = computeTitleSimilarity(normQuery, normalizeTitleForComparison(candTitle));
+            const titleScore2 = computeTitleSimilarity(normQuery, normalizeTitleForComparison(candOrigTitle));
             const bestTitleScore = Math.max(titleScore1, titleScore2);
+            if (bestTitleScore < MIN_TITLE_SIMILARITY) continue;
 
             // Yıl benzerliği
             let yearScore = 0.7; // Nötr
+            // Yıl biliniyor ama adayın tarihi yoksa genelde henüz çıkmamış başka bir yapımdır
+            // ("Solo Leveling" dizisi ↔ tarihsiz "Solo Leveling: Beyond the System" filmi)
+            if (targetYear && !candYear) continue;
             if (targetYear && candYear) {
               const diff = Math.abs(targetYear - candYear);
-              if (diff === 0) {
-                yearScore = 1.0;
-              } else if (diff === 1) {
-                yearScore = 0.85; // ±1 yıl esneklik (Resimler.md kuralı)
-              } else if (diff === 2) {
-                yearScore = 0.4;
-              } else {
-                yearScore = 0.1; // 2 yıldan fazla fark varsa ağır ceza
-              }
+              // ±1 yıl esneklik (Resimler.md kuralı); daha fazlası aynı adlı başka yapımdır
+              // ("Kimi no Na wa" 2016 filmi ↔ 1991 dizisi)
+              if (diff >= 2) continue;
+              yearScore = diff === 0 ? 1.0 : 0.85;
             }
 
             // Genel eşleşme puanı
@@ -374,30 +400,55 @@ export async function searchTmdbMedia(
           }
 
           if (best && highest >= 0.55) {
-            return { candidate: best, score: highest };
+            return { match: { candidate: best, score: highest }, trusted };
           }
-          return null;
+          return { match: null, trusted };
         } catch {
-          return null;
+          return empty;
         }
       };
 
       // 1. Aşama: Önce Türkçe başlıklar için 'tr-TR' ile dene
-      let matchResult = await searchWithLang('tr-TR');
+      let outcome = await searchWithLang(cleanQuery, normTarget, 'tr-TR');
+      let bestCandidate: any = outcome.match?.candidate || null;
 
       // 2. Aşama: Eğer eşleşme bulunamadıysa (Örn: Anime veya yabancı yapımlarda Türkçe başlık
       // kaydı olmayınca TMDB'nin orijinal Japonca başlığı dönmesi ve İngilizce adın kaybolması durumu),
       // uluslararası 'en-US' ile dene
-      if (!matchResult) {
-        matchResult = await searchWithLang('en-US');
+      let enOutcome: SearchOutcome | null = null;
+      if (!bestCandidate) {
+        enOutcome = await searchWithLang(cleanQuery, normTarget, 'en-US');
+        bestCandidate = enOutcome.match?.candidate || null;
+      }
+
+      // 3. Aşama: Parantez içindeki diğer ad ile dene: "Bir Kedinin Zihninde (Inside the Mind of a Cat)"
+      if (!bestCandidate) {
+        const altTitles = Array.from(trimmedTitle.matchAll(/\(([^)]*)\)/g))
+          .map((m) => m[1].trim())
+          .filter((t) => t && !/^\d{4}(?:\s*[-–]\s*\d{0,4})?$/.test(t));
+        for (const alt of altTitles) {
+          const normAlt = normalizeTitleForComparison(alt);
+          for (const lang of ['tr-TR', 'en-US']) {
+            const altOutcome = await searchWithLang(alt, normAlt, lang);
+            if (altOutcome.match) {
+              bestCandidate = altOutcome.match.candidate;
+              break;
+            }
+          }
+          if (bestCandidate) break;
+        }
+      }
+
+      // 4. Aşama: Başlık hiçbir adayla tutmadıysa TMDB'nin kendi ilk sonuçlarına güven,
+      // ama sadece yıl birebir tutuyorsa
+      if (!bestCandidate) {
+        bestCandidate = outcome.trusted || enOutcome?.trusted || null;
       }
 
       // Güvenilirlik eşiği: Yanlış afiş göstermektense yer tutucu kalmalıdır
-      if (!matchResult || !matchResult.candidate) {
+      if (!bestCandidate) {
         return null;
       }
-
-      const bestCandidate = matchResult.candidate;
 
       const mediaType: 'movie' | 'tv' = bestCandidate.media_type === 'tv' ? 'tv' : 'movie';
       const posterPath: string = bestCandidate.poster_path;
@@ -420,6 +471,10 @@ export async function searchTmdbMedia(
   })();
 
   searchCache.set(cacheKey, promise);
+  // Sadece bulunan sonuçlar hafızada kalır; bulunamayan (veya anlık ağ hatası) bir sonraki seferde yeniden denenir
+  promise.then((result) => {
+    if (!result && searchCache.get(cacheKey) === promise) searchCache.delete(cacheKey);
+  });
   return promise;
 }
 
@@ -603,6 +658,10 @@ export async function fetchTmdbMovieOrTvImages(
   })();
 
   imagesCache.set(cacheKey, promise);
+  // Boş liste veya yedek tek kare (hata durumu) hafızada tutulmaz, sonraki açılışta yeniden denenir
+  promise.then((list) => {
+    if (list.length <= 1 && imagesCache.get(cacheKey) === promise) imagesCache.delete(cacheKey);
+  });
   return promise;
 }
 
@@ -684,6 +743,9 @@ export async function fetchTmdbTrailer(
   })();
 
   trailerCache.set(cacheKey, promise);
+  promise.then((key) => {
+    if (!key && trailerCache.get(cacheKey) === promise) trailerCache.delete(cacheKey);
+  });
   return promise;
 }
 

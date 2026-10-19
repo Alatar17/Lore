@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { ArchiveItem, Category, AiChatMessage, AiRecommendationCard } from '../types';
+import { ArchiveItem, Category, AiChatMessage, AiRecommendationCard, getMediaStatus, getGameStatus, getBookStatus } from '../types';
 import {
   X,
   ArrowUp,
@@ -55,6 +55,7 @@ import {
   clearArchivePool,
   formatExclusionListForPrompt,
   findMemoryItem,
+  findLibraryMatchForCard,
 } from '../utils/recommendationMemory';
 import { RecommendationMemoryPanel } from './RecommendationMemoryPanel';
 
@@ -71,11 +72,12 @@ interface AiAssistantModalProps {
 const STORAGE_KEY = 'lore_ai_chat_history';
 
 // Helper to strip internal library item tags [[item:id|Title]] or ([id:id|Title]) -> Title
-const stripLibraryItemTags = (text: string): string => {
+// Model başlığı yazmayı unutup sadece [[item:id]] yazarsa, kimlik yerine kütüphanedeki yapımın adı gösterilir.
+const stripLibraryItemTags = (text: string, items?: ArchiveItem[]): string => {
   if (!text) return '';
   return text
     .replace(/\[\[item:[^|\]]+\|([^\]]+)\]\]/g, '$1')
-    .replace(/\[\[item:([^\]]+)\]\]/g, '$1')
+    .replace(/\[\[item:([^\]]+)\]\]/g, (_, id: string) => items?.find((it) => it.id === id.trim())?.title || id)
     .replace(/\(?\[id:\s*[^|\]]+\|([^\]]+)\]\)?/g, '$1');
 };
 
@@ -105,10 +107,11 @@ const renderInlineFormatted = (
         inner = inner.slice(4, -1);
       }
 
-      let itemId = inner;
+      let itemId = inner.trim();
       let itemTitle = inner;
+      const hasTitle = inner.includes('|');
 
-      if (inner.includes('|')) {
+      if (hasTitle) {
         const splitIdx = inner.indexOf('|');
         itemId = inner.slice(0, splitIdx).trim();
         itemTitle = inner.slice(splitIdx + 1).trim();
@@ -122,6 +125,11 @@ const renderInlineFormatted = (
             it.title.trim().toLowerCase() === itemTitle.trim().toLowerCase() ||
             (it.sub && `${it.title} ${it.sub}`.trim().toLowerCase() === itemTitle.trim().toLowerCase())
         );
+
+      // Başlık yazılmamışsa (sadece kimlik varsa) ekranda kimlik yerine yapımın adını göster
+      if (!hasTitle && foundItem) {
+        itemTitle = foundItem.title;
+      }
 
       return (
         <button
@@ -351,6 +359,17 @@ const AiRecommendationCardView: React.FC<{
     return '✨';
   };
 
+  // Asistan kütüphanede zaten olan bir yapımı önerdiyse, kendi rozetinin yerine uyarı rozeti gösterilir.
+  const libraryMatch = findLibraryMatchForCard(card, items);
+  const libraryMatchStatus = libraryMatch
+    ? libraryMatch.mainTab === 'game'
+      ? getGameStatus(libraryMatch)
+      : libraryMatch.mainTab === 'book'
+      ? getBookStatus(libraryMatch)
+      : getMediaStatus(libraryMatch)
+    : null;
+  const libraryWarningText = libraryMatch ? `Bu yapım zaten kütüphanende (${libraryMatchStatus})` : '';
+
   const handleAskWhy = (e: React.MouseEvent) => {
     e.stopPropagation();
     setAskedWhy(true);
@@ -429,7 +448,47 @@ const AiRecommendationCardView: React.FC<{
 
             {/* Sağ: Rozet + Genişlet/Daralt Oku */}
             <div className="flex items-center gap-1.5 shrink-0">
-              {card.badge && (
+              {libraryMatch && (
+                <>
+                  {/* Masaüstünde: Ünlem + KÜTÜPHANEDE (asistanın rozetinin yerine) */}
+                  <span
+                    className="hidden sm:inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold tracking-wide border shadow-xs whitespace-nowrap bg-rose-500/15 border-rose-500/30 text-rose-300"
+                    title={libraryWarningText}
+                  >
+                    <AlertCircle className="w-3 h-3" />
+                    KÜTÜPHANEDE
+                  </span>
+
+                  {/* Mobilde: Sadece ünlem simgesi, dokununca açıklama */}
+                  <div className="relative sm:hidden">
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setShowMobileBadgePopup((prev) => !prev);
+                      }}
+                      className="inline-flex items-center justify-center w-6 h-6 rounded-full text-xs font-bold border shadow-xs transition-transform active:scale-95 cursor-pointer bg-rose-500/15 border-rose-500/30 text-rose-300"
+                      title={libraryWarningText}
+                    >
+                      <AlertCircle className="w-3.5 h-3.5" />
+                    </button>
+
+                    {showMobileBadgePopup && (
+                      <div
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setShowMobileBadgePopup(false);
+                        }}
+                        className="absolute right-0 top-full mt-1.5 z-30 px-2.5 py-1 rounded-lg bg-neutral-900/95 border border-white/20 text-[11px] font-semibold text-white shadow-2xl whitespace-nowrap animate-in fade-in zoom-in-95 duration-150 flex items-center gap-1.5"
+                      >
+                        <span>{libraryWarningText}</span>
+                      </div>
+                    )}
+                  </div>
+                </>
+              )}
+
+              {!libraryMatch && card.badge && (
                 <>
                   {/* Masaüstünde: Normal Rozet */}
                   <span
@@ -492,7 +551,7 @@ const AiRecommendationCardView: React.FC<{
 
           {/* 1 Cümlelik Kompakt Kısa Özet (Mobilde cümlenin yarım kalmaması için 4 satıra kadar doğal akış) */}
           <p className="text-xs text-slate-300 mt-1.5 line-clamp-4 leading-relaxed">
-            {stripLibraryItemTags(card.shortDesc)}
+            {stripLibraryItemTags(card.shortDesc, items)}
           </p>
 
           {/* Medya / Oyun Etiketleri (Firma, Yönetmen / Geliştirici) & Kütüphaneye Ekle Buton Satırı */}
@@ -590,7 +649,7 @@ const AiRecommendationCardView: React.FC<{
               Konu & Atmosfer
             </h5>
             <p className="text-xs sm:text-sm text-slate-200 leading-relaxed whitespace-pre-wrap">
-              {stripLibraryItemTags(card.detailedDesc)}
+              {stripLibraryItemTags(card.detailedDesc, items)}
             </p>
 
             {/* Tür Rozetleri */}
@@ -727,8 +786,8 @@ const AiRecommendationCardView: React.FC<{
 };
 
 // Formats an AI chat message (plain text or text + cards) cleanly for clipboard
-const formatMessageForClipboard = (msg: AiChatMessage): string => {
-  const cleanBodyText = stripLibraryItemTags(msg.text || '').trim();
+const formatMessageForClipboard = (msg: AiChatMessage, items?: ArchiveItem[]): string => {
+  const cleanBodyText = stripLibraryItemTags(msg.text || '', items).trim();
 
   const cards: AiRecommendationCard[] =
     msg.recommendations && msg.recommendations.length > 0
@@ -785,12 +844,12 @@ const formatMessageForClipboard = (msg: AiChatMessage): string => {
     // Story / Topic description (detailed preferred, fallback to short)
     const storyDesc = (card.detailedDesc || card.shortDesc || '').trim();
     if (storyDesc) {
-      sections.push(`Konu:\n${stripLibraryItemTags(storyDesc)}`);
+      sections.push(`Konu:\n${stripLibraryItemTags(storyDesc, items)}`);
     }
 
     // Match Reason (Tavsiye Gerekçesi)
     if (card.matchReason && card.matchReason.trim()) {
-      sections.push(`Tavsiye Gerekçesi:\n${stripLibraryItemTags(card.matchReason.trim())}`);
+      sections.push(`Tavsiye Gerekçesi:\n${stripLibraryItemTags(card.matchReason.trim(), items)}`);
     }
 
     return sections.join('\n\n');
@@ -1094,14 +1153,38 @@ export const AiAssistantModal: React.FC<AiAssistantModalProps> = ({
       const tasteProfile = generateTasteProfile(items, categories);
       const tasteContext = formatTasteProfileForPrompt(tasteProfile);
 
-      // 2. Format exclusion list from recommendation memory and full library (Balatro Kuralı - 5 Statü Dahil)
-      const exclusionContext = formatExclusionListForPrompt(recommendationMemory, items);
+      // 2. "Daha önce önerilenler" listesi (öneri hafızası). Kütüphane ise profildeki [KÜTÜPHANE] listesinde gidiyor.
+      const exclusionContext = formatExclusionListForPrompt(recommendationMemory);
 
       // 3. Prepare chat history for context
-      const chatHistory = nextMessages.map((m) => ({
-        sender: m.sender,
-        text: m.text,
-      }));
+      // - Hata mesajları ("kota doldu" vb.) asistanın cevabı gibi gönderilmez.
+      // - Asistan cevaplarına o cevaptaki kartların kısa listesi eklenir; böylece
+      //   "ikincisini anlat" gibi takip soruları neye bakıldığını bilir.
+      const chatHistory = nextMessages
+        .filter((m) => !m.error)
+        .map((m) => {
+          if (m.sender !== 'assistant') {
+            return { sender: m.sender, text: m.text };
+          }
+          const cards =
+            m.recommendations && m.recommendations.length > 0
+              ? m.recommendations
+              : m.recommendation
+              ? [m.recommendation]
+              : [];
+          if (cards.length === 0) {
+            return { sender: m.sender, text: m.text };
+          }
+          const typeLabel = (c: AiRecommendationCard) =>
+            c.mainTab === 'game' ? 'oyun' : c.mainTab === 'book' ? 'kitap' : 'film/dizi/anime';
+          const cardList = cards
+            .map((c, i) => `${i + 1}. ${c.title}${c.releaseYear ? ` (${c.releaseYear}, ${typeLabel(c)})` : ` (${typeLabel(c)})`}`)
+            .join('\n');
+          return {
+            sender: m.sender,
+            text: `${m.text}\n\n[Bu cevapta verilen öneri kartları, sırasıyla]:\n${cardList}`,
+          };
+        });
 
       // 4. Query Gemini Assistant with multi-model fallback and zero-repeat memory
       const result = await askAiAssistant({
@@ -1110,6 +1193,7 @@ export const AiAssistantModal: React.FC<AiAssistantModalProps> = ({
         chatHistory,
         apiKey: getGeminiApiKey(),
         recommendationExclusionContext: exclusionContext,
+        signal: controller.signal,
       });
 
       if (controller.signal.aborted) {
@@ -1129,12 +1213,14 @@ export const AiAssistantModal: React.FC<AiAssistantModalProps> = ({
         setMessages((prev) => [...prev, botMsg]);
 
         // Auto-register any newly recommended cards into Recommendation Memory (pool: 'archive')
-        const newCards: AiRecommendationCard[] =
+        // Kütüphanede zaten olan yapımlar hafızaya yazılmaz (kart ekranda "Kütüphanede" rozetiyle kalır).
+        const newCards: AiRecommendationCard[] = (
           result.recommendations && result.recommendations.length > 0
             ? result.recommendations
             : result.recommendation
             ? [result.recommendation]
-            : [];
+            : []
+        ).filter((card) => !findLibraryMatchForCard(card, items));
 
         if (newCards.length > 0) {
           setRecommendationMemory((prev) => addCardsToMemory(newCards, prev));
@@ -1172,7 +1258,7 @@ export const AiAssistantModal: React.FC<AiAssistantModalProps> = ({
 
   const handleCopyMessage = (msg: AiChatMessage) => {
     try {
-      const fullText = formatMessageForClipboard(msg);
+      const fullText = formatMessageForClipboard(msg, items);
       navigator.clipboard.writeText(fullText);
       setCopiedMessageId(msg.id);
       setTimeout(() => {

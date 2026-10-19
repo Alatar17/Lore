@@ -18,7 +18,7 @@ import { MEDIA_COLORS, GAME_COLORS, BOOK_COLORS } from '../data/initialData';
 import { optimizeImageFile } from '../utils/imageOptimizer';
 import { TagInputBox } from './TagInputBox';
 import { getFieldScopedTags, getFieldScopedTagCounts } from '../utils/tagUtils';
-import { getGeminiApiKey, fetchAiMetadata, formatMetadataModelLabel, AiItemMetadata, AiLogEntry } from '../utils/geminiAi';
+import { getGeminiApiKey, fetchAiMetadata, formatMetadataModelLabel, AiItemMetadata, AiLogEntry, mergeTagPools, collectActorPool } from '../utils/geminiAi';
 import { AiProcessLogModal } from './AiProcessLogModal';
 import { AnkiEditorModal } from './AnkiEditorModal';
 import { CustomDialog, DialogOptions } from './CustomDialog';
@@ -437,13 +437,23 @@ export const AddItemModal: React.FC<AddItemModalProps> = ({
         isGame,
         isBook,
         posterBase64: thumbnail,
-        existingGenres: isBook ? availableBookGenreTags : isGame ? availableGameGenreTags : availableMediaGenreTags,
-        existingFirms: availableFirmTags,
-        existingDirectors: availableDirectorTags,
-        existingDevelopers: availableDevTags,
-        existingAuthors: availableAuthorTags,
-        existingPublishers: availablePublisherTags,
-        existingTranslators: availableTranslatorTags,
+        existingGenres: mergeTagPools(
+          isBook ? availableBookGenreTags : isGame ? availableGameGenreTags : availableMediaGenreTags,
+          genre
+        ),
+        existingFirms: mergeTagPools(availableFirmTags, firm),
+        existingDirectors: mergeTagPools(availableDirectorTags, director),
+        existingActors: isBook
+          ? []
+          : mergeTagPools(
+              collectActorPool(allItems),
+              isGame ? [] : actors,
+              characters.map((c) => c.actor)
+            ),
+        existingDevelopers: mergeTagPools(availableDevTags, developer),
+        existingAuthors: mergeTagPools(availableAuthorTags, author),
+        existingPublishers: mergeTagPools(availablePublisherTags, publisher),
+        existingTranslators: mergeTagPools(availableTranslatorTags, translator),
         onProgress: (statusText, logEntry) => {
           setAiStatusText(statusText);
           setAiLogs((prev) => [...prev, logEntry]);
