@@ -141,6 +141,8 @@ export interface FetchAiMetadataParams {
   existingAuthors?: string[];
   existingPublishers?: string[];
   existingTranslators?: string[];
+  // Formda bu yapım için şu an yazılı olan bilgiler (yapay zekâ doğruysa korusun diye)
+  current?: AiItemMetadata;
   onProgress?: (statusText: string, logEntry: AiLogEntry) => void;
 }
 
@@ -166,6 +168,8 @@ function parseBase64Image(dataUrl: string): { mimeType: string; data: string } |
 // Yapay zekânın yazdığı adı, havuzdaki yazılışa çevirir ("Bilimkurgu" → "Bilim Kurgu").
 // Boşluk, tire, nokta, virgül, büyük/küçük harf ve Türkçe harf işaretleri farkı yok sayılır.
 const NEW_TAG_LIMIT = 3;
+
+const POOL_RULE = `HAVUZ KURALI: Havuzlar kullanıcının kütüphanesinin tamamından gelir ve sadece YAZILIŞ REHBERİDİR, seçim listesi değildir. Her değeri bu yapımın gerçek bilgisine göre belirle. Bir isim veya etiket sırf havuzda olduğu için seçilmez; başka yapımlara ait isimleri bu yapıma ekleme. Doğru değer havuzda varsa havuzdaki yazılışı harfi harfine kullan (boşluk, tire, büyük/küçük harf, isim sırası dahil). Havuzdaki bir etiketin eş anlamlısını veya farklı yazılışını yeni etiket olarak üretme.`;
 
 function tagKey(value: string): string {
   return value
@@ -287,6 +291,40 @@ function alignCharacters(
   return result;
 }
 
+function formatCurrentValues(current: AiItemMetadata | undefined, isBook: boolean, isGame: boolean): string {
+  if (!current) return '';
+  const lines: string[] = [];
+  const add = (label: string, list?: string[]) => {
+    const clean = toCleanStringList(list);
+    if (clean.length > 0) lines.push(`- ${label}: [${clean.join(', ')}]`);
+  };
+  const year = current.releaseYear !== undefined ? String(current.releaseYear).trim() : '';
+  if (year) lines.push(`- Yıl: ${year}`);
+  add('Tür', current.genres);
+  if (isBook) {
+    add('Yazar', current.authors);
+    add('Yayınevi', current.publishers);
+    add('Çevirmen', current.translators);
+  } else if (isGame) {
+    add('Geliştirici', current.developers);
+  } else {
+    add('Firma/Stüdyo', current.firms);
+    add('Yönetmen', current.directors);
+    add('Oyuncular', current.actors);
+  }
+  const chars = (current.characters || []).filter((c) => c && c.name && c.name.trim());
+  if (chars.length > 0) {
+    lines.push(`- Karakterler: [${chars.map((c) => (c.actor ? `${c.name} (${c.actor})` : c.name)).join(', ')}]`);
+  }
+  if (lines.length === 0) return '';
+  return `
+BU YAPIMIN ŞU ANKİ BİLGİLERİ (kullanıcının girdiği):
+${lines.join('\n')}
+
+MEVCUT BİLGİ KURALI: Yukarıdaki değerler kullanıcının bu yapım için girdiği bilgilerdir. Bir değerin bu yapım için yanlış olduğundan EMİN değilsen onu JSON'da aynen geri ver (silme, başka bir şeyle değiştirme). Sadece kesin yanlış olanları çıkar, eksik olanları ekle. Yıl aralık olarak girilmişse ve doğruysa aralığı koru.
+`;
+}
+
 function getCurrentTimeStr(): string {
   const now = new Date();
   return now.toTimeString().split(' ')[0] || now.toLocaleTimeString();
@@ -367,6 +405,7 @@ export async function fetchAiMetadata(
     const ai = new GoogleGenAI({ apiKey });
 
     let promptText = '';
+    const currentBlock = formatCurrentValues(params.current, isBook, isGame);
 
     if (isBook) {
       promptText = `
@@ -381,7 +420,8 @@ ${existingAuthors.length > 0 ? `- Kullanıcının Mevcut Yazar Havuzu: [${existi
 ${existingPublishers.length > 0 ? `- Kullanıcının Mevcut Yayınevi Havuzu: [${existingPublishers.join(', ')}]` : ''}
 ${existingTranslators.length > 0 ? `- Kullanıcının Mevcut Çevirmen Havuzu: [${existingTranslators.join(', ')}]` : ''}
 
-HAVUZ KURALI (tüm etiket alanları için): Önce kullanıcının mevcut havuzundan seç ve havuzdaki yazılışı harfi harfine aynen kullan (boşluk, tire, büyük/küçük harf, isim sırası dahil). Havuzdaki bir etiketin eş anlamlısını veya farklı yazılışını yeni etiket olarak üretme. Yeni değer sadece havuzda karşılığı gerçekten yoksa eklenir.
+${currentBlock}
+${POOL_RULE}
 
 Kurallar:
 1. "releaseYear": Kitabın ilk orijinal basım/yayın yılı (örn: 1866 veya 1949). Tek bir yıl ise sayı (örn: 1866). Seri ise "YYYY-YYYY" string.
@@ -427,7 +467,8 @@ ${!isGame && existingDirectors.length > 0 ? `- Kullanıcının Mevcut Yönetmen 
 ${existingActors.length > 0 ? `- Kullanıcının Mevcut Oyuncu/Seslendirme Havuzu: [${existingActors.join(', ')}]` : ''}
 ${isGame && existingDevelopers.length > 0 ? `- Kullanıcının Mevcut Geliştirici Havuzu: [${existingDevelopers.join(', ')}]` : ''}
 
-HAVUZ KURALI (tüm etiket alanları ve karakterlerin "actor" alanı için): Önce kullanıcının mevcut havuzundan seç ve havuzdaki yazılışı harfi harfine aynen kullan (boşluk, tire, büyük/küçük harf, isim sırası dahil). Havuzdaki bir etiketin eş anlamlısını veya farklı yazılışını yeni etiket olarak üretme. Yeni değer sadece havuzda karşılığı gerçekten yoksa eklenir.
+${currentBlock}
+${POOL_RULE}
 
 Kurallar:
 1. "releaseYear": Tek bir yıl ise sayı (örn: 2022), dizi veya seri gibi yıllara yayılıyorsa "YYYY-YYYY" veya "YYYY-" aralık formatında string (örn: "2008-2013").
@@ -635,6 +676,13 @@ Kurallar:
           person
         );
       }
+    }
+    // Kayıtta yıl aralığı varsa ve yapay zekâ sadece başlangıç yılını verdiyse aralık korunur.
+    const currentYear = params.current?.releaseYear !== undefined ? String(params.current.releaseYear).trim() : '';
+    const currentRange = currentYear.match(/^(\d{4})\s*[-–—]/);
+    const aiYear = parsedData.releaseYear !== undefined ? String(parsedData.releaseYear).trim() : '';
+    if (currentRange && /^\d{4}$/.test(aiYear) && aiYear === currentRange[1]) {
+      parsedData.releaseYear = currentYear;
     }
     if (typeof parsedData.description !== 'string') {
       parsedData.description = parsedData.description ? String(parsedData.description) : '';

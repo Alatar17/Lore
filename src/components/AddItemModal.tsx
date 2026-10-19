@@ -454,6 +454,18 @@ export const AddItemModal: React.FC<AddItemModalProps> = ({
         existingAuthors: mergeTagPools(availableAuthorTags, author),
         existingPublishers: mergeTagPools(availablePublisherTags, publisher),
         existingTranslators: mergeTagPools(availableTranslatorTags, translator),
+        current: {
+          releaseYear: isYearRange ? `${startYear}–${endYear}`.trim() : startYear.trim(),
+          genres: genre,
+          firms: firm,
+          directors: director,
+          actors,
+          developers: developer,
+          authors: author,
+          publishers: publisher,
+          translators: translator,
+          characters,
+        },
         onProgress: (statusText, logEntry) => {
           setAiStatusText(statusText);
           setAiLogs((prev) => [...prev, logEntry]);
