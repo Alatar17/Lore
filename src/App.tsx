@@ -655,6 +655,13 @@ export default function App() {
   // Sıradakiler (Backlog) Filter Mode (İzlenecek / Oynanacak / Okunacak)
   const [isBacklogOnly, setIsBacklogOnly] = useState<boolean>(false);
 
+  // Takip sayfasında sıradakiler olmaz: sayfaya girilince mod kapanır, dönünce de kapalı kalır
+  useEffect(() => {
+    if (activeCatId === TRACKED_TAB_ID && isBacklogOnly) {
+      setIsBacklogOnly(false);
+    }
+  }, [activeCatId, isBacklogOnly]);
+
   // Sıradakiler İkonu: CalendarClock (Kalıcı ve Varsayılan İkon)
   const renderBacklogIcon = (sizeClass = 'w-3.5 h-3.5') => {
     return <CalendarClock className={sizeClass} />;
