@@ -55,7 +55,7 @@ import {
 import { CustomDialog, DialogOptions } from './CustomDialog';
 import { BadgeSpotlightModal } from './BadgeSpotlightModal';
 import { initAnkiCard } from '../utils/ankiUtils';
-import { BUILD_TIME, canWriteLogFolder, exportErrorLog } from '../utils/errorLog';
+import { BUILD_TIME, hasLogFolder, exportErrorLog } from '../utils/errorLog';
 import {
   X,
   Plus,
@@ -4532,7 +4532,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     </div>
 
                     {/* Hata Kaydı Dışa Aktarma (yalnızca telefonda; PC'de kayıt klasöre yazılır) */}
-                    {!canWriteLogFolder && (
+                    {!hasLogFolder() && (
                       <div className="p-4 rounded-xl bg-white/5 border border-white/10 space-y-3">
                         <div className="flex items-center gap-2">
                           <FileArchive className="w-4 h-4 text-slate-300" />

@@ -11,10 +11,10 @@ const STORAGE_KEY = 'lore_hata_kaydi';
 const MAX_CHARS = 300_000; // ~300 KB; dolunca eski yarısı atılır
 const LOG_FILE_NAME = 'hatalar.log';
 
-// Klasöre yazılabiliyorsa PC'dir; telefonda dışa aktar düğmesi gösterilir
-export const canWriteLogFolder = typeof window !== 'undefined' && 'showDirectoryPicker' in window;
-
 let folderHandle: FileSystemDirectoryHandle | null = null;
+
+// Kütüphane klasörü bağlıysa (PC) kayıt dosyaya gider; bağlı değilse (telefon) dışa aktar düğmesi gösterilir
+export const hasLogFolder = (): boolean => folderHandle !== null;
 let flushTimer: ReturnType<typeof setTimeout> | null = null;
 let lastKey = '';
 let lastTime = 0;
