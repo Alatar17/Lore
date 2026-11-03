@@ -32,6 +32,7 @@ import {
   CheckCircle2,
   Play,
   Layers,
+  Library,
   BookOpen,
   Quote,
   PenTool,
@@ -1095,6 +1096,18 @@ export const ImagePreviewModal: React.FC<ImagePreviewModalProps> = ({
               </div>
             )}
 
+            {/* Kitap İçin: SOL ALT: Okunacak + Kütüphanede (sadece ikon) */}
+            {isBook && item.inLibrary && (item.bookStatus === 'Okunacak' || item.toRead) && (
+              <div className="absolute bottom-2.5 left-2.5 z-20 flex items-center gap-1.5 pointer-events-none">
+                <div
+                  title="Kütüphanede"
+                  className="p-1.5 rounded-lg bg-amber-950/85 backdrop-blur-md border border-amber-400/40 text-amber-300 shadow-lg flex items-center justify-center"
+                >
+                  <Library className="w-3.5 h-3.5 text-amber-400" />
+                </div>
+              </div>
+            )}
+
             {/* Oyun İçin: SOL ALT: Oynama Süresi + Yanında Varsa Durum Rozeti (Yazısız Sadece Rozet) */}
             {isGame && Boolean((item.hours !== undefined && item.hours > 0) || (item.status && renderGameStatusIcon(item.status))) && (
               <div className="absolute bottom-2.5 left-2.5 z-20 flex items-center gap-1.5 pointer-events-none">
@@ -1746,7 +1759,8 @@ export const ImagePreviewModal: React.FC<ImagePreviewModalProps> = ({
                 item.watching || item.following || item.dropped || item.anki
               );
               const hasBookBottomBadges = isBook && Boolean(
-                item.reading || item.dropped || item.anki || (item.pageCount !== undefined && item.pageCount > 0)
+                item.reading || item.dropped || item.anki || (item.pageCount !== undefined && item.pageCount > 0) ||
+                (item.inLibrary && (item.bookStatus === 'Okunacak' || item.toRead))
               );
               const hasBottomBadges = hasGameBottomBadges || hasMediaBottomBadges || hasBookBottomBadges;
 
@@ -1782,6 +1796,14 @@ export const ImagePreviewModal: React.FC<ImagePreviewModalProps> = ({
                             className="w-[26px] h-[26px] rounded-lg bg-rose-950/85 backdrop-blur-md border border-rose-400/40 text-rose-300 shadow flex items-center justify-center shrink-0"
                           >
                             <PauseCircle className="w-3.5 h-3.5 text-rose-400" />
+                          </div>
+                        )}
+                        {item.inLibrary && (item.bookStatus === 'Okunacak' || item.toRead) && (
+                          <div
+                            title="Kütüphanede"
+                            className="w-[26px] h-[26px] rounded-lg bg-amber-950/85 backdrop-blur-md border border-amber-400/40 text-amber-300 shadow flex items-center justify-center shrink-0"
+                          >
+                            <Library className="w-3.5 h-3.5 text-amber-400" />
                           </div>
                         )}
                       </div>

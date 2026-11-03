@@ -10,6 +10,7 @@ import {
   FolderX,
   Layers,
   BookOpen,
+  Library,
   Trophy,
   Award,
 } from 'lucide-react';
@@ -22,6 +23,7 @@ interface FilterPanelProps {
   activeCategoryName?: string | null;
   activeSub?: string | null;
   isHideModeActive?: boolean;
+  isBacklogOnly?: boolean;
   placement?: 'top' | 'bottom';
 }
 
@@ -48,6 +50,7 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
   activeCategoryName,
   activeSub,
   isHideModeActive,
+  isBacklogOnly,
   placement = 'top',
 }) => {
   const isGame = mainTab === 'game';
@@ -95,7 +98,8 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
     Boolean(filters.uncategorizedOnly) ||
     (!isHideModeActive && Boolean(filters.hiddenOnly)) ||
     (filters.gameStatus && filters.gameStatus !== 'all') ||
-    (filters.bookFormat && filters.bookFormat !== 'all');
+    (filters.bookFormat && filters.bookFormat !== 'all') ||
+    Boolean(isBook && isBacklogOnly && filters.inLibraryOnly);
 
   const handleReset = () => {
     onChange({
@@ -110,6 +114,7 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
       ankiFilter: 'all',
       gameStatus: 'all',
       bookFormat: 'all',
+      inLibraryOnly: false,
       seriesOnly: false,
       hasBadgesOnly: false,
       uncategorizedOnly: false,
@@ -321,6 +326,25 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
                 </option>
               ))}
             </select>
+          </div>
+        )}
+
+        {/* Book-Specific: Kütüphanede (sadece Okunacak modunda) */}
+        {isBook && isBacklogOnly && (
+          <div className="pt-2 border-t border-white/10">
+            <label className="flex items-center justify-between text-xs text-neutral-300 hover:text-white cursor-pointer select-none py-1.5 px-1 rounded-lg hover:bg-white/5 transition-colors">
+              <div className="flex items-center gap-2">
+                <Library className="w-4 h-4 text-amber-400" />
+                <span className="text-amber-200 font-medium">Kütüphanede</span>
+              </div>
+              <input
+                id="filter-book-in-library-checkbox"
+                type="checkbox"
+                checked={Boolean(filters.inLibraryOnly)}
+                onChange={(e) => onChange({ inLibraryOnly: e.target.checked })}
+                className="w-4 h-4 rounded border-neutral-600 bg-neutral-800 text-white focus:ring-0 cursor-pointer accent-white"
+              />
+            </label>
           </div>
         )}
 

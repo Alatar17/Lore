@@ -57,6 +57,7 @@ import {
   CheckCircle2,
   RotateCcw,
   BookOpen,
+  Library,
   Quote,
   PenTool,
   Globe,
@@ -303,6 +304,7 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
   // Book specific states
   const [pageCount, setPageCount] = useState<number | string>(item.pageCount ?? '');
   const [bookFormat, setBookFormat] = useState<BookFormat>(item.format || 'Ciltsiz');
+  const [inLibrary, setInLibrary] = useState<boolean>(Boolean(item.inLibrary));
   const [reading, setReading] = useState<boolean>(Boolean(item.reading));
   const [author, setAuthor] = useState<string[]>(item.author || []);
   const [publisher, setPublisher] = useState<string[]>(item.publisher || []);
@@ -345,6 +347,7 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
     }
     setPageCount(item.pageCount ?? '');
     setBookFormat(item.format || 'Ciltsiz');
+    setInLibrary(Boolean(item.inLibrary));
     setReading(Boolean(item.reading));
     setAuthor(item.author || []);
     setPublisher(item.publisher || []);
@@ -1570,6 +1573,7 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
       bookStatus: isBook ? currentBookStatus : undefined,
       pageCount: isBook && pageCount !== '' && !isNaN(Number(pageCount)) ? Number(pageCount) : undefined,
       format: isBook ? bookFormat : undefined,
+      inLibrary: isBook && currentBookStatus === 'Okunacak' && inLibrary ? true : undefined,
       author: isBook && author.length > 0 ? author : undefined,
       publisher: isBook && publisher.length > 0 ? publisher : undefined,
       translator: isBook && translator.length > 0 ? translator : undefined,
@@ -2753,8 +2757,8 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
               DURUM
             </label>
             {isBook ? (
-              /* Book Status Options: [Okuma Durumu] [Format] [Anki - Sabit Rezervli] */
-              <div className="grid grid-cols-1 sm:grid-cols-[1.2fr_1.1fr_115px] gap-3 p-2 rounded-xl bg-white/[0.02] border border-white/5 items-end">
+              /* Book Status Options: [Okuma Durumu] ([Kütüphanede] sadece Okunacak iken) [Format] [Anki - Sabit Rezervli] */
+              <div className={`grid grid-cols-1 gap-3 p-2 rounded-xl bg-white/[0.02] border border-white/5 items-end ${currentBookStatus === 'Okunacak' ? 'sm:grid-cols-[1.2fr_auto_1.1fr_115px]' : 'sm:grid-cols-[1.2fr_1.1fr_115px]'}`}>
                 <div>
                   <label className="block text-[10px] uppercase tracking-wider text-slate-400 font-semibold mb-0.5">
                     Okuma Durumu
@@ -2771,6 +2775,22 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
                     <option value="Yarım Bırakıldı" className="bg-slate-900 text-white">⏸ Yarım Bırakıldı</option>
                   </select>
                 </div>
+
+                {currentBookStatus === 'Okunacak' && (
+                  <div className="flex items-center h-[30px] sm:h-[32px] mb-0.5 shrink-0">
+                    <label className="flex items-center gap-1.5 text-xs text-slate-300 cursor-pointer select-none hover:text-white px-2 py-1 rounded-lg hover:bg-white/5 transition-colors whitespace-nowrap">
+                      <input
+                        id="detail-book-in-library-cb"
+                        type="checkbox"
+                        checked={inLibrary}
+                        onChange={(e) => setInLibrary(e.target.checked)}
+                        className="w-4 h-4 rounded border-slate-600 bg-slate-800 text-emerald-500 focus:ring-0 cursor-pointer"
+                      />
+                      <Library className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                      <span className="text-xs">Kütüphanede</span>
+                    </label>
+                  </div>
+                )}
 
                 <div>
                   <label className="block text-[10px] uppercase tracking-wider text-slate-400 font-semibold mb-0.5 flex items-center gap-1">

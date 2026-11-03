@@ -2291,6 +2291,9 @@ export default function App() {
         if (item.format !== filters.bookFormat) return false;
       }
 
+      // 8.5. Kütüphanede filter (sadece Okunacak modunda)
+      if (item.mainTab === 'book' && isBacklogOnly && filters.inLibraryOnly && !item.inLibrary) return false;
+
       // 9. Anki filter
       if (filters.ankiFilter === 'yes' && !item.anki) return false;
       if (filters.ankiFilter === 'no' && item.anki) return false;
@@ -2429,6 +2432,7 @@ export default function App() {
             setIsFilterOpen(false);
           }}
           isHideModeActive={isHideModeActive}
+          isBacklogOnly={isBacklogOnly}
           onToggleHideMode={() => {
             setIsHideModeActive((prev) => {
               const next = !prev;
@@ -2703,7 +2707,8 @@ export default function App() {
               (filters.seriesOnly ? 1 : 0) +
               (filters.hasBadgesOnly ? 1 : 0) +
               (filters.gameStatus && filters.gameStatus !== 'all' ? 1 : 0) +
-              (filters.bookFormat && filters.bookFormat !== 'all' ? 1 : 0);
+              (filters.bookFormat && filters.bookFormat !== 'all' ? 1 : 0) +
+              (mainTab === 'book' && isBacklogOnly && filters.inLibraryOnly ? 1 : 0);
 
             return (
               <>
@@ -3122,6 +3127,7 @@ export default function App() {
                             activeCategoryName={activeCategory?.name || null}
                             activeSub={activeSub || null}
                             isHideModeActive={isHideModeActive}
+                            isBacklogOnly={isBacklogOnly}
                             placement="bottom"
                           />
                         )}

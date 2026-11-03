@@ -87,6 +87,7 @@ interface HeaderTabsProps {
   onClosePanels: () => void;
   onToggleHideMode?: () => void;
   isHideModeActive?: boolean;
+  isBacklogOnly?: boolean;
   onUploadZip?: () => void;
   pcSyncStatus?: PcSyncStatus;
   onTriggerPcSync?: () => void;
@@ -132,6 +133,7 @@ export const HeaderTabs: React.FC<HeaderTabsProps> = ({
   onClosePanels,
   onToggleHideMode,
   isHideModeActive,
+  isBacklogOnly,
   onUploadZip,
   pcSyncStatus = 'idle',
   onTriggerPcSync,
@@ -527,7 +529,8 @@ export const HeaderTabs: React.FC<HeaderTabsProps> = ({
     (filters.seriesOnly ? 1 : 0) +
     (filters.hasBadgesOnly ? 1 : 0) +
     (filters.gameStatus && filters.gameStatus !== 'all' ? 1 : 0) +
-    (filters.bookFormat && filters.bookFormat !== 'all' ? 1 : 0);
+    (filters.bookFormat && filters.bookFormat !== 'all' ? 1 : 0) +
+    (mainTab === 'book' && isBacklogOnly && filters.inLibraryOnly ? 1 : 0);
 
   // Pure Hover handlers for Main Dropdown buttons with snappy 120ms delay
   const handleMouseEnter = (tab: 'media' | 'game' | 'book') => {
@@ -2012,6 +2015,7 @@ export const HeaderTabs: React.FC<HeaderTabsProps> = ({
                 activeCategoryName={activeCategory?.name || null}
                 activeSub={activeSub || null}
                 isHideModeActive={isHideModeActive}
+                isBacklogOnly={isBacklogOnly}
               />
             )}
           </div>

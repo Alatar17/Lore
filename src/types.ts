@@ -170,6 +170,7 @@ export interface ArchiveItem {
   bookStatus?: BookStatus;
   pageCount?: number; // Sayfa Sayısı
   format?: BookFormat; // Baskı / Format Türü (Ciltsiz, Ciltli, E-Kitap, Sesli Kitap)
+  inLibrary?: boolean; // Okunacak kitap kütüphanede (sadece Okunacak iken anlamlı)
   author?: string[]; // Yazar(lar)
   publisher?: string[]; // Yayınevi
   translator?: string[]; // Çevirmen(ler)
@@ -392,6 +393,7 @@ export interface FilterState {
   gameStatus?: GameStatus | 'all';
   fullAchOnly?: boolean;
   bookFormat?: BookFormat | 'all';
+  inLibraryOnly?: boolean;
   uncategorizedOnly?: boolean;
   hiddenOnly?: boolean;
   seriesOnly?: boolean;
