@@ -1,5 +1,6 @@
 import { GoogleGenAI, Type } from '@google/genai';
 import { AiRecommendationCard } from '../types';
+import { logError } from './errorLog';
 
 export const GEMINI_API_KEY_STORAGE_KEY = 'lore_gemini_api_key';
 
@@ -81,6 +82,7 @@ export async function testGeminiApiKey(apiKey: string): Promise<{ success: boole
           };
         }
       } catch (err: unknown) {
+        logError('geminiAi.testGeminiApiKey', err);
         lastError = err;
       }
     }
@@ -100,6 +102,7 @@ export async function testGeminiApiKey(apiKey: string): Promise<{ success: boole
     }
     return { success: false, message: 'Modelden yanıt alınamadı. Anahtarınızı kontrol edin.' };
   } catch (err: unknown) {
+    logError('geminiAi.testGeminiApiKey', err);
     const errMsg = err instanceof Error ? err.message : String(err);
     return { success: false, message: `Bağlantı hatası: ${errMsg.slice(0, 120)}` };
   }
@@ -569,6 +572,7 @@ Kurallar:
           break;
         }
       } catch (err: unknown) {
+        logError('geminiAi.fetchAiMetadata', err);
         lastError = err;
         const msg = err instanceof Error ? err.message : String(err);
         const hasNextModel = i < GEMINI_CANDIDATE_MODELS.length - 1;
@@ -718,6 +722,7 @@ Kurallar:
       logs,
     };
   } catch (err: unknown) {
+    logError('geminiAi.fetchAiMetadata', err);
     const errMsg = err instanceof Error ? err.message : String(err);
     addLog('error', `Beklenmeyen AI sorgu hatası: ${errMsg.slice(0, 150)}`, errMsg);
     return {
@@ -1103,6 +1108,7 @@ Her kart iki hâlde görünür: kapalı (kısa) ve açık (detaylı).
         if (signal?.aborted) {
           return { success: false, error: 'İstek durduruldu.' };
         }
+        logError('geminiAi.askAiAssistant.modelAttempt', err);
         lastError = err;
       }
     }
@@ -1126,6 +1132,7 @@ Her kart iki hâlde görünür: kapalı (kısa) ve açık (detaylı).
       error: 'Modelden yanıt alınamadı. Lütfen tekrar deneyin.',
     };
   } catch (err: unknown) {
+    logError('geminiAi.askAiAssistant', err);
     const errMsg = err instanceof Error ? err.message : String(err);
     return {
       success: false,

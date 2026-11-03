@@ -4,6 +4,7 @@ import JSZip from 'jszip';
 import { renderTierListToPngBlob } from './tierImageExport';
 import { ensureAnkiCardDates } from './ankiUtils';
 import { loadRecommendationMemory, saveRecommendationMemory } from './recommendationMemory';
+import { logError } from './errorLog';
 
 // Helper to get formatted date string for export files (e.g., 2026-08-24_11-50 or 2026-08-24)
 export function getFormattedDateForFilename(): string {
@@ -220,6 +221,7 @@ export async function setCachedImageBlob(fileName: string, blob: Blob): Promise<
       tx.onerror = reject;
     });
   } catch (err) {
+    logError('fileSystem.setCachedImageBlob', err);
     console.warn('Failed to cache image in IndexedDB:', err);
   }
 }
@@ -236,6 +238,7 @@ export async function deleteCachedImageBlob(fileName: string): Promise<void> {
       tx.onerror = reject;
     });
   } catch (err) {
+    logError('fileSystem.deleteCachedImageBlob', err);
     console.warn('Failed to delete cached image from IndexedDB:', err);
   }
 }
@@ -357,6 +360,7 @@ export async function getStoredDirectoryHandle(): Promise<FileSystemDirectoryHan
       req.onerror = () => resolve(null);
     });
   } catch (err) {
+    logError('fileSystem.getStoredDirectoryHandle', err);
     console.warn('Could not read stored directory handle:', err);
     return null;
   }
@@ -373,6 +377,7 @@ export async function storeDirectoryHandle(handle: FileSystemDirectoryHandle): P
       tx.onerror = reject;
     });
   } catch (err) {
+    logError('fileSystem.storeDirectoryHandle', err);
     console.warn('Could not store directory handle:', err);
   }
 }
@@ -384,6 +389,7 @@ export async function clearStoredDirectoryHandle(): Promise<void> {
     const store = tx.objectStore(DB_STORE);
     store.delete(HANDLE_KEY);
   } catch (err) {
+    logError('fileSystem.clearStoredDirectoryHandle', err);
     console.warn('Could not clear directory handle:', err);
   }
 }
@@ -416,6 +422,7 @@ export async function loadDataFromIndexedDB(): Promise<AppData | null> {
       req.onerror = () => resolve(null);
     });
   } catch (err) {
+    logError('fileSystem.loadDataFromIndexedDB', err);
     console.warn('IndexedDB read error:', err);
     return null;
   }
@@ -439,6 +446,7 @@ export async function saveDataToIndexedDB(data: AppData): Promise<void> {
       tx.onerror = reject;
     });
   } catch (err) {
+    logError('fileSystem.saveDataToIndexedDB', err);
     console.warn('IndexedDB write error:', err);
   }
 }
@@ -464,6 +472,7 @@ export async function verifyPermission(
       }
     }
   } catch (err) {
+    logError('fileSystem.verifyPermission', err);
     console.warn('Permission query/request error:', err);
   }
   return false;
@@ -501,6 +510,7 @@ export async function checkDirectoryHandleAccessibility(
     }
     return true;
   } catch (err: any) {
+    logError('fileSystem.checkDirectoryHandleAccessibility', err);
     console.warn('Directory handle is no longer valid/accessible:', err);
     return false;
   }
@@ -837,6 +847,7 @@ async function writeDataToFolderNow(dirHandle: FileSystemDirectoryHandle, data: 
       ankiDir = await imagesDir.getDirectoryHandle('anki', { create: true });
       badgesDir = await imagesDir.getDirectoryHandle('badges', { create: true });
     } catch (e) {
+      logError('fileSystem.writeDataToFolderNow.createDirs', e);
       console.warn('Could not create images subdirectories:', e);
     }
 
@@ -892,6 +903,7 @@ async function writeDataToFolderNow(dirHandle: FileSystemDirectoryHandle, data: 
             deleteCachedImageBlob(getCardThumbnailKey(`images/posters/${previousName}`)).catch(() => {});
           }
         } catch (imgErr) {
+          logError('fileSystem.writeDataToFolderNow.posterWrite', imgErr);
           console.warn(`Could not write poster for ${item.id}:`, imgErr);
         }
       } else if (item.thumbnailFileName && !item.thumbnailFileName.includes('/posters/')) {
@@ -948,6 +960,7 @@ async function writeDataToFolderNow(dirHandle: FileSystemDirectoryHandle, data: 
               charCopy.fileName = `images/characters/${charImgName}`;
               charCopy.image = `images/characters/${charImgName}`;
             } catch (charErr) {
+              logError('fileSystem.writeDataToFolderNow.characterWrite', charErr);
               console.warn(`Could not write character image for ${item.id}:`, charErr);
             }
           }
@@ -1035,6 +1048,7 @@ async function writeDataToFolderNow(dirHandle: FileSystemDirectoryHandle, data: 
               extraCopy.url = `images/anki/${extraImgName}`;
               activeItemAnkiFiles.add(extraImgName);
             } catch (extraErr) {
+              logError('fileSystem.writeDataToFolderNow.ankiImageWrite', extraErr);
               console.warn(`Could not write extra image ${idx} for ${item.id}:`, extraErr);
               // Keep the previous file if the new one could not be written
               if (keepOnFailure) activeItemAnkiFiles.add(keepOnFailure);
@@ -1133,6 +1147,7 @@ async function writeDataToFolderNow(dirHandle: FileSystemDirectoryHandle, data: 
               } catch {}
             }
           } catch (bErr) {
+            logError('fileSystem.writeDataToFolderNow.badgeWrite', bErr);
             console.warn(`Could not write badge icon for ${badge.id}:`, bErr);
           }
         }
@@ -1351,6 +1366,7 @@ export async function cleanOrphanImagesInFolder(
                   await (subDir as any).removeEntry(entry.name);
                   deletedFiles.push(`${subName}/${entry.name}`);
                 } catch (delErr) {
+                  logError('fileSystem.cleanOrphanImagesInFolder.removeOrphan', delErr);
                   console.warn(`Could not remove orphan image ${subName}/${entry.name}:`, delErr);
                 }
               }
@@ -1382,6 +1398,7 @@ export async function cleanOrphanImagesInFolder(
               await (imagesDir as any).removeEntry(entry.name);
               deletedFiles.push(entry.name);
             } catch (delErr) {
+              logError('fileSystem.cleanOrphanImagesInFolder.removeRootOrphan', delErr);
               console.warn(`Could not remove root orphan image ${entry.name}:`, delErr);
             }
           }
@@ -1462,6 +1479,7 @@ export async function deleteImageFromFolder(
       }
     }
   } catch (err) {
+    logError('fileSystem.deleteImageFromFolder', err);
     console.warn('Error deleting image file from folder:', err);
   }
 }
@@ -1520,6 +1538,7 @@ export async function deleteBadgeImageFromFolder(
       }
     }
   } catch (err) {
+    logError('fileSystem.deleteBadgeImageFromFolder', err);
     console.warn('Error deleting badge image from folder:', err);
   }
 }
@@ -1530,20 +1549,22 @@ export function safeLocalStorageSet(key: string, value: string): void {
   try {
     localStorage.setItem(key, value);
   } catch (e) {
+    logError('fileSystem.safeLocalStorageSet', e);
     console.warn(`SafeLocalStorage: failed to set "${key}":`, e);
     // If quota was exceeded, clear obsolete legacy cache keys and retry once
     try {
       localStorage.removeItem('yapim_arsivim_app_data_v3');
       localStorage.removeItem('yapim_arsivim_app_data_v4');
       localStorage.setItem(key, value);
-    } catch {}
+    } catch (e) { logError('fileSystem.safeLocalStorageSet.retry', e); }
   }
 }
 
 export function safeLocalStorageGet(key: string): string | null {
   try {
     return localStorage.getItem(key);
-  } catch {
+  } catch (e) {
+    logError('fileSystem.safeLocalStorageGet', e);
     return null;
   }
 }
@@ -1597,6 +1618,7 @@ export function loadDataFromLocalStorage(): AppData {
       }
     }
   } catch (err) {
+    logError('fileSystem.loadDataFromLocalStorage', err);
     console.error('Failed to load from localStorage:', err);
   }
   return INITIAL_DATA;
@@ -1630,6 +1652,7 @@ export function saveDataToLocalStorage(data: AppData): void {
     // Clean old bulky legacy key if present
     localStorage.removeItem('yapim_arsivim_app_data_v3');
   } catch (err) {
+    logError('fileSystem.saveDataToLocalStorage', err);
     console.warn('LocalStorage save failed; safely handled by IndexedDB.');
   }
 }
@@ -1890,6 +1913,7 @@ export async function buildUnifiedZipBlob(data: AppData): Promise<Blob> {
         }
         itemCopy.thumbnailFileName = `images/posters/${imgName}`;
       } catch (e) {
+        logError('fileSystem.buildUnifiedZipBlob.poster', e);
         console.warn('Image zip export error:', e);
       }
     } else if (item.thumbnailFileName && !item.thumbnailFileName.includes('/posters/')) {
@@ -1924,6 +1948,7 @@ export async function buildUnifiedZipBlob(data: AppData): Promise<Blob> {
             charCopy.fileName = `images/characters/${charImgName}`;
             charCopy.image = `images/characters/${charImgName}`;
           } catch (e) {
+            logError('fileSystem.buildUnifiedZipBlob.character', e);
             console.warn('Character image zip export error:', e);
           }
         }
@@ -1961,6 +1986,7 @@ export async function buildUnifiedZipBlob(data: AppData): Promise<Blob> {
             extraCopy.fileName = `images/anki/${extraImgName}`;
             extraCopy.url = `images/anki/${extraImgName}`;
           } catch (e) {
+            logError('fileSystem.buildUnifiedZipBlob.ankiImage', e);
             console.warn('Extra image zip export error:', e);
           }
         }
@@ -2009,6 +2035,7 @@ export async function buildUnifiedZipBlob(data: AppData): Promise<Blob> {
           badgeCopy.fileName = `images/badges/${badgeImgName}`;
           badgeCopy.iconData = `images/badges/${badgeImgName}`;
         } catch (e) {
+          logError('fileSystem.buildUnifiedZipBlob.badge', e);
           console.warn('Badge zip export error:', e);
         }
       }
@@ -2074,6 +2101,7 @@ export async function buildUnifiedZipBlob(data: AppData): Promise<Blob> {
             const pngBlob = await renderTierListToPngBlob(cat, catItems, tab);
             tierFolder.file(pngFileName, pngBlob);
           } catch (pngErr) {
+            logError('fileSystem.buildUnifiedZipBlob.tierPng', pngErr);
             console.warn(`Could not render PNG snapshot for ${cat.name}:`, pngErr);
           }
         }
@@ -2126,6 +2154,7 @@ async function readZipBackupJson(
       const innerBlob = await innerLibZipFile.async('blob');
       innerZip = await JSZip.loadAsync(innerBlob);
     } catch (e) {
+      logError('fileSystem.readZipBackupJson', e);
       console.warn('Could not unpack inner library zip, reading directly:', e);
     }
   }
@@ -2210,6 +2239,7 @@ export async function importAppDataFromZip(
       localAnkiDir = await localImagesDirHandle.getDirectoryHandle('anki', { create: true });
       localBadgesDir = await localImagesDirHandle.getDirectoryHandle('badges', { create: true });
     } catch (e) {
+      logError('fileSystem.importAppDataFromZip.imageDirs', e);
       console.warn('Could not access images directories for disk extraction:', e);
     }
   }
@@ -2260,10 +2290,12 @@ export async function importAppDataFromZip(
           await writable.write(blob);
           await writable.close();
         } catch (we) {
+          logError('fileSystem.importAppDataFromZip.extractImageToDisk', we);
           console.warn('Failed to extract image to disk:', baseFilename, we);
         }
       }
     } catch (e) {
+      logError('fileSystem.importAppDataFromZip.readImage', e);
       console.warn('Error reading image from zip:', imgZip.name, e);
     }
   }
@@ -2285,6 +2317,7 @@ export async function importAppDataFromZip(
         imageMap.set(imgZip.name.toLowerCase(), dataUrl);
         imageMap.set(baseFilename.toLowerCase(), dataUrl);
       } catch (e) {
+        logError('fileSystem.importAppDataFromZip.readRootImage', e);
         console.warn('Error reading root image from zip:', imgZip.name, e);
       }
     }
@@ -2884,6 +2917,7 @@ export async function listFolderBackups(dirHandle: FileSystemDirectoryHandle): P
       }
     }
   } catch (err) {
+    logError('fileSystem.listFolderBackups', err);
     console.warn('Error listing folder backups:', err);
   }
 

@@ -9,6 +9,7 @@ import {
 } from './fileSystem';
 import { optimizeImageFile } from './imageOptimizer';
 import { loadRecommendationMemory } from './recommendationMemory';
+import { logError } from './errorLog';
 
 export interface GitHubSyncConfig {
   owner: string;
@@ -54,6 +55,7 @@ export function saveGitHubSyncConfig(config: GitHubSyncConfig): void {
   try {
     localStorage.setItem(GITHUB_CONFIG_STORAGE_KEY, JSON.stringify(config));
   } catch (err) {
+    logError('githubSync.saveGitHubSyncConfig', err);
     console.warn('Failed to save GitHub sync config to localStorage:', err);
   }
 }
@@ -74,6 +76,7 @@ export function setHasUnpushedChanges(dirty: boolean): void {
       localStorage.removeItem(GITHUB_DIRTY_STORAGE_KEY);
     }
   } catch (err) {
+    logError('githubSync.setHasUnpushedChanges', err);
     console.warn('Failed to update dirty flag in localStorage:', err);
   }
 }
@@ -176,6 +179,7 @@ export async function testGitHubConnection(config: GitHubSyncConfig): Promise<{
       hasFile,
     };
   } catch (err: any) {
+    logError('githubSync.testGitHubConnection', err);
     return {
       success: false,
       message: `Ağ hatası: ${err.message || err}`,
@@ -267,6 +271,7 @@ export async function checkGitHubUpdateAvailable(
       latestCommitDate: latestDate,
     };
   } catch (err) {
+    logError('githubSync.checkGitHubUpdateAvailable', err);
     console.warn('Lightweight GitHub check failed:', err);
     return { updateAvailable: false };
   }
@@ -323,6 +328,7 @@ async function listGitHubImagesViaTree(
     }
     return result;
   } catch (e) {
+    logError('githubSync.listGitHubImagesViaTree', e);
     console.warn('[GitHub Push] Tree listing failed, falling back to folder listing:', e);
     return null;
   }
@@ -391,6 +397,7 @@ export async function pushDataToGitHub(
       existingSha = data.sha;
     }
   } catch (e) {
+    logError('githubSync.pushDataToGitHub.getSha', e);
     console.warn('Could not fetch existing file SHA:', e);
   }
 
@@ -658,6 +665,7 @@ export async function pushDataToGitHub(
             }
           }
         } catch (err) {
+          logError('githubSync.pushDataToGitHub.uploadImage', err);
           console.warn(`Could not upload image ${imgName} to GitHub:`, err);
         }
       }
@@ -772,7 +780,8 @@ export async function pushDataToGitHub(
               } else {
                 break; // Non-retryable error, stop trying this small poster
               }
-            } catch {
+            } catch (e) {
+              logError('githubSync.pushSmallPoster.retry', e);
               retries++;
               await new Promise((r) => setTimeout(r, 1000));
             }
@@ -782,6 +791,7 @@ export async function pushDataToGitHub(
             smallUploadFailed++;
           }
         } catch (smallErr) {
+          logError('githubSync.pushDataToGitHub.smallPoster', smallErr);
           console.warn(`Could not produce/upload small poster for ${item.id}:`, smallErr);
           smallUploadFailed++;
         }
@@ -792,6 +802,7 @@ export async function pushDataToGitHub(
       }
     }
   } catch (imgSyncErr) {
+    logError('githubSync.pushDataToGitHub.imageSync', imgSyncErr);
     console.warn('Image push to GitHub had warnings:', imgSyncErr);
   }
 
@@ -829,6 +840,7 @@ export async function pushDataToGitHub(
       freshSha = data.sha;
     }
   } catch (e) {
+    logError('githubSync.pushDataToGitHub.getFreshSha', e);
     console.warn('Could not fetch freshest file SHA:', e);
   }
 
@@ -931,6 +943,7 @@ export async function pullDataFromGitHub(config: GitHubSyncConfig): Promise<{
   try {
     parsed = JSON.parse(rawText);
   } catch (err: any) {
+    logError('githubSync.pullDataFromGitHub', err);
     // If GitHub returned a JSON object containing { content: base64 } instead of raw text
     try {
       const fallbackObj = JSON.parse(rawText);

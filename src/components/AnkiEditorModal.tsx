@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { AnkiBlurBox, AnkiExtraImage } from '../types';
 import { optimizeImageFile } from '../utils/imageOptimizer';
 import { resolveGitHubImage, getGitHubSyncConfig } from '../utils/githubSync';
+import { logError } from '../utils/errorLog';
 import {
   X,
   Plus,
@@ -314,7 +315,7 @@ export const AnkiEditorModal: React.FC<AnkiEditorModalProps> = ({
     try {
       const optimized = await optimizeImageFile(file, 800, 1200, 0.88);
       setCurrentThumbnail(optimized);
-    } catch {}
+    } catch (e) { logError('AnkiEditorModal.handleUploadMainThumbnail', e); }
   };
 
   // Helper to add new extra image from File/Blob
@@ -332,6 +333,7 @@ export const AnkiEditorModal: React.FC<AnkiEditorModalProps> = ({
         setActiveImageIndex(extraImages.length + 1);
         setSelectedBoxId(null);
       } catch (err) {
+        logError('AnkiEditorModal.handleAddNewExtraImageFile', err);
         console.warn('Görsel optimize edilemedi:', err);
       }
     },

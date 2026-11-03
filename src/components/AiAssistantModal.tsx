@@ -59,6 +59,7 @@ import {
   setMemoryItemThumbnail,
 } from '../utils/recommendationMemory';
 import { RecommendationMemoryPanel } from './RecommendationMemoryPanel';
+import { logError } from '../utils/errorLog';
 
 interface AiAssistantModalProps {
   isOpen: boolean;
@@ -957,6 +958,7 @@ export const AiAssistantModal: React.FC<AiAssistantModalProps> = ({
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(messages));
     } catch (e) {
+      logError('AiAssistantModal.saveChatHistory', e);
       console.warn('Could not save AI chat history to localStorage:', e);
     }
   }, [messages]);
@@ -1246,6 +1248,7 @@ export const AiAssistantModal: React.FC<AiAssistantModalProps> = ({
       if (controller.signal.aborted) {
         return;
       }
+      logError('AiAssistantModal.handleSendMessage', err);
       const errMsg = err instanceof Error ? err.message : String(err);
       const errorMsg: AiChatMessage = {
         id: 'msg_ai_err_' + Date.now(),

@@ -23,6 +23,7 @@ import { AiProcessLogModal } from './AiProcessLogModal';
 import { AnkiEditorModal } from './AnkiEditorModal';
 import { CustomDialog, DialogOptions } from './CustomDialog';
 import { initAnkiCard } from '../utils/ankiUtils';
+import { logError } from '../utils/errorLog';
 import {
   X,
   Upload,
@@ -500,6 +501,7 @@ export const AddItemModal: React.FC<AddItemModalProps> = ({
       setAiStatusType('success');
       return res.data;
     } catch (err: unknown) {
+      logError('AddItemModal.handleAiFetch', err);
       const msg = err instanceof Error ? err.message : String(err);
       setAiNotice({
         text: `Hata: ${msg.slice(0, 100)}`,
@@ -1110,7 +1112,8 @@ export const AddItemModal: React.FC<AddItemModalProps> = ({
       setThumbnail(optimized);
       setPasteNotice('Resim başarıyla eklendi!');
       setTimeout(() => setPasteNotice(null), 2500);
-    } catch {
+    } catch (e) {
+      logError('AddItemModal.applyImageBase64', e);
       if (typeof rawInput === 'string') {
         setThumbnail(rawInput);
       }
@@ -3229,6 +3232,7 @@ export const AddItemModal: React.FC<AddItemModalProps> = ({
                               const optimized = await optimizeImageFile(file, 1200, 1600, 0.88);
                               handleUpdateCharacter(index, 'image', optimized);
                             } catch (err) {
+                              logError('AddItemModal.characterImageUpload', err);
                               console.error(err);
                             }
                           }

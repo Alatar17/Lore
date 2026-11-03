@@ -2,6 +2,7 @@
  * LORE — TMDB (The Movie Database) API & Image Engine
  * Resimler.md Şartnamesi - 1. Aşama: Bağlantı Motoru ve Kimlik Doğrulama
  */
+import { logError } from './errorLog';
 
 export const TMDB_API_KEY_STORAGE_KEY = 'lore_tmdb_api_key';
 export const ASSISTANT_IMAGES_ENABLED_STORAGE_KEY = 'lore_assistant_images_enabled';
@@ -147,6 +148,7 @@ export async function testTmdbConnection(
         keyType,
       };
     }
+    logError('tmdbApi.testTmdbConnection', err);
     return {
       success: false,
       message: `Bağlantı hatası: ${err.message || String(err)}`,

@@ -73,7 +73,7 @@ import { downloadTierListAsPng } from './utils/tierImageExport';
 import { ensureAnkiCardDates } from './utils/ankiUtils';
 
 import { HeaderTabs, TRACKED_TAB_ID } from './components/HeaderTabs';
-import { setErrorLogFolder } from './utils/errorLog';
+import { setErrorLogFolder, logError } from './utils/errorLog';
 import { ItemCard } from './components/ItemCard';
 import { TrackedView } from './components/TrackedView';
 import { TierListView } from './components/TierListView';
@@ -149,9 +149,10 @@ export default function App() {
     saveTimeoutRef.current = setTimeout(() => {
       saveDataToLocalStorage(data);
       if (dirHandleRef.current) {
-        writeDataToFolder(dirHandleRef.current, data).catch((err) =>
-          console.warn('Folder save error:', err)
-        );
+        writeDataToFolder(dirHandleRef.current, data).catch((err) => {
+          console.warn('Folder save error:', err);
+          logError('App.debouncedSaveData', err);
+        });
       }
     }, 500);
   }, []);
@@ -331,6 +332,7 @@ export default function App() {
         setPcSyncStatus('idle');
       }, 2500);
     } catch (err: any) {
+      logError('App.handleTriggerPcSync', err);
       setPcSyncStatus('error');
       setDialogOptions({
         type: 'alert',
@@ -466,7 +468,7 @@ export default function App() {
         setAppData(mergedData);
         saveDataToLocalStorage(mergedData);
         if (dirHandle) {
-          writeDataToFolder(dirHandle, mergedData).catch(() => {});
+          writeDataToFolder(dirHandle, mergedData).catch((e) => logError('App.handleTriggerMobileSync', e));
         }
         setGitHubConfig(getGitHubSyncConfig());
         setMobileSyncStatus('synced');
@@ -482,7 +484,7 @@ export default function App() {
             debouncedSaveData(updatedData);
             return updatedData;
           });
-        }).catch((e) => console.warn('Background small poster sync error:', e));
+        }).catch((e) => { console.warn('Background small poster sync error:', e); logError('App.handleTriggerMobileSync.smallPosters', e); });
 
         // 2. Incrementally load missing or updated full posters, characters, and anki scenes in the background without UI flicker
         syncImagesForItems(mergedData.items, cfg, (itemId, dataUrl, partialItem) => {
@@ -504,7 +506,7 @@ export default function App() {
               saveDataToLocalStorage(appDataRef.current);
             }
           })
-          .catch((e) => console.warn('Background image sync error:', e));
+          .catch((e) => { console.warn('Background image sync error:', e); logError('App.handleTriggerMobileSync.images', e); });
 
         // 3. Incrementally load missing or updated badge images from GitHub
         if (mergedData.customBadges && mergedData.customBadges.length > 0) {
@@ -518,7 +520,7 @@ export default function App() {
               debouncedSaveData(updatedData);
               return updatedData;
             });
-          }).catch((e) => console.warn('Background badge sync error:', e));
+          }).catch((e) => { console.warn('Background badge sync error:', e); logError('App.handleTriggerMobileSync.badges', e); });
         }
 
         setTimeout(() => {
@@ -526,6 +528,7 @@ export default function App() {
         }, 3000);
       }
     } catch (err: any) {
+      logError('App.handleTriggerMobileSync', err);
       setMobileSyncStatus('error');
       setDialogOptions({
         type: 'alert',
@@ -569,7 +572,7 @@ export default function App() {
             safeLocalStorageSet('lore_custom_badges', JSON.stringify(updatedBadges));
             return updatedData;
           });
-        }).catch(() => {});
+        }).catch((e) => logError('App.handleTriggerMobileSync', e));
       }
     }
 
@@ -591,7 +594,7 @@ export default function App() {
           debouncedSaveData(updatedData);
           return updatedData;
         });
-      }).catch((e) => console.warn('Startup small poster resolution error:', e));
+      }).catch((e) => { console.warn('Startup small poster resolution error:', e); logError('App.startupSmallPosters', e); });
     }
 
     // 2. Incrementally resolve full-size posters, characters, and anki scenes
@@ -622,7 +625,7 @@ export default function App() {
           saveDataToLocalStorage(appDataRef.current);
         }
       })
-      .catch((e) => console.warn('Startup image resolution error:', e));
+      .catch((e) => { console.warn('Startup image resolution error:', e); logError('App.startupImages', e); });
   }, [isDataLoaded, githubConfig.owner, githubConfig.repo]);
 
   // Filter State
@@ -944,15 +947,17 @@ export default function App() {
                 } else if (currentBestData) {
                   // Otherwise, local/IndexedDB data has newer updates (e.g. recently added/edited cards)
                   // Preserve local data in state and immediately sync it to disk so the folder is up-to-date!
-                  writeDataToFolder(storedHandle, currentBestData).catch((e) =>
-                    console.warn('Syncing local data to folder on init:', e)
-                  );
+                  writeDataToFolder(storedHandle, currentBestData).catch((e) => {
+                    console.warn('Syncing local data to folder on init:', e);
+                    logError('App.initStorage.syncToFolder', e);
+                  });
                 }
               } else if (currentBestData) {
                 // Folder is empty or newly created, write local data to it
-                writeDataToFolder(storedHandle, currentBestData).catch((e) =>
-                  console.warn('Initial folder sync:', e)
-                );
+                writeDataToFolder(storedHandle, currentBestData).catch((e) => {
+                  console.warn('Initial folder sync:', e);
+                  logError('App.initStorage.initialFolderSync', e);
+                });
               }
             }
           } else {
@@ -961,6 +966,7 @@ export default function App() {
           }
         }
       } catch (err) {
+        logError('App.initStorage', err);
         console.warn('Storage initialization error:', err);
       } finally {
         setIsDataLoaded(true);
@@ -978,6 +984,7 @@ export default function App() {
       if (dirHandle) {
         writeDataToFolder(dirHandle, appData).catch((err) => {
           console.error('Auto-save to directory failed:', err);
+          logError('App.autoSave', err);
         });
       }
     }, 600); // 600ms debounce so rapid state updates do not spam IndexedDB/storage
@@ -1375,9 +1382,10 @@ export default function App() {
       };
       saveDataToLocalStorage(updated);
       if (dirHandle) {
-        writeDataToFolder(dirHandle, updated).catch((err) =>
-          console.warn('Folder save on add item failed:', err)
-        );
+        writeDataToFolder(dirHandle, updated).catch((err) => {
+          console.warn('Folder save on add item failed:', err);
+          logError('App.handleAddItem', err);
+        });
       }
       return updated;
     });
@@ -1425,9 +1433,10 @@ export default function App() {
       };
       saveDataToLocalStorage(updated);
       if (dirHandle) {
-        writeDataToFolder(dirHandle, updated).catch((err) =>
-          console.warn('Folder save on save item failed:', err)
-        );
+        writeDataToFolder(dirHandle, updated).catch((err) => {
+          console.warn('Folder save on save item failed:', err);
+          logError('App.handleSaveItem', err);
+        });
       }
       return updated;
     });
@@ -1484,6 +1493,7 @@ export default function App() {
     if (dirHandle) {
       deleteImageFromFolder(dirHandle, itemToDelete?.thumbnailFileName, itemId).catch((e) => {
         console.warn('Failed to delete image from folder:', e);
+        logError('App.handleDeleteItem.deleteImage', e);
       });
     }
 
@@ -1495,9 +1505,10 @@ export default function App() {
       };
       saveDataToLocalStorage(updated);
       if (dirHandle) {
-        writeDataToFolder(dirHandle, updated).catch((err) =>
-          console.warn('Folder save on delete item failed:', err)
-        );
+        writeDataToFolder(dirHandle, updated).catch((err) => {
+          console.warn('Folder save on delete item failed:', err);
+          logError('App.handleDeleteItem', err);
+        });
       }
       return updated;
     });
@@ -1550,6 +1561,7 @@ export default function App() {
           for (const item of itemsToDelete) {
             deleteImageFromFolder(dirHandle, item.thumbnailFileName, item.id).catch((e) => {
               console.warn('Failed to delete image during bulk delete:', e);
+              logError('App.handleBulkDelete.deleteImage', e);
             });
           }
         }
@@ -1561,7 +1573,7 @@ export default function App() {
           };
           saveDataToLocalStorage(updated);
           if (dirHandle) {
-            writeDataToFolder(dirHandle, updated).catch(() => {});
+            writeDataToFolder(dirHandle, updated).catch((e) => logError('App.handleBulkDelete', e));
           }
           return updated;
         });
@@ -1591,7 +1603,7 @@ export default function App() {
       };
       saveDataToLocalStorage(updated);
       if (dirHandle) {
-        writeDataToFolder(dirHandle, updated).catch(() => {});
+        writeDataToFolder(dirHandle, updated).catch((e) => logError('App.handleBulkMove', e));
       }
       return updated;
     });
@@ -1679,6 +1691,7 @@ export default function App() {
               message: 'ZIP yedek paketi başarıyla yüklendi! Tüm yapımlar, afişler ve ayarlar aktarıldı.',
             });
           } catch (err: any) {
+            logError('App.handleMobileZipUpload', err);
             setDialogOptions({
               type: 'alert',
               title: 'ZIP İçe Aktarma Hatası',
@@ -1688,6 +1701,7 @@ export default function App() {
         },
       });
     } catch (err: any) {
+      logError('App.handleMobileZipUpload', err);
       setDialogOptions({
         type: 'alert',
         title: 'ZIP İçe Aktarma Hatası',
@@ -2053,7 +2067,7 @@ export default function App() {
           setAppData(updatedData);
           saveDataToLocalStorage(updatedData);
           if (dirHandle) {
-            writeDataToFolder(dirHandle, updatedData).catch(() => {});
+            writeDataToFolder(dirHandle, updatedData).catch((e) => logError('App.handleImportTierList', e));
           }
 
           setDialogOptions({
@@ -2073,6 +2087,7 @@ export default function App() {
         },
       });
     } catch (err: any) {
+      logError('App.handleImportTierList', err);
       setDialogOptions({
         type: 'alert',
         title: 'İçe Aktarma Hatası',
@@ -4221,7 +4236,7 @@ export default function App() {
             if (latestData) {
               saveDataToLocalStorage(latestData);
               if (dirHandle) {
-                writeDataToFolder(dirHandle, latestData).catch(() => {});
+                writeDataToFolder(dirHandle, latestData).catch((e) => logError('App.ankiStudyClose', e));
               }
             }
             setIsAnkiStudyOpen(false);

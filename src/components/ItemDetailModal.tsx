@@ -25,6 +25,7 @@ import { AiProcessLogModal } from './AiProcessLogModal';
 import { AnkiEditorModal } from './AnkiEditorModal';
 import { initAnkiCard } from '../utils/ankiUtils';
 import { resolveGitHubImage, getGitHubSyncConfig } from '../utils/githubSync';
+import { logError } from '../utils/errorLog';
 import {
   X,
   Upload,
@@ -675,6 +676,7 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
       setAiStatusType('success');
       return res.data;
     } catch (err: unknown) {
+      logError('ItemDetailModal.handleAiFetch', err);
       const msg = err instanceof Error ? err.message : String(err);
       setAiNotice({
         text: `Hata: ${msg.slice(0, 100)}`,
@@ -1402,7 +1404,8 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
       }));
       setPasteNotice('Resim güncellendi!');
       setTimeout(() => setPasteNotice(null), 2500);
-    } catch {
+    } catch (e) {
+      logError('ItemDetailModal.applyImageBase64', e);
       if (typeof rawInput === 'string') {
         const uniqueFileName = `images/posters/${formData.id}_${Date.now()}.jpg`;
         setFormData((prev) => ({
@@ -3688,6 +3691,7 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
                               const optimized = await optimizeImageFile(file, 1200, 1600, 0.88);
                               handleUpdateCharacter(index, 'image', optimized);
                             } catch (err) {
+                              logError('ItemDetailModal.characterImageUpload', err);
                               console.error(err);
                             }
                           }

@@ -5,6 +5,7 @@ import {
   RecommendationPoolType,
   RecommendationCategory,
 } from '../types';
+import { logError } from './errorLog';
 
 export type { RecommendationMemoryItem, RecommendationPoolType, RecommendationCategory };
 export type RecommendationFilterTab = 'all' | 'radar' | 'archive' | 'blacklist';
@@ -26,6 +27,7 @@ export function loadRecommendationMemory(): RecommendationMemoryItem[] {
       return parsed;
     }
   } catch (err) {
+    logError('recommendationMemory.loadRecommendationMemory', err);
     console.warn('Could not load recommendation memory from localStorage:', err);
   }
   return [];
@@ -42,6 +44,7 @@ export function saveRecommendationMemory(items: RecommendationMemoryItem[]): voi
       new CustomEvent('lore-recommendation-memory-updated', { detail: items })
     );
   } catch (err) {
+    logError('recommendationMemory.saveRecommendationMemory', err);
     console.warn('Could not save recommendation memory to localStorage:', err);
   }
 }

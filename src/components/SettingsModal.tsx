@@ -135,6 +135,7 @@ import {
   testTmdbConnection,
   isTmdbReadAccessToken,
 } from '../utils/tmdbApi';
+import { logError } from '../utils/errorLog';
 
 interface SettingsModalProps {
   appData: AppData;
@@ -481,6 +482,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         setBadgeIconData(optimized);
         setBadgeFormError(null);
       } catch (err: any) {
+        logError('SettingsModal.handleBadgeFileSelect', err);
         setBadgeFormError(err.message || 'Görsel yüklenemedi.');
       }
     }
@@ -523,6 +525,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             setBadgeIconData(optimized);
             setBadgeFormError(null);
           } catch (err: any) {
+            logError('SettingsModal.handleBadgePasteEvent', err);
             setBadgeFormError(err.message || 'Görsel işlenemedi.');
           }
           return;
@@ -609,6 +612,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         if (dirHandle) {
           deleteBadgeImageFromFolder(dirHandle, badge.id, badge.fileName).catch((err) => {
             console.warn('Failed to delete badge image from folder:', err);
+            logError('SettingsModal.handleDeleteBadgeClick', err);
           });
         }
         if (badge.fileName) {
@@ -740,6 +744,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       const res = await testGeminiApiKey(trimmed);
       setGeminiTestResult(res);
     } catch (err: unknown) {
+      logError('SettingsModal.handleTestGeminiConnection', err);
       const msg = err instanceof Error ? err.message : String(err);
       setGeminiTestResult({
         success: false,
@@ -803,6 +808,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       const res = await testTmdbConnection(trimmed);
       setTmdbTestResult(res);
     } catch (err: unknown) {
+      logError('SettingsModal.handleTestTmdbConnection', err);
       const msg = err instanceof Error ? err.message : String(err);
       setTmdbTestResult({
         success: false,
@@ -876,6 +882,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       const res = await testGitHubConnection(cfg);
       setGhTestResult(res);
     } catch (err: any) {
+      logError('SettingsModal.handleTestGhConnection', err);
       setGhTestResult({ success: false, message: err.message || 'Bağlantı hatası' });
     } finally {
       setTestingGh(false);
@@ -1091,6 +1098,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         });
       }
     } catch (err: any) {
+      logError('SettingsModal.handleCleanOrphanImages', err);
       setDialogOptions({
         type: 'alert',
         title: 'Temizlik Hatası',
@@ -1287,6 +1295,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       await onConnectFolder();
     } catch (err: any) {
       if (err.name !== 'AbortError') {
+        logError('SettingsModal.handleConnect', err);
         setDialogOptions({
           type: 'alert',
           title: 'Klasör Bağlantı Hatası',
@@ -1306,6 +1315,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       const filename = `Lore_Yedek_${dateStr}.zip`;
       await exportAppDataToZip(appData, filename);
     } catch (err: any) {
+      logError('SettingsModal.handleExportZip', err);
       setDialogOptions({
         type: 'alert',
         title: 'Dışa Aktarma Hatası',
@@ -1328,6 +1338,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         message: `Tam sistem yedeğiniz başarıyla oluşturuldu!\n\nDosya Yolu: "${dirHandle.name}/${relativePath}"\n\nBu ZIP paketi içinde tüm veritabanınız, afiş görselleriniz ve kategorilerinizin Tier List dizilimleri ile PNG afişleri eksiksiz kaydedilmiştir.`,
       });
     } catch (err: any) {
+      logError('SettingsModal.handleTakeFullBackup', err);
       setDialogOptions({
         type: 'alert',
         title: 'Yedekleme Hatası',
@@ -1354,6 +1365,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       const list = await listFolderBackups(dirHandle);
       setFolderBackups(list);
     } catch (err: any) {
+      logError('SettingsModal.handleOpenBackupsModal', err);
       console.error('Error fetching backups:', err);
     } finally {
       setLoadingBackups(false);
@@ -1386,6 +1398,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             message: `"${backup.dateFormatted}" tarihli yedek başarıyla yüklendi!\n\nToplam ${restoredItemCount} yapım, afişler ve tüm Tier List dizilimleri geri yüklendi.`,
           });
         } catch (err: any) {
+          logError('SettingsModal.handleRestoreBackup', err);
           setIsBackupsModalOpen(true);
           setDialogOptions({
             type: 'alert',
@@ -1421,6 +1434,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               message: 'ZIP yedek paketi başarıyla yüklendi! Tüm yapımlar, afişler ve Tier List dizilimleri aktarıldı.',
             });
           } catch (err: any) {
+            logError('SettingsModal.processZipFile', err);
             setDialogOptions({
               type: 'alert',
               title: 'ZIP İçe Aktarma Hatası',
@@ -1432,6 +1446,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         },
       });
     } catch (err: any) {
+      logError('SettingsModal.processZipFile', err);
       setDialogOptions({
         type: 'alert',
         title: 'ZIP İçe Aktarma Hatası',
@@ -1500,6 +1515,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         });
       }
     } catch (err: any) {
+      logError('SettingsModal.processJsonFile', err);
       setDialogOptions({
         type: 'alert',
         title: 'Geçersiz Dosya',
@@ -1567,6 +1583,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       // AbortError: Kullanıcı Windows Gezgini penceresini kapattı veya iptal etti.
       // Herhangi bir hata veya onay uyarısı göstermeden sessizce çık.
       if (err.name === 'AbortError') return;
+      logError('SettingsModal.handleOpenNativeBackupFolder', err);
       console.warn('Klasör gezgini hatası:', err);
     }
   };
@@ -1660,6 +1677,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         },
       });
     } catch (err: any) {
+      logError('SettingsModal.handleImportTierListFile', err);
       setDialogOptions({
         type: 'alert',
         title: 'Tier List İçe Aktarma Hatası',
