@@ -15,10 +15,10 @@ import { FollowBadge, getFollowColor, RatingBadgeIcon } from './FollowIndicatorI
 import { useBadgeCardIcon, useBakedBadgeIcon, useIsMobileBadgeScreen } from '../utils/badgeCache';
 
 // Sayfalı: kapağın içinde kalan (üstten/alttan kısa), sadece sağdaki sayfa bloğunun kalınlığı (px)
-// GEÇİCİ: A1 daha kalın deneme, karar verilince biri kalacak
+// Kalın: aynı blok, daha kalın
 const getBookPagesWidth = (pageCount: number | undefined, style: string) => {
   const pages = pageCount || 300;
-  if (style === 'pagesA1') return Math.min(8, Math.max(4, Math.round(3 + pages / 150)));
+  if (style === 'pagesThick') return Math.min(8, Math.max(4, Math.round(3 + pages / 150)));
   return Math.min(6, Math.max(3, Math.round(2.5 + pages / 200)));
 };
 
@@ -287,7 +287,7 @@ export const ItemCard: React.FC<ItemCardProps> = ({
   const cardHoverMotion = uiExperiments?.cardHoverMotion || 'none';
   const bookCoverStyle = uiExperiments?.bookCover || 'flat';
   const isBookCover = isBook && bookCoverStyle !== 'flat';
-  const hasPageBlock = bookCoverStyle === 'pages' || bookCoverStyle === 'pagesA1';
+  const hasPageBlock = bookCoverStyle === 'pages' || bookCoverStyle === 'pagesThick';
   const bookPagesWidth = getBookPagesWidth(item.pageCount, bookCoverStyle);
   const badgeStyle = uiExperiments?.badgeStyle || 'default';
   const badgeDensity = uiExperiments?.badgeDensity || 'full';
