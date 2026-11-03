@@ -242,7 +242,8 @@ export default function App() {
           cardVignette: cardVignette as any,
           cardRadius,
           cardHoverMotion: parsed.cardHoverMotion || 'none',
-          bookCover: ['book', 'pages', 'pagesA1', 'pagesA2'].includes(parsed.bookCover) ? parsed.bookCover : 'flat',
+          bookCover: ['book', 'pages', 'pagesA1'].includes(parsed.bookCover) ? parsed.bookCover : 'flat',
+          bookPaper: parsed.bookPaper || '1',
           bgAtmosphere: parsed.bgAtmosphere === 'topglow' ? 'default' : (parsed.bgAtmosphere || 'default'),
           badgeStyle: parsed.badgeStyle || 'default',
           badgeDensity,
@@ -3420,13 +3421,12 @@ export default function App() {
                         {/* 4. Kitap Kapağı (yalnızca kitap kartları) */}
                         <div className="space-y-1.5">
                           <div className="text-[11px] font-semibold text-slate-300 px-1">Kitap Kapağı</div>
-                          <div className="grid grid-cols-3 gap-1.5">
+                          <div className="grid grid-cols-4 gap-1.5">
                             {[
                               { id: 'flat', label: 'Düz' },
                               { id: 'book', label: 'Kitap' },
                               { id: 'pages', label: 'Sayfalı' },
-                              { id: 'pagesA1', label: 'Sayfalı A1' }, // GEÇİCİ: kalınlık denemesi, seçilmeyen kaldırılacak
-                              { id: 'pagesA2', label: 'Sayfalı A2' }, // GEÇİCİ
+                              { id: 'pagesA1', label: 'Sayfalı A1' }, // GEÇİCİ: kalınlık denemesi, karar verilince biri kalacak
                             ].map((b) => (
                               <button
                                 key={b.id}
@@ -3440,6 +3440,28 @@ export default function App() {
                                 }`}
                               >
                                 {b.label}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* GEÇİCİ: Sayfa bloğu kâğıt stili denemesi (Sayfalı / Sayfalı A1'de görünür) */}
+                        <div className="space-y-1.5">
+                          <div className="text-[11px] font-semibold text-slate-300 px-1">Kâğıt (deneme)</div>
+                          <div className="grid grid-cols-4 gap-1.5">
+                            {['1', '2', '3', '4'].map((k) => (
+                              <button
+                                key={k}
+                                onClick={() =>
+                                  setUiExperiments((p) => ({ ...p, bookPaper: k as any }))
+                                }
+                                className={`p-1.5 rounded-lg text-[11px] font-medium border text-center transition-all cursor-pointer ${
+                                  (uiExperiments.bookPaper || '1') === k
+                                    ? 'bg-blue-600/30 text-blue-200 border-blue-500/50'
+                                    : 'bg-white/5 text-slate-400 border-white/5 hover:bg-white/10 hover:text-slate-200'
+                                }`}
+                              >
+                                Kâğıt {k}
                               </button>
                             ))}
                           </div>

@@ -15,12 +15,20 @@ import { FollowBadge, getFollowColor, RatingBadgeIcon } from './FollowIndicatorI
 import { useBadgeCardIcon, useBakedBadgeIcon, useIsMobileBadgeScreen } from '../utils/badgeCache';
 
 // Sayfalı: kapağın içinde kalan (üstten/alttan kısa), sadece sağdaki sayfa bloğunun kalınlığı (px)
-// GEÇİCİ: A1/A2 daha kalın denemeler, seçilmeyen kaldırılacak
+// GEÇİCİ: A1 daha kalın deneme, karar verilince biri kalacak
 const getBookPagesWidth = (pageCount: number | undefined, style: string) => {
   const pages = pageCount || 300;
-  if (style === 'pagesA1') return Math.min(9, Math.max(3, Math.round(pages / 60)));
-  if (style === 'pagesA2') return Math.min(12, Math.max(4, Math.round(pages / 45)));
+  if (style === 'pagesA1') return Math.min(8, Math.max(3, Math.round(pages / 75)));
   return Math.min(6, Math.max(3, Math.round(pages / 120)));
+};
+
+// GEÇİCİ: sayfa bloğu kâğıt stili denemeleri (1 şu anki, 2 yumuşak + kavis, 3 düz krem, 4 eski kâğıt)
+const BOOK_PAPER_EDGES = 'linear-gradient(to bottom, rgba(0,0,0,0.30) 0%, transparent 9%, transparent 91%, rgba(0,0,0,0.30) 100%)';
+const BOOK_PAPER_BACKGROUNDS: Record<string, string> = {
+  '1': 'linear-gradient(to right, transparent 55%, rgba(0,0,0,0.35) 100%), repeating-linear-gradient(to right, #c9c2b0 0px, #c9c2b0 1px, #9e9786 1px, #9e9786 2px)',
+  '2': `${BOOK_PAPER_EDGES}, linear-gradient(to right, transparent 55%, rgba(0,0,0,0.30) 100%), repeating-linear-gradient(to right, #cdc6b4 0px, #cdc6b4 1px, #bab3a0 1px, #bab3a0 2px)`,
+  '3': `${BOOK_PAPER_EDGES}, linear-gradient(to right, #d4cdbb 0%, #c4bca8 60%, #8f8877 100%)`,
+  '4': `${BOOK_PAPER_EDGES}, linear-gradient(to right, transparent 55%, rgba(0,0,0,0.30) 100%), repeating-linear-gradient(to right, #d6c69e 0px, #d6c69e 1px, #c1b086 1px, #c1b086 2px)`,
 };
 
 interface ItemCardBadgeProps {
@@ -280,7 +288,7 @@ export const ItemCard: React.FC<ItemCardProps> = ({
   const cardHoverMotion = uiExperiments?.cardHoverMotion || 'none';
   const bookCoverStyle = uiExperiments?.bookCover || 'flat';
   const isBookCover = isBook && bookCoverStyle !== 'flat';
-  const hasPageBlock = bookCoverStyle === 'pages' || bookCoverStyle === 'pagesA1' || bookCoverStyle === 'pagesA2';
+  const hasPageBlock = bookCoverStyle === 'pages' || bookCoverStyle === 'pagesA1';
   const bookPagesWidth = getBookPagesWidth(item.pageCount, bookCoverStyle);
   const badgeStyle = uiExperiments?.badgeStyle || 'default';
   const badgeDensity = uiExperiments?.badgeDensity || 'full';
@@ -363,8 +371,7 @@ export const ItemCard: React.FC<ItemCardProps> = ({
             style={{
               right: -bookPagesWidth,
               width: bookPagesWidth + 6,
-              background:
-                'linear-gradient(to right, transparent 55%, rgba(0,0,0,0.35) 100%), repeating-linear-gradient(to right, #c9c2b0 0px, #c9c2b0 1px, #9e9786 1px, #9e9786 2px)',
+              background: BOOK_PAPER_BACKGROUNDS[uiExperiments?.bookPaper || '1'] || BOOK_PAPER_BACKGROUNDS['1'],
             }}
           />
         </div>

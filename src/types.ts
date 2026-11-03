@@ -658,7 +658,7 @@ export type ToolbarExperimentStyle = 'default' | 'box' | 'glass';
 export type CardVignetteStyle = 'none' | 'bottom' | 'corners';
 export type CardCornerRadius = 'normal' | 'sharp';
 export type CardHoverMotion = 'lift' | 'zoom' | 'none';
-export type BookCoverStyle = 'flat' | 'book' | 'pages' | 'pagesA1' | 'pagesA2';
+export type BookCoverStyle = 'flat' | 'book' | 'pages' | 'pagesA1';
 export type BgAtmosphereExperiment = 'default' | 'dots';
 export type BadgeExperimentStyle = 'default' | 'neon' | 'minimal';
 export type BadgeDensity = 'full' | 'hover-only';
@@ -671,6 +671,7 @@ export interface UiExperimentsState {
   cardRadius: CardCornerRadius; // 6.1: Keskin / Standart
   cardHoverMotion: CardHoverMotion; // 6.2: Yükselme / Büyüme / Sabit
   bookCover?: BookCoverStyle; // Kitap kartı: Düz / Kitap (sırt + gölge) / Sayfalı
+  bookPaper?: '1' | '2' | '3' | '4'; // GEÇİCİ: sayfa bloğu kâğıt stili denemesi
   bgAtmosphere: BgAtmosphereExperiment;
   badgeStyle: BadgeExperimentStyle;
   badgeDensity: BadgeDensity; // 6.4: Tam Detay / Hover
