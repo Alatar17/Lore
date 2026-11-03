@@ -647,21 +647,34 @@ export async function pushDataToGitHub(
               putPayload.sha = existingSha;
             }
 
-            const uploadRes = await fetch(
-              `https://api.github.com/repos/${owner}/${repo}/contents/images/${imgName}`,
-              {
-                method: 'PUT',
-                headers: {
-                  Authorization: `Bearer ${token}`,
-                  Accept: 'application/vnd.github.v3+json',
-                  'Content-Type': 'application/json',
-                },
-                body: JSON.stringify(putPayload),
+            // Retry on 403 (rate limit) or 409 (branch moved), same as small posters below
+            for (let attempt = 0; attempt < 3; attempt++) {
+              const uploadRes = await fetch(
+                `https://api.github.com/repos/${owner}/${repo}/contents/images/${imgName}`,
+                {
+                  method: 'PUT',
+                  headers: {
+                    Authorization: `Bearer ${token}`,
+                    Accept: 'application/vnd.github.v3+json',
+                    'Content-Type': 'application/json',
+                  },
+                  body: JSON.stringify(putPayload),
+                }
+              );
+              if (uploadRes.ok) {
+                uploadedImagesCount++;
+                existingGhFiles.set(imgName, 'uploaded');
+                break;
               }
-            );
-            if (uploadRes.ok) {
-              uploadedImagesCount++;
-              existingGhFiles.set(imgName, 'uploaded');
+              if (uploadRes.status !== 403 && uploadRes.status !== 409) {
+                logError('githubSync.pushDataToGitHub.uploadImage', new Error(`${imgName}: HTTP ${uploadRes.status}`));
+                break;
+              }
+              if (attempt === 2) {
+                logError('githubSync.pushDataToGitHub.uploadImage', new Error(`${imgName}: HTTP ${uploadRes.status} after 3 tries`));
+                break;
+              }
+              await new Promise((r) => setTimeout(r, attempt === 0 ? 500 : 1500));
             }
           }
         } catch (err) {
@@ -1164,6 +1177,12 @@ export async function resolveGitHubImage(
 }
 
 /**
+ * resolveGitHubImage's last-resort raw.githubusercontent URL. It does not load for a private
+ * repo, and merge keeps 'http' URLs, so treat it as unresolved and retry on the next sync.
+ */
+const isDeadRawUrl = (url?: string) => Boolean(url && url.startsWith('https://raw.githubusercontent.com/'));
+
+/**
  * Background worker to fetch missing images (posters, characters, anki extra scenes)
  * for items pulled from GitHub.
  * Resolves images in concurrent batches and informs caller via onImageLoaded.
@@ -1177,17 +1196,17 @@ export async function syncImagesForItems(
 
   const itemsNeedingImages = items.filter((it) => {
     const needsPoster =
-      (!it.thumbnail || it.thumbnail.trim() === '' || it.thumbnail.startsWith('blob:') || it.thumbnail.startsWith('images/')) &&
+      (!it.thumbnail || it.thumbnail.trim() === '' || it.thumbnail.startsWith('blob:') || it.thumbnail.startsWith('images/') || isDeadRawUrl(it.thumbnail)) &&
       Boolean(it.thumbnailFileName);
     const needsCharacters =
       Array.isArray(it.characters) &&
       it.characters.some(
-        (c) => Boolean(c.image || c.fileName) && (!c.image || c.image.startsWith('images/') || c.image.startsWith('characters/'))
+        (c) => Boolean(c.image || c.fileName) && (!c.image || c.image.startsWith('images/') || c.image.startsWith('characters/') || isDeadRawUrl(c.image))
       );
     const needsAnki =
       Array.isArray(it.ankiExtraImages) &&
       it.ankiExtraImages.some(
-        (e) => Boolean(e.url || e.fileName) && (!e.url || e.url.startsWith('images/') || e.url.startsWith('anki/'))
+        (e) => Boolean(e.url || e.fileName) && (!e.url || e.url.startsWith('images/') || e.url.startsWith('anki/') || isDeadRawUrl(e.url))
       );
     return needsPoster || needsCharacters || needsAnki;
   });
@@ -1207,7 +1226,7 @@ export async function syncImagesForItems(
 
       // 1. Poster / Thumbnail
       if (
-        (!currentItem.thumbnail || currentItem.thumbnail.trim() === '' || currentItem.thumbnail.startsWith('blob:') || currentItem.thumbnail.startsWith('images/')) &&
+        (!currentItem.thumbnail || currentItem.thumbnail.trim() === '' || currentItem.thumbnail.startsWith('blob:') || currentItem.thumbnail.startsWith('images/') || isDeadRawUrl(currentItem.thumbnail)) &&
         currentItem.thumbnailFileName
       ) {
         try {
@@ -1225,13 +1244,13 @@ export async function syncImagesForItems(
       let updatedCharacters = currentItem.characters;
       if (Array.isArray(currentItem.characters) && currentItem.characters.length > 0) {
         const hasUnresolvedChar = currentItem.characters.some(
-          (c) => Boolean(c.image || c.fileName) && (!c.image || c.image.startsWith('images/') || c.image.startsWith('characters/'))
+          (c) => Boolean(c.image || c.fileName) && (!c.image || c.image.startsWith('images/') || c.image.startsWith('characters/') || isDeadRawUrl(c.image))
         );
         if (hasUnresolvedChar) {
           const resolvedChars = await Promise.all(
             currentItem.characters.map(async (char) => {
               const targetPath = char.fileName || char.image;
-              if (targetPath && (!char.image || char.image.startsWith('images/') || char.image.startsWith('characters/'))) {
+              if (targetPath && (!char.image || char.image.startsWith('images/') || char.image.startsWith('characters/') || isDeadRawUrl(char.image))) {
                 try {
                   const url = await resolveGitHubImage(targetPath, config);
                   if (url) {
@@ -1253,13 +1272,13 @@ export async function syncImagesForItems(
       let updatedAnkiExtra = currentItem.ankiExtraImages;
       if (Array.isArray(currentItem.ankiExtraImages) && currentItem.ankiExtraImages.length > 0) {
         const hasUnresolvedAnki = currentItem.ankiExtraImages.some(
-          (e) => Boolean(e.url || e.fileName) && (!e.url || e.url.startsWith('images/') || e.url.startsWith('anki/'))
+          (e) => Boolean(e.url || e.fileName) && (!e.url || e.url.startsWith('images/') || e.url.startsWith('anki/') || isDeadRawUrl(e.url))
         );
         if (hasUnresolvedAnki) {
           const resolvedExtras = await Promise.all(
             currentItem.ankiExtraImages.map(async (extra) => {
               const targetPath = extra.fileName || extra.url;
-              if (targetPath && (!extra.url || extra.url.startsWith('images/') || extra.url.startsWith('anki/'))) {
+              if (targetPath && (!extra.url || extra.url.startsWith('images/') || extra.url.startsWith('anki/') || isDeadRawUrl(extra.url))) {
                 try {
                   const url = await resolveGitHubImage(targetPath, config);
                   if (url) {
