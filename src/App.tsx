@@ -243,7 +243,7 @@ export default function App() {
           cardRadius,
           cardHoverMotion: parsed.cardHoverMotion || 'none',
           bookCover: ['book', 'pages', 'pagesA1'].includes(parsed.bookCover) ? parsed.bookCover : 'flat',
-          bookPaper: parsed.bookPaper || '1',
+          bookPaper: ['lined', 'aged'].includes(parsed.bookPaper) ? parsed.bookPaper : 'soft',
           bgAtmosphere: parsed.bgAtmosphere === 'topglow' ? 'default' : (parsed.bgAtmosphere || 'default'),
           badgeStyle: parsed.badgeStyle || 'default',
           badgeDensity,
@@ -261,6 +261,7 @@ export default function App() {
       cardRadius: 'normal',
       cardHoverMotion: 'none',
       bookCover: 'flat',
+      bookPaper: 'soft',
       bgAtmosphere: 'default',
       badgeStyle: 'default',
       badgeDensity: 'full',
@@ -3445,23 +3446,27 @@ export default function App() {
                           </div>
                         </div>
 
-                        {/* GEÇİCİ: Sayfa bloğu kâğıt stili denemesi (Sayfalı / Sayfalı A1'de görünür) */}
+                        {/* 5. Kâğıt (Sayfalı kitapta sayfa bloğu) */}
                         <div className="space-y-1.5">
-                          <div className="text-[11px] font-semibold text-slate-300 px-1">Kâğıt (deneme)</div>
-                          <div className="grid grid-cols-4 gap-1.5">
-                            {['1', '2', '3', '4'].map((k) => (
+                          <div className="text-[11px] font-semibold text-slate-300 px-1">Kâğıt</div>
+                          <div className="grid grid-cols-3 gap-1.5">
+                            {[
+                              { id: 'soft', label: 'Yumuşak' },
+                              { id: 'lined', label: 'Çizgili' },
+                              { id: 'aged', label: 'Sararmış' },
+                            ].map((k) => (
                               <button
-                                key={k}
+                                key={k.id}
                                 onClick={() =>
-                                  setUiExperiments((p) => ({ ...p, bookPaper: k as any }))
+                                  setUiExperiments((p) => ({ ...p, bookPaper: k.id as any }))
                                 }
                                 className={`p-1.5 rounded-lg text-[11px] font-medium border text-center transition-all cursor-pointer ${
-                                  (uiExperiments.bookPaper || '1') === k
+                                  (uiExperiments.bookPaper || 'soft') === k.id
                                     ? 'bg-blue-600/30 text-blue-200 border-blue-500/50'
                                     : 'bg-white/5 text-slate-400 border-white/5 hover:bg-white/10 hover:text-slate-200'
                                 }`}
                               >
-                                Kâğıt {k}
+                                {k.label}
                               </button>
                             ))}
                           </div>
@@ -3815,7 +3820,7 @@ export default function App() {
                   className={`px-2 sm:px-2.5 py-1 rounded-lg font-medium transition-colors flex items-center gap-1 cursor-pointer whitespace-nowrap shrink-0 ${
                     openUiTestMenu === 'card'
                       ? 'bg-blue-600 text-white shadow border border-blue-500'
-                      : uiExperiments.cardVignette !== 'none' || uiExperiments.cardRadius !== 'normal' || uiExperiments.cardHoverMotion !== 'none' || (uiExperiments.bookCover || 'flat') !== 'flat'
+                      : uiExperiments.cardVignette !== 'none' || uiExperiments.cardRadius !== 'normal' || uiExperiments.cardHoverMotion !== 'none' || (uiExperiments.bookCover || 'flat') !== 'flat' || (uiExperiments.bookPaper || 'soft') !== 'soft'
                       ? 'bg-blue-600/30 text-blue-300 border border-blue-500/40'
                       : 'bg-white/5 hover:bg-white/10 text-neutral-300 border border-transparent'
                   }`}
@@ -3941,6 +3946,7 @@ export default function App() {
                   uiExperiments.cardRadius !== 'normal' ||
                   uiExperiments.cardHoverMotion !== 'none' ||
                   (uiExperiments.bookCover || 'flat') !== 'flat' ||
+                  (uiExperiments.bookPaper || 'soft') !== 'soft' ||
                   uiExperiments.bgAtmosphere !== 'default' ||
                   uiExperiments.badgeStyle !== 'default' ||
                   uiExperiments.badgeDensity !== 'full' ||
@@ -3967,6 +3973,7 @@ export default function App() {
                             cardRadius: 'normal',
                             cardHoverMotion: 'none',
                             bookCover: 'flat',
+                            bookPaper: 'soft',
                             bgAtmosphere: 'default',
                             badgeStyle: 'default',
                             badgeDensity: 'full',

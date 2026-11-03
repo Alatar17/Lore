@@ -671,7 +671,7 @@ export interface UiExperimentsState {
   cardRadius: CardCornerRadius; // 6.1: Keskin / Standart
   cardHoverMotion: CardHoverMotion; // 6.2: Yükselme / Büyüme / Sabit
   bookCover?: BookCoverStyle; // Kitap kartı: Düz / Kitap (sırt + gölge) / Sayfalı
-  bookPaper?: '1' | '2' | '3' | '4'; // GEÇİCİ: sayfa bloğu kâğıt stili denemesi
+  bookPaper?: 'soft' | 'lined' | 'aged'; // Sayfalı kitapta sayfa bloğu: Yumuşak / Çizgili / Sararmış
   bgAtmosphere: BgAtmosphereExperiment;
   badgeStyle: BadgeExperimentStyle;
   badgeDensity: BadgeDensity; // 6.4: Tam Detay / Hover

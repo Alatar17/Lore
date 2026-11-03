@@ -18,17 +18,16 @@ import { useBadgeCardIcon, useBakedBadgeIcon, useIsMobileBadgeScreen } from '../
 // GEÇİCİ: A1 daha kalın deneme, karar verilince biri kalacak
 const getBookPagesWidth = (pageCount: number | undefined, style: string) => {
   const pages = pageCount || 300;
-  if (style === 'pagesA1') return Math.min(8, Math.max(3, Math.round(pages / 75)));
-  return Math.min(6, Math.max(3, Math.round(pages / 120)));
+  if (style === 'pagesA1') return Math.min(8, Math.max(4, Math.round(3 + pages / 150)));
+  return Math.min(6, Math.max(3, Math.round(2.5 + pages / 200)));
 };
 
-// GEÇİCİ: sayfa bloğu kâğıt stili denemeleri (1 şu anki, 2 yumuşak + kavis, 3 düz krem, 4 eski kâğıt)
+// Sayfa bloğunun kâğıt stili (Kart Görünüm & Efektleri → Kâğıt)
 const BOOK_PAPER_EDGES = 'linear-gradient(to bottom, rgba(0,0,0,0.30) 0%, transparent 9%, transparent 91%, rgba(0,0,0,0.30) 100%)';
 const BOOK_PAPER_BACKGROUNDS: Record<string, string> = {
-  '1': 'linear-gradient(to right, transparent 55%, rgba(0,0,0,0.35) 100%), repeating-linear-gradient(to right, #c9c2b0 0px, #c9c2b0 1px, #9e9786 1px, #9e9786 2px)',
-  '2': `${BOOK_PAPER_EDGES}, linear-gradient(to right, transparent 55%, rgba(0,0,0,0.30) 100%), repeating-linear-gradient(to right, #cdc6b4 0px, #cdc6b4 1px, #bab3a0 1px, #bab3a0 2px)`,
-  '3': `${BOOK_PAPER_EDGES}, linear-gradient(to right, #d4cdbb 0%, #c4bca8 60%, #8f8877 100%)`,
-  '4': `${BOOK_PAPER_EDGES}, linear-gradient(to right, transparent 55%, rgba(0,0,0,0.30) 100%), repeating-linear-gradient(to right, #d6c69e 0px, #d6c69e 1px, #c1b086 1px, #c1b086 2px)`,
+  soft: `${BOOK_PAPER_EDGES}, linear-gradient(to right, transparent 55%, rgba(0,0,0,0.30) 100%), repeating-linear-gradient(to right, #cdc6b4 0px, #cdc6b4 1px, #bab3a0 1px, #bab3a0 2px)`,
+  lined: 'linear-gradient(to right, transparent 55%, rgba(0,0,0,0.35) 100%), repeating-linear-gradient(to right, #c9c2b0 0px, #c9c2b0 1px, #9e9786 1px, #9e9786 2px)',
+  aged: `${BOOK_PAPER_EDGES}, linear-gradient(to right, transparent 55%, rgba(0,0,0,0.30) 100%), repeating-linear-gradient(to right, #d6c69e 0px, #d6c69e 1px, #c1b086 1px, #c1b086 2px)`,
 };
 
 interface ItemCardBadgeProps {
@@ -366,12 +365,17 @@ export const ItemCard: React.FC<ItemCardProps> = ({
       {/* Sayfalı: kapağın arkasından sağda görünen sayfa bloğu (poster ile aynı kutu, posterin altında çizilir) */}
       {isBook && hasPageBlock && !isSelected && (
         <div className="absolute left-0 top-0 w-full aspect-[2/3] pointer-events-none">
+          {/* Gölge kapak + sayfaların altında; kapağa verilseydi kâğıdın üstüne düşüp onu karartırdı */}
+          <div
+            className="absolute inset-y-0 left-0"
+            style={{ right: -bookPagesWidth, boxShadow: '2px 5px 9px rgba(0,0,0,0.6)' }}
+          />
           <div
             className="absolute top-[3px] bottom-[3px] rounded-r-[2px]"
             style={{
               right: -bookPagesWidth,
               width: bookPagesWidth + 6,
-              background: BOOK_PAPER_BACKGROUNDS[uiExperiments?.bookPaper || '1'] || BOOK_PAPER_BACKGROUNDS['1'],
+              background: BOOK_PAPER_BACKGROUNDS[uiExperiments?.bookPaper || 'soft'] || BOOK_PAPER_BACKGROUNDS.soft,
             }}
           />
         </div>
@@ -387,9 +391,7 @@ export const ItemCard: React.FC<ItemCardProps> = ({
           ...(isBookCover && !isSelected
             ? {
                 boxShadow:
-                  hasPageBlock
-                    ? `${bookPagesWidth + 2}px 5px 9px rgba(0,0,0,0.6)`
-                    : '3px 4px 8px rgba(0,0,0,0.55)',
+                  hasPageBlock ? 'none' : '3px 4px 8px rgba(0,0,0,0.55)',
               }
             : {}),
         }}
