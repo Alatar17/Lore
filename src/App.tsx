@@ -73,6 +73,7 @@ import { downloadTierListAsPng } from './utils/tierImageExport';
 import { ensureAnkiCardDates } from './utils/ankiUtils';
 
 import { HeaderTabs, TRACKED_TAB_ID } from './components/HeaderTabs';
+import { setErrorLogFolder } from './utils/errorLog';
 import { ItemCard } from './components/ItemCard';
 import { TrackedView } from './components/TrackedView';
 import { TierListView } from './components/TierListView';
@@ -654,6 +655,11 @@ export default function App() {
 
   // Sıradakiler (Backlog) Filter Mode (İzlenecek / Oynanacak / Okunacak)
   const [isBacklogOnly, setIsBacklogOnly] = useState<boolean>(false);
+
+  // PC'de hata kaydı bağlı kütüphane klasörüne hatalar.log olarak yazılır
+  useEffect(() => {
+    setErrorLogFolder(dirHandle);
+  }, [dirHandle]);
 
   // Takip sayfasında sıradakiler olmaz: sayfaya girilince mod kapanır, dönünce de kapalı kalır
   useEffect(() => {

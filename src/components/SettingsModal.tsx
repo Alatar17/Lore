@@ -55,6 +55,7 @@ import {
 import { CustomDialog, DialogOptions } from './CustomDialog';
 import { BadgeSpotlightModal } from './BadgeSpotlightModal';
 import { initAnkiCard } from '../utils/ankiUtils';
+import { BUILD_TIME, canWriteLogFolder, exportErrorLog } from '../utils/errorLog';
 import {
   X,
   Plus,
@@ -1698,6 +1699,11 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 <Settings className="w-4 h-4 text-blue-400" />
                 Ayarlar
               </span>
+              {BUILD_TIME && (
+                <span className="text-[11px] font-normal text-slate-500 tabular-nums select-none">
+                  {BUILD_TIME}
+                </span>
+              )}
             </h3>
             <button
               id="close-settings-btn"
@@ -4524,6 +4530,28 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                         */}
                       </div>
                     </div>
+
+                    {/* Hata Kaydı Dışa Aktarma (yalnızca telefonda; PC'de kayıt klasöre yazılır) */}
+                    {!canWriteLogFolder && (
+                      <div className="p-4 rounded-xl bg-white/5 border border-white/10 space-y-3">
+                        <div className="flex items-center gap-2">
+                          <FileArchive className="w-4 h-4 text-slate-300" />
+                          <h4 className="text-sm font-semibold text-slate-100">Hata Kaydı</h4>
+                        </div>
+                        <button
+                          id="export-error-log-btn"
+                          type="button"
+                          onClick={() => {
+                            void exportErrorLog();
+                          }}
+                          className="py-2 px-4 rounded-xl bg-white/10 hover:bg-white/15 text-slate-200 border border-white/10 text-xs font-semibold flex items-center gap-2 transition-colors cursor-pointer"
+                        >
+                          <Upload className="w-4 h-4" />
+                          Hata Kaydını Dışa Aktar
+                        </button>
+                      </div>
+                    )}
+
                     <div className="p-4 rounded-xl bg-white/5 border border-white/10 space-y-3">
                       <div className="flex items-center gap-2">
                         <Smartphone className="w-4 h-4 text-emerald-400" />

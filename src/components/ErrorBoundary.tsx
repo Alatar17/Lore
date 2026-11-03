@@ -1,5 +1,6 @@
 import React, { Component, ErrorInfo, ReactNode } from 'react';
 import { RotateCcw, AlertTriangle, RefreshCw, Trash2, Home } from 'lucide-react';
+import { logError } from '../utils/errorLog';
 
 interface Props {
   children: ReactNode;
@@ -27,6 +28,7 @@ export class ErrorBoundary extends React.Component<Props, State> {
 
   public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
     console.error('Uncaught application error:', error, errorInfo);
+    logError('arayüz çöktü', error);
     this.setState({ errorInfo });
   }
 
