@@ -3425,6 +3425,8 @@ export default function App() {
                               { id: 'flat', label: 'Düz' },
                               { id: 'book', label: 'Kitap' },
                               { id: 'pages', label: 'Sayfalı' },
+                              { id: 'pages2', label: 'Sayfalı 2' }, // GEÇİCİ: karşılaştırma, seçilmeyen kaldırılacak
+                              { id: 'pages3', label: 'Sayfalı 3' }, // GEÇİCİ
                             ].map((b) => (
                               <button
                                 key={b.id}

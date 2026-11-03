@@ -25,6 +25,10 @@ const getBookPagesShadow = (pageCount?: number) => {
   return parts.join(', ');
 };
 
+// Sayfalı 2: kapağın içinde kalan (üstten/alttan kısa) sadece sağdaki sayfa bloğunun kalınlığı
+const getBookPagesWidth = (pageCount?: number) =>
+  Math.min(6, Math.max(3, Math.round((pageCount || 300) / 120)));
+
 interface ItemCardBadgeProps {
   itemId: string;
   badge: CustomBadge;
@@ -282,6 +286,8 @@ export const ItemCard: React.FC<ItemCardProps> = ({
   const cardHoverMotion = uiExperiments?.cardHoverMotion || 'none';
   const bookCoverStyle = uiExperiments?.bookCover || 'flat';
   const isBookCover = isBook && bookCoverStyle !== 'flat';
+  // Sayfalı 2 ve 3 aynı sayfa bloğunu kullanır; 3'te sırt Kitap'taki yumuşak şerittir
+  const hasPageBlock = bookCoverStyle === 'pages2' || bookCoverStyle === 'pages3';
   const badgeStyle = uiExperiments?.badgeStyle || 'default';
   const badgeDensity = uiExperiments?.badgeDensity || 'full';
 
@@ -355,6 +361,21 @@ export const ItemCard: React.FC<ItemCardProps> = ({
       onMouseLeave={onMouseLeave}
       className={`group cursor-pointer flex flex-col transition-all duration-300 ${getHoverMotionClasses()} select-none relative hover:z-30`}
     >
+      {/* Sayfalı 2/3: kapağın arkasından sağda görünen sayfa bloğu (poster ile aynı kutu, posterin altında çizilir) */}
+      {isBook && hasPageBlock && !isSelected && (
+        <div className="absolute left-0 top-0 w-full aspect-[2/3] pointer-events-none">
+          <div
+            className="absolute top-[3px] bottom-[3px] rounded-r-[2px]"
+            style={{
+              right: -getBookPagesWidth(item.pageCount),
+              width: getBookPagesWidth(item.pageCount) + 6,
+              background:
+                'linear-gradient(to right, transparent 55%, rgba(0,0,0,0.35) 100%), repeating-linear-gradient(to right, #c9c2b0 0px, #c9c2b0 1px, #9e9786 1px, #9e9786 2px)',
+            }}
+          />
+        </div>
+      )}
+
       {/* Poster Container */}
       <div
         className={`relative w-full aspect-[2/3] ${getRadiusClasses()} border bg-[#181818] shadow-md transition-all duration-300 ${getPosterBorderClasses()}`}
@@ -363,7 +384,14 @@ export const ItemCard: React.FC<ItemCardProps> = ({
             ? '#141414'
             : `radial-gradient(circle at 50% 30%, ${baseColor}25 0%, #141414 100%)`,
           ...(isBookCover && !isSelected
-            ? { boxShadow: bookCoverStyle === 'pages' ? getBookPagesShadow(item.pageCount) : '3px 4px 8px rgba(0,0,0,0.55)' }
+            ? {
+                boxShadow:
+                  bookCoverStyle === 'pages'
+                    ? getBookPagesShadow(item.pageCount)
+                    : hasPageBlock
+                    ? `${getBookPagesWidth(item.pageCount) + 2}px 5px 9px rgba(0,0,0,0.6)`
+                    : '3px 4px 8px rgba(0,0,0,0.55)',
+              }
             : {}),
         }}
       >
@@ -393,10 +421,12 @@ export const ItemCard: React.FC<ItemCardProps> = ({
           {isBookCover && (
             <>
               <div
-                className="absolute inset-y-0 left-0 w-[7%] pointer-events-none z-10"
+                className={`absolute inset-y-0 left-0 pointer-events-none z-10 ${bookCoverStyle === 'pages2' ? 'w-[11px]' : 'w-[7%]'}`}
                 style={{
                   background:
-                    'linear-gradient(to right, rgba(0,0,0,0.45) 0%, rgba(0,0,0,0.18) 55%, rgba(255,255,255,0.14) 72%, rgba(0,0,0,0.12) 100%)',
+                    bookCoverStyle === 'pages2'
+                      ? 'linear-gradient(to right, rgba(0,0,0,0.40) 0px, rgba(0,0,0,0.12) 5px, rgba(0,0,0,0.55) 6px, rgba(0,0,0,0.25) 7px, rgba(255,255,255,0.22) 8px, rgba(255,255,255,0) 11px)'
+                      : 'linear-gradient(to right, rgba(0,0,0,0.45) 0%, rgba(0,0,0,0.18) 55%, rgba(255,255,255,0.14) 72%, rgba(0,0,0,0.12) 100%)',
                 }}
               />
               <div
