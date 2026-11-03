@@ -242,7 +242,7 @@ export default function App() {
           cardVignette: cardVignette as any,
           cardRadius,
           cardHoverMotion: parsed.cardHoverMotion || 'none',
-          bookCover: parsed.bookCover || 'flat',
+          bookCover: ['book', 'pages', 'pagesA1', 'pagesA2'].includes(parsed.bookCover) ? parsed.bookCover : 'flat',
           bgAtmosphere: parsed.bgAtmosphere === 'topglow' ? 'default' : (parsed.bgAtmosphere || 'default'),
           badgeStyle: parsed.badgeStyle || 'default',
           badgeDensity,
@@ -3425,8 +3425,8 @@ export default function App() {
                               { id: 'flat', label: 'Düz' },
                               { id: 'book', label: 'Kitap' },
                               { id: 'pages', label: 'Sayfalı' },
-                              { id: 'pages2', label: 'Sayfalı 2' }, // GEÇİCİ: karşılaştırma, seçilmeyen kaldırılacak
-                              { id: 'pages3', label: 'Sayfalı 3' }, // GEÇİCİ
+                              { id: 'pagesA1', label: 'Sayfalı A1' }, // GEÇİCİ: kalınlık denemesi, seçilmeyen kaldırılacak
+                              { id: 'pagesA2', label: 'Sayfalı A2' }, // GEÇİCİ
                             ].map((b) => (
                               <button
                                 key={b.id}

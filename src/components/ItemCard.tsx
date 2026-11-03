@@ -14,20 +14,14 @@ import { Tv, Star, Layers, Check, Calendar, X, BookmarkCheck, PauseCircle, BookO
 import { FollowBadge, getFollowColor, RatingBadgeIcon } from './FollowIndicatorIcon';
 import { useBadgeCardIcon, useBakedBadgeIcon, useIsMobileBadgeScreen } from '../utils/badgeCache';
 
-// Kitap kapağının arkasından taşan sayfa kenarı (sayfa sayısına göre kalınlaşır)
-const getBookPagesShadow = (pageCount?: number) => {
-  const layers = Math.min(5, Math.max(2, Math.round((pageCount || 300) / 150)));
-  const parts: string[] = [];
-  for (let i = 1; i <= layers; i++) {
-    parts.push(`${i}px ${i}px 0 ${i % 2 ? '#d6ceb8' : '#9c937d'}`);
-  }
-  parts.push(`${layers + 3}px ${layers + 4}px 10px rgba(0,0,0,0.55)`);
-  return parts.join(', ');
+// Sayfalı: kapağın içinde kalan (üstten/alttan kısa), sadece sağdaki sayfa bloğunun kalınlığı (px)
+// GEÇİCİ: A1/A2 daha kalın denemeler, seçilmeyen kaldırılacak
+const getBookPagesWidth = (pageCount: number | undefined, style: string) => {
+  const pages = pageCount || 300;
+  if (style === 'pagesA1') return Math.min(9, Math.max(3, Math.round(pages / 60)));
+  if (style === 'pagesA2') return Math.min(12, Math.max(4, Math.round(pages / 45)));
+  return Math.min(6, Math.max(3, Math.round(pages / 120)));
 };
-
-// Sayfalı 2: kapağın içinde kalan (üstten/alttan kısa) sadece sağdaki sayfa bloğunun kalınlığı
-const getBookPagesWidth = (pageCount?: number) =>
-  Math.min(6, Math.max(3, Math.round((pageCount || 300) / 120)));
 
 interface ItemCardBadgeProps {
   itemId: string;
@@ -286,8 +280,8 @@ export const ItemCard: React.FC<ItemCardProps> = ({
   const cardHoverMotion = uiExperiments?.cardHoverMotion || 'none';
   const bookCoverStyle = uiExperiments?.bookCover || 'flat';
   const isBookCover = isBook && bookCoverStyle !== 'flat';
-  // Sayfalı 2 ve 3 aynı sayfa bloğunu kullanır; 3'te sırt Kitap'taki yumuşak şerittir
-  const hasPageBlock = bookCoverStyle === 'pages2' || bookCoverStyle === 'pages3';
+  const hasPageBlock = bookCoverStyle === 'pages' || bookCoverStyle === 'pagesA1' || bookCoverStyle === 'pagesA2';
+  const bookPagesWidth = getBookPagesWidth(item.pageCount, bookCoverStyle);
   const badgeStyle = uiExperiments?.badgeStyle || 'default';
   const badgeDensity = uiExperiments?.badgeDensity || 'full';
 
@@ -361,14 +355,14 @@ export const ItemCard: React.FC<ItemCardProps> = ({
       onMouseLeave={onMouseLeave}
       className={`group cursor-pointer flex flex-col transition-all duration-300 ${getHoverMotionClasses()} select-none relative hover:z-30`}
     >
-      {/* Sayfalı 2/3: kapağın arkasından sağda görünen sayfa bloğu (poster ile aynı kutu, posterin altında çizilir) */}
+      {/* Sayfalı: kapağın arkasından sağda görünen sayfa bloğu (poster ile aynı kutu, posterin altında çizilir) */}
       {isBook && hasPageBlock && !isSelected && (
         <div className="absolute left-0 top-0 w-full aspect-[2/3] pointer-events-none">
           <div
             className="absolute top-[3px] bottom-[3px] rounded-r-[2px]"
             style={{
-              right: -getBookPagesWidth(item.pageCount),
-              width: getBookPagesWidth(item.pageCount) + 6,
+              right: -bookPagesWidth,
+              width: bookPagesWidth + 6,
               background:
                 'linear-gradient(to right, transparent 55%, rgba(0,0,0,0.35) 100%), repeating-linear-gradient(to right, #c9c2b0 0px, #c9c2b0 1px, #9e9786 1px, #9e9786 2px)',
             }}
@@ -386,10 +380,8 @@ export const ItemCard: React.FC<ItemCardProps> = ({
           ...(isBookCover && !isSelected
             ? {
                 boxShadow:
-                  bookCoverStyle === 'pages'
-                    ? getBookPagesShadow(item.pageCount)
-                    : hasPageBlock
-                    ? `${getBookPagesWidth(item.pageCount) + 2}px 5px 9px rgba(0,0,0,0.6)`
+                  hasPageBlock
+                    ? `${bookPagesWidth + 2}px 5px 9px rgba(0,0,0,0.6)`
                     : '3px 4px 8px rgba(0,0,0,0.55)',
               }
             : {}),
@@ -421,12 +413,10 @@ export const ItemCard: React.FC<ItemCardProps> = ({
           {isBookCover && (
             <>
               <div
-                className={`absolute inset-y-0 left-0 pointer-events-none z-10 ${bookCoverStyle === 'pages2' ? 'w-[11px]' : 'w-[7%]'}`}
+                className="absolute inset-y-0 left-0 w-[7%] pointer-events-none z-10"
                 style={{
                   background:
-                    bookCoverStyle === 'pages2'
-                      ? 'linear-gradient(to right, rgba(0,0,0,0.40) 0px, rgba(0,0,0,0.12) 5px, rgba(0,0,0,0.55) 6px, rgba(0,0,0,0.25) 7px, rgba(255,255,255,0.22) 8px, rgba(255,255,255,0) 11px)'
-                      : 'linear-gradient(to right, rgba(0,0,0,0.45) 0%, rgba(0,0,0,0.18) 55%, rgba(255,255,255,0.14) 72%, rgba(0,0,0,0.12) 100%)',
+                    'linear-gradient(to right, rgba(0,0,0,0.45) 0%, rgba(0,0,0,0.18) 55%, rgba(255,255,255,0.14) 72%, rgba(0,0,0,0.12) 100%)',
                 }}
               />
               <div
