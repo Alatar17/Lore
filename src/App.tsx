@@ -242,6 +242,7 @@ export default function App() {
           cardVignette: cardVignette as any,
           cardRadius,
           cardHoverMotion: parsed.cardHoverMotion || 'none',
+          bookCover: parsed.bookCover || 'flat',
           bgAtmosphere: parsed.bgAtmosphere === 'topglow' ? 'default' : (parsed.bgAtmosphere || 'default'),
           badgeStyle: parsed.badgeStyle || 'default',
           badgeDensity,
@@ -258,6 +259,7 @@ export default function App() {
       cardVignette: 'none',
       cardRadius: 'normal',
       cardHoverMotion: 'none',
+      bookCover: 'flat',
       bgAtmosphere: 'default',
       badgeStyle: 'default',
       badgeDensity: 'full',
@@ -3414,6 +3416,32 @@ export default function App() {
                             ))}
                           </div>
                         </div>
+
+                        {/* 4. Kitap Kapağı (yalnızca kitap kartları) */}
+                        <div className="space-y-1.5">
+                          <div className="text-[11px] font-semibold text-slate-300 px-1">Kitap Kapağı</div>
+                          <div className="grid grid-cols-3 gap-1.5">
+                            {[
+                              { id: 'flat', label: 'Düz' },
+                              { id: 'book', label: 'Kitap' },
+                              { id: 'pages', label: 'Sayfalı' },
+                            ].map((b) => (
+                              <button
+                                key={b.id}
+                                onClick={() =>
+                                  setUiExperiments((p) => ({ ...p, bookCover: b.id as any }))
+                                }
+                                className={`p-1.5 rounded-lg text-[11px] font-medium border text-center transition-all cursor-pointer ${
+                                  (uiExperiments.bookCover || 'flat') === b.id
+                                    ? 'bg-blue-600/30 text-blue-200 border-blue-500/50'
+                                    : 'bg-white/5 text-slate-400 border-white/5 hover:bg-white/10 hover:text-slate-200'
+                                }`}
+                              >
+                                {b.label}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
                       </div>
                     )}
 
@@ -3763,7 +3791,7 @@ export default function App() {
                   className={`px-2 sm:px-2.5 py-1 rounded-lg font-medium transition-colors flex items-center gap-1 cursor-pointer whitespace-nowrap shrink-0 ${
                     openUiTestMenu === 'card'
                       ? 'bg-blue-600 text-white shadow border border-blue-500'
-                      : uiExperiments.cardVignette !== 'none' || uiExperiments.cardRadius !== 'normal' || uiExperiments.cardHoverMotion !== 'none'
+                      : uiExperiments.cardVignette !== 'none' || uiExperiments.cardRadius !== 'normal' || uiExperiments.cardHoverMotion !== 'none' || (uiExperiments.bookCover || 'flat') !== 'flat'
                       ? 'bg-blue-600/30 text-blue-300 border border-blue-500/40'
                       : 'bg-white/5 hover:bg-white/10 text-neutral-300 border border-transparent'
                   }`}
@@ -3888,6 +3916,7 @@ export default function App() {
                   uiExperiments.cardVignette !== 'none' ||
                   uiExperiments.cardRadius !== 'normal' ||
                   uiExperiments.cardHoverMotion !== 'none' ||
+                  (uiExperiments.bookCover || 'flat') !== 'flat' ||
                   uiExperiments.bgAtmosphere !== 'default' ||
                   uiExperiments.badgeStyle !== 'default' ||
                   uiExperiments.badgeDensity !== 'full' ||
@@ -3913,6 +3942,7 @@ export default function App() {
                             cardVignette: 'none',
                             cardRadius: 'normal',
                             cardHoverMotion: 'none',
+                            bookCover: 'flat',
                             bgAtmosphere: 'default',
                             badgeStyle: 'default',
                             badgeDensity: 'full',

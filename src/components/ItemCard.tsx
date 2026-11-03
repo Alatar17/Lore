@@ -14,44 +14,6 @@ import { Tv, Star, Layers, Check, Calendar, X, BookmarkCheck, PauseCircle, BookO
 import { FollowBadge, getFollowColor, RatingBadgeIcon } from './FollowIndicatorIcon';
 import { useBadgeCardIcon, useBakedBadgeIcon, useIsMobileBadgeScreen } from '../utils/badgeCache';
 
-// GEÇİCİ TEST: kitap kapağı görünümü seçenekleri (karar verilince kaldırılacak)
-type BookCoverStyle = 'current' | 'plain' | 'pages';
-const BOOK_STYLE_KEY = 'lore_test_kitap_gorunumu';
-const BOOK_STYLE_LABELS: Record<BookCoverStyle, string> = { current: 'Şu anki', plain: 'Sade kitap', pages: 'Sayfa kenarlı' };
-const readBookStyle = (): BookCoverStyle => {
-  try {
-    const v = localStorage.getItem(BOOK_STYLE_KEY);
-    if (v === 'plain' || v === 'pages') return v;
-  } catch {}
-  return 'current';
-};
-if (typeof document !== 'undefined' && !document.getElementById('book-style-test-btn')) {
-  const btn = document.createElement('button');
-  btn.id = 'book-style-test-btn';
-  btn.style.cssText = 'position:fixed;left:12px;bottom:12px;z-index:9999;padding:6px 10px;border-radius:8px;background:#111520;color:#fbbf24;border:1px solid rgba(251,191,36,0.5);font-size:12px;font-weight:600;cursor:pointer;';
-  const render = () => { btn.textContent = `Kitap: ${BOOK_STYLE_LABELS[readBookStyle()]}`; };
-  btn.onclick = () => {
-    const order: BookCoverStyle[] = ['current', 'plain', 'pages'];
-    const next = order[(order.indexOf(readBookStyle()) + 1) % order.length];
-    try { localStorage.setItem(BOOK_STYLE_KEY, next); } catch {}
-    render();
-    window.dispatchEvent(new Event('book-style-test'));
-  };
-  render();
-  const mount = () => document.body.appendChild(btn);
-  if (document.body) mount(); else document.addEventListener('DOMContentLoaded', mount);
-}
-
-const useBookCoverStyle = (): BookCoverStyle => {
-  const [style, setStyle] = useState<BookCoverStyle>(readBookStyle);
-  useEffect(() => {
-    const onChange = () => setStyle(readBookStyle());
-    window.addEventListener('book-style-test', onChange);
-    return () => window.removeEventListener('book-style-test', onChange);
-  }, []);
-  return style;
-};
-
 // Kitap kapağının arkasından taşan sayfa kenarı (sayfa sayısına göre kalınlaşır)
 const getBookPagesShadow = (pageCount?: number) => {
   const layers = Math.min(5, Math.max(2, Math.round((pageCount || 300) / 150)));
@@ -226,8 +188,6 @@ export const ItemCard: React.FC<ItemCardProps> = ({
   const baseColor = palette[item.cat] || (isBook ? '#8a6fbf' : '#ffffff');
   const isPlanned = isPlannedItem(item);
   const isOngoing = isOngoingItem(item);
-  const bookCoverStyle = useBookCoverStyle();
-  const isBookCover = isBook && bookCoverStyle !== 'current';
 
   // Custom Badges (prestij ve denge: maks 4 rozet)
   const assignedBadges: CustomBadge[] = React.useMemo(() => {
@@ -320,6 +280,8 @@ export const ItemCard: React.FC<ItemCardProps> = ({
   const cardVignette = uiExperiments?.cardVignette || 'none';
   const cardRadius = uiExperiments?.cardRadius || 'normal';
   const cardHoverMotion = uiExperiments?.cardHoverMotion || 'none';
+  const bookCoverStyle = uiExperiments?.bookCover || 'flat';
+  const isBookCover = isBook && bookCoverStyle !== 'flat';
   const badgeStyle = uiExperiments?.badgeStyle || 'default';
   const badgeDensity = uiExperiments?.badgeDensity || 'full';
 
