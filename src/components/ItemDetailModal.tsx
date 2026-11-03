@@ -26,6 +26,7 @@ import { AnkiEditorModal } from './AnkiEditorModal';
 import { initAnkiCard } from '../utils/ankiUtils';
 import { resolveGitHubImage, getGitHubSyncConfig } from '../utils/githubSync';
 import { logError } from '../utils/errorLog';
+import { findSameNameCharacter, collectCharacterNames } from '../utils/characterAutofill';
 import {
   X,
   Upload,
@@ -1194,6 +1195,11 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
     return Array.from(set).sort((a, b) => a.localeCompare(b, 'tr'));
   }, [availableActorsTags, allItems, formData.actors]);
 
+  const characterNameSuggestions = useMemo(
+    () => collectCharacterNames(allItems, formData.mainTab),
+    [allItems, formData.mainTab]
+  );
+
   const handleAddCharacter = () => {
     setFormData((prev) => ({
       ...prev,
@@ -1211,6 +1217,26 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
       updated[index] = { ...updated[index], [field]: value };
       return { ...prev, characters: updated };
     });
+  };
+
+  // Ad kutusundan çıkınca: aynı adlı karakter başka yapımda resimliyse resmi + oyuncuyu doldur (resim varsa dokunma)
+  const handleCharacterNameBlur = async (index: number, nameOverride?: string) => {
+    const cur = formData.characters?.[index];
+    const name = (nameOverride ?? cur?.name ?? '').trim();
+    if (!cur || !name || cur.image) return;
+    try {
+      const found = await findSameNameCharacter(allItems, formData.mainTab, formData.id, name);
+      if (!found) return;
+      setFormData((prev) => {
+        const row = prev.characters?.[index];
+        if (!row || row.image || row.name.trim() !== name) return prev;
+        const updated = [...(prev.characters || [])];
+        updated[index] = { ...row, image: found.image, actor: row.actor?.trim() ? row.actor : found.actor };
+        return { ...prev, characters: updated };
+      });
+    } catch (err) {
+      logError('ItemDetailModal.characterAutofill', err);
+    }
   };
 
   const handlePasteCharacterImage = async (index: number) => {
@@ -3673,6 +3699,11 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
             </div>
 
             {/* Global Actor Autocomplete Datalist */}
+            <datalist id="character-name-autocomplete-list">
+              {characterNameSuggestions.map((n) => (
+                <option key={n} value={n} />
+              ))}
+            </datalist>
             <datalist id="actor-autocomplete-list">
               {allActorSuggestions.map((act) => (
                 <option key={act} value={act} />
@@ -3746,11 +3777,18 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
                     <div className="flex-1">
                       <input
                         type="text"
+                        list={isBook ? undefined : 'character-name-autocomplete-list'}
                         placeholder="Karakter İsmi (örn: Yuta Okkotsu)"
                         value={char.name}
-                        onChange={(e) =>
-                          handleUpdateCharacter(index, 'name', e.target.value)
-                        }
+                        onChange={(e) => {
+                          handleUpdateCharacter(index, 'name', e.target.value);
+                          // Listeden seçim (yazma değil): resmi/oyuncuyu hemen doldur
+                          const inputType = (e.nativeEvent as InputEvent).inputType;
+                          if (!isBook && (!inputType || inputType === 'insertReplacementText')) {
+                            handleCharacterNameBlur(index, e.target.value);
+                          }
+                        }}
+                        onBlur={() => handleCharacterNameBlur(index)}
                         className="w-full bg-black/40 text-slate-200 placeholder-slate-500 border border-white/10 rounded-lg px-2.5 py-1.5 text-xs focus:outline-none focus:border-sky-500"
                       />
                     </div>

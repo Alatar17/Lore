@@ -24,6 +24,7 @@ import { AnkiEditorModal } from './AnkiEditorModal';
 import { CustomDialog, DialogOptions } from './CustomDialog';
 import { initAnkiCard } from '../utils/ankiUtils';
 import { logError } from '../utils/errorLog';
+import { findSameNameCharacter, collectCharacterNames } from '../utils/characterAutofill';
 import {
   X,
   Upload,
@@ -865,6 +866,31 @@ export const AddItemModal: React.FC<AddItemModalProps> = ({
       updated[index] = { ...updated[index], [field]: value };
       return updated;
     });
+  };
+
+  const characterNameSuggestions = useMemo(
+    () => collectCharacterNames(allItems, mainTab),
+    [allItems, mainTab]
+  );
+
+  // Ad kutusundan çıkınca: aynı adlı karakter başka yapımda resimliyse resmi + oyuncuyu doldur (resim varsa dokunma)
+  const handleCharacterNameBlur = async (index: number, nameOverride?: string) => {
+    const cur = characters[index];
+    const name = (nameOverride ?? cur?.name ?? '').trim();
+    if (!cur || !name || cur.image) return;
+    try {
+      const found = await findSameNameCharacter(allItems, mainTab, undefined, name);
+      if (!found) return;
+      setCharacters((prev) => {
+        const row = prev[index];
+        if (!row || row.image || row.name.trim() !== name) return prev;
+        const updated = [...prev];
+        updated[index] = { ...row, image: found.image, actor: row.actor?.trim() ? row.actor : found.actor };
+        return updated;
+      });
+    } catch (err) {
+      logError('AddItemModal.characterAutofill', err);
+    }
   };
 
   const handlePasteCharacterImage = async (index: number) => {
@@ -3194,6 +3220,11 @@ export const AddItemModal: React.FC<AddItemModalProps> = ({
             </div>
 
             {/* Global Actor Autocomplete Datalist */}
+            <datalist id="add-character-name-autocomplete-list">
+              {characterNameSuggestions.map((n) => (
+                <option key={n} value={n} />
+              ))}
+            </datalist>
             <datalist id="add-actor-autocomplete-list">
               {allActorSuggestions.map((act) => (
                 <option key={act} value={act} />
@@ -3278,11 +3309,18 @@ export const AddItemModal: React.FC<AddItemModalProps> = ({
                     <div className="flex-1 relative">
                       <input
                         type="text"
+                        list={isBook ? undefined : 'add-character-name-autocomplete-list'}
                         placeholder={isBook ? 'Karakter İsmi (örn: Winston Smith)' : 'Karakter İsmi (örn: Yuta Okkotsu)'}
                         value={char.name}
-                        onChange={(e) =>
-                          handleUpdateCharacter(index, 'name', e.target.value)
-                        }
+                        onChange={(e) => {
+                          handleUpdateCharacter(index, 'name', e.target.value);
+                          // Listeden seçim (yazma değil): resmi/oyuncuyu hemen doldur
+                          const inputType = (e.nativeEvent as InputEvent).inputType;
+                          if (!isBook && (!inputType || inputType === 'insertReplacementText')) {
+                            handleCharacterNameBlur(index, e.target.value);
+                          }
+                        }}
+                        onBlur={() => handleCharacterNameBlur(index)}
                         className="w-full bg-black/40 text-slate-200 placeholder-slate-500 border border-white/10 rounded-lg px-2.5 py-1.5 text-xs focus:outline-none focus:border-sky-500"
                       />
                       {isNewAi && (

@@ -14,6 +14,55 @@ import { Tv, Star, Layers, Check, Calendar, X, BookmarkCheck, PauseCircle, BookO
 import { FollowBadge, getFollowColor, RatingBadgeIcon } from './FollowIndicatorIcon';
 import { useBadgeCardIcon, useBakedBadgeIcon, useIsMobileBadgeScreen } from '../utils/badgeCache';
 
+// GEÇİCİ TEST: kitap kapağı görünümü seçenekleri (karar verilince kaldırılacak)
+type BookCoverStyle = 'current' | 'plain' | 'pages';
+const BOOK_STYLE_KEY = 'lore_test_kitap_gorunumu';
+const BOOK_STYLE_LABELS: Record<BookCoverStyle, string> = { current: 'Şu anki', plain: 'Sade kitap', pages: 'Sayfa kenarlı' };
+const readBookStyle = (): BookCoverStyle => {
+  try {
+    const v = localStorage.getItem(BOOK_STYLE_KEY);
+    if (v === 'plain' || v === 'pages') return v;
+  } catch {}
+  return 'current';
+};
+if (typeof document !== 'undefined' && !document.getElementById('book-style-test-btn')) {
+  const btn = document.createElement('button');
+  btn.id = 'book-style-test-btn';
+  btn.style.cssText = 'position:fixed;left:12px;bottom:12px;z-index:9999;padding:6px 10px;border-radius:8px;background:#111520;color:#fbbf24;border:1px solid rgba(251,191,36,0.5);font-size:12px;font-weight:600;cursor:pointer;';
+  const render = () => { btn.textContent = `Kitap: ${BOOK_STYLE_LABELS[readBookStyle()]}`; };
+  btn.onclick = () => {
+    const order: BookCoverStyle[] = ['current', 'plain', 'pages'];
+    const next = order[(order.indexOf(readBookStyle()) + 1) % order.length];
+    try { localStorage.setItem(BOOK_STYLE_KEY, next); } catch {}
+    render();
+    window.dispatchEvent(new Event('book-style-test'));
+  };
+  render();
+  const mount = () => document.body.appendChild(btn);
+  if (document.body) mount(); else document.addEventListener('DOMContentLoaded', mount);
+}
+
+const useBookCoverStyle = (): BookCoverStyle => {
+  const [style, setStyle] = useState<BookCoverStyle>(readBookStyle);
+  useEffect(() => {
+    const onChange = () => setStyle(readBookStyle());
+    window.addEventListener('book-style-test', onChange);
+    return () => window.removeEventListener('book-style-test', onChange);
+  }, []);
+  return style;
+};
+
+// Kitap kapağının arkasından taşan sayfa kenarı (sayfa sayısına göre kalınlaşır)
+const getBookPagesShadow = (pageCount?: number) => {
+  const layers = Math.min(5, Math.max(2, Math.round((pageCount || 300) / 150)));
+  const parts: string[] = [];
+  for (let i = 1; i <= layers; i++) {
+    parts.push(`${i}px ${i}px 0 ${i % 2 ? '#d6ceb8' : '#9c937d'}`);
+  }
+  parts.push(`${layers + 3}px ${layers + 4}px 10px rgba(0,0,0,0.55)`);
+  return parts.join(', ');
+};
+
 interface ItemCardBadgeProps {
   itemId: string;
   badge: CustomBadge;
@@ -177,6 +226,8 @@ export const ItemCard: React.FC<ItemCardProps> = ({
   const baseColor = palette[item.cat] || (isBook ? '#8a6fbf' : '#ffffff');
   const isPlanned = isPlannedItem(item);
   const isOngoing = isOngoingItem(item);
+  const bookCoverStyle = useBookCoverStyle();
+  const isBookCover = isBook && bookCoverStyle !== 'current';
 
   // Custom Badges (prestij ve denge: maks 4 rozet)
   const assignedBadges: CustomBadge[] = React.useMemo(() => {
@@ -298,6 +349,7 @@ export const ItemCard: React.FC<ItemCardProps> = ({
   };
 
   const getRadiusClasses = () => {
+    if (isBookCover) return 'rounded-l-none rounded-r-[3px]';
     if (isBook) return 'rounded-none';
     if (cardRadius === 'sharp') return 'rounded-none';
     return 'rounded-xl';
@@ -348,6 +400,9 @@ export const ItemCard: React.FC<ItemCardProps> = ({
           background: (item.cardThumbnail || item.thumbnail)
             ? '#141414'
             : `radial-gradient(circle at 50% 30%, ${baseColor}25 0%, #141414 100%)`,
+          ...(isBookCover && !isSelected
+            ? { boxShadow: bookCoverStyle === 'pages' ? getBookPagesShadow(item.pageCount) : '3px 4px 8px rgba(0,0,0,0.55)' }
+            : {}),
         }}
       >
         {/* Clipped Media Layer (Image, Vignettes & Soft Tulle Background) */}
@@ -370,6 +425,23 @@ export const ItemCard: React.FC<ItemCardProps> = ({
                 {item.title}
               </span>
             </div>
+          )}
+
+          {/* Kitap sırtı (soldaki büküm) + karton parlaması */}
+          {isBookCover && (
+            <>
+              <div
+                className="absolute inset-y-0 left-0 w-[7%] pointer-events-none z-10"
+                style={{
+                  background:
+                    'linear-gradient(to right, rgba(0,0,0,0.45) 0%, rgba(0,0,0,0.18) 55%, rgba(255,255,255,0.14) 72%, rgba(0,0,0,0.12) 100%)',
+                }}
+              />
+              <div
+                className="absolute inset-0 pointer-events-none z-10"
+                style={{ background: 'linear-gradient(110deg, rgba(255,255,255,0.07) 0%, transparent 35%, transparent 75%, rgba(0,0,0,0.12) 100%)' }}
+              />
+            </>
           )}
 
           {/* Cinematic Vignette Overlay Effects - Softened, Subtler and Lighter */}
