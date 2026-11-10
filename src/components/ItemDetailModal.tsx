@@ -1604,7 +1604,7 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
       publisher: isBook && publisher.length > 0 ? publisher : undefined,
       translator: isBook && translator.length > 0 ? translator : undefined,
       quotes:
-        isBook && quotes.filter((q) => q.text.trim().length > 0).length > 0
+        quotes.filter((q) => q.text.trim().length > 0).length > 0
           ? quotes
               .filter((q) => q.text.trim().length > 0)
               .map((q) => ({
@@ -3821,8 +3821,8 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
             )}
           </div>
 
-          {/* Kitap İçin: Beğenilen Sözler / Alıntılar Bölümü (Karakterler ile Seri Bağlantısı Arasında) */}
-          {isBook && (
+          {/* Beğenilen Sözler / Alıntılar Bölümü (tüm türler) (Karakterler ile Seri Bağlantısı Arasında) */}
+          {(
             <>
               <div className="border-t-2 border-white/20 my-4" />
               <div className="space-y-3 pt-1">
@@ -3856,7 +3856,7 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
                         <div className="flex-1">
                           <textarea
                             rows={2}
-                            placeholder="Kitaptan alıntı veya beğenilen söz..."
+                            placeholder={isBook ? 'Kitaptan alıntı veya beğenilen söz...' : 'Beğenilen söz...'}
                             value={quoteItem.text}
                             onChange={(e) => handleUpdateQuote(index, 'text', e.target.value)}
                             className="w-full bg-black/40 text-slate-200 placeholder-slate-500 border border-white/10 rounded-lg px-2.5 py-1.5 text-xs focus:outline-none focus:border-amber-500 resize-y min-h-[52px] custom-scrollbar"
@@ -3866,7 +3866,7 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
                         <div className="w-full sm:w-32 shrink-0 flex items-center gap-1.5">
                           <input
                             type="text"
-                            placeholder="Sayfa No"
+                            placeholder={isBook ? 'Sayfa No' : 'Kim dedi'}
                             value={quoteItem.page ?? ''}
                             onChange={(e) => handleUpdateQuote(index, 'page', e.target.value)}
                             className="w-full bg-black/40 text-amber-300 placeholder-slate-500 border border-white/10 rounded-lg px-2.5 py-1.5 text-xs focus:outline-none focus:border-amber-500 text-center font-medium"

@@ -1398,8 +1398,8 @@ export const ImagePreviewModal: React.FC<ImagePreviewModalProps> = ({
             )}
           </div>
 
-          {/* Kitap İçin: Beğenilen Sözler / Alıntılar */}
-          {isBook && item.quotes && item.quotes.length > 0 && (
+          {/* Beğenilen Sözler / Alıntılar (tüm türler; kitapta Sayfa, oyun/medyada Kim dedi) */}
+          {item.quotes && item.quotes.length > 0 && (
             <>
               <div className="border-t border-white/10 my-1" />
               <div className="space-y-2.5 pt-1">
@@ -1421,7 +1421,7 @@ export const ImagePreviewModal: React.FC<ImagePreviewModalProps> = ({
                       <p className="italic text-slate-200 whitespace-pre-wrap">“{q.text}”</p>
                       {q.page !== undefined && String(q.page).trim() !== '' && (
                         <span className="self-end text-[10px] font-semibold text-amber-300/90 px-2 py-0.5 rounded bg-amber-500/10 border border-amber-500/20">
-                          Sayfa {q.page}
+                          {isBook ? `Sayfa ${q.page}` : `— ${q.page}`}
                         </span>
                       )}
                     </div>
@@ -2058,8 +2058,8 @@ export const ImagePreviewModal: React.FC<ImagePreviewModalProps> = ({
                 </p>
               </div>
 
-              {/* Kitap İçin: Beğenilen Sözler / Alıntılar */}
-              {isBook && item.quotes && item.quotes.length > 0 && (
+              {/* Beğenilen Sözler / Alıntılar (tüm türler; kitapta Sayfa, oyun/medyada Kim dedi) */}
+              {item.quotes && item.quotes.length > 0 && (
                 <div>
                   <span className="block text-[10px] uppercase font-bold tracking-wider text-slate-400 mb-1 flex items-center gap-1">
                     <Quote className="w-3 h-3 text-amber-400" /> Beğenilen Sözler / Alıntılar ({item.quotes.length})
@@ -2073,7 +2073,7 @@ export const ImagePreviewModal: React.FC<ImagePreviewModalProps> = ({
                         <p className="italic text-slate-200 text-[11px] whitespace-pre-wrap">“{q.text}”</p>
                         {q.page !== undefined && String(q.page).trim() !== '' && (
                           <span className="self-end text-[9px] font-semibold text-amber-300/90 px-1.5 py-0.5 rounded bg-amber-500/10 border border-amber-500/20">
-                            Sayfa {q.page}
+                            {isBook ? `Sayfa ${q.page}` : `— ${q.page}`}
                           </span>
                         )}
                       </div>
