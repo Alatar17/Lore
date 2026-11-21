@@ -1398,39 +1398,6 @@ export const ImagePreviewModal: React.FC<ImagePreviewModalProps> = ({
             )}
           </div>
 
-          {/* Beğenilen Sözler / Alıntılar (tüm türler; kitapta Sayfa, oyun/medyada Kim dedi) */}
-          {item.quotes && item.quotes.length > 0 && (
-            <>
-              <div className="border-t border-white/10 my-1" />
-              <div className="space-y-2.5 pt-1">
-                <div className="flex items-center gap-2">
-                  <Quote className="w-4 h-4 text-amber-400" />
-                  <span className="text-xs uppercase font-bold tracking-wider text-slate-200">
-                    Beğenilen Sözler / Alıntılar
-                  </span>
-                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 font-semibold">
-                    {item.quotes.length}
-                  </span>
-                </div>
-                <div className="space-y-2 max-h-56 overflow-y-auto custom-scrollbar pr-1">
-                  {item.quotes.map((q, idx) => (
-                    <div
-                      key={q.id || idx}
-                      className="p-3 rounded-xl bg-white/[0.03] border border-white/10 hover:border-amber-500/30 transition-all text-xs leading-relaxed text-slate-200 flex flex-col gap-1.5"
-                    >
-                      <p className="italic text-slate-200 whitespace-pre-wrap">“{q.text}”</p>
-                      {q.page !== undefined && String(q.page).trim() !== '' && (
-                        <span className="self-end text-[10px] font-semibold text-amber-300/90 px-2 py-0.5 rounded bg-amber-500/10 border border-amber-500/20">
-                          {isBook ? `Sayfa ${q.page}` : `— ${q.page}`}
-                        </span>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </>
-          )}
-
           {/* 4. Karakterler & Kadro: Yalnızca Karakter Varsa Gösterilir */}
           {hasCharacters && (
             <>
@@ -1481,6 +1448,39 @@ export const ImagePreviewModal: React.FC<ImagePreviewModalProps> = ({
                           </span>
                         )}
                       </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </>
+          )}
+
+          {/* Beğenilen Sözler / Alıntılar (tüm türler; kitapta Sayfa, oyun/medyada Kim dedi) */}
+          {item.quotes && item.quotes.length > 0 && (
+            <>
+              <div className="border-t border-white/10 my-1" />
+              <div className="space-y-2.5 pt-1">
+                <div className="flex items-center gap-2">
+                  <Quote className="w-4 h-4 text-amber-400" />
+                  <span className="text-xs uppercase font-bold tracking-wider text-slate-200">
+                    Beğenilen Sözler / Alıntılar
+                  </span>
+                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 font-semibold">
+                    {item.quotes.length}
+                  </span>
+                </div>
+                <div className="space-y-2 max-h-56 overflow-y-auto custom-scrollbar pr-1">
+                  {item.quotes.map((q, idx) => (
+                    <div
+                      key={q.id || idx}
+                      className="p-3 rounded-xl bg-white/[0.03] border border-white/10 hover:border-amber-500/30 transition-all text-xs leading-relaxed text-slate-200 flex flex-col gap-1.5"
+                    >
+                      <p className="italic text-slate-200 whitespace-pre-wrap">“{q.text}”</p>
+                      {q.page !== undefined && String(q.page).trim() !== '' && (
+                        <span className="self-end text-[10px] font-semibold text-amber-300/90 px-2 py-0.5 rounded bg-amber-500/10 border border-amber-500/20">
+                          {isBook ? `Sayfa ${q.page}` : `— ${q.page}`}
+                        </span>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -2058,30 +2058,6 @@ export const ImagePreviewModal: React.FC<ImagePreviewModalProps> = ({
                 </p>
               </div>
 
-              {/* Beğenilen Sözler / Alıntılar (tüm türler; kitapta Sayfa, oyun/medyada Kim dedi) */}
-              {item.quotes && item.quotes.length > 0 && (
-                <div>
-                  <span className="block text-[10px] uppercase font-bold tracking-wider text-slate-400 mb-1 flex items-center gap-1">
-                    <Quote className="w-3 h-3 text-amber-400" /> Beğenilen Sözler / Alıntılar ({item.quotes.length})
-                  </span>
-                  <div className="space-y-1.5">
-                    {item.quotes.map((q, idx) => (
-                      <div
-                        key={q.id || idx}
-                        className="p-2 rounded-lg bg-white/[0.03] border border-white/10 text-xs leading-relaxed flex flex-col gap-1"
-                      >
-                        <p className="italic text-slate-200 text-[11px] whitespace-pre-wrap">“{q.text}”</p>
-                        {q.page !== undefined && String(q.page).trim() !== '' && (
-                          <span className="self-end text-[9px] font-semibold text-amber-300/90 px-1.5 py-0.5 rounded bg-amber-500/10 border border-amber-500/20">
-                            {isBook ? `Sayfa ${q.page}` : `— ${q.page}`}
-                          </span>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
               {/* Karakterler (Yalnızca Karakter Varsa Gösterilir) */}
               {hasCharacters && (
                 <div>
@@ -2117,6 +2093,30 @@ export const ImagePreviewModal: React.FC<ImagePreviewModalProps> = ({
                             </span>
                           )}
                         </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Beğenilen Sözler / Alıntılar (tüm türler; kitapta Sayfa, oyun/medyada Kim dedi) */}
+              {item.quotes && item.quotes.length > 0 && (
+                <div>
+                  <span className="block text-[10px] uppercase font-bold tracking-wider text-slate-400 mb-1 flex items-center gap-1">
+                    <Quote className="w-3 h-3 text-amber-400" /> Beğenilen Sözler / Alıntılar ({item.quotes.length})
+                  </span>
+                  <div className="space-y-1.5">
+                    {item.quotes.map((q, idx) => (
+                      <div
+                        key={q.id || idx}
+                        className="p-2 rounded-lg bg-white/[0.03] border border-white/10 text-xs leading-relaxed flex flex-col gap-1"
+                      >
+                        <p className="italic text-slate-200 text-[11px] whitespace-pre-wrap">“{q.text}”</p>
+                        {q.page !== undefined && String(q.page).trim() !== '' && (
+                          <span className="self-end text-[9px] font-semibold text-amber-300/90 px-1.5 py-0.5 rounded bg-amber-500/10 border border-amber-500/20">
+                            {isBook ? `Sayfa ${q.page}` : `— ${q.page}`}
+                          </span>
+                        )}
                       </div>
                     ))}
                   </div>

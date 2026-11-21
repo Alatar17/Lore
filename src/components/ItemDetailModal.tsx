@@ -68,6 +68,7 @@ import {
   Settings,
   Eye,
   EyeOff,
+  GripVertical,
 } from 'lucide-react';
 
 interface ItemDetailModalProps {
@@ -1274,6 +1275,27 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
   const handleRemoveCharacter = (index: number) => {
     setFormData((prev) => {
       const updated = (prev.characters || []).filter((_, i) => i !== index);
+      return { ...prev, characters: updated };
+    });
+  };
+
+  // Karakter satırı sürükle-bırak: satır sadece ⋮⋮ tutulunca sürüklenir (yazı kutuları etkilenmesin)
+  const [charDragArmed, setCharDragArmed] = useState<number | null>(null);
+  const [charDragFrom, setCharDragFrom] = useState<number | null>(null);
+  const [charDragOver, setCharDragOver] = useState<number | null>(null);
+
+  const resetCharDrag = () => {
+    setCharDragArmed(null);
+    setCharDragFrom(null);
+    setCharDragOver(null);
+  };
+
+  const handleMoveCharacter = (from: number, to: number) => {
+    if (from === to) return;
+    setFormData((prev) => {
+      const updated = [...(prev.characters || [])];
+      const [moved] = updated.splice(from, 1);
+      updated.splice(to, 0, moved);
       return { ...prev, characters: updated };
     });
   };
@@ -3722,12 +3744,46 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
                   return (
                   <div
                     key={index}
-                    className={`flex flex-col sm:flex-row items-stretch sm:items-center gap-2 p-2.5 rounded-xl transition-all ${
+                    draggable={charDragArmed === index}
+                    onDragStart={(e) => {
+                      setCharDragFrom(index);
+                      e.dataTransfer.effectAllowed = 'move';
+                      e.dataTransfer.setData('text/plain', String(index));
+                    }}
+                    onDragOver={(e) => {
+                      if (charDragFrom === null) return;
+                      e.preventDefault();
+                      e.dataTransfer.dropEffect = 'move';
+                      if (charDragOver !== index) setCharDragOver(index);
+                    }}
+                    onDrop={(e) => {
+                      if (charDragFrom === null) return;
+                      e.preventDefault();
+                      handleMoveCharacter(charDragFrom, index);
+                      resetCharDrag();
+                    }}
+                    onDragEnd={resetCharDrag}
+                    className={`flex flex-col sm:flex-row items-stretch sm:items-center gap-2 p-2.5 rounded-xl transition-all group ${
                       isNewAi
                         ? 'bg-emerald-500/10 border border-emerald-500/40 ring-1 ring-emerald-500/20'
-                        : 'bg-white/[0.03] border border-white/10 group hover:border-white/20'
+                        : 'bg-white/[0.03] border border-white/10 hover:border-white/20'
+                    } ${charDragFrom === index ? 'opacity-40' : ''} ${
+                      charDragOver === index && charDragFrom !== null && charDragFrom !== index
+                        ? charDragFrom < index
+                          ? 'shadow-[0_2px_0_0_#38bdf8]'
+                          : 'shadow-[0_-2px_0_0_#38bdf8]'
+                        : ''
                     }`}
                   >
+                    {/* Sürükleme tutamağı: fare satırın üstündeyken görünür */}
+                    <div
+                      onMouseDown={() => setCharDragArmed(index)}
+                      onMouseUp={() => setCharDragArmed(null)}
+                      title="Sürükleyerek sırala"
+                      className="shrink-0 self-center flex items-center justify-center w-3.5 -mx-1 text-slate-500 hover:text-slate-200 opacity-0 group-hover:opacity-100 transition-opacity cursor-grab active:cursor-grabbing"
+                    >
+                      <GripVertical className="w-3.5 h-3.5" />
+                    </div>
                     {/* Karakter Görseli Seçici / Önizleme / Panodan Yapıştırma */}
                     <div className="relative shrink-0 flex items-center justify-center">
                       <input
