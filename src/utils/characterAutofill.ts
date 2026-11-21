@@ -40,7 +40,8 @@ export async function findSameNameCharacter(
       if (!c.image || normalizeName(c.name || '') !== key) continue;
       const time = it.updatedAt || it.createdAt || 0;
       if (time >= bestTime) {
-        best = { ref: c.fileName || c.image, actor: c.actor };
+        // Resim zaten yüklüyse (data URL) onu kullan; dosya henüz GitHub'da olmayabilir
+        best = { ref: c.image.startsWith('data:') ? c.image : c.fileName || c.image, actor: c.actor };
         bestTime = time;
       }
     }

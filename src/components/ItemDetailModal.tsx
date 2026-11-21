@@ -1279,26 +1279,74 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
     });
   };
 
-  // Karakter satırı sürükle-bırak: satır sadece ⋮⋮ tutulunca sürüklenir (yazı kutuları etkilenmesin)
-  const [charDragArmed, setCharDragArmed] = useState<number | null>(null);
-  const [charDragFrom, setCharDragFrom] = useState<number | null>(null);
-  const [charDragOver, setCharDragOver] = useState<number | null>(null);
+  // Karakter / söz satırı sürükle-bırak: satır sadece ⋮⋮ tutulunca sürüklenir (yazı kutuları etkilenmesin)
+  type RowDragList = 'char' | 'quote';
+  const [rowDrag, setRowDrag] = useState<{ list: RowDragList; armed: number | null; from: number | null; over: number | null }>({
+    list: 'char',
+    armed: null,
+    from: null,
+    over: null,
+  });
 
-  const resetCharDrag = () => {
-    setCharDragArmed(null);
-    setCharDragFrom(null);
-    setCharDragOver(null);
+  const resetRowDrag = () => setRowDrag((p) => ({ ...p, armed: null, from: null, over: null }));
+
+  const moveInArray = <T,>(arr: T[], from: number, to: number): T[] => {
+    const updated = [...arr];
+    const [moved] = updated.splice(from, 1);
+    updated.splice(to, 0, moved);
+    return updated;
   };
 
-  const handleMoveCharacter = (from: number, to: number) => {
+  const handleMoveRow = (list: RowDragList, from: number, to: number) => {
     if (from === to) return;
-    setFormData((prev) => {
-      const updated = [...(prev.characters || [])];
-      const [moved] = updated.splice(from, 1);
-      updated.splice(to, 0, moved);
-      return { ...prev, characters: updated };
-    });
+    if (list === 'char') {
+      setFormData((prev) => ({ ...prev, characters: moveInArray(prev.characters || [], from, to) }));
+    } else {
+      setQuotes((prev) => moveInArray(prev, from, to));
+    }
   };
+
+  // Bir satıra verilecek sürükle-bırak özellikleri ve görünüm sınıfı
+  const rowDragProps = (list: RowDragList, index: number) => ({
+    draggable: rowDrag.list === list && rowDrag.armed === index,
+    onDragStart: (e: React.DragEvent) => {
+      setRowDrag((p) => ({ ...p, from: index }));
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', String(index));
+    },
+    onDragOver: (e: React.DragEvent) => {
+      if (rowDrag.list !== list || rowDrag.from === null) return;
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      if (rowDrag.over !== index) setRowDrag((p) => ({ ...p, over: index }));
+    },
+    onDrop: (e: React.DragEvent) => {
+      if (rowDrag.list !== list || rowDrag.from === null) return;
+      e.preventDefault();
+      handleMoveRow(list, rowDrag.from, index);
+      resetRowDrag();
+    },
+    onDragEnd: resetRowDrag,
+  });
+
+  const rowDragClass = (list: RowDragList, index: number) => {
+    if (rowDrag.list !== list || rowDrag.from === null) return '';
+    if (rowDrag.from === index) return 'opacity-40';
+    if (rowDrag.over !== index) return '';
+    return rowDrag.from < index ? 'shadow-[0_2px_0_0_#38bdf8]' : 'shadow-[0_-2px_0_0_#38bdf8]';
+  };
+
+  // Sürükleme tutamağı: kutunun sol kenar boşluğunda, yer kaplamaz; fare satırdayken görünür
+  const renderRowDragHandle = (list: RowDragList, index: number) => (
+    <div
+      onMouseDown={() => setRowDrag({ list, armed: index, from: null, over: null })}
+      onMouseUp={() => setRowDrag((p) => ({ ...p, armed: null }))}
+      title="Sürükleyerek sırala"
+      className="absolute left-0 top-0 bottom-0 w-2.5 flex items-center justify-center text-slate-500 hover:text-slate-200 opacity-0 group-hover:opacity-100 transition-opacity cursor-grab active:cursor-grabbing"
+    >
+      <GripVertical className="w-3 h-3 shrink-0" />
+    </div>
+  );
 
   const currentMediaStatus: MediaStatus =
     formData.mediaStatus ||
@@ -3744,46 +3792,14 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
                   return (
                   <div
                     key={index}
-                    draggable={charDragArmed === index}
-                    onDragStart={(e) => {
-                      setCharDragFrom(index);
-                      e.dataTransfer.effectAllowed = 'move';
-                      e.dataTransfer.setData('text/plain', String(index));
-                    }}
-                    onDragOver={(e) => {
-                      if (charDragFrom === null) return;
-                      e.preventDefault();
-                      e.dataTransfer.dropEffect = 'move';
-                      if (charDragOver !== index) setCharDragOver(index);
-                    }}
-                    onDrop={(e) => {
-                      if (charDragFrom === null) return;
-                      e.preventDefault();
-                      handleMoveCharacter(charDragFrom, index);
-                      resetCharDrag();
-                    }}
-                    onDragEnd={resetCharDrag}
-                    className={`flex flex-col sm:flex-row items-stretch sm:items-center gap-2 p-2.5 rounded-xl transition-all group ${
+                    {...rowDragProps('char', index)}
+                    className={`relative flex flex-col sm:flex-row items-stretch sm:items-center gap-2 p-2.5 rounded-xl transition-all group ${
                       isNewAi
                         ? 'bg-emerald-500/10 border border-emerald-500/40 ring-1 ring-emerald-500/20'
                         : 'bg-white/[0.03] border border-white/10 hover:border-white/20'
-                    } ${charDragFrom === index ? 'opacity-40' : ''} ${
-                      charDragOver === index && charDragFrom !== null && charDragFrom !== index
-                        ? charDragFrom < index
-                          ? 'shadow-[0_2px_0_0_#38bdf8]'
-                          : 'shadow-[0_-2px_0_0_#38bdf8]'
-                        : ''
-                    }`}
+                    } ${rowDragClass('char', index)}`}
                   >
-                    {/* Sürükleme tutamağı: fare satırın üstündeyken görünür */}
-                    <div
-                      onMouseDown={() => setCharDragArmed(index)}
-                      onMouseUp={() => setCharDragArmed(null)}
-                      title="Sürükleyerek sırala"
-                      className="shrink-0 self-center flex items-center justify-center w-3.5 -mx-1 text-slate-500 hover:text-slate-200 opacity-0 group-hover:opacity-100 transition-opacity cursor-grab active:cursor-grabbing"
-                    >
-                      <GripVertical className="w-3.5 h-3.5" />
-                    </div>
+                    {renderRowDragHandle('char', index)}
                     {/* Karakter Görseli Seçici / Önizleme / Panodan Yapıştırma */}
                     <div className="relative shrink-0 flex items-center justify-center">
                       <input
@@ -3907,8 +3923,10 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
                     {quotes.map((quoteItem, index) => (
                       <div
                         key={quoteItem.id || index}
-                        className="flex flex-col sm:flex-row items-stretch sm:items-start gap-2 p-2.5 rounded-xl bg-white/[0.03] border border-white/10 group hover:border-white/20 transition-all"
+                        {...rowDragProps('quote', index)}
+                        className={`relative flex flex-col sm:flex-row items-stretch sm:items-start gap-2 p-2.5 rounded-xl bg-white/[0.03] border border-white/10 group hover:border-white/20 transition-all ${rowDragClass('quote', index)}`}
                       >
+                        {renderRowDragHandle('quote', index)}
                         <div className="flex-1">
                           <textarea
                             rows={2}
