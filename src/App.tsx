@@ -1131,10 +1131,20 @@ export default function App() {
         return;
       }
 
+      // Ctrl/Alt/Cmd basılıyken tek tuş kısayolları çalışmaz (Ctrl+A, Ctrl+F vb. tarayıcıya kalsın)
+      const hasModifier = e.ctrlKey || e.metaKey || e.altKey;
+      // Açık pencere sayısı: bir tuş, sadece kendi açtığı pencere açıkken onu kapatabilsin
+      const openWindowCount = [
+        selectedItem, isAddModalOpen, isSettingsOpen, isStatisticsOpen, isRecentActivityOpen,
+        isAnkiHubOpen, isAnkiStudyOpen, isAiAssistantOpen, isShortcutsModalOpen, previewItem,
+        isBulkMoveOpen, isEditingFabMode, dialogOptions, spotlightBadge,
+      ].filter(Boolean).length;
+      const canToggleWindow = (isThisOpen: boolean) => !isAnyModalOpen || (isThisOpen && openWindowCount === 1);
+
       // 'B' or 'b' key -> Toggle Card Titles On / Off (Kart Başlıklarını Göster / Gizle)
       if (e.key === 'b' || e.key === 'B') {
-        if (e.ctrlKey || e.metaKey || e.altKey) return;
-        if (selectedItem || isAddModalOpen || isSettingsOpen || isStatisticsOpen || isRecentActivityOpen || isAiAssistantOpen || isBulkMoveOpen || isEditingFabMode) {
+        if (hasModifier) return;
+        if (isAnyModalOpen) {
           return;
         }
         e.preventDefault();
@@ -1166,6 +1176,8 @@ export default function App() {
 
       // '1' key -> Nerede olursan ol Medya Ana Sayfasına götürür
       if (e.key === '1') {
+        // Pencere açıkken çalışmaz: düzenleme/ekleme penceresi soru sormadan kapanıp veri kaybolmasın
+        if (hasModifier || isAnyModalOpen) return;
         e.preventDefault();
         closeAllPanels();
         setSelectedItem(null);
@@ -1182,6 +1194,8 @@ export default function App() {
 
       // '2' key -> Nerede olursan ol Oyun Ana Sayfasına götürür
       if (e.key === '2') {
+        // Pencere açıkken çalışmaz: düzenleme/ekleme penceresi soru sormadan kapanıp veri kaybolmasın
+        if (hasModifier || isAnyModalOpen) return;
         e.preventDefault();
         closeAllPanels();
         setSelectedItem(null);
@@ -1198,6 +1212,8 @@ export default function App() {
 
       // '3' key -> Nerede olursan ol Kitap Ana Sayfasına götürür
       if (e.key === '3') {
+        // Pencere açıkken çalışmaz: düzenleme/ekleme penceresi soru sormadan kapanıp veri kaybolmasın
+        if (hasModifier || isAnyModalOpen) return;
         e.preventDefault();
         closeAllPanels();
         setSelectedItem(null);
@@ -1214,6 +1230,8 @@ export default function App() {
 
       // '4' key -> İzlenen & Takip Listesini açar
       if (e.key === '4') {
+        // Pencere açıkken çalışmaz: düzenleme/ekleme penceresi soru sormadan kapanıp veri kaybolmasın
+        if (hasModifier || isAnyModalOpen) return;
         e.preventDefault();
         closeAllPanels();
         setSelectedItem(null);
@@ -1255,6 +1273,7 @@ export default function App() {
 
       // 'F' or 'f' key -> Toggle Fullscreen On/Off
       if (e.key === 'f' || e.key === 'F') {
+        if (hasModifier) return;
         e.preventDefault();
         if (!document.fullscreenElement) {
           document.documentElement.requestFullscreen().catch(() => {});
@@ -1266,6 +1285,8 @@ export default function App() {
 
       // 'Tab' key -> Toggle between Grid and Tier List view if tier list is enabled for active category and subgroup
       if (e.key === 'Tab') {
+        // Pencere açıkken Tab pencere içinde kutudan kutuya geçsin, arkadaki görünümü değiştirmesin
+        if (hasModifier || isAnyModalOpen) return;
         if (isTierListAvailable(activeCategory, activeSub)) {
           e.preventDefault();
           setViewMode((prev) => (prev === 'grid' ? 'tier' : 'grid'));
@@ -1275,6 +1296,7 @@ export default function App() {
 
       // 'Q' or 'q' key -> Toggle Statistics Modal (İstatistikler)
       if (e.key === 'q' || e.key === 'Q') {
+        if (hasModifier || !canToggleWindow(isStatisticsOpen)) return;
         e.preventDefault();
         closeAllPanels();
         setIsStatisticsOpen((prev) => !prev);
@@ -1283,6 +1305,7 @@ export default function App() {
 
       // 'E' or 'e' key -> Toggle Recent Activity Modal (Son Aktiviteler)
       if (e.key === 'e' || e.key === 'E') {
+        if (hasModifier || !canToggleWindow(isRecentActivityOpen)) return;
         e.preventDefault();
         closeAllPanels();
         setIsRecentActivityOpen((prev) => !prev);
@@ -1291,6 +1314,7 @@ export default function App() {
 
       // 'A' or 'a' key -> Toggle AI Assistant Modal (Lore AI Asistan)
       if (e.key === 'a' || e.key === 'A') {
+        if (hasModifier || !canToggleWindow(isAiAssistantOpen)) return;
         e.preventDefault();
         closeAllPanels();
         setIsAiAssistantOpen((prev) => !prev);
@@ -1316,7 +1340,7 @@ export default function App() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [closeAllPanels, selectedItem, isAddModalOpen, isSettingsOpen, isFilterOpen, isViewOpen, isSearchOpen, activeCategory, hoveredItem, previewItem, isAiAssistantOpen, isShortcutsModalOpen, isAnyModalOpen, isSelectionMode, isBacklogOnly]);
+  }, [closeAllPanels, selectedItem, isAddModalOpen, isSettingsOpen, isFilterOpen, isViewOpen, isSearchOpen, activeCategory, activeSub, hoveredItem, previewItem, isAiAssistantOpen, isShortcutsModalOpen, isAnyModalOpen, isSelectionMode, isBacklogOnly, isStatisticsOpen, isRecentActivityOpen, isAnkiHubOpen, isAnkiStudyOpen, isBulkMoveOpen, isEditingFabMode, dialogOptions, spotlightBadge]);
 
   // Directory Connection Handlers
   const handleConnectFolder = async () => {
