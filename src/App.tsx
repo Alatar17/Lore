@@ -913,6 +913,9 @@ export default function App() {
         const rawIdbData = await loadDataFromIndexedDB();
         const idbData = sanitize(rawIdbData);
         let currentBestData: AppData | null = null;
+        // Set when the folder copy wins below: the background hydration (built from the older
+        // browser copy) must then not put back characters/images onto the folder data.
+        let folderWon = false;
 
         if (idbData && idbData.categories && Array.isArray(idbData.items) && idbData.items.length > 0) {
           // 1. Instant first render: hydrate cardThumbnails rapidly from local image_cache
@@ -925,6 +928,7 @@ export default function App() {
           hydrateThumbnailsFromCache(fastItems)
             .then((fullItems) => {
               setAppData((prev) => {
+                if (folderWon) return prev;
                 const { updated, hasChanges } = mergeHydratedFields(prev.items, fullItems);
                 if (!hasChanges) return prev;
                 const fullData = { ...prev, items: updated };
@@ -946,6 +950,7 @@ export default function App() {
             hydrateThumbnailsFromCache(fastItems)
               .then((fullItems) => {
                 setAppData((prev) => {
+                  if (folderWon) return prev;
                   const { updated, hasChanges } = mergeHydratedFields(prev.items, fullItems);
                   if (!hasChanges) return prev;
                   const fullData = { ...prev, items: updated };
@@ -964,8 +969,17 @@ export default function App() {
           if (isAccessible) {
             const hasPerm = await verifyPermission(storedHandle, true);
             if (hasPerm) {
+              // If the folder JSON cannot be read (e.g. corrupt), do NOT connect the folder:
+              // otherwise auto-save would overwrite that file with the browser copy.
+              // The folder simply stays disconnected (yellow "+") and the file is left untouched.
+              let rawFolderData: AppData | null;
+              try {
+                rawFolderData = await readDataFromFolder(storedHandle);
+              } catch (readErr) {
+                logError('App.initStorage.folderUnreadable', readErr);
+                throw readErr;
+              }
               setDirHandle(storedHandle);
-              const rawFolderData = await readDataFromFolder(storedHandle);
               const folderData = sanitize(rawFolderData);
               if (folderData && folderData.categories && Array.isArray(folderData.items) && folderData.items.length > 0) {
                 const localUpdated = currentBestData?.lastUpdated ? new Date(currentBestData.lastUpdated).getTime() : 0;
@@ -973,6 +987,7 @@ export default function App() {
 
                 // If folder data is strictly newer, load it (even if it has fewer items: cards may have been deleted)
                 if (folderUpdated > localUpdated) {
+                  folderWon = true;
                   setAppData(folderData);
                   saveDataToLocalStorage(folderData);
                 } else if (currentBestData) {
@@ -1626,6 +1641,7 @@ export default function App() {
           const updated = {
             ...prev,
             items: prev.items.filter((it) => !selectedItemIds.has(it.id)),
+            lastUpdated: new Date().toISOString(),
           };
           saveDataToLocalStorage(updated);
           if (dirHandle) {
@@ -1656,6 +1672,7 @@ export default function App() {
           }
           return it;
         }),
+        lastUpdated: new Date().toISOString(),
       };
       saveDataToLocalStorage(updated);
       if (dirHandle) {
@@ -1681,6 +1698,7 @@ export default function App() {
         ...prev.categories,
         [tab]: newCategories,
       },
+      lastUpdated: new Date().toISOString(),
     }));
     // If the currently active category was deleted, safely clear activeCatId and activeSub
     if (tab === mainTab && activeCatId && activeCatId !== TRACKED_TAB_ID) {
@@ -1710,6 +1728,7 @@ export default function App() {
           ...prev.categories,
           [mainTab]: updatedCats,
         },
+        lastUpdated: new Date().toISOString(),
       };
     });
     markDataDirty();
@@ -1914,7 +1933,7 @@ export default function App() {
     setTierHistory(newHistory);
     setTierHistoryIndex(newIdx);
 
-    setAppData((prev) => ({ ...prev, items: newItems }));
+    setAppData((prev) => ({ ...prev, items: newItems, lastUpdated: new Date().toISOString() }));
   };
 
   // Batch placement update (e.g. for clearing a row or clearing all cards in a single undo step)
@@ -1946,7 +1965,7 @@ export default function App() {
     setTierHistory(newHistory);
     setTierHistoryIndex(newIdx);
 
-    setAppData((prev) => ({ ...prev, items: newItems }));
+    setAppData((prev) => ({ ...prev, items: newItems, lastUpdated: new Date().toISOString() }));
   };
 
   const canUndo = viewMode === 'tier' && tierHistoryIndex > 0;
@@ -1963,7 +1982,7 @@ export default function App() {
     if (targetItems) {
       tierHistoryIndexRef.current = newIdx;
       setTierHistoryIndex(newIdx);
-      setAppData((prev) => ({ ...prev, items: targetItems }));
+      setAppData((prev) => ({ ...prev, items: targetItems, lastUpdated: new Date().toISOString() }));
     }
   };
 
@@ -1975,7 +1994,7 @@ export default function App() {
     if (targetItems) {
       tierHistoryIndexRef.current = newIdx;
       setTierHistoryIndex(newIdx);
-      setAppData((prev) => ({ ...prev, items: targetItems }));
+      setAppData((prev) => ({ ...prev, items: targetItems, lastUpdated: new Date().toISOString() }));
     }
   };
 
