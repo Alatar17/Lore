@@ -443,7 +443,9 @@ export async function saveDataToIndexedDB(data: AppData): Promise<void> {
     store.put({ ...data, items: sanitizedItems }, APP_DATA_KEY);
     await new Promise((resolve, reject) => {
       tx.oncomplete = resolve;
-      tx.onerror = reject;
+      tx.onerror = () => reject(tx.error);
+      // Quota errors abort the transaction without onerror on the tx: reject so it is logged
+      tx.onabort = () => reject(tx.error || new Error('IndexedDB transaction aborted'));
     });
   } catch (err) {
     logError('fileSystem.saveDataToIndexedDB', err);
@@ -1554,7 +1556,8 @@ export function safeLocalStorageSet(key: string, value: string): void {
     // If quota was exceeded, clear obsolete legacy cache keys and retry once
     try {
       localStorage.removeItem('yapim_arsivim_app_data_v3');
-      localStorage.removeItem('yapim_arsivim_app_data_v4');
+      // Only drop the main light copy when it is the key being rewritten (never to make room for others)
+      if (key === 'yapim_arsivim_app_data_v4') localStorage.removeItem('yapim_arsivim_app_data_v4');
       localStorage.setItem(key, value);
     } catch (e) { logError('fileSystem.safeLocalStorageSet.retry', e); }
   }
@@ -1624,6 +1627,29 @@ export function loadDataFromLocalStorage(): AppData {
   return INITIAL_DATA;
 }
 
+// Light copy: character / Anki scene images that already have a file in the library folder are
+// stored as that file path instead of base64 (IndexedDB and the folder keep the real images).
+function stripLightCopyImages<T extends Partial<ArchiveItem>>(it: T): T {
+  let out = it;
+  if (Array.isArray(it.characters) && it.characters.some((c) => c?.image?.startsWith('data:') && c.fileName)) {
+    out = {
+      ...out,
+      characters: it.characters.map((c) =>
+        c?.image?.startsWith('data:') && c.fileName ? { ...c, image: c.fileName } : c
+      ),
+    };
+  }
+  if (Array.isArray(it.ankiExtraImages) && it.ankiExtraImages.some((e) => e?.url?.startsWith('data:') && e.fileName)) {
+    out = {
+      ...out,
+      ankiExtraImages: it.ankiExtraImages.map((e) =>
+        e?.url?.startsWith('data:') && e.fileName ? { ...e, url: e.fileName } : e
+      ),
+    };
+  }
+  return out;
+}
+
 export function saveDataToLocalStorage(data: AppData): void {
   // 1. Always persist full data with custom images in IndexedDB (Gigabytes quota)
   saveDataToIndexedDB(data);
@@ -1635,13 +1661,16 @@ export function saveDataToLocalStorage(data: AppData): void {
       if (restWithoutCardThumb.thumbnail && restWithoutCardThumb.thumbnail.startsWith('data:') && restWithoutCardThumb.thumbnail.length > 5000) {
         // Exclude large base64 thumbnails from localStorage since IndexedDB holds them intact
         const { thumbnail, ...rest } = restWithoutCardThumb;
-        return rest;
+        return stripLightCopyImages(rest);
       }
-      return restWithoutCardThumb;
+      return stripLightCopyImages(restWithoutCardThumb);
     });
 
-    const lightweightData: AppData = {
-      ...data,
+    // customBadges (base64 icons) are left out: they are stored separately in 'lore_custom_badges'
+    // and loadDataFromLocalStorage falls back to that key.
+    const { customBadges: _badges, ...dataWithoutBadges } = data;
+    const lightweightData = {
+      ...dataWithoutBadges,
       items: lightweightItems,
     };
 

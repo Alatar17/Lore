@@ -33,6 +33,7 @@ import {
   saveGitHubSyncConfig,
   getHasUnpushedChanges,
   setHasUnpushedChanges,
+  getDirtyGeneration,
   pushDataToGitHub,
   pullDataFromGitHub,
   checkGitHubUpdateAvailable,
@@ -288,10 +289,13 @@ export default function App() {
   );
   const [mobileSyncStatus, setMobileSyncStatus] = useState<MobileSyncStatus>('idle');
 
+  // True while a GitHub push runs: the sync button stays locked (spinning) until it ends
+  const pcPushInProgressRef = useRef(false);
+
   // Helper to flag unsynced local mutations on PC
   const markDataDirty = useCallback(() => {
     setHasUnpushedChanges(true);
-    setPcSyncStatus('unsynced');
+    if (!pcPushInProgressRef.current) setPcSyncStatus('unsynced');
   }, []);
 
   // Background check on startup to notify mobile users if newer commits/data exist in GitHub
@@ -326,15 +330,38 @@ export default function App() {
       return;
     }
 
+    if (pcPushInProgressRef.current) return;
+    pcPushInProgressRef.current = true;
+    const dirtyGenAtStart = getDirtyGeneration();
     setPcSyncStatus('syncing');
     try {
-      await pushDataToGitHub(cfg, appData, dirHandle);
+      const result = await pushDataToGitHub(cfg, appData, dirHandle);
       setGitHubConfig(getGitHubSyncConfig());
-      setPcSyncStatus('synced');
-      setHasUnpushedChanges(false);
-      setTimeout(() => {
-        setPcSyncStatus('idle');
-      }, 2500);
+      const failedImages = result.failedImagesCount || 0;
+      const editedDuringPush = getDirtyGeneration() !== dirtyGenAtStart;
+      if (failedImages > 0) {
+        // Data went out but some images did not: keep the button "not synced" so a retry is offered
+        setHasUnpushedChanges(true);
+        setPcSyncStatus('error');
+        setDialogOptions({
+          type: 'alert',
+          title: 'Bazı Resimler Yüklenemedi',
+          message: `Veriler gönderildi ama ${failedImages} resim GitHub'a yüklenemedi. Düğmeye tekrar basınca yalnızca eksik resimler yeniden denenir.`,
+        });
+        setTimeout(() => {
+          setPcSyncStatus('unsynced');
+        }, 5000);
+      } else if (editedDuringPush) {
+        // Changes made while pushing were not in this push
+        setHasUnpushedChanges(true);
+        setPcSyncStatus('unsynced');
+      } else {
+        setPcSyncStatus('synced');
+        setHasUnpushedChanges(false);
+        setTimeout(() => {
+          setPcSyncStatus((prev) => (prev === 'synced' ? 'idle' : prev));
+        }, 2500);
+      }
     } catch (err: any) {
       logError('App.handleTriggerPcSync', err);
       setPcSyncStatus('error');
@@ -346,6 +373,8 @@ export default function App() {
       setTimeout(() => {
         setPcSyncStatus('unsynced');
       }, 5000);
+    } finally {
+      pcPushInProgressRef.current = false;
     }
   };
 
@@ -941,11 +970,9 @@ export default function App() {
               if (folderData && folderData.categories && Array.isArray(folderData.items) && folderData.items.length > 0) {
                 const localUpdated = currentBestData?.lastUpdated ? new Date(currentBestData.lastUpdated).getTime() : 0;
                 const folderUpdated = folderData.lastUpdated ? new Date(folderData.lastUpdated).getTime() : 0;
-                const localItemCount = currentBestData?.items?.length || 0;
-                const folderItemCount = folderData.items?.length || 0;
 
-                // If folder data is strictly newer AND has at least as many items, load it
-                if (folderUpdated > localUpdated && folderItemCount >= localItemCount) {
+                // If folder data is strictly newer, load it (even if it has fewer items: cards may have been deleted)
+                if (folderUpdated > localUpdated) {
                   setAppData(folderData);
                   saveDataToLocalStorage(folderData);
                 } else if (currentBestData) {
@@ -1358,18 +1385,19 @@ export default function App() {
       if (handle) {
         const hasPerm = await verifyPermission(handle, true);
         if (hasPerm) {
-          setDirHandle(handle);
           setHighlightConnectFolder(false);
           setSettingsInitialTab(undefined);
           await storeDirectoryHandle(handle);
 
-          // Try to read existing data or write current data
+          // Read the folder BEFORE setting dirHandle: otherwise auto-save writes the (possibly empty)
+          // browser data over the folder JSON while its images are still being read.
           const existingData = await readDataFromFolder(handle);
           if (existingData && existingData.categories && existingData.items) {
             setAppData(existingData);
           } else {
             await writeDataToFolder(handle, appData);
           }
+          setDirHandle(handle);
         }
       }
     } catch (err: any) {

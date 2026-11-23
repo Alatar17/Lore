@@ -68,7 +68,14 @@ export function getHasUnpushedChanges(): boolean {
   }
 }
 
+// Increases every time data is marked dirty: lets the caller detect edits made while a push was running
+let dirtyGeneration = 0;
+export function getDirtyGeneration(): number {
+  return dirtyGeneration;
+}
+
 export function setHasUnpushedChanges(dirty: boolean): void {
+  if (dirty) dirtyGeneration++;
   try {
     if (dirty) {
       localStorage.setItem(GITHUB_DIRTY_STORAGE_KEY, 'true');
@@ -357,6 +364,41 @@ async function computeGitBlobShaFromBase64(base64: string): Promise<string | nul
   }
 }
 
+// Wait before retrying a GitHub PUT: honours Retry-After / rate-limit reset (max 60 s), else 2 s, 5 s.
+async function waitBeforeGitHubRetry(res: Response | null, attempt: number): Promise<void> {
+  let ms = attempt === 0 ? 2000 : 5000;
+  if (res) {
+    const retryAfter = Number(res.headers.get('retry-after'));
+    const reset = Number(res.headers.get('x-ratelimit-reset'));
+    if (retryAfter > 0) ms = retryAfter * 1000;
+    else if (res.headers.get('x-ratelimit-remaining') === '0' && reset > 0) ms = reset * 1000 - Date.now() + 1000;
+  }
+  await new Promise((r) => setTimeout(r, Math.min(Math.max(ms, 1000), 60000)));
+}
+
+// Current sha of a file on GitHub (undefined if it does not exist): used after 409/422 "sha mismatch"
+async function fetchGitHubFileSha(
+  owner: string,
+  repo: string,
+  path: string,
+  branch: string,
+  token: string
+): Promise<string | undefined> {
+  try {
+    const res = await fetch(
+      `https://api.github.com/repos/${owner}/${repo}/contents/${path}?ref=${encodeURIComponent(branch)}`,
+      { headers: { Authorization: `Bearer ${token}`, Accept: 'application/vnd.github.v3+json' }, cache: 'no-store' }
+    );
+    if (!res.ok) return undefined;
+    const json = await res.json();
+    return typeof json?.sha === 'string' ? json.sha : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+const RETRYABLE_PUT_STATUSES = [403, 409, 422, 429];
+
 export async function pushDataToGitHub(
   config: GitHubSyncConfig,
   appData: AppData,
@@ -367,6 +409,7 @@ export async function pushDataToGitHub(
   commitSha?: string;
   syncedAt?: string;
   uploadedImagesCount?: number;
+  failedImagesCount?: number;
 }> {
   const { owner, repo, branch, filePath, token } = config;
 
@@ -514,6 +557,7 @@ export async function pushDataToGitHub(
 
   // 3. Incrementally upload ONLY missing images to GitHub subdirectories
   let uploadedImagesCount = 0;
+  let failedImagesCount = 0;
   try {
     let imagesDir: FileSystemDirectoryHandle | null = null;
     if (dirHandle) {
@@ -647,9 +691,12 @@ export async function pushDataToGitHub(
               putPayload.sha = existingSha;
             }
 
-            // Retry on 403 (rate limit) or 409 (branch moved), same as small posters below
+            // Retry on 403/429 (rate limit) and 409/422 (sha out of date, re-read before retrying)
+            let uploadedThis = false;
             for (let attempt = 0; attempt < 3; attempt++) {
-              const uploadRes = await fetch(
+              let uploadRes: Response;
+              try {
+                uploadRes = await fetch(
                 `https://api.github.com/repos/${owner}/${repo}/contents/images/${imgName}`,
                 {
                   method: 'PUT',
@@ -661,12 +708,18 @@ export async function pushDataToGitHub(
                   body: JSON.stringify(putPayload),
                 }
               );
+              } catch (netErr) {
+                logError('githubSync.pushDataToGitHub.uploadImage', netErr);
+                if (attempt < 2) await waitBeforeGitHubRetry(null, attempt);
+                continue;
+              }
               if (uploadRes.ok) {
                 uploadedImagesCount++;
                 existingGhFiles.set(imgName, 'uploaded');
+                uploadedThis = true;
                 break;
               }
-              if (uploadRes.status !== 403 && uploadRes.status !== 409) {
+              if (!RETRYABLE_PUT_STATUSES.includes(uploadRes.status)) {
                 logError('githubSync.pushDataToGitHub.uploadImage', new Error(`${imgName}: HTTP ${uploadRes.status}`));
                 break;
               }
@@ -674,8 +727,14 @@ export async function pushDataToGitHub(
                 logError('githubSync.pushDataToGitHub.uploadImage', new Error(`${imgName}: HTTP ${uploadRes.status} after 3 tries`));
                 break;
               }
-              await new Promise((r) => setTimeout(r, attempt === 0 ? 500 : 1500));
+              if (uploadRes.status === 409 || uploadRes.status === 422) {
+                const freshSha = await fetchGitHubFileSha(owner, repo, `images/${imgName}`, cleanBranch, token);
+                if (freshSha) putPayload.sha = freshSha;
+                else delete putPayload.sha;
+              }
+              await waitBeforeGitHubRetry(uploadRes, attempt);
             }
+            if (!uploadedThis) failedImagesCount++;
           }
         } catch (err) {
           logError('githubSync.pushDataToGitHub.uploadImage', err);
@@ -753,7 +812,7 @@ export async function pushDataToGitHub(
           } catch {}
 
           // 5. Upload to GitHub with retry on 403 or 409
-          const putPayload = {
+          const putPayload: Record<string, any> = {
             message: `Küçük Afiş: ${smallKey} [skip ci]`,
             content: smallBase64,
             branch: cleanBranch,
@@ -785,23 +844,33 @@ export async function pushDataToGitHub(
                 uploaded = true;
                 smallUploadSuccess++;
                 existingGhFiles.set(smallKey, 'uploaded');
-              } else if (uploadRes.status === 403 || uploadRes.status === 409) {
+              } else if (RETRYABLE_PUT_STATUSES.includes(uploadRes.status)) {
                 retries++;
-                const delayMs = retries === 1 ? 500 : retries === 2 ? 1500 : 3000;
-                console.warn(`[GitHub Push] Retrying small poster ${smallKey} (${uploadRes.status}) in ${delayMs}ms...`);
-                await new Promise((r) => setTimeout(r, delayMs));
+                console.warn(`[GitHub Push] Retrying small poster ${smallKey} (${uploadRes.status})...`);
+                if (retries < maxRetries) {
+                  if (uploadRes.status === 409 || uploadRes.status === 422) {
+                    const freshSha = await fetchGitHubFileSha(owner, repo, `images/${smallKey}`, cleanBranch, token);
+                    if (freshSha) putPayload.sha = freshSha;
+                    else delete putPayload.sha;
+                  }
+                  await waitBeforeGitHubRetry(uploadRes, retries - 1);
+                } else {
+                  logError('githubSync.pushSmallPoster', new Error(`${smallKey}: HTTP ${uploadRes.status} after ${maxRetries} tries`));
+                }
               } else {
+                logError('githubSync.pushSmallPoster', new Error(`${smallKey}: HTTP ${uploadRes.status}`));
                 break; // Non-retryable error, stop trying this small poster
               }
             } catch (e) {
               logError('githubSync.pushSmallPoster.retry', e);
               retries++;
-              await new Promise((r) => setTimeout(r, 1000));
+              if (retries < maxRetries) await waitBeforeGitHubRetry(null, retries - 1);
             }
           }
 
           if (!uploaded) {
             smallUploadFailed++;
+            failedImagesCount++;
           }
         } catch (smallErr) {
           logError('githubSync.pushDataToGitHub.smallPoster', smallErr);
@@ -895,7 +964,7 @@ export async function pushDataToGitHub(
     lastSyncedCommitSha: commitSha,
   };
   saveGitHubSyncConfig(updatedConfig);
-  setHasUnpushedChanges(false);
+  // The dirty flag is cleared by the caller (App), which knows about failed images and edits made during the push
 
   return {
     success: true,
@@ -906,6 +975,7 @@ export async function pushDataToGitHub(
     commitSha,
     syncedAt: nowIso,
     uploadedImagesCount,
+    failedImagesCount,
   };
 }
 
