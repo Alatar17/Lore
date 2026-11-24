@@ -2850,10 +2850,10 @@ export async function generateFullBackupInFolder(
   // 1. Ensure 'Backup' parent folder exists in the selected directory
   const backupParentDir = await dirHandle.getDirectoryHandle('Backup', { create: true });
 
-  // 2. Direct single ZIP named Lore_TumArsiv_YYYY-MM-DD_HH-mm.zip inside Backup/
+  // 2. Direct single ZIP named Lore_TumArsiv_YYYY-MM-DD_HH-mm-ss.zip inside Backup/ (seconds: two backups in one minute must not overwrite each other)
   const now = new Date();
   const pad = (n: number) => String(n).padStart(2, '0');
-  const dateStr = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}_${pad(now.getHours())}-${pad(now.getMinutes())}`;
+  const dateStr = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}_${pad(now.getHours())}-${pad(now.getMinutes())}-${pad(now.getSeconds())}`;
 
   // 3. Build unified single Master ZIP
   const zipBlob = await buildUnifiedZipBlob(data);
@@ -2875,15 +2875,16 @@ const TR_MONTHS = [
 
 function formatBackupDateLabel(dateFolderName: string): { label: string; timestamp: number } {
   // Try to parse YYYY-MM-DD_HH-mm or similar timestamps from name
-  const match = dateFolderName.match(/(\d{4})[-_](\d{2})[-_](\d{2})(?:[-_](\d{2})[-_](\d{2}))?/);
+  const match = dateFolderName.match(/(\d{4})[-_](\d{2})[-_](\d{2})(?:[-_](\d{2})[-_](\d{2})(?:[-_](\d{2}))?)?/);
   if (match) {
     const year = parseInt(match[1], 10);
     const month = parseInt(match[2], 10) - 1;
     const day = parseInt(match[3], 10);
     const hour = match[4] ? parseInt(match[4], 10) : 0;
     const min = match[5] ? parseInt(match[5], 10) : 0;
+    const sec = match[6] ? parseInt(match[6], 10) : 0;
 
-    const d = new Date(year, month, day, hour, min);
+    const d = new Date(year, month, day, hour, min, sec);
     const monthName = TR_MONTHS[month] || String(month + 1);
     const timeStr = `${String(hour).padStart(2, '0')}:${String(min).padStart(2, '0')}`;
     return {

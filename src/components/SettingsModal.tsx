@@ -1326,7 +1326,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     }
   };
 
-  // Full Backup to connected folder (Backup/Lore_TumArsiv_YYYY-MM-DD_HH-mm.zip)
+  // Full Backup to connected folder (Backup/Lore_TumArsiv_YYYY-MM-DD_HH-mm-ss.zip)
   const handleTakeFullBackup = async () => {
     if (!dirHandle) return;
     setTakingFullBackup(true);
